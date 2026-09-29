@@ -39,62 +39,51 @@ class VaccinationForm extends TPage
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
-        $this->encounter_id = (isset($param['encounter_id']) && $param['encounter_id'] !== '')
-            ? (int) $param['encounter_id']
-            : null;
-        $this->patient_id = (isset($param['patient_id']) && $param['patient_id'] !== '')
-            ? (int) $param['patient_id']
-            : null;
+        $this->encounter_id = self::paramInt('encounter_id', $param);
+        $this->patient_id = self::paramInt('patient_id', $param);
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_Vaccination');
         $this->form->setFormTitle(_t('Apply vaccine'));
         $this->form->enableClientValidation();
 
-        // create the form fields
-        $encounter_id = new TEntry('encounter_id');
-        $patient_id = new TEntry('patient_id');
-        $vaccine_catalog_item_id = new TEntry('vaccine_catalog_item_id');
+        // contexto (vem da URL, sem edição)
+        $encounter_id = new THidden('encounter_id');
+        $patient_id = new THidden('patient_id');
+        $encounter_id->setValue($this->encounter_id);
+        $patient_id->setValue($this->patient_id);
+
+        $vaccine_catalog_item_id = new TCombo('vaccine_catalog_item_id');
+        $vaccine_catalog_item_id->addItems($this->loadCatalogOptions());
         $lot = new TEntry('lot');
         $expiry_date = new TDate('expiry_date');
         $dose_number = new TEntry('dose_number');
-        $professional_system_user_id = new TEntry('professional_system_user_id');
 
-        $encounter_id->setValue($this->encounter_id);
-        $patient_id->setValue($this->patient_id);
-        $encounter_id->setEditable(FALSE);
-        $patient_id->setEditable(FALSE);
-        $vaccine_catalog_item_id->setNumericMask(0, '', '', false, false, false);
+        // system_user não tem tenant_id: combo sem filtro de tenant (mesma
+        // exceção documentada em PrescriptionForm)
+        $professional_system_user_id = new TDBCombo('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
+        $professional_system_user_id->setValue(TSession::getValue('userid'));
+
+        // PATTERN0: a máscara numérica com 0 decimais grava pattern \d{1,0} (inválido)
         $dose_number->setNumericMask(0, '', '');
-        $professional_system_user_id->setNumericMask(0, '', '', false, false, false);
+        $dose_number->setProperty('pattern', '[0-9]*');
         $expiry_date->setMask('dd/mm/yyyy');
         $expiry_date->setDatabaseMask('yyyy-mm-dd');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Encounter'))] );
-        $this->form->addFields( [$encounter_id] );
-        $this->form->addFields( [new TLabel(_t('Patient'))] );
-        $this->form->addFields( [$patient_id] );
-        $this->form->addFields( [new TLabel(_t('Vaccine (catalog item id)'))] );
-        $this->form->addFields( [$vaccine_catalog_item_id] );
-        $this->form->addFields( [new TLabel(_t('Lot'))] );
-        $this->form->addFields( [$lot] );
-        $this->form->addFields( [new TLabel(_t('Expiry date'))] );
-        $this->form->addFields( [$expiry_date] );
-        $this->form->addFields( [new TLabel(_t('Dose number'))] );
-        $this->form->addFields( [$dose_number] );
-        $this->form->addFields( [new TLabel(_t('Professional'))] );
-        $this->form->addFields( [$professional_system_user_id] );
+        $hiddenRow = $this->form->addFields([$encounter_id, $patient_id]);
+        $hiddenRow->style = 'display: none';
 
-        $encounter_id->setSize('30%');
-        $patient_id->setSize('30%');
-        $vaccine_catalog_item_id->setSize('100%');
-        $lot->setSize('100%');
-        $expiry_date->setSize('50%');
-        $dose_number->setSize('30%');
-        $professional_system_user_id->setSize('50%');
+        $this->form->addFields(
+            [new TLabel(_t('Vaccine'))], [$vaccine_catalog_item_id],
+            [new TLabel(_t('Professional'))], [$professional_system_user_id]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Lot'))], [$lot],
+            [new TLabel(_t('Expiry date'))], [$expiry_date]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Dose number'))], [$dose_number]
+        );
 
         $vaccine_catalog_item_id->addValidation( _t('Vaccine'), new TRequiredValidator );
         $dose_number->addValidation( _t('Dose number'), new TRequiredValidator );
@@ -102,36 +91,108 @@ class VaccinationForm extends TPage
 
         // create the form actions
         $btn = $this->form->addAction(_t('Apply'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit'), [
+            'encounter_id' => $this->encounter_id,
+            'patient_id'   => $this->patient_id,
+        ]), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        CvForm::decorate($this->form, 2);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
 
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Apply vaccine'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $headerActions = [];
+        if ($this->encounter_id !== null)
+        {
+            $headerActions[] = [
+                'icon' => 'fa:arrow-left',
+                'href' => self::returnUrl($this->encounter_id, $this->patient_id),
+            ];
+        }
+        $container->add(CvPage::header(_t('Apply vaccine'), null, $headerActions));
 
-        $container->add($this->form);
+        if ($this->encounter_id === null || $this->patient_id === null)
+        {
+            $notice = new TElement('div');
+            $notice->class = 'alert alert-warning';
+            $notice->role = 'status';
+            $notice->add(new TImage('fa:info-circle'));
+            $notice->add(' ' . CvFormat::e(_t('Open from the encounter')));
+            $container->add($notice);
+        }
+        else
+        {
+            $container->add($this->form);
+        }
 
         parent::add($container);
     }
 
     /**
-     * on close
+     * Pós-salvar/voltar: o atendimento de contexto; sem ele, a carteira do
+     * paciente.
      */
-    public static function onClose($param)
+    private static function returnUrl(?int $encounterId, ?int $patientId): string
     {
-        TScript::create("Template.closeRightPanel()");
+        if ($encounterId !== null && $encounterId > 0)
+        {
+            return 'index.php?class=EncounterView&encounter_id=' . $encounterId;
+        }
+
+        return 'index.php?class=VaccinationCardView' . ($patientId ? '&patient_id=' . $patientId : '');
+    }
+
+    private static function paramInt(string $name, $param): ?int
+    {
+        if (isset($_GET[$name]) && $_GET[$name] !== '')
+        {
+            return (int) $_GET[$name];
+        }
+
+        if (is_array($param) && isset($param[$name]) && $param[$name] !== '')
+        {
+            return (int) $param[$name];
+        }
+
+        return null;
+    }
+
+    /**
+     * Opções do combo de vacinas a partir de VaccineCatalogService::listActive().
+     * Falha de banco vira TMessage e deixa o combo vazio (nunca fatal).
+     */
+    private function loadCatalogOptions(): array
+    {
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $catalog = new \CentralVet\Application\VaccineCatalogService(
+                new \CentralVet\Persistence\VaccineCatalogRepository($context, TTransaction::get()),
+                $context
+            );
+
+            $options = [];
+            foreach ($catalog->listActive() as $item)
+            {
+                $options[$item->id()] = $item->name() . ' (' . _t('Stock') . ': ' . $item->stockQuantity() . ')';
+            }
+
+            TTransaction::close();
+
+            return $options;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('warning', $e->getMessage());
+
+            return [];
+        }
     }
 
     /**
@@ -145,6 +206,7 @@ class VaccinationForm extends TPage
         $this->form->setData((object) [
             'encounter_id' => $this->encounter_id,
             'patient_id'   => $this->patient_id,
+            'professional_system_user_id' => TSession::getValue('userid'),
         ]);
     }
 
@@ -179,8 +241,10 @@ class VaccinationForm extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Vaccine applied successfully'));
-            TScript::create("Template.closeRightPanel(); VaccinationCardView.onReload();");
+            TToast::show('success', _t('Vaccine applied successfully'));
+            $encounterId = (isset($data->encounter_id) && $data->encounter_id !== '') ? (int) $data->encounter_id : null;
+            $patientId = (isset($data->patient_id) && $data->patient_id !== '') ? (int) $data->patient_id : null;
+            TScript::create("__adianti_goto_page('" . self::returnUrl($encounterId, $patientId) . "')");
 
             return $vaccination;
         }

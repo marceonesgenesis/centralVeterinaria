@@ -45,19 +45,14 @@ class ExamResultForm extends TPage
         parent::__construct();
 
         $requestId = self::paramInt('exam_request_id', $param);
+        $encounterId = self::paramInt('encounter_id', $param);
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Exam result'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $container->add(CvPage::header(_t('Exam result'), null, [[
+            'icon' => 'fa:arrow-left',
+            'href' => self::returnUrl($encounterId),
+        ]]));
 
         if ($requestId === null)
         {
@@ -70,35 +65,52 @@ class ExamResultForm extends TPage
         $this->form->setFormTitle(_t('Exam result') . ' #' . $requestId);
         $this->form->enableClientValidation();
 
+        // contexto (vem da URL, sem edição)
         $exam_request_id = new THidden('exam_request_id');
         $exam_request_id->setValue($requestId);
-        $this->form->add($exam_request_id);
+        $encounter_id = new THidden('encounter_id');
+        $encounter_id->setValue($encounterId);
 
         $structured_result = new TText('structured_result');
         $structured_result->setSize('100%', 140);
 
         $file = new TFile('filename');
-        $file->setSize('100%');
         $file->setAllowedExtensions(['pdf', 'jpg', 'jpeg', 'png', 'txt', 'csv']);
 
         $pending_review = new TCombo('pending_review');
         $pending_review->addItems([1 => _t('Yes'), 0 => _t('No')]);
         $pending_review->setValue(1);
-        $pending_review->setSize('100%');
+
+        $hiddenRow = $this->form->addFields([$exam_request_id, $encounter_id]);
+        $hiddenRow->style = 'display: none';
 
         $this->form->addFields([new TLabel(_t('Structured result'))]);
         $this->form->addFields([$structured_result]);
-        $this->form->addFields([new TLabel(_t('Attachment'))]);
-        $this->form->addFields([$file]);
-        $this->form->addFields([new TLabel(_t('Pending review'))]);
-        $this->form->addFields([$pending_review]);
+        $this->form->addFields(
+            [new TLabel(_t('Attachment'))], [$file],
+            [new TLabel(_t('Pending review'))], [$pending_review]
+        );
 
         $btn = $this->form->addAction(_t('Record result'), new TAction([$this, 'onSave']), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
+
+        CvForm::decorate($this->form, 2);
 
         $container->add($this->form);
 
         parent::add($container);
+    }
+
+    /**
+     * Destino de "voltar" e do pós-salvar: o atendimento de contexto quando
+     * a URL traz encounter_id, senão a lista de resultados pendentes (de
+     * onde esta tela é aberta).
+     */
+    private static function returnUrl(?int $encounterId): string
+    {
+        return ($encounterId !== null && $encounterId > 0)
+            ? 'index.php?class=EncounterView&encounter_id=' . $encounterId
+            : 'index.php?class=PendingExamResultList';
     }
 
     private function emptyStatePanel(): TPanelGroup
@@ -190,7 +202,9 @@ class ExamResultForm extends TPage
                 @unlink($sourcePath);
             }
 
-            new TMessage('info', _t('Exam result recorded successfully') . ' (#' . $result->id() . ')');
+            TToast::show('success', _t('Exam result recorded successfully') . ' (#' . $result->id() . ')');
+            $encounterContext = isset($param['encounter_id']) && $param['encounter_id'] !== '' ? (int) $param['encounter_id'] : null;
+            TScript::create("__adianti_goto_page('" . self::returnUrl($encounterContext) . "')");
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
