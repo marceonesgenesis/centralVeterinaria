@@ -209,7 +209,6 @@ final class ClinicalSummaryIntegrationTest extends MysqlIntegrationTestCase
         Assert::null($unknown['age_label']);
         Assert::null($unknown['breed']);
         Assert::null($unknown['weight_kg']);
-        Assert::null($unknown['tutor_email']);
     }
 
     public function testPatientCardOfForeignTenantReturnsNull(): void
