@@ -193,7 +193,8 @@ class StockBatchForm extends TPage
                 $data->lot ?: null,
                 $data->expiry_date ?: null,
                 (int) $data->quantity,
-                $tenant_context->userId()
+                $tenant_context->userId(),
+                __CLASS__ . '::' . __FUNCTION__
             );
 
             TTransaction::close();

@@ -61,6 +61,7 @@ final class StockService
         ?string $expiryDate,
         int $quantity,
         int $professionalSystemUserId,
+        string $action,
     ): StockBatch {
         $this->context->assertTenant($tenantId);
 
@@ -70,7 +71,7 @@ final class StockService
         // denial throws AuthorizationDenied with nothing persisted.
         $this->authorization->decide(new AuthorizationRequest(
             context: $this->context,
-            action: 'StockService::receiveBatch',
+            action: $action,
             requiresUnitScope: true,
             resourceUnitId: $systemUnitId,
             entityType: 'stock_batch',
