@@ -64,6 +64,10 @@
     "pt": "Ativo"
   },
   {
+    "en": "Add another medication",
+    "pt": "Adicionar outro medicamento"
+  },
+  {
     "en": "Add at least one item before saving",
     "pt": "Adicione pelo menos um item antes de salvar"
   },
@@ -98,6 +102,10 @@
   {
     "en": "Add wiki link",
     "pt": "Adicionar link da wiki"
+  },
+  {
+    "en": "Additional instructions",
+    "pt": "Orientações adicionais"
   },
   {
     "en": "Address",
@@ -150,6 +158,10 @@
   {
     "en": "An user with this login is already registered",
     "pt": "Já existe um usuário cadastrado com este login"
+  },
+  {
+    "en": "Anamnesis",
+    "pt": "Anamnese"
   },
   {
     "en": "Anamnesis (voice dictation available)",
@@ -260,6 +272,10 @@
     "pt": "Dinheiro"
   },
   {
+    "en": "Cash flow",
+    "pt": "Fluxo de caixa"
+  },
+  {
     "en": "Cash session",
     "pt": "Sessão de caixa"
   },
@@ -286,6 +302,10 @@
   {
     "en": "Cat",
     "pt": "Gato"
+  },
+  {
+    "en": "Categories",
+    "pt": "Categorias"
   },
   {
     "en": "Category",
@@ -370,6 +390,10 @@
   {
     "en": "Column",
     "pt": "Coluna"
+  },
+  {
+    "en": "Coming soon",
+    "pt": "Em breve"
   },
   {
     "en": "Comment",
@@ -612,6 +636,10 @@
     "pt": "Atendimento não encontrado"
   },
   {
+    "en": "Encounter total",
+    "pt": "Total do atendimento"
+  },
+  {
     "en": "End date",
     "pt": "Data final"
   },
@@ -696,6 +724,10 @@
     "pt": "Despesa"
   },
   {
+    "en": "Expenses",
+    "pt": "Despesas"
+  },
+  {
     "en": "Expiry date",
     "pt": "Data de validade"
   },
@@ -746,6 +778,10 @@
   {
     "en": "Find",
     "pt": "Buscar"
+  },
+  {
+    "en": "Finish",
+    "pt": "Finalizar"
   },
   {
     "en": "Finish encounter",
@@ -826,6 +862,10 @@
   {
     "en": "Heart rate (bpm)",
     "pt": "Frequência cardíaca (bpm)"
+  },
+  {
+    "en": "Help",
+    "pt": "Ajuda"
   },
   {
     "en": "Hour",
@@ -964,12 +1004,20 @@
     "pt": "Itens"
   },
   {
+    "en": "Items sold",
+    "pt": "Itens vendidos"
+  },
+  {
     "en": "Label",
     "pt": "Rótulo"
   },
   {
     "en": "Language",
     "pt": "Idioma"
+  },
+  {
+    "en": "Last encounter",
+    "pt": "Último atendimento"
   },
   {
     "en": "Last modification",
@@ -994,6 +1042,14 @@
   {
     "en": "Lot",
     "pt": "Lote"
+  },
+  {
+    "en": "Low stock",
+    "pt": "Estoque baixo"
+  },
+  {
+    "en": "Low stock products",
+    "pt": "Produtos com estoque baixo"
   },
   {
     "en": "Mail from",
@@ -1072,8 +1128,16 @@
     "pt": "Mais"
   },
   {
+    "en": "More actions",
+    "pt": "Mais ações"
+  },
+  {
     "en": "Mount point",
     "pt": "Ponto de montagem"
+  },
+  {
+    "en": "Movements",
+    "pt": "Movimentações"
   },
   {
     "en": "Mucous membranes",
@@ -1118,6 +1182,10 @@
   {
     "en": "New payable",
     "pt": "Nova conta a pagar"
+  },
+  {
+    "en": "New prescription",
+    "pt": "Nova prescrição"
   },
   {
     "en": "New procedure catalog entry",
@@ -1192,6 +1260,10 @@
     "pt": "Nenhum e-mail de suporte configurado"
   },
   {
+    "en": "Normal",
+    "pt": "Normal"
+  },
+  {
     "en": "not found",
     "pt": "não encontrado"
   },
@@ -1240,8 +1312,16 @@
     "pt": "Aberto"
   },
   {
+    "en": "Open cash balance",
+    "pt": "Saldo do caixa aberto"
+  },
+  {
     "en": "Open cash session",
     "pt": "Abrir sessão de caixa"
+  },
+  {
+    "en": "Open from the encounter",
+    "pt": "Abra pelo atendimento"
   },
   {
     "en": "Open receivables",
@@ -1270,6 +1350,18 @@
   {
     "en": "Other",
     "pt": "Outro"
+  },
+  {
+    "en": "Out of stock",
+    "pt": "Sem estoque"
+  },
+  {
+    "en": "Overview",
+    "pt": "Visão geral"
+  },
+  {
+    "en": "Packages",
+    "pt": "Pacotes"
   },
   {
     "en": "Page",
@@ -1404,6 +1496,10 @@
     "pt": "Prescrição"
   },
   {
+    "en": "Prescription history",
+    "pt": "Histórico de prescrições"
+  },
+  {
     "en": "Prescription saved successfully",
     "pt": "Prescrição salva com sucesso"
   },
@@ -1412,12 +1508,20 @@
     "pt": "Prescrições"
   },
   {
+    "en": "Preview",
+    "pt": "Pré-visualizar"
+  },
+  {
     "en": "Previous",
     "pt": "Anterior"
   },
   {
     "en": "Price",
     "pt": "Preço"
+  },
+  {
+    "en": "Pricing",
+    "pt": "Preçários"
   },
   {
     "en": "Procedure",
@@ -1470,6 +1574,10 @@
   {
     "en": "Products",
     "pt": "Produtos"
+  },
+  {
+    "en": "Products in stock",
+    "pt": "Produtos em estoque"
   },
   {
     "en": "Professional",
@@ -1564,12 +1672,24 @@
     "pt": "Total a receber"
   },
   {
+    "en": "Receivables",
+    "pt": "Contas a receber"
+  },
+  {
     "en": "Receive",
     "pt": "Receber"
   },
   {
     "en": "Receive payment",
     "pt": "Receber pagamento"
+  },
+  {
+    "en": "Recent entries",
+    "pt": "Lançamentos recentes"
+  },
+  {
+    "en": "Recent sales",
+    "pt": "Vendas recentes"
   },
   {
     "en": "Reception",
@@ -1632,6 +1752,10 @@
     "pt": "Renovação de senha"
   },
   {
+    "en": "Reports",
+    "pt": "Relatórios"
+  },
+  {
     "en": "Request",
     "pt": "Solicitação"
   },
@@ -1684,6 +1808,18 @@
     "pt": "Resultados"
   },
   {
+    "en": "Revenue by category",
+    "pt": "Receitas por categoria"
+  },
+  {
+    "en": "Revenue x Expenses",
+    "pt": "Receitas x Despesas"
+  },
+  {
+    "en": "Revenues",
+    "pt": "Receitas"
+  },
+  {
     "en": "Role",
     "pt": "Papel"
   },
@@ -1710,6 +1846,10 @@
   {
     "en": "Sales",
     "pt": "Vendas"
+  },
+  {
+    "en": "Sales this month",
+    "pt": "Vendas do mês"
   },
   {
     "en": "Sample data inserted successfully",
@@ -1792,8 +1932,16 @@
     "pt": "Selecionar um paciente"
   },
   {
+    "en": "Select all",
+    "pt": "Selecionar todos"
+  },
+  {
     "en": "Select all users who will be part of this group",
     "pt": "Selecione todos os usuários que farão parte deste grupo"
+  },
+  {
+    "en": "Select row",
+    "pt": "Selecionar linha"
   },
   {
     "en": "Selected tutor was not found for your account",
@@ -1848,6 +1996,10 @@
     "pt": "Adicionar aos favoritos"
   },
   {
+    "en": "Settings",
+    "pt": "Configurações"
+  },
+  {
     "en": "Sex",
     "pt": "Sexo"
   },
@@ -1858,6 +2010,10 @@
   {
     "en": "Shared with me",
     "pt": "Compartilhado comigo"
+  },
+  {
+    "en": "Showing %1–%2 of %3",
+    "pt": "Mostrando %1–%2 de %3"
   },
   {
     "en": "Slower methods",
@@ -1972,6 +2128,10 @@
     "pt": "Domingo"
   },
   {
+    "en": "Suppliers",
+    "pt": "Fornecedores"
+  },
+  {
     "en": "Support mail",
     "pt": "E-mail de suporte"
   },
@@ -1990,6 +2150,10 @@
   {
     "en": "Temperature (C)",
     "pt": "Temperatura (C)"
+  },
+  {
+    "en": "Templates",
+    "pt": "Modelos"
   },
   {
     "en": "Terms of use",
@@ -2230,6 +2394,14 @@
   {
     "en": "View card",
     "pt": "Ver carteira"
+  },
+  {
+    "en": "Vital signs",
+    "pt": "Sinais vitais"
+  },
+  {
+    "en": "vs. previous month",
+    "pt": "vs. mês anterior"
   },
   {
     "en": "Waiting",
