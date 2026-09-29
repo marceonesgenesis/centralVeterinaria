@@ -34,6 +34,9 @@
 - 2026-09-29 · plano · onda 6 — O usuário autorizou fechar a sessão de caixa id 1 da unidade 1; ela foi fechada e a 113 aberta; no complemento a 113 foi fechada e uma nova aberta.
 - 2026-09-29 · cruzada-onda-6 · onda 6 — Rótulo "Dinheiro" do CashSessionForm não aparece no navegador (sessão nova sem pagamentos); aceita a prova do render CLI de Tesla ("Dinheiro: R$ 130,00").
 - 2026-09-29 · cruzada-onda-6 · onda 6 — Trailer `Task: cruzada-onda-6` do commit d006c24 (correção sem dona: encounter_id no EncounterAccountForm, painel único e CvFormat::paymentMethod no CashSessionForm) aceito pelo orquestrador.
+- 2026-09-29 · final · onda final — O bloqueante promovido na revisão final (SystemUser sem tenant nos combos de profissional) contrariava a exceção documentada em plan.md; o orquestrador decidiu corrigir, por ser vazamento entre tenants (commits dbe7318 RED e 12945fa).
+- 2026-09-29 · final-fix · onda final — Trailer `Task: final-fix` aceito nos commits dbe7318 e 12945fa (correção sem T-NN).
+- 2026-09-29 · final-fix · onda final — O gate do final-fix precisou de 2 complementos: a sessão do Playwright caiu, o orquestrador refez o login com a senha fornecida pelo usuário e passou os ids dos dados de teste.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -119,6 +122,10 @@
 - T-23: mapa de status em planStatusBadge usa literais em vez de Prescription::STATUS_*/ExamRequest::STATUS_* (EncounterView.php:886-891).
 - T-23: status null/vazio não gera badge no item (EncounterView.php:922); só robustez.
 - T-24: mapa método→rótulo duplicado entre CvFormat::paymentMethod e PaymentForm, com literais em vez de Payment::METHOD_* (CvFormat.php:51-57, PaymentForm.php:275-281).
+- final-fix: EncounterAccountService não valida `authorized_by_system_user_id` do desconto no save (o combo filtra, o serviço não); fora do escopo.
+- final-fix: comentários obsoletos ("system_user não tem tenant_id: combo sem filtro de tenant") em ExamRequestForm.php:72-73, ProcedureExecutionForm.php:101-102, VaccinationForm.php:62-63 e no docblock de PrescriptionForm.php:28.
+- final-fix: dados de teste no banco: atendimento 1708 em andamento, exam_request 312 com resultado, conta #46 com item e desconto.
+- Revisão final: triagem mantém 30 pendências, conforme reviews/final.md.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -141,5 +148,6 @@
   - Onda 4: BASE 1b6087b → HEAD 06a40d4 (06a40d4)
   - Onda 5: sem commits de código (QA); só chore(tasks)
   - Onda 6: BASE 0a72b8a → HEAD d006c24 (57eec6a, 851a947, 0df204b, d006c24)
-- Último status conhecido: onda 6 fechada, T-01 a T-24 [x]; B1, O1, O2 corrigidos e fluxos de caixa/PaymentForm/catálogos exercitados; suíte 182/182.
-- Próxima onda recomendada: nenhuma; seguir para a revisão final.
+  - Correção da revisão final (final-fix): BASE 720f185 → HEAD 12945fa (dbe7318, 12945fa)
+- Último status conhecido: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.
+- Próxima onda recomendada: nenhuma; fechar o plano (revisão final aprovada).
