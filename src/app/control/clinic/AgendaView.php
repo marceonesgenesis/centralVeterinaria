@@ -27,30 +27,35 @@ class AgendaView extends TPage
     private const SLOT_END_MINUTES   = 19 * 60;  // 19:00
     private const SLOT_STEP_MINUTES  = 30;
 
-    /** Bootstrap badge classes per Appointment::STATUS_* (T-07). */
-    private const STATUS_BADGE_CLASS = [
-        'agendado'       => 'badge bg-info text-dark',
-        'confirmado'     => 'badge bg-primary',
-        'em_atendimento' => 'badge bg-warning text-dark',
-        'atendido'       => 'badge bg-success',
-        'cancelado'      => 'badge bg-secondary',
-        'faltou'         => 'badge bg-danger',
+    /** Appointment::STATUS_* (T-07) → [rótulo en, tom do CvBadge]. */
+    private const STATUS_BADGE = [
+        'agendado'       => ['Scheduled', 'info'],
+        'confirmado'     => ['Confirmed', 'info'],
+        'em_atendimento' => ['In service', 'warning'],
+        'atendido'       => ['Attended', 'success'],
+        'cancelado'      => ['Canceled', 'neutral'],
+        'faltou'         => ['No-show', 'danger'],
     ];
 
     /**
      * Class constructor.
-     * Renders the grid for today's date on first load.
+     * Renders the grid for today's date on first load (when no method was
+     * requested — otherwise the dispatcher calls onReload() itself and the
+     * page would be rendered twice).
      */
-    public function __construct()
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        $this->onReload(['date' => date('Y-m-d')]);
+        if (empty($param['method']))
+        {
+            $this->onReload(['date' => date('Y-m-d')]);
+        }
     }
 
     /**
      * Rebuilds the whole page body for the requested date.
-     * Also the target of the date-navigator buttons ("Anterior"/"Hoje"/"Proximo").
+     * Also the target of the date-navigator actions ("Anterior"/"Hoje"/"Proximo").
      */
     public function onReload($param)
     {
@@ -65,83 +70,47 @@ class AgendaView extends TPage
             $date = new DateTimeImmutable('today');
         }
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Agenda'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
-
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($this->buildNavigator($date));
+        $container->add($this->buildHeader($date));
+
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->style = 'overflow-x:auto';
+        $card->add($body);
 
         try
         {
-            $container->add($this->buildGrid($date));
+            $body->add($this->buildGrid($date));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
-            $container->add(new TAlert('danger', _t('An authenticated session with a tenant is required')));
+            $body->add(new TAlert('danger', _t('An authenticated session with a tenant is required')));
         }
         catch (Exception $e)
         {
-            $container->add(new TAlert('danger', $e->getMessage()));
+            $body->add(new TAlert('danger', $e->getMessage()));
         }
 
-        parent::add($page_header);
+        $container->add($card);
+
         parent::add($container);
     }
 
     /**
-     * Date navigator: previous day / today / next day + "new appointment".
+     * CvPage header with the date navigator: previous day / today / next
+     * day + "new appointment" (links, no form involved).
      */
-    private function buildNavigator(DateTimeImmutable $date)
+    private function buildHeader(DateTimeImmutable $date)
     {
-        $bar = new TElement('div');
-        $bar->class = 'agenda-navigator';
-        $bar->style = 'display:flex; gap:8px; align-items:center; margin-bottom:10px';
-
-        $title = new TElement('h4');
-        $title->add(_t('Agenda') . ' - ' . $date->format('d/m/Y'));
-        $title->style = 'margin:0 16px 0 0';
-
-        // AgendaView is a pure TPage with no BootstrapFormBuilder/TForm of its
-        // own, so there is no real <form> for these buttons to belong to —
-        // setFormName() still must be non-empty (TButton::show() throws
-        // otherwise, same bug/fix as EncounterView's context-strip buttons),
-        // so an arbitrary consistent name is used; none of these actions read
-        // posted form fields, they carry their data via TAction parameters.
-        $prev = new TButton('agenda_prev');
-        $prev->setAction(new TAction([$this, 'onReload'], ['date' => $date->modify('-1 day')->format('Y-m-d')]), _t('Previous'));
-        $prev->setFormName('agenda_navigator');
-        $prev->class = 'btn btn-sm btn-light';
-
-        $today = new TButton('agenda_today');
-        $today->setAction(new TAction([$this, 'onReload'], ['date' => date('Y-m-d')]), _t('Today'));
-        $today->setFormName('agenda_navigator');
-        $today->class = 'btn btn-sm btn-light';
-
-        $next = new TButton('agenda_next');
-        $next->setAction(new TAction([$this, 'onReload'], ['date' => $date->modify('+1 day')->format('Y-m-d')]), _t('Next'));
-        $next->setFormName('agenda_navigator');
-        $next->class = 'btn btn-sm btn-light';
-
-        $new_appointment = new TButton('agenda_new');
-        $new_appointment->setAction(new TAction(['AppointmentForm', 'onEdit'], ['scheduled_at' => $date->format('Y-m-d')]), _t('New appointment'));
-        $new_appointment->setFormName('agenda_navigator');
-        $new_appointment->class = 'btn btn-sm btn-primary';
-
-        $bar->add($title);
-        $bar->add($prev);
-        $bar->add($today);
-        $bar->add($next);
-        $bar->add($new_appointment);
-
-        return $bar;
+        return CvPage::header(_t('Agenda'), $date->format('d/m/Y'), [
+            ['label' => _t('Previous'), 'icon' => 'fa:chevron-left', 'action' => new TAction([$this, 'onReload'], ['date' => $date->modify('-1 day')->format('Y-m-d')])],
+            ['label' => _t('Today'), 'action' => new TAction([$this, 'onReload'], ['date' => date('Y-m-d')])],
+            ['label' => _t('Next'), 'icon' => 'fa:chevron-right', 'action' => new TAction([$this, 'onReload'], ['date' => $date->modify('+1 day')->format('Y-m-d')])],
+            ['label' => _t('New appointment'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction(['AppointmentForm', 'onEdit'], ['scheduled_at' => $date->format('Y-m-d')])],
+        ]);
     }
 
     /**
@@ -293,7 +262,7 @@ class AgendaView extends TPage
         }
 
         $table = new TElement('table');
-        $table->class = 'table table-bordered table-sm agenda-grid';
+        $table->class = 'table cv-table agenda-grid';
         $table->style = 'width:100%';
 
         $thead = new TElement('thead');
@@ -306,7 +275,7 @@ class AgendaView extends TPage
         foreach ($professionals as $professional)
         {
             $professional_header = new TElement('th');
-            $professional_header->add($professional->name);
+            $professional_header->add(CvFormat::e((string) $professional->name));
             $header_row->add($professional_header);
         }
 
@@ -370,9 +339,10 @@ class AgendaView extends TPage
         $block->class = 'agenda-block';
         $block->style = 'padding:2px 4px; margin-bottom:2px; border-radius:4px';
 
-        $badge = new TElement('span');
-        $badge->class = self::STATUS_BADGE_CLASS[$appointment->status] ?? 'badge bg-light text-dark';
-        $badge->add($appointment->status);
+        [$status_label, $status_tone] = isset(self::STATUS_BADGE[$appointment->status])
+            ? [_t(self::STATUS_BADGE[$appointment->status][0]), self::STATUS_BADGE[$appointment->status][1]]
+            : [$appointment->status, 'neutral'];
+        $badge = CvBadge::create($status_label, $status_tone);
 
         $patient_id = (int) $appointment->patientId;
         $service_id = (int) $appointment->serviceId;
@@ -386,12 +356,13 @@ class AgendaView extends TPage
             : _t('Service') . ' #' . $service_id . ' (' . _t('not found') . ')';
 
         $block->add($badge);
-        $block->add(' ' . $patient_label);
-        $block->add(' - ' . $service_label);
 
-        $edit_link = TElement::tag('a', '', [
-            'href' => "javascript:__adianti_load_page('index.php?class=AppointmentForm&method=onEdit&key=" . $appointment->id . "')",
-            'class' => 'agenda-block-link',
+        // abre o agendamento em página cheia (AppointmentForm, modo leitura)
+        $edit_link = TElement::tag('a', CvFormat::e($patient_label . ' - ' . $service_label), [
+            'href' => 'index.php?class=AppointmentForm&method=onEdit&key=' . (int) $appointment->id
+                    . '&scheduled_at=' . $appointment->scheduledAt->format('Y-m-d'),
+            'generator' => 'adianti',
+            'class' => 'agenda-block-link ms-1',
         ]);
         $block->add($edit_link);
 

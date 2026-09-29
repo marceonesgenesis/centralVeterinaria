@@ -20,10 +20,13 @@
  */
 class QueueEntryView extends TPage
 {
+    private const LIMIT = 20;
+
     protected $datagrid;
-    protected $panel;
     protected $searchField;
     protected $counters;
+    protected $pageNavigation;
+    protected $footerBox;
 
     /**
      * Page constructor
@@ -38,72 +41,85 @@ class QueueEntryView extends TPage
         // PatientService::findById()/SystemUser::findInTransaction() antes
         // de montar o haystack)
         $this->searchField = new TEntry('term');
-        $this->searchField->setSize('260px');
+        $this->searchField->setSize('100%');
         $this->searchField->placeholder = _t('Search by id, patient or professional');
 
-        $btn = TButton::create('find', array($this, 'onSearch'), '', 'fa:search');
-        $btn->style = 'height:37px; margin-left:4px';
+        $btn = new TButton('find');
+        $btn->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $btn->setImage('fa:search');
+        $btn->{'class'} = 'btn btn-primary';
 
         $form_search = new TForm('form_search_QueueEntryView');
-        $form_search->style = 'float:left; display:flex';
-        $form_search->add($this->searchField, true);
-        $form_search->add($btn, true);
+        $form_search->add(CvPage::filterBar([$this->searchField, $btn]));
+        $form_search->setFields([$this->searchField, $btn]);
 
         // counters (aguardando / em atendimento / atendidos)
         $this->counters = new TElement('div');
-        $this->counters->style = 'display:flex; gap:16px; margin:8px 0';
+        $this->counters->{'class'} = 'cv-kpi-row';
 
         // datagrid (linhas construidas a partir de CentralVet\Domain\QueueEntry,
         // nao de um TRecord — nao ha' ActiveRecord para queue_entry)
-        $this->datagrid = new BootstrapDatagridWrapper(new TQuickGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(400);
+        $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
-        $this->datagrid->addQuickColumn('Id', 'id', 'center', '8%');
-        $this->datagrid->addQuickColumn(_t('Time'), 'checked_in_at', 'center', '12%');
-        $this->datagrid->addQuickColumn(_t('Patient'), 'patient_label', 'left', '20%');
-        $this->datagrid->addQuickColumn(_t('Professional'), 'professional_label', 'left', '20%');
-        $this->datagrid->addQuickColumn(_t('Appointment'), 'appointment_label', 'center', '10%');
-        $status_column = $this->datagrid->addQuickColumn(_t('Status'), 'status_label', 'center', '15%');
+        $columns = [
+            new TDataGridColumn('id', 'Id', 'center', '8%'),
+            new TDataGridColumn('checked_in_at', _t('Time'), 'center', '12%'),
+            new TDataGridColumn('patient_label', _t('Patient'), 'left', '22%'),
+            new TDataGridColumn('professional_label', _t('Professional'), 'left', '22%'),
+            new TDataGridColumn('appointment_label', _t('Appointment'), 'center', '10%'),
+        ];
+        $status_column = new TDataGridColumn('status_label', _t('Status'), 'center', '15%');
         $status_column->disableHtmlConversion();
+        $columns[] = $status_column;
 
-        // acao unica de avancar status — o rotulo por status ("Chamar" /
-        // "Finalizar" / "Concluido" do mock) nao e' reproduzido literalmente
-        // porque TDataGridAction usa um rotulo fixo por coluna, nao por
-        // linha; o badge de status (coluna anterior) comunica o estado
-        // atual e QueueEntryService::advanceStatus() e' a unica fonte de
-        // verdade sobre qual e' o proximo status legal.
+        foreach ($columns as $column)
+        {
+            $this->datagrid->addColumn($column);
+        }
+
+        // acao unica de avancar status, no menu "…" — o rotulo por status
+        // ("Chamar" / "Finalizar" / "Concluido" do mock) nao e' reproduzido
+        // literalmente porque TDataGridAction usa um rotulo fixo, nao por
+        // linha; o badge de status comunica o estado atual e
+        // QueueEntryService::advanceStatus() e' a unica fonte de verdade
+        // sobre qual e' o proximo status legal.
         $action = new TDataGridAction(array($this, 'onAdvance'), array('id' => '{id}', 'register_state' => 'false'));
-        $action->setUseButton(true);
-        $action->setButtonClass('btn btn-default');
-        $this->datagrid->addAction($action, _t('Advance status'), 'fa:arrow-circle-right green');
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Advance status'), 'action' => $action, 'icon' => 'fa:arrow-circle-right'],
+        ]));
 
         $this->datagrid->createModel();
 
-        $this->panel = new TPanelGroup(_t('Today queue'));
-        $this->panel->add($this->counters);
-        $this->panel->addHeaderWidget($form_search);
-        $this->panel->add($this->datagrid)->style = 'overflow-x:auto';
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction([$this, 'onReload']));
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Today queue'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+        $this->footerBox = new TElement('div');
+
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->style = 'overflow-x:auto';
+        $body->add($form_search);
+        $body->add($this->datagrid);
+        $body->add($this->footerBox);
+        $card->add($body);
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
-        $container->add($this->panel);
+        $container->add(CvPage::header(_t('Today queue'), date('d/m/Y'), [
+            ['label' => _t('Agenda'), 'icon' => 'far:calendar-alt', 'action' => new TAction(['AgendaView', 'onReload'], ['date' => date('Y-m-d')])],
+        ]));
+        $container->add($this->counters);
+        $container->add($card);
 
-        parent::add($page_header);
         parent::add($container);
 
-        $this->loadData();
+        $this->loadData(null, $param['offset'] ?? 0);
     }
 
     /**
@@ -113,7 +129,7 @@ class QueueEntryView extends TPage
      * queue_entry migration has not been applied yet, etc.) is caught here
      * and shown as a handled TMessage — never a fatal error.
      */
-    private function loadData($term = null)
+    private function loadData($term = null, $offset = 0)
     {
         $this->datagrid->clear();
 
@@ -128,6 +144,7 @@ class QueueEntryView extends TPage
         {
             new TMessage('error', $e->getMessage());
             $this->renderCounters(0, 0, 0);
+            $this->renderFooter(0, 0, 0, null);
             return;
         }
 
@@ -143,6 +160,7 @@ class QueueEntryView extends TPage
         $patientNames = [];
         $professionalNames = [];
         $patientService = self::makePatientService($context);
+        $rows = [];
 
         foreach ($entries as $entry)
         {
@@ -213,10 +231,39 @@ class QueueEntryView extends TPage
             $row->appointment_label = $entry->appointmentId() ? ('#' . $entry->appointmentId()) : '-';
             $row->status_label = $this->statusBadge($entry->displayStatus($now));
 
+            $rows[] = $row;
+        }
+
+        $total = count($rows);
+        $offset = max(0, (int) $offset);
+        if ($offset >= $total)
+        {
+            $offset = 0;
+        }
+        $page_rows = array_slice($rows, $offset, self::LIMIT);
+
+        foreach ($page_rows as $row)
+        {
             $this->datagrid->addItem($row);
         }
 
         $this->renderCounters($waiting, $inProgress, $done);
+        $this->renderFooter($offset, count($page_rows), $total, $term);
+    }
+
+    /**
+     * Pager + "Showing X–Y of N" footer.
+     */
+    private function renderFooter($offset, $count, $total, $term)
+    {
+        $this->pageNavigation->setAction(new TAction([$this, 'onSearch'], ['term' => (string) $term]));
+        $this->pageNavigation->setCount($total);
+        $this->pageNavigation->setLimit(self::LIMIT);
+        $this->pageNavigation->setProperties(['offset' => $offset, 'page' => intdiv($offset, self::LIMIT) + 1]);
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $this->footerBox->clearChildren();
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('patients')));
     }
 
     /**
@@ -225,45 +272,52 @@ class QueueEntryView extends TPage
     private function renderCounters($waiting, $inProgress, $done)
     {
         $this->counters->clearChildren();
-        $this->counters->add($this->counterBox(_t('Waiting'), $waiting, '#f0ad4e'));
-        $this->counters->add($this->counterBox(_t('In progress'), $inProgress, '#5bc0de'));
-        $this->counters->add($this->counterBox(_t('Attended'), $done, '#5cb85c'));
+        $this->counters->add($this->counterBox(_t('Waiting'), $waiting, 'warning'));
+        $this->counters->add($this->counterBox(_t('In progress'), $inProgress, 'info'));
+        $this->counters->add($this->counterBox(_t('Attended'), $done, 'success'));
     }
 
-    private function counterBox($label, $count, $color)
+    private function counterBox($label, $count, $tone)
     {
         $box = new TElement('div');
-        $box->style = "border-left:4px solid {$color}; padding:2px 12px";
-        $box->add("<div style='font-size:20px;font-weight:bold'>{$count}</div><div>{$label}</div>");
+        $box->{'class'} = 'cv-kpi cv-kpi--' . $tone;
+
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-kpi__body';
+        $body->add(TElement::tag('div', CvFormat::e($label), ['class' => 'cv-kpi__label']));
+        $body->add(TElement::tag('div', (string) (int) $count, ['class' => 'cv-kpi__value']));
+        $box->add($body);
 
         return $box;
     }
 
     /**
-     * Renders the (derived) status as a Bootstrap badge. `atrasado` is a
+     * Renders the (derived) status as a CvBadge. `atrasado` is a
      * read-time-only derivation (CentralVet\Domain\QueueEntry::displayStatus())
      * — not a status advanceStatus() ever writes.
      */
     private function statusBadge($status)
     {
         $map = array(
-            CentralVet\Domain\QueueEntry::STATUS_AGUARDANDO    => array('label' => _t('Waiting'),     'class' => 'label label-warning'),
-            CentralVet\Domain\QueueEntry::STATUS_EM_ATENDIMENTO => array('label' => _t('In progress'), 'class' => 'label label-info'),
-            CentralVet\Domain\QueueEntry::STATUS_ATENDIDO      => array('label' => _t('Attended'),     'class' => 'label label-success'),
-            CentralVet\Domain\QueueEntry::STATUS_ATRASADO      => array('label' => _t('Late'),         'class' => 'label label-danger'),
+            CentralVet\Domain\QueueEntry::STATUS_AGUARDANDO     => array(_t('Waiting'), 'warning'),
+            CentralVet\Domain\QueueEntry::STATUS_EM_ATENDIMENTO => array(_t('In progress'), 'info'),
+            CentralVet\Domain\QueueEntry::STATUS_ATENDIDO       => array(_t('Attended'), 'success'),
+            CentralVet\Domain\QueueEntry::STATUS_ATRASADO       => array(_t('Late'), 'danger'),
         );
 
-        $info = isset($map[$status]) ? $map[$status] : array('label' => $status, 'class' => 'label label-default');
+        [$label, $tone] = isset($map[$status]) ? $map[$status] : array((string) $status, 'neutral');
 
-        return '<span class="' . $info['class'] . '">' . $info['label'] . '</span>';
+        return (string) CvBadge::create($label, $tone);
     }
 
     /**
-     * Triggered by the quick-search button.
+     * Triggered by the quick-search button (and by the pager, with the term).
      */
     public function onSearch($param)
     {
-        $this->loadData(isset($param['term']) ? $param['term'] : null);
+        $term = isset($param['term']) ? $param['term'] : null;
+        $this->searchField->setValue($term);
+        $this->loadData($term, $param['offset'] ?? 0);
     }
 
     /**
@@ -272,7 +326,7 @@ class QueueEntryView extends TPage
      */
     public function onReload($param = null)
     {
-        $this->loadData();
+        $this->loadData(null, is_array($param) ? ($param['offset'] ?? 0) : 0);
     }
 
     /**

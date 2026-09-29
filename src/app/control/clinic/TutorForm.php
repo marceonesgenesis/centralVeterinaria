@@ -2,9 +2,9 @@
 /**
  * TutorForm
  *
- * Compact quick-registration card for a new tutor, matching mock 01
- * (https://claude.ai/artifact/A78u8yLNxCro1AYHRLDrcR): shown inside the
- * right panel next to TutorList's search results when no tutor is found.
+ * Full-page quick registration of a new tutor (kit Cv*: CvPage header with
+ * "back" to TutorList, CvForm 2-column grid). With key/id in the URL the
+ * saved tutor is reopened read-only (TutorService has no update use case).
  *
  * This controller only assembles the UI and forwards the submitted data to
  * CentralVet\Application\TutorService::create() (T-04). It carries no
@@ -21,21 +21,25 @@ class TutorForm extends TStandardForm
 {
     protected $form; // form
 
+    /** @var int|null tutor aberto em modo leitura (key/id na URL) */
+    protected $viewId = null;
+
     /**
      * Class constructor
-     * Creates the page and the quick registration form
+     * Creates the page: quick registration form (new) or the tutor's record
+     * opened read-only (key/id in the URL — TutorService has no update use case).
      */
-    public function __construct()
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
         $this->setUseToast(true);
-        $this->setAfterSaveAction( new TAction(['TutorList', 'onReload']) );
+
+        $key = $param['key'] ?? ($param['id'] ?? null);
+        $this->viewId = (is_numeric($key) && (int) $key > 0) ? (int) $key : null;
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_Tutor');
-        $this->form->setFormTitle(_t('New tutor'));
         $this->form->enableClientValidation();
 
         // create the form fields
@@ -45,69 +49,103 @@ class TutorForm extends TStandardForm
         $email = new TEntry('email');
         $address = new TEntry('address');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Full name'))] );
-        $this->form->addFields( [$full_name] );
-        $this->form->addFields( [new TLabel(_t('Document (CPF/CNPJ)'))] );
-        $this->form->addFields( [$document] );
-        $this->form->addFields( [new TLabel(_t('Phone'))] );
-        $this->form->addFields( [$phone] );
-        $this->form->addFields( [new TLabel(_t('Email'))] );
-        $this->form->addFields( [$email] );
-        $this->form->addFields( [new TLabel(_t('Address'))] );
-        $this->form->addFields( [$address] );
+        // add the fields (pares rótulo/campo em 2 colunas)
+        $this->form->addFields( [new TLabel(_t('Full name'))], [$full_name], [new TLabel(_t('Document (CPF/CNPJ)'))], [$document] );
+        $this->form->addFields( [new TLabel(_t('Phone'))], [$phone], [new TLabel(_t('Email'))], [$email] );
+        $this->form->addFields( [new TLabel(_t('Address'))], [$address] );
 
-        $full_name->setSize('100%');
         $full_name->addValidation( _t('Full name'), new TRequiredValidator );
-        $document->setSize('100%');
-        $phone->setSize('100%');
         $phone->addValidation( _t('Phone'), new TRequiredValidator );
-        $email->setSize('100%');
-        $address->setSize('100%');
 
-        // create the form actions
-        $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $back = ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['TutorList', 'onReload'])];
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        if ($this->viewId === null)
+        {
+            // create the form actions
+            $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
+            $btn->class = 'btn btn-sm btn-primary';
+            $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('New tutor'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+            $header = CvPage::header(_t('New tutor'), null, [$back]);
+        }
+        else
+        {
+            foreach ([$full_name, $document, $phone, $email, $address] as $field)
+            {
+                $field->setEditable(FALSE);
+            }
+
+            $header = CvPage::header(_t('Tutor'), null, [
+                $back,
+                ['label' => _t('Patients'), 'icon' => 'fa:paw', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->viewId])],
+                ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction(['PatientForm', 'onEdit'], ['tutor_id' => $this->viewId])],
+            ]);
+        }
+
+        CvForm::decorate($this->form, 2);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->class = 'cv-section';
+        $container->add($header);
         $container->add($this->form);
 
-        parent::add($page_header);
         parent::add($container);
     }
 
     /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
-    }
-
-    /**
      * method onEdit()
-     * There is no update flow in this mock (only search + quick create), so
-     * this action only clears the form for a fresh registration.
+     * Without key: clears the form for a fresh registration. With key/id:
+     * loads the tutor through TutorService::findById() (tenant-scoped by the
+     * repository) and shows it read-only — there is no update use case.
      */
     public function onEdit($param)
     {
         $this->form->clear();
+
+        if ($this->viewId === null)
+        {
+            return;
+        }
+
+        try
+        {
+            $tenant_context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $service = new \CentralVet\Application\TutorService(
+                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
+            );
+
+            $tutor = $service->findById($this->viewId);
+
+            TTransaction::close();
+
+            if ($tutor === null)
+            {
+                new TMessage('error', _t('Record not found'));
+                return;
+            }
+
+            $this->form->setData((object) [
+                'full_name' => $tutor->fullName,
+                'document'  => $tutor->document,
+                'phone'     => $tutor->phone,
+                'email'     => $tutor->email,
+                'address'   => $tutor->address,
+            ]);
+        }
+        catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation | \CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('Record not found'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     /**
@@ -131,7 +169,7 @@ class TutorForm extends TStandardForm
                 new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
             );
 
-            $service->create([
+            $tutor = $service->create([
                 'tenant_id' => $tenant_context->tenantId(),
                 'full_name' => $data->full_name ?? '',
                 'phone'     => $data->phone ?? '',
@@ -144,14 +182,17 @@ class TutorForm extends TStandardForm
 
             $this->form->clear();
 
+            // reabre o registro salvo em página cheia
+            $open = new TAction([__CLASS__, 'onEdit'], ['key' => $tutor->id]);
+
             if (!empty($this->useToast))
             {
                 TToast::show('info', _t('Record saved'));
-                AdiantiCoreApplication::loadPageURL( $this->afterSaveAction->serialize() );
+                AdiantiCoreApplication::loadPageURL( $open->serialize() );
             }
             else
             {
-                new TMessage('info', _t('Record saved'), $this->afterSaveAction);
+                new TMessage('info', _t('Record saved'), $open);
             }
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation | \CentralVet\Tenancy\Exception\MissingTenantContext $e)

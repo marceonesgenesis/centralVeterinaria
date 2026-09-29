@@ -22,8 +22,12 @@
  */
 class GlobalSearchController extends TPage
 {
-    protected $form;     // search form
-    protected $datagrid; // combined results grid
+    private const LIMIT = 10;
+
+    protected $form;           // search form (filter bar)
+    protected $datagrid;       // combined results grid
+    protected $pageNavigation; // pager
+    protected $footerBox;      // "Showing X–Y of N" footer
 
     /**
      * Page constructor
@@ -32,65 +36,90 @@ class GlobalSearchController extends TPage
     {
         parent::__construct();
 
-        // creates the search form
-        $this->form = new BootstrapFormBuilder('form_GlobalSearch');
-        $this->form->setFormTitle(_t('Search'));
+        // barra de filtros (termo único para tutores e pacientes)
+        $this->form = new TForm('form_GlobalSearch');
 
         $query = new TEntry('query');
         $query->setSize('100%');
         $query->placeholder = _t('Search tutors and patients by name, document, phone or species');
 
-        $this->form->addFields( [new TLabel(_t('Search'))] );
-        $this->form->addFields( [$query] );
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
+
+        $this->form->add(CvPage::filterBar([$query, $find]));
+        $this->form->setFields([$query, $find]);
 
         // keep the search term filled during navigation
         $this->form->setData( TSession::getValue('GlobalSearchController_query') );
 
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
         // creates the combined results grid
-        $this->datagrid = new BootstrapDatagridWrapper(new TQuickGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
-        $this->datagrid->addQuickColumn(_t('Type'), 'type_label', 'left');
-        $this->datagrid->addQuickColumn(_t('Name'), 'label', 'left');
-        $this->datagrid->addQuickColumn(_t('Details'), 'detail', 'left');
+        $column_label  = new TDataGridColumn('label', _t('Name'), 'left');
+        $column_type   = new TDataGridColumn('type_label', _t('Type'), 'left');
+        $column_detail = new TDataGridColumn('detail', _t('Details'), 'left');
+
+        $column_label->setTransformer(function ($value, $object) {
+            $species = $object->type === 'patient' ? (string) $object->detail : null;
+            return CvAvatar::placeholder((string) $object->label, $species)
+                 . ' <span class="ms-2">' . CvFormat::e((string) $object->label) . '</span>';
+        });
+        $column_type->setTransformer(function ($value, $object) {
+            return CvBadge::create((string) $object->type_label, $object->type === 'tutor' ? 'info' : 'success');
+        });
+        $column_detail->setTransformer(function ($value) {
+            return ($value === null || $value === '') ? '—' : $value;
+        });
+        // label/type transformers escape the raw value themselves (CvFormat::e)
+        $column_label->disableHtmlConversion();
+        $column_type->disableHtmlConversion();
+
+        $this->datagrid->addColumn($column_label);
+        $this->datagrid->addColumn($column_type);
+        $this->datagrid->addColumn($column_detail);
 
         // shortcut action: opens TutorForm or PatientForm depending on the
         // selected row's type — the only field-driven branching here, no
         // business rule.
         $action_select = new TDataGridAction(array('GlobalSearchController', 'onSelect'), ['register_state' => 'false']);
-        $action_select->setButtonClass('btn btn-default');
-        $action_select->setLabel(_t('Open'));
-        $action_select->setImage('fa:external-link-alt blue');
         $action_select->setFields(['id', 'type']);
-        $this->datagrid->addAction($action_select);
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Open'), 'action' => $action_select, 'icon' => 'fa:external-link-alt'],
+        ]));
 
         $this->datagrid->createModel();
 
-        $panel = new TPanelGroup;
-        $panel->class = 'cv-section';
-        $panel->add($this->datagrid);
-        $panel->addHeaderWidget($this->form);
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction([$this, 'onSearch']));
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Search'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+        $this->footerBox = new TElement('div');
+
+        $header = CvPage::header(_t('Search'), null, [
+            ['label' => _t('New tutor'), 'action' => new TAction(['TutorForm', 'onEdit']), 'icon' => 'fa:user-plus'],
+            ['label' => _t('New patient'), 'action' => new TAction(['PatientForm', 'onEdit']), 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]);
+
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->add($this->form);
+        $body->add($this->datagrid);
+        $body->add($this->footerBox);
+        $card->add($body);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($panel);
+        $container->add($header);
+        $container->add($card);
 
-        parent::add($page_header);
         parent::add($container);
     }
 
@@ -100,15 +129,18 @@ class GlobalSearchController extends TPage
      * criterion: a 1-character term returns an empty list, 2+ characters
      * trigger a real search), then delegates entirely to
      * TutorService::search() and PatientService::search() and renders
-     * whatever comes back, typed.
+     * whatever comes back, typed (paginated in memory).
      */
     public function onSearch($param)
     {
+        $param = is_array($param) ? $param : [];
+
         try
         {
             $term = isset($param['query']) ? trim((string) $param['query']) : '';
 
             TSession::setValue('GlobalSearchController_query', (object) ['query' => $term]);
+            $this->form->setData((object) ['query' => $term]);
 
             $tenant_context = self::resolveTenantContext();
 
@@ -128,9 +160,17 @@ class GlobalSearchController extends TPage
 
             TTransaction::close();
 
+            $total  = count($results);
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+            if ($offset >= $total)
+            {
+                $offset = 0;
+            }
+            $page_rows = array_slice($results, $offset, self::LIMIT);
+
             $this->datagrid->clear();
 
-            foreach ($results as $result)
+            foreach ($page_rows as $result)
             {
                 $item = new stdClass;
                 $item->id = $result['id'];
@@ -140,6 +180,8 @@ class GlobalSearchController extends TPage
                 $item->detail = $result['detail'];
                 $this->datagrid->addItem($item);
             }
+
+            $this->renderFooter($param, $offset, count($page_rows), $total, $term);
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation | \CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
@@ -151,6 +193,34 @@ class GlobalSearchController extends TPage
             new TMessage('error', $e->getMessage());
             TTransaction::rollback();
         }
+    }
+
+    /**
+     * Pager + "Showing X–Y of N" footer.
+     */
+    private function renderFooter(array $param, int $offset, int $count, int $total, string $term): void
+    {
+        $this->pageNavigation->setAction(new TAction([$this, 'onSearch'], ['query' => $term]));
+        $this->pageNavigation->setCount($total);
+        $this->pageNavigation->setProperties($param);
+        $this->pageNavigation->setLimit(self::LIMIT);
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $this->footerBox->clearChildren();
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('results')));
+    }
+
+    /**
+     * Shows the empty footer when the page is opened without a search.
+     */
+    public function show()
+    {
+        if (!$this->footerBox->getChildren())
+        {
+            $this->renderFooter([], 0, 0, 0, '');
+        }
+
+        parent::show();
     }
 
     /**

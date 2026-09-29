@@ -4,9 +4,8 @@
  *
  * Search screen for tutors, matching mock 01
  * (https://claude.ai/artifact/A78u8yLNxCro1AYHRLDrcR): a search field
- * (name/CPF-CNPJ/phone) plus a selectable result list, with a "new tutor"
- * shortcut that opens TutorForm's quick registration card in the right
- * panel when the search does not find anyone.
+ * (name/CPF-CNPJ/phone) in a CvPage filter bar plus a CvDatagrid result
+ * list, with a "new tutor" shortcut that opens TutorForm in full page.
  *
  * This controller renders only what CentralVet\Application\TutorService::
  * search() (T-04) returns — it does not filter, sort, rank or otherwise
@@ -19,8 +18,12 @@
  */
 class TutorList extends TPage
 {
-    protected $form;     // search form
-    protected $datagrid; // results grid
+    private const LIMIT = 10;
+
+    protected $form;           // search form (filter bar)
+    protected $datagrid;       // results grid
+    protected $pageNavigation; // pager
+    protected $footerBox;      // "Showing X–Y of N" footer
 
     /**
      * Page constructor
@@ -29,88 +32,111 @@ class TutorList extends TPage
     {
         parent::__construct();
 
-        // creates the search form
-        $this->form = new BootstrapFormBuilder('form_search_Tutor');
-        $this->form->setFormTitle(_t('Tutors'));
+        // barra de filtros (busca por nome/CPF-CNPJ/telefone)
+        $this->form = new TForm('form_search_Tutor');
 
         $query = new TEntry('query');
         $query->setSize('100%');
         $query->placeholder = _t('Search by name, CPF/CNPJ or phone');
 
-        $this->form->addFields( [new TLabel(_t('Search'))] );
-        $this->form->addFields( [$query] );
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
+
+        $this->form->add(CvPage::filterBar([$query, $find]));
+        $this->form->setFields([$query, $find]);
 
         // keep the search term filled during navigation
         $this->form->setData( TSession::getValue('TutorList_query') );
 
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
         // creates the results grid
-        $this->datagrid = new BootstrapDatagridWrapper(new TQuickGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
-        $this->datagrid->addQuickColumn(_t('Name'), 'full_name', 'left');
-        $this->datagrid->addQuickColumn(_t('Document'), 'document', 'left');
-        $this->datagrid->addQuickColumn(_t('Phone'), 'phone', 'left');
-        $this->datagrid->addQuickColumn(_t('Email'), 'email', 'left');
+        $column_name     = new TDataGridColumn('full_name', _t('Name'), 'left');
+        $column_document = new TDataGridColumn('document', _t('Document'), 'left');
+        $column_phone    = new TDataGridColumn('phone', _t('Phone'), 'left');
+        $column_email    = new TDataGridColumn('email', _t('Email'), 'left');
 
-        // create SELECT action (the caller decides what a selected tutor means)
-        $action_select = new TDataGridAction(array($this, 'onSelect'), ['register_state' => 'false']);
-        $action_select->setButtonClass('btn btn-default');
-        $action_select->setLabel(_t('Select'));
-        $action_select->setImage('fa:check green');
-        $action_select->setField('id');
-        $this->datagrid->addAction($action_select);
+        $column_name->setTransformer(function ($value) {
+            return CvAvatar::placeholder((string) $value) . ' <span class="ms-2">' . CvFormat::e((string) $value) . '</span>';
+        });
+        $dash = function ($value) {
+            return ($value === null || $value === '') ? '—' : CvFormat::e((string) $value);
+        };
+        $column_document->setTransformer($dash);
+        $column_phone->setTransformer($dash);
+        $column_email->setTransformer($dash);
 
-        // row action: navigate to this tutor's patients (T-05), same
-        // pattern as ProductList's action_batch (product_id -> StockBatchForm)
-        $action_patients = new TDataGridAction(['PatientList', 'onReload'], ['tutor_id' => '{id}', 'register_state' => 'false']);
-        $action_patients->setLabel(_t('Patients'));
-        $action_patients->setImage('fa:paw blue');
-        $this->datagrid->addAction($action_patients);
+        // transformers escape the raw value themselves (CvFormat::e)
+        foreach ([$column_name, $column_document, $column_phone, $column_email] as $column)
+        {
+            $column->disableHtmlConversion();
+        }
+
+        $this->datagrid->addColumn($column_name);
+        $this->datagrid->addColumn($column_document);
+        $this->datagrid->addColumn($column_phone);
+        $this->datagrid->addColumn($column_email);
+
+        $action_open     = new TDataGridAction(['TutorForm', 'onEdit'], ['key' => '{id}']);
+        $action_patients = new TDataGridAction(['PatientList', 'onReload'], ['tutor_id' => '{id}']);
+        $action_patient  = new TDataGridAction(['PatientForm', 'onEdit'], ['tutor_id' => '{id}']);
+
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Open'), 'action' => $action_open, 'icon' => 'fa:external-link-alt'],
+            ['label' => _t('Patients'), 'action' => $action_patients, 'icon' => 'fa:paw'],
+            ['label' => _t('New patient'), 'action' => $action_patient, 'icon' => 'fa:plus'],
+        ]));
 
         $this->datagrid->createModel();
 
-        $panel = new TPanelGroup;
-        $panel->class = 'cv-section';
-        $panel->add($this->datagrid);
-        $panel->addHeaderWidget($this->form);
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction([$this, 'onSearch']));
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel->addHeaderActionLink('', new TAction(['TutorForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
+        $this->footerBox = new TElement('div');
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Tutors'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+        $header = CvPage::header(_t('Tutors'), null, [
+            ['label' => _t('New tutor'), 'action' => new TAction(['TutorForm', 'onEdit']), 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]);
+
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->add($this->form);
+        $body->add($this->datagrid);
+        $body->add($this->footerBox);
+        $card->add($body);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($panel);
+        $container->add($header);
+        $container->add($card);
 
-        parent::add($page_header);
         parent::add($container);
     }
 
     /**
      * method onSearch()
      * Delegates the whole search to TutorService::search() and just
-     * renders whatever list comes back.
+     * renders whatever list comes back (paginated in memory).
      */
     public function onSearch($param)
     {
+        $param = is_array($param) ? $param : [];
+
         try
         {
             $term = isset($param['query']) ? trim((string) $param['query']) : '';
 
             TSession::setValue('TutorList_query', (object) ['query' => $term]);
+            $this->form->setData((object) ['query' => $term]);
 
             $tenant_context = self::resolveTenantContext();
 
@@ -124,9 +150,17 @@ class TutorList extends TPage
 
             TTransaction::close();
 
+            $total  = count($tutors);
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+            if ($offset >= $total)
+            {
+                $offset = 0;
+            }
+            $page_rows = array_slice($tutors, $offset, self::LIMIT);
+
             $this->datagrid->clear();
 
-            foreach ($tutors as $tutor)
+            foreach ($page_rows as $tutor)
             {
                 $item = new stdClass;
                 $item->id = $tutor->id;
@@ -136,6 +170,8 @@ class TutorList extends TPage
                 $item->email = $tutor->email;
                 $this->datagrid->addItem($item);
             }
+
+            $this->renderFooter($param, $offset, count($page_rows), $total, $term);
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation | \CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
@@ -151,7 +187,7 @@ class TutorList extends TPage
 
     /**
      * method onReload()
-     * Re-runs the last search term, used as TutorForm's after-save action.
+     * Re-runs the last search term (used by the "back" of TutorForm).
      */
     public function onReload($param = null)
     {
@@ -160,15 +196,31 @@ class TutorList extends TPage
     }
 
     /**
-     * method onSelect()
-     * Only forwards the chosen tutor id to whoever consumes this screen
-     * (e.g. the appointment/queue flows from T-12/T-13); no decision is
-     * made here.
+     * Pager + "Showing X–Y of N" footer.
      */
-    public static function onSelect($param)
+    private function renderFooter(array $param, int $offset, int $count, int $total, string $term): void
     {
-        TSession::setValue('selected_tutor_id', $param['id'] ?? null);
-        TScript::create("Template.closeRightPanel()");
+        $this->pageNavigation->setAction(new TAction([$this, 'onSearch'], ['query' => $term]));
+        $this->pageNavigation->setCount($total);
+        $this->pageNavigation->setProperties($param);
+        $this->pageNavigation->setLimit(self::LIMIT);
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $this->footerBox->clearChildren();
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('tutors')));
+    }
+
+    /**
+     * Shows the empty footer when the page is opened without a search.
+     */
+    public function show()
+    {
+        if (!$this->footerBox->getChildren())
+        {
+            $this->renderFooter([], 0, 0, 0, '');
+        }
+
+        parent::show();
     }
 
     /**
