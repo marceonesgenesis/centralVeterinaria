@@ -1,5 +1,5 @@
 :root {
-    --ad-menu-size: 370px;
+    --ad-menu-size: 260px;
 
     /* Central Vet Pro: semantic design tokens */
     --cv-color-primary: #176b5b;
@@ -74,24 +74,234 @@
     --bs-btn-hover-border-color: var(--cv-color-primary-hover);
 }
 
-/* Central Vet Pro: sidebar dark tone derived from --cv-color-primary
-   (replaces the generic Bootstrap/adminbs5 --bs-dark gray/black) */
+/* ------------------------------------------------------------------
+   Central Vet Pro: application shell (sidebar, topbar, footer)
+   Single dark sidebar (no master icon rail), light topbar with global
+   search, notifications, help and user card; one-line brand footer.
+   ------------------------------------------------------------------ */
+:root {
+    --cv-shell-sidebar-bg: #0f2a24;
+    --cv-shell-sidebar-bg-end: #0b211c;
+    --cv-shell-sidebar-text: #c9dbd6;
+    --cv-shell-sidebar-text-strong: #ffffff;
+    --cv-shell-sidebar-hover: rgb(255 255 255 / 7%);
+    --cv-shell-sidebar-open: rgb(255 255 255 / 10%);
+    --cv-shell-sidebar-active: #1f8a73;
+    --cv-shell-topbar-height: 4rem;
+    --ad-menu-item-color: var(--cv-shell-sidebar-active);
+}
+
+/* Sidebar */
 [data-menu-theme="dark"] #sidebar {
-    background: #0f2a24;
+    background: linear-gradient(180deg, var(--cv-shell-sidebar-bg) 0%, var(--cv-shell-sidebar-bg-end) 100%);
+    color: var(--cv-shell-sidebar-text);
 }
 
-[data-menu-theme="dark"] .sidebar-system-name {
-    background: rgba(0, 0, 0, .18);
+#sidebar .cv-brand {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--cv-space-3);
+    height: var(--cv-shell-topbar-height);
+    padding: 0 var(--cv-space-4);
+    text-align: start;
 }
 
-.cv-brand-wordmark {
+[data-menu-theme="dark"] #sidebar .cv-brand {
+    background: rgb(0 0 0 / 18%);
+    border-color: rgb(255 255 255 / 8%) !important;
+}
+
+#sidebar .cv-brand-mark {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--cv-radius-md);
+    background: var(--cv-shell-sidebar-active);
+}
+
+#sidebar .cv-brand-icon {
+    margin: 0 !important;
+    color: #ffffff;
+}
+
+#sidebar .cv-brand-wordmark {
+    color: var(--cv-shell-sidebar-text-strong);
+    font-size: 1.05rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+#sidebar .sidebar-menu-title {
+    display: block;
+    padding: var(--cv-space-4) var(--cv-space-4) var(--cv-space-1);
+    color: rgb(201 219 214 / 60%);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+}
+
+[data-menu-theme="dark"] #sidebar a.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    min-height: 2.5rem;
+    color: var(--cv-shell-sidebar-text);
+}
+
+[data-menu-theme="dark"] #sidebar a.sidebar-link:hover {
+    color: var(--cv-shell-sidebar-text-strong);
+    background: var(--cv-shell-sidebar-hover);
+}
+
+[data-menu-theme="dark"] #sidebar a.sidebar-link[aria-expanded="true"] {
+    color: var(--cv-shell-sidebar-text-strong);
+    background: var(--cv-shell-sidebar-open);
+}
+
+#sidebar a.sidebar-link.active,
+#sidebar a.sidebar-link.active:hover {
+    background: var(--cv-shell-sidebar-active) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* Topbar */
+.cv-topbar {
+    min-height: var(--cv-shell-topbar-height);
+    gap: var(--cv-space-3);
+    background: var(--cv-color-surface);
+}
+
+.cv-topbar-body {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-3);
+    padding: 0;
+}
+
+.cv-topbar-toggle,
+.cv-topbar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border-radius: var(--cv-radius-md);
+    color: var(--cv-color-text-muted);
     font-size: 1.15rem;
 }
 
-.cv-brand-icon {
-    color: var(--cv-color-primary-soft);
+.cv-topbar-icon.dropdown-toggle::after {
+    display: none;
+}
+
+.cv-topbar-icon:disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.cv-global-search {
+    position: relative;
+    flex: 1 1 auto;
+    max-width: 32rem;
+    margin: 0;
+}
+
+.cv-global-search__icon {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: var(--cv-space-3);
+    transform: translateY(-50%);
+    color: var(--cv-color-text-muted);
+    pointer-events: none;
+}
+
+.cv-global-search__input {
+    height: 2.5rem;
+    padding-inline-start: 2.4rem;
+    border-color: var(--cv-color-border);
+    border-radius: 999px !important;
+    background: var(--cv-color-surface-subtle);
+}
+
+.cv-global-search__input:focus {
+    background: var(--cv-color-surface);
+    border-color: var(--cv-color-primary);
+}
+
+.cv-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    margin-inline-start: auto;
+}
+
+.cv-user-card__button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    padding: var(--cv-space-1) var(--cv-space-2);
+    border-radius: var(--cv-radius-md);
+    text-align: start;
+}
+
+.cv-user-card__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: var(--cv-color-primary-soft);
+    color: var(--cv-color-primary);
+}
+
+.cv-user-card__text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.cv-user-card__name {
+    color: var(--cv-color-text);
+    font-weight: 600;
+}
+
+.cv-user-card__role {
+    color: var(--cv-color-text-muted);
+    font-size: 0.8rem;
+}
+
+.cv-user-card__role:empty {
+    display: none;
+}
+
+/* Footer */
+.cv-footer {
+    padding: var(--cv-space-3) var(--cv-space-4);
+}
+
+.cv-footer__text {
+    margin: 0;
+    color: var(--cv-color-text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.cv-footer__text strong {
+    color: var(--cv-color-primary);
+    letter-spacing: 0.04em;
+}
+
+.cv-footer__sep {
+    margin-inline: var(--cv-space-2);
+    opacity: 0.6;
 }
 
 body {
@@ -284,6 +494,18 @@ body {
 
     #adianti_div_content_wrapper {
         padding-inline: var(--cv-space-2) !important;
+    }
+
+    .cv-user-card__text {
+        display: none;
+    }
+
+    .cv-footer__sep {
+        display: none;
+    }
+
+    .cv-footer__text > span:not(.cv-footer__sep) {
+        display: block;
     }
 }
 
