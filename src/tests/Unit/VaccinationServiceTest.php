@@ -17,6 +17,8 @@ use CentralVet\Tests\Support\FakeVaccinationRepository;
 use CentralVet\Tests\Support\FakeVaccineCatalogRepository;
 use CentralVet\Tests\Support\FakeVaccineProtocolRepository;
 use DateTimeImmutable;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Tests\Support\FakeTenantUserDirectory;
 
 /**
  * Unit tests for VaccinationService (T-05/T-11), against fake repositories
@@ -207,5 +209,55 @@ final class VaccinationServiceTest
         $reloadedItem = $catalog->findById($catalogItemId);
         Assert::notNull($reloadedItem);
         Assert::same(9, $reloadedItem->stockQuantity());
+    }
+
+    /**
+     * final-fix: a professional_system_user_id that is not an active member
+     * of the authenticated tenant (another tenant's user, or nonexistent) is
+     * rejected with CrossTenantReferenceException and nothing is persisted.
+     */
+    public function testApplyRejectsProfessionalOutsideTenantAndPersistsNothingNorDecrementsStock(): void
+    {
+        $encounters = new FakeEncounterRepository(1);
+        $encounter = Encounter::start(
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            appointmentId: null,
+            professionalSystemUserId: 10,
+            now: new DateTimeImmutable('-10 minutes'),
+        );
+        $encounters->save($encounter);
+        $encounterId = $encounter->id();
+
+        $catalog = new FakeVaccineCatalogRepository(1);
+        $catalogItem = VaccineCatalogItem::create(1, 'V10', 'Zoetis', 10);
+        $catalog->save($catalogItem);
+        $catalogItemId = $catalogItem->id();
+
+        $vaccinations = new FakeVaccinationRepository(1);
+        $service = new VaccinationService(
+            $vaccinations,
+            $catalog,
+            new FakeVaccineProtocolRepository(1),
+            $encounters,
+            new FakeAuthorizationPolicy(allowed: true),
+            TenantContext::authenticated(1, 1, 1),
+            new FakeTenantUserDirectory([10]),
+        );
+
+        Assert::throws(
+            CrossTenantReferenceException::class,
+            static fn () => $service->apply([
+                'encounter_id' => $encounterId,
+                'patient_id' => 1,
+                'vaccine_catalog_item_id' => $catalogItemId,
+                'dose_number' => 1,
+                'professional_system_user_id' => 999,
+            ], self::ACTION),
+        );
+
+        Assert::null($vaccinations->findById(1));
+        Assert::same(10, $catalog->findById($catalogItemId)->stockQuantity());
     }
 }

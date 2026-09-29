@@ -15,6 +15,8 @@ use CentralVet\Tests\Support\FakeEncounterRepository;
 use CentralVet\Tests\Support\FakeExamRequestRepository;
 use CentralVet\Tests\Support\FakeExamResultRepository;
 use DateTimeImmutable;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Tests\Support\FakeTenantUserDirectory;
 
 /**
  * Unit tests for ExamService (T-04/T-11), against fake repositories — no
@@ -257,5 +259,47 @@ final class ExamServiceTest
             $policy,
             $context ?? TenantContext::authenticated(1, 1, 1),
         );
+    }
+
+    /**
+     * final-fix: a professional_system_user_id that is not an active member
+     * of the authenticated tenant (another tenant's user, or nonexistent) is
+     * rejected with CrossTenantReferenceException and nothing is persisted.
+     */
+    public function testRequestExamRejectsProfessionalOutsideTenantAndPersistsNothing(): void
+    {
+        $encounters = new FakeEncounterRepository(1);
+        $encounter = Encounter::start(
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            appointmentId: null,
+            professionalSystemUserId: 10,
+            now: new DateTimeImmutable('-10 minutes'),
+        );
+        $encounters->save($encounter);
+        $encounterId = $encounter->id();
+
+        $examRequests = new FakeExamRequestRepository(1);
+        $service = new ExamService(
+            $examRequests,
+            new FakeExamResultRepository(1),
+            $encounters,
+            new FakeAuthorizationPolicy(allowed: true),
+            TenantContext::authenticated(1, 1, 1),
+            new FakeTenantUserDirectory([10]),
+        );
+
+        Assert::throws(
+            CrossTenantReferenceException::class,
+            static fn () => $service->requestExam([
+                'encounter_id' => $encounterId,
+                'patient_id' => 1,
+                'exam_catalog_item_id' => 2,
+                'professional_system_user_id' => 999,
+            ], self::ACTION),
+        );
+
+        Assert::null($examRequests->findById(1));
     }
 }
