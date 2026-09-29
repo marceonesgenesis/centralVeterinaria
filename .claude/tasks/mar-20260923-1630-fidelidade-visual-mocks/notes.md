@@ -40,6 +40,10 @@
 - 2026-09-29 · plano · onda 1 — Varredura Playwright em cada onda e varredura completa em T-21 (decisão do usuário).
 - 2026-09-29 · T-02 · onda 1 — CvNav `prescription`: `new`/`history` apontam para PrescriptionForm com encounter_id/patient_id de $_REQUEST; CvForm::decorate delega o grid ao CSS (`cv-form__slot`); helpers extras CvFormat::percent() e CvFormat::e().
 - 2026-09-29 · T-06 · onda 1 — ClinicalSummaryService aceita 2º parâmetro opcional `?DateTimeImmutable $today`; ClinicalSummaryReader não estende AbstractTenantRepository (usa TenantQuery::forTenant).
+- 2026-09-29 · T-21 · onda 5 — Task de QA/validação: sem gate de validador nem revisor separados (decisão do orquestrador).
+- 2026-09-29 · plano · onda 5 — Mocks ausentes: o usuário decidiu seguir sem eles; comparação lado a lado fica pendente e as telas seguiram a especificação escrita.
+- 2026-09-29 · plano · onda 5 — Onda 6 de correção aprovada pelo usuário: B1 (layout.html carrega chart.umd.min.js duplicado; TypeError no SystemAdministrationDashboard), O1 (EncounterView mostra draft/result_available crus), O2 (FinancialOverview/FinancialEntryList mostram categoria crua `cash`) e validar fechar caixa (CashSessionForm), salvar PaymentForm e formulários de catálogo.
+- 2026-09-29 · T-21 · onda 5 — Trailer `Task:` não é lido por `%(trailers)` por causa do parágrafo Co-Authored-By; trailers presentes (grep '^Task:'), informativo.
 
 ## Descobertas
 - `{buildid}` só é substituído por `AdiantiTemplateParser` (`src/lib/adianti/core/AdiantiTemplateParser.php:61`) quando existe o arquivo `src/buildid`; hoje ele não existe, daí o cache-busting quebrado. Parser e `index.php` estão em `framework_hashes.php` → a correção vai no `docker/php/Dockerfile` (T-01).
@@ -71,6 +75,8 @@
 - [T-19] i18n: Encounters, Surgeries, CRM / Communication, Clinical catalogs. menu.xml com itens desabilitados via CvShellController#onComingSoon; allowedUnitIds() filtra unidades por tenant.
 - [cruzada-onda-3] Dockerfile ganhou extensão calendar e SystemPHPErrorLogView corrigida (b9ea10c); tela Log do PHP fica vazia porque error_log aponta para stderr (decisão de infra).
 - Dados de teste da onda 3: Tutor/Pet F10, payable id 2, financial_entry 1623, stock_batch 729. Suíte 182/182; 40 itens de menu sem erro.
+- [T-21] B1: independent-plugins.min.js já embute Chart.js v4.5.1; a carga extra de chart.umd.min.js no layout.html quebra o SystemAdministrationDashboard. Varredura de 65 telas, suíte 182/182.
+- Dados de teste da T-21: tutor 1595, pet 1452, atendimento 1547, exam_request 263, prescription 524, produto "F10 varredura Produto T21"; capturas em .playwright-mcp/f10-*.png (fora do git).
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
@@ -102,6 +108,8 @@
 - T-18: UPDATE de PayableRepository sem teste de SQL; docblock de PayableForm desatualizado; editar conta paga mostra mensagem crua em inglês.
 - T-19: itens desabilitados apontam para CvShellController (programa 105, só grupo 1); "Em breve"/"Abra pelo atendimento" fixos em pt no JS; units sem `current: true` se a unidade da sessão não pertencer ao tenant.
 - T-20: chaves minúsculas novas (`patients`, `results`, `services`, `tutors`) convivem com as de maiúscula existentes (`Patients` etc.); normalização futura de caixa vai colidir.
+- T-21: comparação lado a lado com os mocks não feita (ausentes); seletor de unidade ausente no cabeçalho do EncounterView a confirmar; ícone fa-stethoscope text-primary em ServiceList (cosmético); dados de teste da T-21 permanecem no banco.
+- T-21: B1, O1, O2 e fluxos não exercitados (fechar caixa, PaymentForm, formulários de catálogo) vão para a onda 6.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -122,5 +130,6 @@
   - Onda 2: BASE beb884c → HEAD b079655 (9e8ff1b, dcbd3a2, f3b1a5c, 745ef58, c6c946b, b079655)
   - Onda 3: BASE f48ebe0 → HEAD 68206c7 (f300a8b, 209a3bf, c814ce1, 69b4fb7, 78e1b4b, 490b414, e68adc2, 5e4f840, 5db0f24, b9ea10c, d2d25ef, 6258d7e, c96fee2, 32130d9, dd4efaa, 09ded2c, 68206c7)
   - Onda 4: BASE 1b6087b → HEAD 06a40d4 (06a40d4)
-- Último status conhecido: onda 4 fechada, T-01 a T-20 [x]; suíte 182/182, 0 "Message not found" no shell e em 21 telas.
-- Próxima onda recomendada: 5 (T-21)
+  - Onda 5: sem commits de código (QA); só chore(tasks)
+- Último status conhecido: onda 5 fechada, T-01 a T-21 [x]; varredura de 65 telas, suíte 182/182; bugs B1, O1, O2 abertos.
+- Próxima onda recomendada: 6 (correção B1, O1, O2 + validar fechar caixa, PaymentForm e formulários de catálogo)
