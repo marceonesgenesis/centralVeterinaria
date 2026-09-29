@@ -200,6 +200,11 @@ class GlobalSearchController extends TPage
      */
     private function renderFooter(array $param, int $offset, int $count, int $total, string $term): void
     {
+        // pager novo a cada render: hide() não tem volta e show() pode
+        // renderizar o rodapé vazio antes de onSearch()
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
+
         $this->pageNavigation->setAction(new TAction([$this, 'onSearch'], ['query' => $term]));
         $this->pageNavigation->setCount($total);
         $this->pageNavigation->setProperties($param);
@@ -207,6 +212,21 @@ class GlobalSearchController extends TPage
 
         $from = $total > 0 ? $offset + 1 : 0;
         $this->footerBox->clearChildren();
+
+        // TPageNavigation (framework) sempre desenha as páginas 1..10, com as
+        // inexistentes como placeholders "off": com uma página só o pager
+        // some; com mais, os placeholders ficam ocultos e só restam as
+        // páginas reais, coerentes com "Mostrando X–Y de N".
+        if ($total <= self::LIMIT)
+        {
+            $this->pageNavigation->hide();
+        }
+        else
+        {
+            $this->footerBox->{'class'} = 'cv-global-search-footer';
+            $this->footerBox->add(TElement::tag('style', '.cv-global-search-footer .page-item.off{display:none}', []));
+        }
+
         $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('results')));
     }
 
