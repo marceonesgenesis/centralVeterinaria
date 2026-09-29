@@ -7,6 +7,11 @@
  * - Envia a busca global #cv-global-search para GlobalSearchController::onSearch
  *   pelo carregador do Adianti, sem recarregar a página.
  *
+ * - Desabilita os itens de menu sem tela (T-19): links para
+ *   CvShellController::onComingSoon ganham .cv-menu-disabled, o selo
+ *   "Em breve" e não navegam (hint=encounter acrescenta "Abra pelo
+ *   atendimento" como dica).
+ *
  * Dados: engine.php?class=CvShellController&method=onContext&static=1
  * Troca de unidade: CvShellController::onSwitchUnit (unit_id).
  */
@@ -17,6 +22,14 @@ var CvShell = (function () {
     var contextPromise = null;
     var observer = null;
     var initialized = false;
+
+    var MENU_DISABLED_MARK = 'method=onComingSoon';
+    var MENU_TEXT = {
+        soon: 'Em breve',
+        hints: {
+            encounter: 'Abra pelo atendimento'
+        }
+    };
 
     function parseJson(text) {
         var start = text.indexOf('{');
@@ -166,6 +179,56 @@ var CvShell = (function () {
         });
     }
 
+    function queryParam(href, name) {
+        var match = new RegExp('[?&]' + name + '=([^&#]*)').exec(href || '');
+        return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    function disableMenuLink(link) {
+        var href = link.getAttribute('href') || '';
+        var item = link.closest('li');
+        var hint = MENU_TEXT.hints[queryParam(href, 'hint')] || '';
+        var label = link.querySelector('span');
+        var text = label ? label.textContent.trim() : link.textContent.trim();
+
+        link.setAttribute('data-cv-disabled-href', href);
+        link.removeAttribute('href');
+        link.removeAttribute('generator');
+        link.classList.add('cv-menu-disabled');
+        link.setAttribute('role', 'link');
+        link.setAttribute('aria-disabled', 'true');
+        link.setAttribute('title', hint ? text + ' — ' + hint : text + ' — ' + MENU_TEXT.soon);
+        if (item) {
+            item.classList.add('cv-menu-disabled');
+        }
+
+        if (!link.querySelector('.cv-menu-soon')) {
+            var badge = document.createElement('span');
+            badge.className = 'cv-menu-soon';
+            badge.textContent = MENU_TEXT.soon;
+            link.appendChild(badge);
+        }
+    }
+
+    function decorateMenu() {
+        var links = document.querySelectorAll('#side-menu a[href*="' + MENU_DISABLED_MARK + '"]');
+        for (var i = 0; i < links.length; i++) {
+            disableMenuLink(links[i]);
+        }
+    }
+
+    function blockDisabledMenuClick(event) {
+        var target = event.target && event.target.closest ? event.target.closest('a.cv-menu-disabled') : null;
+        if (!target) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) {
+            event.stopImmediatePropagation();
+        }
+    }
+
     function watchSlots() {
         if (observer || typeof MutationObserver === 'undefined' || !document.body) {
             return;
@@ -187,10 +250,12 @@ var CvShell = (function () {
     }
 
     function init() {
+        decorateMenu();
         bindSearch();
         refresh();
         if (!initialized) {
             initialized = true;
+            document.addEventListener('click', blockDisabledMenuClick, true);
             watchSlots();
         }
     }

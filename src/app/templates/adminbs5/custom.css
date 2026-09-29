@@ -182,6 +182,89 @@
     box-shadow: none !important;
 }
 
+/* Sidebar final (T-19): coluna com o menu principal em cima e
+   Configurações/Ajuda (ícone com .cv-menu-footer em menu.xml) colados
+   ao rodapé; itens sem tela (.cv-menu-disabled, marcados por cv-shell.js)
+   ficam esmaecidos, sem navegação e com o selo "Em breve". */
+#sidebar {
+    height: 100vh;
+}
+
+#sidebar #menu-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: auto !important;
+    min-height: 100%;
+}
+
+#sidebar #side-menu {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+}
+
+#sidebar #side-menu > li:has(> a > .cv-menu-footer) {
+    margin-top: auto;
+    padding-top: var(--cv-space-2);
+    border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+#sidebar #side-menu > li:has(> a > .cv-menu-footer) ~ li:has(> a > .cv-menu-footer) {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+#sidebar a.sidebar-link.cv-menu-disabled,
+#sidebar a.sidebar-link.cv-menu-disabled:hover {
+    cursor: not-allowed;
+    color: rgb(201 219 214 / 55%) !important;
+    background: transparent !important;
+}
+
+#sidebar .cv-menu-soon {
+    margin-inline-start: auto;
+    padding: 0.05rem 0.45rem;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 999px;
+    color: rgb(201 219 214 / 80%);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* Seletor de unidade (montado por cv-shell.js em [data-cv-unit-switch]) */
+.cv-unit-switch__select,
+.cv-unit-switch__select.form-select {
+    min-width: 180px;
+    height: 2.25rem;
+    padding-block: 0;
+    border: 1px solid var(--cv-color-border);
+    border-radius: var(--cv-radius-md);
+    background-color: var(--cv-color-surface);
+    color: var(--cv-color-text);
+    font-size: 0.875rem;
+}
+
+.cv-unit-switch__select:hover {
+    border-color: var(--cv-color-primary);
+}
+
+.cv-unit-switch__select:focus,
+.cv-unit-switch__select:focus-visible {
+    border-color: var(--cv-color-primary);
+    outline: 3px solid var(--cv-color-focus) !important;
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.cv-unit-switch__select:disabled {
+    background-color: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text-muted);
+    opacity: 1;
+}
+
 /* Topbar */
 .cv-topbar {
     min-height: var(--cv-shell-topbar-height);
