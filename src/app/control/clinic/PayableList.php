@@ -26,6 +26,10 @@ class PayableList extends TStandardList
     protected $form;     // registration form
     protected $datagrid; // listing
     protected $pageNavigation;
+    protected $footerBox;
+
+    /** @var \CentralVet\Domain\Payable|null conta recém-paga, exibida com badge Pago no recarregamento */
+    private $justPaid = null;
 
     /**
      * Page constructor
@@ -42,115 +46,101 @@ class PayableList extends TStandardList
         parent::addFilterField('description_text', 'like', 'description_text'); // filterField, operator, formField
         parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
+        // barra de filtros em linha (busca por descrição), no lugar da cortina
+        $this->form = new TForm('form_search_Payable');
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_Payable');
-        $this->form->setFormTitle(_t('Payables'));
-
-        // create the form fields
         $description_text = new TEntry('description_text');
-
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Description'))] );
-        $this->form->addFields( [$description_text] );
-
+        $description_text->placeholder = _t('Description');
         $description_text->setSize('100%');
+
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
+
+        $this->form->add(CvPage::filterBar([$description_text, $find]));
+        $this->form->setFields([$description_text, $find]);
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue('Payable_filter_data') );
 
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
         // creates the datagrid columns
-        $column_id          = new TDataGridColumn('id', 'Id', 'center', 50);
         $column_description = new TDataGridColumn('description_text', _t('Description'), 'left');
         $column_category    = new TDataGridColumn('category', _t('Category'), 'left');
-        $column_amount       = new TDataGridColumn('amount_label', _t('Amount'), 'right', 110);
-        $column_due_date     = new TDataGridColumn('due_date_label', _t('Due date'), 'center', 110);
-        $column_status       = new TDataGridColumn('status_label', _t('Status'), 'center', 100);
+        $column_due_date    = new TDataGridColumn('due_date_label', _t('Due date'), 'left', 120);
+        $column_amount      = new TDataGridColumn('amount_cents', _t('Amount'), 'right', 130);
+        $column_status      = new TDataGridColumn('status', _t('Status'), 'left', 110);
+
+        $column_amount->setTransformer(function ($value) {
+            return CvFormat::e(CvFormat::money((int) $value));
+        });
+        $column_status->setTransformer(function ($value) {
+            return self::statusBadge((string) $value);
+        });
 
         // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
         $this->datagrid->addColumn($column_description);
         $this->datagrid->addColumn($column_category);
-        $this->datagrid->addColumn($column_amount);
         $this->datagrid->addColumn($column_due_date);
+        $this->datagrid->addColumn($column_amount);
         $this->datagrid->addColumn($column_status);
 
-        // row action: settle this payable
-        $action_pay = new TDataGridAction(array($this, 'onPay'));
-        $action_pay->setButtonClass('btn btn-default');
-        $action_pay->setLabel(_t('Pay'));
-        $action_pay->setImage('fa:money-bill-wave green');
-        $action_pay->setField('id');
-        $this->datagrid->addAction($action_pay);
+        // row action ("…" → Pagar): settle this payable
+        $action_pay = new TDataGridAction(array($this, 'onPay'), ['id' => '{id}']);
+        $action_pay->setDisplayCondition(function ($object) {
+            return $object->status === \CentralVet\Domain\Payable::STATUS_OPEN;
+        });
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Pay'), 'action' => $action_pay, 'icon' => 'fa:money-bill-wave'],
+        ]));
 
         // create the datagrid model
         $this->datagrid->createModel();
 
         // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
         $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
+        $this->footerBox = new TElement('div');
 
-        $btnf = TButton::create('find', [$this, 'onSearch'], '', 'fa:search');
-        $btnf->style = 'height: 37px; margin-right:4px;';
-
-        $form_search = new TForm('form_search_description_text');
-        $form_search->style = 'float:left;display:flex';
-        $form_search->add($description_text, true);
-        $form_search->add($btnf, true);
-
-        $panel->addHeaderWidget($form_search);
-
-        $panel->addHeaderActionLink('', new TAction(['PayableForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
-
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Payables'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        // vertical box container
-        // No TXMLBreadCrumb here on purpose: registering PayableList in
-        // menu.xml is explicitly T-12's job, not T-09's (same precedent as
-        // ProcedureCatalogList::__construct()'s own docblock) — TXMLBreadCrumb
-        // throws when the class is not yet listed there, which would make
-        // `new PayableList()` fatal ahead of that registration.
+        // No TXMLBreadCrumb here on purpose: TXMLBreadCrumb throws when the
+        // class is not listed in menu.xml, which would make
+        // `new PayableList()` fatal whenever the menu changes.
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($page_header);
-        $container->add($panel);
+        $container->add(CvPage::header(_t('Payables'), _t('Financial'), [
+            ['label' => _t('New payable'), 'href' => 'index.php?class=PayableForm&method=onEdit&register_state=false', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]));
+        $container->add(CvNav::tabs('finance', 'payables'));
+        $container->add($this->form);
+        $container->add($this->datagrid);
+        $container->add($this->footerBox);
 
         parent::add($container);
+    }
+
+    /**
+     * Badge de status: Aberto / Pago / Cancelado.
+     */
+    private static function statusBadge(string $status): TElement
+    {
+        if ($status === \CentralVet\Domain\Payable::STATUS_PAID)
+        {
+            return CvBadge::create(_t('Paid'), 'success');
+        }
+        if ($status === \CentralVet\Domain\Payable::STATUS_OPEN)
+        {
+            return CvBadge::create(_t('Open (status)'), 'warning');
+        }
+
+        return CvBadge::create($status, 'neutral');
     }
 
     /**
@@ -180,6 +170,13 @@ class PayableList extends TStandardList
             $description_filter = TSession::getValue('Payable_filter_description_text');
             $description_filter = !empty($description_filter) ? mb_strtolower((string) $description_filter) : null;
 
+            // listOpen() só traz contas em aberto: a recém-paga (onPay) entra
+            // no topo desta renderização com o status atualizado (Pago)
+            if ($this->justPaid instanceof \CentralVet\Domain\Payable)
+            {
+                array_unshift($payables, $this->justPaid);
+            }
+
             $rows = [];
             foreach ($payables as $payable)
             {
@@ -192,10 +189,9 @@ class PayableList extends TStandardList
                 $row->id               = $payable->id();
                 $row->description_text = $payable->descriptionText();
                 $row->category         = $payable->category();
-                $row->amount_label     = number_format($payable->amountCents() / 100, 2, ',', '.');
-                $row->due_date_label   = $payable->dueDate() !== null ? $payable->dueDate()->format('d/m/Y') : '-';
+                $row->amount_cents     = $payable->amountCents();
+                $row->due_date_label   = $payable->dueDate() !== null ? $payable->dueDate()->format('d/m/Y') : '—';
                 $row->status           = $payable->status();
-                $row->status_label     = $payable->status() === \CentralVet\Domain\Payable::STATUS_OPEN ? _t('Open') : $payable->status();
 
                 $rows[] = $row;
             }
@@ -205,7 +201,7 @@ class PayableList extends TStandardList
             // semantics)
             $count = count($rows);
 
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
             $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
 
             $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
@@ -216,12 +212,18 @@ class PayableList extends TStandardList
                 $this->datagrid->addItem($row);
             }
 
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
+            $this->pageNavigation->setCount($count); // count of records
+            $this->pageNavigation->setProperties($param); // order, page
+            $this->pageNavigation->setLimit($limit); // limit
+
+            $this->footerBox->clearChildren();
+            $this->footerBox->add(CvDatagrid::footer(
+                $this->pageNavigation,
+                $offset + 1,
+                $offset + count($page_rows),
+                $count,
+                _t('accounts')
+            ));
 
             // close the transaction
             TTransaction::close();
@@ -266,7 +268,7 @@ class PayableList extends TStandardList
             $tenant_context = self::resolveTenantContext();
             $service = self::buildPayableService($tenant_context);
 
-            $service->pay(
+            $this->justPaid = $service->pay(
                 (int) $param['id'],
                 $tenant_context->userId(),
                 __CLASS__ . '::' . __FUNCTION__,
@@ -307,67 +309,10 @@ class PayableList extends TStandardList
     /**
      *
      */
-    public function onAfterSearch($datagrid, $options)
-    {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
-        }
-
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            $obj = new stdClass;
-            $obj->description_text = TSession::getValue(get_class($this).'_filter_data')->description_text;
-            TForm::sendData('form_search_description_text', $obj);
-        }
-    }
-
-    /**
-     *
-     */
     public static function onChangeLimit($param)
     {
         TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
         AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
-        }
-        catch (Exception $e)
-        {
-            new TMessage('error', $e->getMessage());
-        }
     }
 
     /**

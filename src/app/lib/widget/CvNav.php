@@ -18,7 +18,7 @@ class CvNav
         $groups = [
             'finance' => [
                 'overview'    => ['Overview',    'index.php?class=FinancialOverview'],
-                'revenues'    => ['Revenues',    'index.php?class=FinancialEntryList&entry_type=revenue'],
+                'revenues'    => ['Revenues',    'index.php?class=FinancialEntryList&entry_type=income'],
                 'expenses'    => ['Expenses',    'index.php?class=FinancialEntryList&entry_type=expense'],
                 'payables'    => ['Payables',    'index.php?class=PayableList'],
                 'receivables' => ['Receivables', 'index.php?class=PendingReceivableList'],

@@ -40,8 +40,6 @@ class FinancialEntryForm extends TStandardForm
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->setDatabase('permission');                // defines the database
         // No setActiveRecord() call: AdiantiStandardControlTrait::
         // setActiveRecord() requires class_exists($activeRecord) and throws
@@ -55,7 +53,6 @@ class FinancialEntryForm extends TStandardForm
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_FinancialEntry');
-        $this->form->setFormTitle(_t('Financial entry'));
         $this->form->enableClientValidation();
 
         // create the form fields
@@ -68,55 +65,50 @@ class FinancialEntryForm extends TStandardForm
         $category = new TEntry('category');
         $amount = new TEntry('amount');
 
-        // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Type'))] );
-        $this->form->addFields( [$entry_type] );
-        $this->form->addFields( [new TLabel(_t('Category'))] );
-        $this->form->addFields( [$category] );
-        $this->form->addFields( [new TLabel(_t('Amount'))] );
-        $this->form->addFields( [$amount] );
+        CvForm::decorate($this->form, 2);
+
+        // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
+        $this->form->addFields( [new TLabel(_t('Type'))], [$entry_type], [new TLabel(_t('Category'))], [$category] );
+        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount], [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $entry_type->setSize('100%');
-        $category->setSize('100%');
-        $amount->setSize('30%');
         $amount->setNumericMask(2, ',', '.');
 
         $entry_type->addValidation( _t('Type'), new TRequiredValidator );
         $category->addValidation( _t('Category'), new TRequiredValidator );
         $amount->addValidation( _t('Amount'), new TRequiredValidator );
 
+        // pré-seleciona o tipo vindo da aba (FinancialEntryList&entry_type=...)
+        $requested_type = self::requestedType($_REQUEST['entry_type'] ?? null);
+        if ($requested_type !== null)
+        {
+            $entry_type->setValue($requested_type);
+        }
+
         // create the form actions
         $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        // página cheia: cabeçalho do kit com voltar para a lista
+        $back = 'index.php?class=FinancialEntryList' . ($requested_type !== null ? '&entry_type=' . $requested_type : '');
 
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Financial entry'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($page_header);
+        $container->add(CvPage::header(_t('Financial entry'), _t('Financial'), [
+            ['icon' => 'fa:arrow-left', 'href' => $back],
+        ]));
         $container->add($this->form);
 
         parent::add($container);
+    }
+
+    /**
+     * entry_type válido do schema (income|expense) ou null.
+     */
+    private static function requestedType($value): ?string
+    {
+        return in_array($value, [\CentralVet\Domain\FinancialEntry::TYPE_INCOME, \CentralVet\Domain\FinancialEntry::TYPE_EXPENSE], true) ? $value : null;
     }
 
     /**
@@ -124,7 +116,7 @@ class FinancialEntryForm extends TStandardForm
      */
     public static function onClose($param)
     {
-        TScript::create("Template.closeRightPanel()");
+        AdiantiCoreApplication::loadPage('FinancialEntryList');
     }
 
     /**
@@ -166,6 +158,13 @@ class FinancialEntryForm extends TStandardForm
 
             // close the transaction
             TTransaction::close();
+
+            // volta para a aba do tipo salvo (Receitas/Despesas)
+            $saved_type = self::requestedType((string) $data->entry_type);
+            if ($saved_type !== null)
+            {
+                $this->setAfterSaveAction(new TAction(['FinancialEntryList', 'onReload'], ['entry_type' => $saved_type]));
+            }
 
             // shows the success message and redirects to FinancialEntryList
             if (!empty($this->useToast))

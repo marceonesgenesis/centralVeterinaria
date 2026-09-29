@@ -56,7 +56,6 @@ class CashSessionForm extends TPage
     {
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
 
         try
         {
@@ -104,19 +103,14 @@ class CashSessionForm extends TPage
      */
     private function buildPageHeader($title)
     {
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
+        // cabeçalho do kit Cv* (voltar para o histórico) + abas financeiras
+        $box = new TElement('div');
+        $box->add(CvPage::header((string) $title, _t('Financial'), [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=CashSessionList'],
+        ]));
+        $box->add(CvNav::tabs('finance', 'cashflow'));
 
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add($title);
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        return $page_header;
+        return $box;
     }
 
     /**
@@ -127,19 +121,17 @@ class CashSessionForm extends TPage
     private function buildOpenPanel()
     {
         $form = new BootstrapFormBuilder('form_CashSessionOpen');
-        $form->setFormTitle(_t('Open cash session'));
         $form->enableClientValidation();
+        CvForm::decorate($form, 2);
 
         $opening_balance = new TEntry('opening_balance');
-        $opening_balance->setSize('30%');
         $opening_balance->setNumericMask(2, ',', '.');
         $opening_balance->addValidation(_t('Opening balance'), new TRequiredValidator);
 
-        $form->addFields( [new TLabel(_t('Opening balance'))] );
-        $form->addFields( [$opening_balance] );
+        $form->addFields( [new TLabel(_t('Opening balance'))], [$opening_balance] );
 
         $btn = $form->addAction(_t('Open cash session'), new TAction(array($this, 'onOpen')), 'fa:cash-register');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
 
         $this->form = $form;
 
@@ -161,15 +153,16 @@ class CashSessionForm extends TPage
         $wrapper->style = 'width: 100%';
 
         $summary = new TElement('div');
-        $summary->class = 'card';
-        $summary->style = 'margin-bottom: 10px; padding: 12px';
+        $summary->class = 'card cv-card';
+        $summary->style = 'margin-bottom: 16px; padding: 16px';
 
         $title = new TElement('h4');
-        $title->add(_t('Cash session open since') . ' ' . $open_session->opened_at);
+        $title->add(CvFormat::e(_t('Cash session open since') . ' ' . $open_session->opened_at) . ' ');
+        $title->add(CvBadge::create(_t('Open (status)'), 'success'));
         $summary->add($title);
 
         $opening_line = new TElement('p');
-        $opening_line->add(_t('Opening balance') . ': ' . number_format(((int) $open_session->opening_balance_cents) / 100, 2, ',', '.'));
+        $opening_line->add(CvFormat::e(_t('Opening balance') . ': ' . CvFormat::money((int) $open_session->opening_balance_cents)));
         $summary->add($opening_line);
 
         $list = new TElement('ul');
@@ -185,7 +178,7 @@ class CashSessionForm extends TPage
             foreach ($totals as $payment_method => $amount_cents)
             {
                 $item = new TElement('li');
-                $item->add($payment_method . ': ' . number_format(((int) $amount_cents) / 100, 2, ',', '.'));
+                $item->add(CvFormat::e($payment_method . ': ' . CvFormat::money((int) $amount_cents)));
                 $list->add($item);
             }
         }
@@ -194,19 +187,17 @@ class CashSessionForm extends TPage
         $wrapper->add($summary);
 
         $form = new BootstrapFormBuilder('form_CashSessionClose');
-        $form->setFormTitle(_t('Close cash session'));
         $form->enableClientValidation();
+        CvForm::decorate($form, 2);
 
         $closing_balance = new TEntry('closing_balance');
-        $closing_balance->setSize('30%');
         $closing_balance->setNumericMask(2, ',', '.');
         $closing_balance->addValidation(_t('Closing balance'), new TRequiredValidator);
 
-        $form->addFields( [new TLabel(_t('Closing balance'))] );
-        $form->addFields( [$closing_balance] );
+        $form->addFields( [new TLabel(_t('Closing balance'))], [$closing_balance] );
 
         $btn = $form->addAction(_t('Close cash session'), new TAction(array($this, 'onClose')), 'fa:cash-register');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
 
         $wrapper->add($form);
 

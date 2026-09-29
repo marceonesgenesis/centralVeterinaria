@@ -77,16 +77,11 @@ class PaymentForm extends TPage
         $container = new TElement('div');
         $container->class = 'cv-page';
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-09)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Register payment'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
-        $container->add($page_header);
+        // cabeçalho do kit Cv* com voltar para as contas a receber
+        $container->add(CvPage::header(_t('Register payment'), _t('Financial'), [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=PendingReceivableList'],
+        ]));
+        $container->add(CvNav::tabs('finance', 'receivables'));
 
         if ($this->receivableId === null)
         {
@@ -140,6 +135,23 @@ class PaymentForm extends TPage
         $container->add($row);
 
         parent::add($container);
+    }
+
+    /**
+     * Badge de status do recebível: Aberto / Parcial / Pago.
+     */
+    private static function statusBadge(string $status): TElement
+    {
+        if ($status === \CentralVet\Domain\Receivable::STATUS_PAID)
+        {
+            return CvBadge::create(_t('Paid'), 'success');
+        }
+        if ($status === \CentralVet\Domain\Receivable::STATUS_PARTIALLY_PAID)
+        {
+            return CvBadge::create(_t('Partially paid'), 'warning');
+        }
+
+        return CvBadge::create(_t('Open (status)'), 'info');
     }
 
     private function emptyStatePanel(): TPanelGroup
@@ -207,10 +219,14 @@ class PaymentForm extends TPage
 
         $balanceDueCents = $receivable->totalCents() - $receivable->paidCents();
 
+        $status = new TElement('p');
+        $status->add(CvFormat::e(_t('Status')) . ': ');
+        $status->add(self::statusBadge($receivable->status()));
+        $panel->add($status);
+
         $lines = [];
-        $lines[] = _t('Status') . ': ' . $receivable->status();
-        $lines[] = _t('Total') . ': ' . self::formatCents($receivable->totalCents());
-        $lines[] = _t('Paid') . ': ' . self::formatCents($receivable->paidCents());
+        $lines[] = CvFormat::e(_t('Total') . ': ' . CvFormat::money($receivable->totalCents()));
+        $lines[] = CvFormat::e(_t('Paid') . ': ' . CvFormat::money($receivable->paidCents()));
 
         $panel->add('<p>' . implode('<br>', $lines) . '</p>');
 
@@ -228,7 +244,7 @@ class PaymentForm extends TPage
 
         $balance_value = new TElement('p');
         $balance_value->style = 'margin: 0; font-size: 1.75rem; font-weight: 600; color: var(--cv-color-primary);';
-        $balance_value->add(self::formatCents($balanceDueCents));
+        $balance_value->add(CvFormat::e(CvFormat::money($balanceDueCents)));
 
         $balance_box->add($balance_label);
         $balance_box->add($balance_value);
@@ -249,6 +265,7 @@ class PaymentForm extends TPage
 
         $this->form = new BootstrapFormBuilder('form_Payment');
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
         $receivable_id = new THidden('receivable_id');
         $receivable_id->setValue($receivable->id());
@@ -270,13 +287,10 @@ class PaymentForm extends TPage
         $amount_cents->setSize('100%');
         $amount_cents->addValidation(_t('Amount'), new TRequiredValidator);
 
-        $this->form->addFields([new TLabel(_t('Payment method'))]);
-        $this->form->addFields([$payment_method]);
-        $this->form->addFields([new TLabel(_t('Amount (R$)'))]);
-        $this->form->addFields([$amount_cents]);
+        $this->form->addFields([new TLabel(_t('Payment method'))], [$payment_method], [new TLabel(_t('Amount (R$)'))], [$amount_cents]);
 
         $btn = $this->form->addAction(_t('Register payment'), new TAction([$this, 'onSave']), 'fa:money-bill');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
 
         $panel->add($this->form);
 
@@ -394,11 +408,6 @@ class PaymentForm extends TPage
         $normalized = str_replace(',', '.', $normalized);
 
         return (int) round(((float) $normalized) * 100);
-    }
-
-    private static function formatCents(int $cents): string
-    {
-        return 'R$ ' . number_format($cents / 100, 2, ',', '.');
     }
 
     /**

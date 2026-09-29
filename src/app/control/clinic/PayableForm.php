@@ -31,8 +31,6 @@ class PayableForm extends TStandardForm
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->setDatabase('permission');           // defines the database
         $this->setActiveRecord('Payable');           // defines the active record
         $this->setAfterSaveAction( new TAction(['PayableList', 'onReload']) );
@@ -40,7 +38,6 @@ class PayableForm extends TStandardForm
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_Payable');
-        $this->form->setFormTitle(_t('Payable'));
         $this->form->enableClientValidation();
 
         // create the form fields
@@ -53,25 +50,15 @@ class PayableForm extends TStandardForm
         $due_date->setMask('dd/mm/yyyy');
         $due_date->setDatabaseMask('yyyy-mm-dd');
 
-        // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Description'))] );
-        $this->form->addFields( [$description_text] );
-        $this->form->addFields( [new TLabel(_t('Category'))] );
-        $this->form->addFields( [$category] );
-        $this->form->addFields( [new TLabel(_t('Amount'))] );
-        $this->form->addFields( [$amount] );
-        $this->form->addFields( [new TLabel(_t('Due date'))] );
-        $this->form->addFields( [$due_date] );
+        CvForm::decorate($this->form, 2);
+
+        // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
+        $this->form->addFields( [new TLabel(_t('Description'))], [$description_text] );
+        $this->form->addFields( [new TLabel(_t('Category'))], [$category], [new TLabel(_t('Amount'))], [$amount] );
+        $this->form->addFields( [new TLabel(_t('Due date'))], [$due_date], [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $description_text->setSize('100%');
-        $category->setSize('100%');
-        $amount->setSize('30%');
         $amount->setNumericMask(2, ',', '.');
-        $due_date->setSize('30%');
 
         $description_text->addValidation( _t('Description'), new TRequiredValidator );
         $category->addValidation( _t('Category'), new TRequiredValidator );
@@ -79,29 +66,15 @@ class PayableForm extends TStandardForm
 
         // create the form actions
         $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Payable'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($page_header);
+        $container->add(CvPage::header(_t('Payable'), _t('Financial'), [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=PayableList'],
+        ]));
         $container->add($this->form);
 
         parent::add($container);
@@ -112,7 +85,7 @@ class PayableForm extends TStandardForm
      */
     public static function onClose($param)
     {
-        TScript::create("Template.closeRightPanel()");
+        AdiantiCoreApplication::loadPage('PayableList');
     }
 
     /**
