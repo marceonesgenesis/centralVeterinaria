@@ -170,6 +170,18 @@
     font-weight: 600;
 }
 
+/* Hamburger (#sidebar-toggle toggles #sidebar.collapsed in theme.js):
+   collapse to zero width instead of the base negative margin, so the
+   sidebar really leaves the layout and the content takes the full width. */
+#sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+    margin-left: 0;
+    overflow: hidden;
+    box-shadow: none !important;
+}
+
 /* Topbar */
 .cv-topbar {
     min-height: var(--cv-shell-topbar-height);
