@@ -4,16 +4,18 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - LINT = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo>` (rodar de `/var/www/html/centralvet`).
 - SUITE = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`.
 - GATE = orquestrador roda `docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`; depois o validador usa o Playwright MCP em `http://127.0.0.1:8081` (sessão admin) e salva screenshots em `/var/www/html/centralvet/.playwright-mcp/f10-<Tela>.png`.
+- VARREDURA = no gate de cada onda, depois dos passos GATE das tasks, o validador percorre as telas da onda listadas em `plan.md § Critérios gerais de aceite` (item "Varredura Playwright no gate"), exercitando abrir/listar/filtrar/salvar/voltar e lendo console (`error`) e rede (≥ 400); bug em tela da task reprova a task (fix loop).
+- COMMITS = branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); todo commit da task lista só os caminhos dela e leva o trailer `Task: <ID>`; nas tasks com teste (T-04, T-05, T-06) o primeiro commit contém só o arquivo de teste falhando, com trailer `Task: <ID> (RED)`. O relatório registra o hash em "Commit RED" (ou `sem teste: <motivo>`) e os hashes da implementação em `## Evidência`.
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
 |---|---|---|---|---|---|---|---|
-| T-01 | frontend | Casca: layout.html, flags de navbar, estilos da casca, buildid | — | sim | alta | Athena | [ ] |
-| T-02 | frontend | Kit de componentes Cv* + cv-components.css | — | sim | alta | Platão | [ ] |
-| T-03 | frontend | Vocabulário novo em translations.json | — | sim | simples | Platão | [ ] |
-| T-04 | backend | Leitura de indicadores de estoque e vendas | — | sim | média | Arquimedes | [ ] |
-| T-05 | backend | Leitura de indicadores financeiros | — | sim | média | Arquimedes | [ ] |
-| T-06 | backend | Leitura de resumo clínico (paciente, último atendimento, prescrições, itens do atendimento) | — | sim | média | Sherlock | [ ] |
-| T-07 | database | DML de registro de FinancialOverview e CvShellController (aprovação na hora) | — | sim | simples | Jaspion | [ ] |
+| T-01 | frontend | Casca: layout.html, flags de navbar, estilos da casca, buildid | — | sim | alta | Athena | [x] |
+| T-02 | frontend | Kit de componentes Cv* + cv-components.css | — | sim | alta | Platão | [x] |
+| T-03 | frontend | Vocabulário novo em translations.json | — | sim | simples | Platão | [x] |
+| T-04 | backend | Leitura de indicadores de estoque e vendas | — | sim | média | Arquimedes | [x] |
+| T-05 | backend | Leitura de indicadores financeiros | — | sim | média | Arquimedes | [x] |
+| T-06 | backend | Leitura de resumo clínico (paciente, último atendimento, prescrições, itens do atendimento) | — | sim | média | Sherlock | [x] |
+| T-07 | database | DML de registro de FinancialOverview e CvShellController (aprovação na hora) | — | sim | simples | Jaspion | [x] |
 | T-08 | frontend | CvShellController + cv-shell.js (papel do usuário, seletor de unidade, busca global) | T-01, T-02, T-07 | sim | média | Aang | [ ] |
 | T-09 | frontend | Tela nova FinancialOverview (Financeiro — Visão geral) | T-02, T-03, T-05, T-07 | sim | alta | Tesla | [ ] |
 | T-10 | frontend | ProductList → Estoque e Vendas | T-02, T-03, T-04 | sim | alta | Darwin | [ ] |
@@ -27,7 +29,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-18 | frontend | Lote Financeiro no padrão, com abas financeiras | T-02, T-09 | sim | média | Tesla | [ ] |
 | T-19 | frontend | menu.xml reorganizado + sidebar final (desabilitados, rodapé fixo) | T-01, T-07, T-08, T-09 | sim | média | Athena | [ ] |
 | T-20 | frontend | Consolidação de chaves i18n pedidas no board | T-03, T-08, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-18, T-19 | não | simples | Platão | [ ] |
-| T-21 | qa | Validação visual lado a lado com os mocks + regressão | T-20 | não | média | Spock | [ ] |
+| T-21 | qa | Validação visual lado a lado com os mocks + regressão + varredura Playwright de todas as telas do menu | T-20 | não | média | Spock | [ ] |
 
 ## Detalhamento
 
@@ -168,7 +170,8 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - Produto do tenant B nunca aparece em `products()` do tenant A (asserção no teste).
 
 **Validação**
-- SUITE (evidência: linhas `PASS  Integration\StockSalesOverviewIntegrationTest::…` e `Failed: 0`; a mesma execução antes da implementação mostrou `FAIL  Integration\StockSalesOverviewIntegrationTest`, colada em `## RED`)
+- SUITE (evidência: linhas `PASS  Integration\StockSalesOverviewIntegrationTest::…` e `Failed: 0`; a mesma execução no commit RED mostrou `FAIL  Integration\StockSalesOverviewIntegrationTest`, colada em `## RED` com o hash do commit `Task: T-04 (RED)`)
+- COMMITS → `git -C /var/www/html/centralvet log --reverse --format='%h %s | %b' 9efef4e..HEAD -- src/tests/Integration/StockSalesOverviewIntegrationTest.php src/app/Core/Persistence/StockSalesOverviewReader.php src/app/Core/Application/StockSalesOverviewService.php` (evidência: o primeiro commit com `T-04` tem trailer `Task: T-04 (RED)` e `git show --stat` dele lista só `src/tests/Integration/StockSalesOverviewIntegrationTest.php`; os commits seguintes de `T-04` têm `Task: T-04`)
 - Review Focus: o teste cobre mês anterior sem venda → `sales_prev_month_cents` = 0 e tenant sem produto → `products_in_stock` = 0 (evidência: nome do método `testPreviousMonthWithoutSalesYieldsZero` com `PASS`)
 - LINT dos 3 arquivos (evidência: `No syntax errors detected`)
 
@@ -202,7 +205,8 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - Lançamento de outro tenant ou outra unidade não altera `revenue_cents` (asserção no teste).
 
 **Validação**
-- SUITE (evidência: linhas `PASS  Integration\FinancialOverviewIntegrationTest::…`, `Failed: 0`; falha RED colada no relatório)
+- SUITE (evidência: linhas `PASS  Integration\FinancialOverviewIntegrationTest::…`, `Failed: 0`; falha RED colada em `## RED` com o hash do commit `Task: T-05 (RED)`)
+- COMMITS → `git -C /var/www/html/centralvet log --reverse --format='%h %s | %b' 9efef4e..HEAD -- src/tests/Integration/FinancialOverviewIntegrationTest.php src/app/Core/Persistence/FinancialOverviewReader.php src/app/Core/Application/FinancialOverviewService.php` (evidência: o primeiro commit com `T-05` tem trailer `Task: T-05 (RED)` e `git show --stat` dele lista só `src/tests/Integration/FinancialOverviewIntegrationTest.php`; os commits seguintes de `T-05` têm `Task: T-05`)
 - LINT dos 3 arquivos (evidência: `No syntax errors detected`)
 
 ### T-06 — Leitura de resumo clínico
@@ -233,7 +237,8 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - A suíte imprime `PASS  Integration\ClinicalSummaryIntegrationTest::` para cada método e `Failed: 0`; `patientCard()` de paciente de outro tenant retorna `null` (asserção).
 
 **Validação**
-- SUITE (evidência: `PASS  Integration\ClinicalSummaryIntegrationTest::…`, `Failed: 0`; falha RED colada no relatório)
+- SUITE (evidência: `PASS  Integration\ClinicalSummaryIntegrationTest::…`, `Failed: 0`; falha RED colada em `## RED` com o hash do commit `Task: T-06 (RED)`)
+- COMMITS → `git -C /var/www/html/centralvet log --reverse --format='%h %s | %b' 9efef4e..HEAD -- src/tests/Integration/ClinicalSummaryIntegrationTest.php src/app/Core/Persistence/ClinicalSummaryReader.php src/app/Core/Application/ClinicalSummaryService.php` (evidência: o primeiro commit com `T-06` tem trailer `Task: T-06 (RED)` e `git show --stat` dele lista só `src/tests/Integration/ClinicalSummaryIntegrationTest.php`; os commits seguintes de `T-06` têm `Task: T-06`)
 - LINT dos 3 arquivos (evidência: `No syntax errors detected`)
 
 ### T-07 — DML de registro de FinancialOverview e CvShellController
@@ -652,7 +657,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - `python3 -c "import json;d=json.load(open('/var/www/html/centralvet/src/app/config/translations.json'));en=[x['en'] for x in d];print(len(en)-len(set(en)), len(d))"` (evidência: `0` e contagem = anterior + novas)
 - `grep -c "i18n:" /var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/board.md` comparado com o número de chaves adicionadas (evidência: iguais, descontadas repetidas)
 
-### T-21 — Validação visual lado a lado com os mocks + regressão
+### T-21 — Validação visual lado a lado com os mocks + regressão + varredura Playwright de todas as telas do menu
 
 **Camada:** qa
 **Dependências:** T-20
@@ -663,7 +668,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 **Arquivos prováveis**
 
 **Interface**
-- Produz: `reports/T-21.md` com a tabela tela × mock × divergências estruturais e a saída da suíte
+- Produz: `reports/T-21.md` com a tabela tela × mock × divergências estruturais, a saída da suíte e a tabela da varredura `Tela | Fluxos exercitados | Console (errors) | Rede (≥400) | Erro na tela | Veredito | Task dona` (Task dona = ID da task no Mapa de arquivos, `pré-existente` para tela fora do Mapa, `framework — não editável` para `src/lib/adianti`/`framework_hashes.php`), com passos de reprodução, mensagem exata e screenshot `f10-bug-<Tela>-<n>.png` por bug
 - Consome: nada
 
 **Teste RED**
@@ -673,11 +678,15 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - Screenshots `f10-PrescriptionForm.png`, `f10-ProductList.png`, `f10-FinancialOverview.png`, `f10-ServiceList.png`, `f10-EncounterView.png` comparados com `images/1.png`–`4.png`: cada região do mock (sidebar, topbar, cabeçalho + seletor de unidade, abas, cards, tabela, coluna direita, rodapé) presente, ou ausente com pendência registrada em `notes.md` (dado inexistente no schema, IA oculta).
 - Amostra de 10 telas do item (d) mostra cabeçalho `CvPage`, formulário em página cheia e paginação sem `#0d6efd`.
 - SUITE termina com `Failed: 0` e `Total` ≥ 158; `grep -l "adianti_right_panel" src/app/control/clinic/*Form.php` não lista nenhum arquivo.
+- A tabela da varredura tem uma linha por item navegável de `src/menu.xml` (primeiro nível e submenus de Configurações, inclusive as telas administrativas do Adianti) mais `EncounterView`, `PrescriptionForm` e um formulário aberto por lista; cada linha com veredito `aprovado` (0 erros de console, 0 requisições ≥ 400, nenhum erro na tela) ou `reprovado` com o bug (passos, mensagem exata, screenshot); itens desabilitados aparecem como `desabilitado — sem navegação`.
+- Com ao menos um bug de veredito diferente de `aprovado`, o relatório termina com `Status: parcial` e a lista de bugs que o orquestrador leva à `### Onda 6 — correção (usuário)` (IDs a partir de T-22); sem bugs, `Status: concluído`.
 
 **Validação**
 - GATE → os 5 screenshots acima + 10 da amostra (evidência: tabela de divergências no relatório com "nenhuma estrutural" ou pendência nomeada por região)
 - SUITE (evidência: `Failed: 0`, `Total` ≥ 158)
 - `grep -l "adianti_right_panel" src/app/control/clinic/*Form.php | wc -l` (evidência: `0`)
+- VARREDURA completa → para cada item de `src/menu.xml` (lista extraída com `grep -oE '<action>[^<]+' /var/www/html/centralvet/src/menu.xml | sort -u`) e para as telas contextuais: `browser_navigate` pelo menu + `browser_snapshot`, fluxos abrir/listar/filtrar/abrir registro/salvar (só telas clínicas, registros `F10 varredura`)/voltar, depois `browser_console_messages` e `browser_network_requests` (evidência: tabela da varredura em `reports/T-21.md` com uma linha por tela, contagens de console/rede e veredito; número de linhas ≥ `grep -oE '<action>[^<]+' /var/www/html/centralvet/src/menu.xml | sort -u | wc -l`)
+- COMMITS → `git -C /var/www/html/centralvet log --format='%h|%s|%(trailers:key=Task,valueonly,separator=%x2C)' 9efef4e..HEAD` (evidência: toda linha cujo assunto não começa com `chore(tasks)` tem o terceiro campo não vazio, no formato `T-01`…`T-21` ou `T-04 (RED)`)
 
 ## Legenda
 
