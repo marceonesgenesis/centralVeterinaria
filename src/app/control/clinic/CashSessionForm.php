@@ -91,6 +91,9 @@ class CashSessionForm extends TPage
             $container->add(new TAlert('danger', $e->getMessage()));
         }
 
+        // onOpen()/onClose() redesenham depois do construtor: troca o corpo
+        // em vez de empilhar um segundo painel
+        $this->clearChildren();
         parent::add($container);
     }
 
@@ -178,7 +181,7 @@ class CashSessionForm extends TPage
             foreach ($totals as $payment_method => $amount_cents)
             {
                 $item = new TElement('li');
-                $item->add(CvFormat::e($payment_method . ': ' . CvFormat::money((int) $amount_cents)));
+                $item->add(CvFormat::e(CvFormat::paymentMethod((string) $payment_method) . ': ' . CvFormat::money((int) $amount_cents)));
                 $list->add($item);
             }
         }

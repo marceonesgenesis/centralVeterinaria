@@ -346,7 +346,7 @@ class EncounterAccountForm extends TPage
 
         $this->form->addFields([new TLabel(_t('Description'))], [$description_text], [new TLabel(_t('Amount (R$)'))], [$amount_cents]);
 
-        $btn = $this->form->addAction(_t('Add manual item'), new TAction([$this, 'onSave']), 'fa:plus');
+        $btn = $this->form->addAction(_t('Add manual item'), new TAction([$this, 'onSave'], ['encounter_id' => $this->encounterId]), 'fa:plus');
         $btn->class = 'btn btn-default';
 
         $panel->add($this->form);
@@ -387,7 +387,7 @@ class EncounterAccountForm extends TPage
         // Distinct $action from every other button on this screen (see
         // class docblock): 'EncounterAccountForm::onApplyDiscount', never
         // shared with onSave()/onClose() — the RBAC hook T-12 relies on.
-        $btn = $discountForm->addAction(_t('Apply discount'), new TAction([$this, 'onApplyDiscount']), 'fa:percent');
+        $btn = $discountForm->addAction(_t('Apply discount'), new TAction([$this, 'onApplyDiscount'], ['encounter_id' => $this->encounterId]), 'fa:percent');
         $btn->class = 'btn btn-default';
 
         $panel->add($discountForm);
@@ -407,7 +407,7 @@ class EncounterAccountForm extends TPage
         $account_id->setValue($this->account->id());
         $form->add($account_id);
 
-        $btn = $form->addAction(_t('Close account'), new TAction([$this, 'onClose']), 'fa:check-circle');
+        $btn = $form->addAction(_t('Close account'), new TAction([$this, 'onClose'], ['encounter_id' => $this->encounterId]), 'fa:check-circle');
         $btn->class = 'btn btn-primary';
 
         $wrapper->add($form);
@@ -706,8 +706,13 @@ class EncounterAccountForm extends TPage
      */
     private function reloadSelf(): void
     {
+        // as TAction levam encounter_id na URL do post; a conta carregada é
+        // o fallback caso o post chegue sem ele
+        $encounterId = $this->encounterId
+            ?? ($this->account instanceof \CentralVet\Domain\EncounterAccount ? $this->account->encounterId() : null);
+
         TScript::create(
-            "__adianti_goto_page('index.php?class=EncounterAccountForm&encounter_id={$this->encounterId}')"
+            "__adianti_goto_page('index.php?class=EncounterAccountForm&encounter_id=" . (int) $encounterId . "')"
         );
     }
 
