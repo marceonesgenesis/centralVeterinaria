@@ -3,8 +3,9 @@
  * CvForm — formulário em página cheia: rótulo acima do campo, grid de colunas e ações no rodapé do card.
  *
  * Linhas no formato addFields([label], [campo], [label], [campo]) viram pares rótulo/campo
- * distribuídos em $columns colunas (CSS grid em cv-components.css). Linhas com layout próprio
- * (setLayout) mantêm as classes informadas.
+ * distribuídos em $columns colunas (CSS grid em cv-components.css). Linha de um único slot
+ * (addContent, addFields([campo]), rótulo numa linha e campo na outra) ocupa a largura inteira.
+ * Linhas com layout próprio (setLayout) mantêm as classes informadas e ficam fora do grid.
  */
 class CvForm
 {

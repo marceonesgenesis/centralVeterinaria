@@ -93,13 +93,13 @@ class CvPage
             {
                 $item->add(TElement::tag('span', $label, [
                     'class'         => 'cv-tab cv-tab--disabled',
-                    'title'         => _t('Coming soon'),
+                    'title'         => CvFormat::e(_t('Coming soon')),
                     'aria-disabled' => 'true',
                 ]));
             }
             else
             {
-                $attributes = ['class' => 'cv-tab', 'href' => $href, 'generator' => 'adianti'];
+                $attributes = ['class' => 'cv-tab', 'href' => CvFormat::e($href), 'generator' => 'adianti'];
                 if ((string) $key === $active)
                 {
                     $attributes['class'] .= ' cv-tab--active';
@@ -147,17 +147,19 @@ class CvPage
         }
 
         $link = new TElement('a');
-        $link->{'class'} = $spec['class'] ?? 'btn btn-default';
-        $link->{'href'} = $href ?? '#';
+        $link->{'class'} = CvFormat::e($spec['class'] ?? 'btn btn-default');
+        $link->{'href'} = CvFormat::e($href ?? '#');
         $link->{'generator'} = 'adianti';
 
-        if (!empty($spec['title']))
+        // nome acessível de ação só com ícone: title informado ou, no voltar, "Voltar"
+        $title = !empty($spec['title']) ? (string) $spec['title'] : ($label === '' && $icon === 'fa:arrow-left' ? _t('Back') : '');
+        if ($title !== '')
         {
-            $link->{'title'} = $spec['title'];
-        }
-        elseif ($label === '')
-        {
-            $link->{'aria-label'} = $icon === 'fa:arrow-left' ? _t('Back') : '';
+            $link->{'title'} = CvFormat::e($title);
+            if ($label === '')
+            {
+                $link->{'aria-label'} = CvFormat::e($title);
+            }
         }
 
         if ($icon)

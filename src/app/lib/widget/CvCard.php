@@ -20,7 +20,7 @@ class CvCard
         {
             $header->add(TElement::tag('a', CvFormat::e($linkLabel), [
                 'class'     => 'cv-card__link',
-                'href'      => $linkHref,
+                'href'      => CvFormat::e($linkHref),
                 'generator' => 'adianti',
             ]));
         }

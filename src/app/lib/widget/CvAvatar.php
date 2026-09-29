@@ -13,7 +13,7 @@ class CvAvatar
     {
         $avatar = new TElement('span');
         $avatar->{'class'} = 'cv-avatar';
-        $avatar->{'title'} = $name;
+        $avatar->{'title'} = CvFormat::e($name);
         $avatar->{'aria-hidden'} = 'true';
 
         if ($species !== null && trim($species) !== '')

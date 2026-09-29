@@ -255,6 +255,10 @@ a.cv-tab:hover {
     font-size: 1rem;
     line-height: 1;
 }
+.cv-avatar--species {
+    background: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text-muted);
+}
 .cv-avatar--lg {
     width: 4rem;
     height: 4rem;
@@ -382,7 +386,8 @@ a.cv-tab:hover {
 .cv-form .panel-body {
     padding: var(--cv-space-4) var(--cv-space-5);
 }
-.cv-form .tformrow {
+/* grid só nas linhas montadas pelo CvForm (slots cv-form__slot); linhas com setLayout ficam no row do Bootstrap */
+.cv-form .tformrow:has(> .cv-form__slot) {
     display: grid;
     grid-template-columns: repeat(var(--cv-form-columns, 2), minmax(0, 1fr));
     column-gap: var(--cv-space-4);
@@ -390,12 +395,14 @@ a.cv-tab:hover {
     margin: 0 0 var(--cv-space-4);
 }
 /* pares [rótulo][campo]: rótulo acima do campo, um par por coluna */
-.cv-form .tformrow:has(> .control-label) {
+.cv-form .tformrow:has(> .cv-form__slot.control-label) {
     grid-auto-flow: column;
     grid-template-rows: auto auto;
 }
-/* linha com um único par ocupa a largura toda */
-.cv-form .tformrow:has(> .control-label:first-child + .cv-form__slot:last-child) {
+/* linha de slot único (addContent, campo sozinho, rótulo numa linha e campo na outra) e
+   linha com um único par ocupam a largura toda */
+.cv-form .tformrow:has(> .cv-form__slot:only-child),
+.cv-form .tformrow:has(> .cv-form__slot.control-label:first-child + .cv-form__slot:last-child) {
     grid-template-columns: minmax(0, 1fr);
 }
 .cv-form .cv-form__slot {
@@ -429,8 +436,8 @@ a.cv-tab:hover {
     border-top: 1px solid var(--cv-color-border);
 }
 @media (max-width: 767.98px) {
-    .cv-form .tformrow,
-    .cv-form .tformrow:has(> .control-label) {
+    .cv-form .tformrow:has(> .cv-form__slot),
+    .cv-form .tformrow:has(> .cv-form__slot.control-label) {
         grid-auto-flow: row;
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: none;
