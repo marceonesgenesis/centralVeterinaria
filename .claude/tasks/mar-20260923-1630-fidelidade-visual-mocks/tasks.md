@@ -31,6 +31,9 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-19 | frontend | menu.xml reorganizado + sidebar final (desabilitados, rodapé fixo) + unidades por tenant no CvShellController e CSS do seletor | T-01, T-07, T-08, T-09 | sim | média | Athena | [x] |
 | T-20 | frontend | Consolidação de chaves i18n pedidas no board | T-03, T-08, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-18, T-19 | não | simples | Platão | [x] |
 | T-21 | qa | Validação visual lado a lado com os mocks + regressão + varredura Playwright de todas as telas do menu | T-20 | não | média | Spock | [x] |
+| T-22 | frontend | Onda 6 (B1): remover a carga duplicada de `chart.umd.min.js` do layout.html | T-01, T-21 | sim | simples | Athena | [x] |
+| T-23 | frontend | Onda 6 (O1): status do plano clínico do EncounterView em CvBadge traduzido | T-13, T-21 | sim | simples | Yoda | [x] |
+| T-24 | frontend | Onda 6 (O2): forma de pagamento traduzida como categoria em FinancialOverview e FinancialEntryList | T-09, T-18, T-21 | sim | simples | Tesla | [x] |
 
 ## Detalhamento
 
@@ -733,6 +736,100 @@ Achados do gate/revisão da onda 2 que esta task corrige (`notes.md § Decisões
 - `grep -l "adianti_right_panel" src/app/control/clinic/*Form.php | wc -l` (evidência: `0`)
 - VARREDURA completa → para cada item de `src/menu.xml` (lista extraída com `grep -oE '<action>[^<]+' /var/www/html/centralvet/src/menu.xml | sort -u`) e para as telas contextuais: `browser_navigate` pelo menu + `browser_snapshot`, fluxos abrir/listar/filtrar/abrir registro/salvar (só telas clínicas, registros `F10 varredura`)/voltar, depois `browser_console_messages` e `browser_network_requests` (evidência: tabela da varredura em `reports/T-21.md` com uma linha por tela, contagens de console/rede e veredito; número de linhas ≥ `grep -oE '<action>[^<]+' /var/www/html/centralvet/src/menu.xml | sort -u | wc -l`)
 - COMMITS → `git -C /var/www/html/centralvet log --format='%h|%s|%(trailers:key=Task,valueonly,separator=%x2C)' 9efef4e..HEAD` (evidência: toda linha cujo assunto não começa com `chore(tasks)` tem o terceiro campo não vazio, no formato `T-01`…`T-21` ou `T-04 (RED)`)
+
+### T-22 — Onda 6 (B1): remover a carga duplicada de chart.umd.min.js do layout.html
+
+**Camada:** frontend
+**Dependências:** T-01, T-21
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Athena
+
+Achado (`reports/T-21.md`, B1, veredito **reprovado**, task de origem T-01, commit `cfcdf05`): `layout.html:29` carrega `lib/independent/js/chart.umd.min.js` (Chart.js v4.5.1), que `independent-plugins.min.js` (via `libraries.html:12`) já embute; a segunda carga troca o `window.Chart` depois que os plugins do Adianti se registraram e o `SystemAdministrationDashboard` lança `TypeError: Cannot read properties of null (reading 'x')` em `independent-plugins.min.js?afver=860:204:1172`. Reprodução exigida antes da correção: abrir `index.php?class=SystemAdministrationDashboard`, passar o mouse sobre um gráfico e ler `browser_console_messages` (o TypeError aparece). Correção aprovada pelo usuário em 2026-09-29.
+
+**Arquivos prováveis**
+- `src/app/templates/adminbs5/layout.html`
+
+**Interface**
+- Produz: `layout.html` sem nenhum `<script>` de `chart.umd.min.js`; `window.Chart` passa a vir só de `independent-plugins.min.js`; nada mais do layout muda
+- Consome: nada
+
+**Teste RED**
+- sem teste: remoção de uma tag `<script>` do template; a suíte PHP não carrega JS — reprodução e verificação no navegador no gate
+
+**Critério de aceite**
+- `grep -c "chart.umd.min.js" src/app/templates/adminbs5/layout.html` = 0.
+- `SystemAdministrationDashboard` carregado e com hover sobre cada gráfico: `browser_console_messages` com 0 mensagens de nível `error` (nenhum `TypeError`).
+- `FinancialOverview` continua com os 2 gráficos: `typeof Chart` = `function`, `Chart.getChart(document.querySelector('#cv-fin-line'))` e `Chart.getChart(document.querySelector('#cv-fin-donut'))` não nulos, e 0 erros de console.
+
+**Validação**
+- `grep -c "chart.umd.min.js" /var/www/html/centralvet/src/app/templates/adminbs5/layout.html` (evidência: `0`)
+- GATE → `browser_navigate` `index.php?class=SystemAdministrationDashboard` + `browser_hover` em cada `canvas` + `browser_console_messages` (evidência: nenhuma linha `error`/`TypeError`) + screenshot `f10-SystemAdministrationDashboard.png`
+- GATE → `browser_navigate` `index.php?class=FinancialOverview&from=2026-01-01&to=2026-12-31` + `browser_evaluate` `[typeof Chart, !!Chart.getChart(document.querySelector('#cv-fin-line')), !!Chart.getChart(document.querySelector('#cv-fin-donut'))]` (evidência: `["function", true, true]`) + `browser_console_messages` (evidência: 0 `error`)
+
+### T-23 — Onda 6 (O1): status do plano clínico do EncounterView em CvBadge traduzido
+
+**Camada:** frontend
+**Dependências:** T-13, T-21
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Yoda
+
+Achado (`reports/T-21.md`, O1, veredito **aprovado com observação**, task de origem T-13/T-06): nas abas Prescrições e Exames do plano clínico, `EncounterView::planItemList()` imprime `item['detail']`, que `ClinicalSummaryService::encounterPlanItems()` preenche com o status cru (`draft`/`issued` de `Prescription::STATUS_*`, `requested`/`result_available` de `ExamRequest::STATUS_*`). Reprodução exigida antes da correção: `index.php?class=EncounterView&encounter_id=1547`, aba Exames (exame 263) e aba Prescrições (prescrição 524) mostram `result_available`/`requested` e `draft` em texto. Correção aprovada pelo usuário em 2026-09-29.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/EncounterView.php`
+
+**Interface**
+- Produz: nas abas Prescrições e Exames do plano, o status vira `CvBadge::create(<rótulo>, <tom>)` com o mapa fixo `draft` → `_t('Draft')` (Rascunho) `neutral`, `issued` → `_t('Issued')` (Emitida) `success`, `requested` → `_t('Requested')` (Solicitado) `info`, `result_available` → `_t('Result available')` (Resultado disponível) `success`; status fora do mapa → `CvBadge` `neutral` com o valor como veio. Abas Procedimentos e Vacinas continuam com o `detail` em texto (é `notes_text`/dose, não status). As 4 chaves já existem em `translations.json` (nenhuma chave nova). `ClinicalSummaryService` não muda; `onStart`/`onAutosave`/`onFinish`/`onAttachDocument` e o `setInterval` do autosave intactos
+- Consome: T-02 `CvBadge::create`, T-06 `ClinicalSummaryService::encounterPlanItems`
+
+**Teste RED**
+- sem teste: mudança de apresentação em controller Adianti; a suíte não instancia controllers — reprodução e verificação no navegador no gate
+
+**Critério de aceite**
+- No `EncounterView` do atendimento 1547, o texto dos painéis do plano (`[role=tabpanel]` das abas Prescrições e Exames) não contém nenhuma das palavras `draft`, `issued`, `requested`, `result_available`, e cada item dessas duas abas tem um `.cv-badge` com "Rascunho", "Emitida", "Solicitado" ou "Resultado disponível".
+- `grep -c "TButton::create(" src/app/control/clinic/EncounterView.php` = 0 e `grep -c "enableSpeechRecognition\|setInterval" src/app/control/clinic/EncounterView.php` ≥ 2 (fluxos da fase 08/T-13 preservados); SUITE com `Failed: 0`.
+
+**Validação**
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l app/control/clinic/EncounterView.php` (evidência: `No syntax errors detected`)
+- `grep -c "TButton::create(" src/app/control/clinic/EncounterView.php; grep -c "enableSpeechRecognition\|setInterval" src/app/control/clinic/EncounterView.php` (evidência: `0` e ≥ 2) + SUITE (evidência: `Failed: 0`)
+- GATE → `browser_navigate` `index.php?class=EncounterView&encounter_id=1547` + `browser_evaluate` `[...document.querySelectorAll('[role=tabpanel]')].map(p => p.innerText).join(' ').match(/\b(draft|issued|requested|result_available)\b/)` (evidência: `null`) e `[...document.querySelectorAll('[role=tabpanel] .cv-badge')].map(b => b.innerText)` (evidência: contém "Rascunho" ou "Emitida" e "Solicitado" ou "Resultado disponível") + `browser_console_messages` (evidência: 0 `error`) + screenshot `f10-EncounterView-plan.png`
+
+### T-24 — Onda 6 (O2): forma de pagamento traduzida como categoria em FinancialOverview e FinancialEntryList
+
+**Camada:** frontend
+**Dependências:** T-09, T-18, T-21
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Tesla
+
+Achado (`reports/T-21.md`, O2, veredito **aprovado com observação**, tasks de origem T-09/T-18): `PaymentService` grava `financial_entry.category` = `payment_method` (`Payment::METHOD_*`: `cash`, `debit_card`, `credit_card`, `pix`, `bank_transfer`), e `FinancialOverview` (donut "Receitas por categoria" e rótulos do gráfico, tabela "Lançamentos recentes") e `FinancialEntryList` (coluna Categoria) imprimem o valor cru. Reprodução exigida antes da correção: `index.php?class=FinancialOverview&from=2026-01-01&to=2026-12-31` e `index.php?class=FinancialEntryList&entry_type=income` mostram `cash` no lançamento id 1. A descrição `payable #N`/`payment #N` fica como está (decisão de T-09). Correção aprovada pelo usuário em 2026-09-29.
+
+**Arquivos prováveis**
+- `src/app/lib/widget/CvFormat.php`
+- `src/app/control/clinic/FinancialOverview.php`
+- `src/app/control/clinic/FinancialEntryList.php`
+
+**Interface**
+- Produz: `CvFormat::paymentMethod(string $value): string` com o mapa fixo `cash` → `_t('Cash')` (Dinheiro), `debit_card` → `_t('Debit card')` (Cartão de débito), `credit_card` → `_t('Credit card')` (Cartão de crédito), `pix` → `_t('Pix')` (Pix), `bank_transfer` → `_t('Bank transfer')` (Transferência bancária); qualquer outro valor (categoria digitada, ex. `Outros`, `F10 varredura`) volta igual. As 5 chaves já existem em `translations.json` (nenhuma chave nova)
+- Produz: `FinancialOverview` aplica `CvFormat::paymentMethod()` à categoria em `categoryBody()`, na tabela de lançamentos recentes e em `catLabels` do donut; `FinancialEntryList` aplica na coluna `category`; agrupamento e valores de `FinancialOverviewService` não mudam
+- Consome: T-05 `FinancialOverviewService::revenueByCategory`, T-05 `FinancialOverviewService::recentEntries`
+
+**Teste RED**
+- sem teste: helper de apresentação em `app/lib`, fora do autoload PSR-4 do runner (mesmo motivo de T-02); verificado por `php -r` com o autoload do Adianti e no navegador
+
+**Critério de aceite**
+- `php -r` no container com `init.php` imprime `Dinheiro|Transferência bancária|Outros` para `CvFormat::paymentMethod('cash')`, `('bank_transfer')` e `('Outros')`.
+- `FinancialOverview` (período 01/01–31/12/2026) e `FinancialEntryList&entry_type=income` mostram "Dinheiro" no lançamento id 1 e nenhuma célula, item do donut ou rótulo com o texto `cash`, `debit_card`, `credit_card`, `pix` ou `bank_transfer`; o lançamento de despesa "Outros" continua "Outros".
+- Nenhum registro existente muda: `SELECT COUNT(*), SUM(amount_cents) FROM financial_entry` igual antes e depois do deploy (a tradução é só no render).
+
+**Validação**
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l app/lib/widget/CvFormat.php` e o mesmo para `app/control/clinic/FinancialOverview.php` e `app/control/clinic/FinancialEntryList.php` (evidência: 3 `No syntax errors detected`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'require "init.php"; echo CvFormat::paymentMethod("cash"), "|", CvFormat::paymentMethod("bank_transfer"), "|", CvFormat::paymentMethod("Outros");'` (evidência: `Dinheiro|Transferência bancária|Outros`)
+- GATE → `browser_navigate` `index.php?class=FinancialOverview&from=2026-01-01&to=2026-12-31` e depois `index.php?class=FinancialEntryList&entry_type=income` + `browser_evaluate` `document.body.innerText.match(/\b(cash|debit_card|credit_card|pix|bank_transfer)\b/)` em cada uma (evidência: `null` nas duas) e `document.body.innerText.includes('Dinheiro')` (evidência: `true`) + `browser_evaluate` `Chart.getChart(document.querySelector('#cv-fin-donut')).data.labels` (evidência: sem `cash`) + screenshots `f10-FinancialOverview-cat.png`, `f10-FinancialEntryList-cat.png`
+- `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*), SUM(amount_cents) FROM financial_entry;"'` antes e depois do deploy da onda (evidência: mesmos valores; os fluxos do gate que criam lançamento rodam depois desta conferência)
+- GATE → depois do fluxo `PaymentForm` do gate da onda 6 (`plan.md § Critérios gerais de aceite`), o lançamento novo aparece em `FinancialEntryList&entry_type=income` com categoria "Dinheiro" (evidência: `browser_evaluate` da linha nova)
 
 ## Legenda
 

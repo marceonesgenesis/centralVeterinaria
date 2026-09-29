@@ -30,6 +30,10 @@
 - 2026-09-29 · plano · onda 3 — Mocks ausentes no host; "Message not found" aceito até T-20.
 - 2026-09-29 · T-20 · onda 4 — `Route` mudou de "Rota" para "Via", conforme o mock (desvio do implementador, aceito pelo revisor).
 - 2026-09-29 · T-20 · onda 4 — Ruling "Message not found aceito até T-20" encerrado: 0 ocorrências no shell e em 21 telas após recarga.
+- 2026-09-29 · plano (revisão) · onda 6 — Onda 6 — correção (usuário), BASE `0a72b8a`, aprovada pelo usuário a partir de `reports/T-21.md`: T-22 (Athena, B1, `layout.html` sem `chart.umd.min.js`, porque `independent-plugins.min.js` já embute o Chart.js v4.5.1), T-23 (Yoda, O1, status `draft`/`issued`/`requested`/`result_available` em `CvBadge` nas abas Prescrições/Exames do plano), T-24 (Tesla, O2, `CvFormat::paymentMethod()` no render de `FinancialOverview`/`FinancialEntryList`; `payable #N` fica). As 9 chaves usadas (`Draft`, `Issued`, `Requested`, `Result available`, `Cash`, `Debit card`, `Credit card`, `Pix`, `Bank transfer`) já existem em `translations.json`: não há task i18n. Sem colisão: cada arquivo em uma task. O gate da onda 6 cobre os fluxos que T-21 não exercitou (fechar conta 1547 → `PaymentForm` → fechar/reabrir caixa → salvar os 3 catálogos); fechar a sessão de caixa aberta (id 1) é exceção pedida pelo usuário.
+- 2026-09-29 · plano · onda 6 — O usuário autorizou fechar a sessão de caixa id 1 da unidade 1; ela foi fechada e a 113 aberta; no complemento a 113 foi fechada e uma nova aberta.
+- 2026-09-29 · cruzada-onda-6 · onda 6 — Rótulo "Dinheiro" do CashSessionForm não aparece no navegador (sessão nova sem pagamentos); aceita a prova do render CLI de Tesla ("Dinheiro: R$ 130,00").
+- 2026-09-29 · cruzada-onda-6 · onda 6 — Trailer `Task: cruzada-onda-6` do commit d006c24 (correção sem dona: encounter_id no EncounterAccountForm, painel único e CvFormat::paymentMethod no CashSessionForm) aceito pelo orquestrador.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -110,6 +114,11 @@
 - T-20: chaves minúsculas novas (`patients`, `results`, `services`, `tutors`) convivem com as de maiúscula existentes (`Patients` etc.); normalização futura de caixa vai colidir.
 - T-21: comparação lado a lado com os mocks não feita (ausentes); seletor de unidade ausente no cabeçalho do EncounterView a confirmar; ícone fa-stethoscope text-primary em ServiceList (cosmético); dados de teste da T-21 permanecem no banco.
 - T-21: B1, O1, O2 e fluxos não exercitados (fechar caixa, PaymentForm, formulários de catálogo) vão para a onda 6.
+- Onda 6: layout-basic.html ainda tem o link "Trace"; não se verificou se alguma tela usa esse template.
+- Onda 6: dados de teste no banco: conta do atendimento 1547 (40) fechada, recebível 39 pago, payment 2, sessões de caixa 1 e 113 fechadas mais uma nova aberta, catálogos "F10 varredura … T22", conta do atendimento 373 fechada.
+- T-23: mapa de status em planStatusBadge usa literais em vez de Prescription::STATUS_*/ExamRequest::STATUS_* (EncounterView.php:886-891).
+- T-23: status null/vazio não gera badge no item (EncounterView.php:922); só robustez.
+- T-24: mapa método→rótulo duplicado entre CvFormat::paymentMethod e PaymentForm, com literais em vez de Payment::METHOD_* (CvFormat.php:51-57, PaymentForm.php:275-281).
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -131,5 +140,6 @@
   - Onda 3: BASE f48ebe0 → HEAD 68206c7 (f300a8b, 209a3bf, c814ce1, 69b4fb7, 78e1b4b, 490b414, e68adc2, 5e4f840, 5db0f24, b9ea10c, d2d25ef, 6258d7e, c96fee2, 32130d9, dd4efaa, 09ded2c, 68206c7)
   - Onda 4: BASE 1b6087b → HEAD 06a40d4 (06a40d4)
   - Onda 5: sem commits de código (QA); só chore(tasks)
-- Último status conhecido: onda 5 fechada, T-01 a T-21 [x]; varredura de 65 telas, suíte 182/182; bugs B1, O1, O2 abertos.
-- Próxima onda recomendada: 6 (correção B1, O1, O2 + validar fechar caixa, PaymentForm e formulários de catálogo)
+  - Onda 6: BASE 0a72b8a → HEAD d006c24 (57eec6a, 851a947, 0df204b, d006c24)
+- Último status conhecido: onda 6 fechada, T-01 a T-24 [x]; B1, O1, O2 corrigidos e fluxos de caixa/PaymentForm/catálogos exercitados; suíte 182/182.
+- Próxima onda recomendada: nenhuma; seguir para a revisão final.

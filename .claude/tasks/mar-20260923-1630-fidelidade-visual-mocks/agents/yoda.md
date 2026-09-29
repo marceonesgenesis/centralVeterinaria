@@ -9,6 +9,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 ## Tasks atribuídas
 - T-13: EncounterView com cabeçalho do paciente, wizard e plano clínico
 - T-15: Lote Clínico no padrão + PATTERN0 em `VaccinationForm`. Inclui correções da onda 2 (achado, reprodução e validação na seção da task; convenção PATTERN0 no topo de `tasks.md`).
+- T-23: Onda 6 (O1) — status do plano clínico do `EncounterView` em `CvBadge` traduzido. Onda 6 — correção (usuário), BASE `0a72b8a`: reproduza o achado descrito na seção da task antes de editar, cole a reprodução em `## RED` do relatório (a task é `sem teste:`) e commite com `Task: T-23`. Nenhuma chave nova em `translations.json` (as usadas já existem).
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 

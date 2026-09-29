@@ -9,6 +9,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 ## Tasks atribuídas
 - T-01: Casca: layout.html, flags de navbar, estilos da casca, buildid
 - T-19: menu.xml reorganizado + sidebar final + unidades por tenant em `src/app/control/clinic/CvShellController.php` (`onContext`/`onSwitchUnit`, contrato JSON de T-08 inalterado) e regras `.cv-unit-switch__select` em `custom.css`. Inclui correções da onda 2 (achado, reprodução e validação na seção da task; convenção PATTERN0 no topo de `tasks.md`).
+- T-22: Onda 6 (B1) — remover a carga duplicada de `chart.umd.min.js` de `layout.html`. Onda 6 — correção (usuário), BASE `0a72b8a`: reproduza o achado descrito na seção da task antes de editar, cole a reprodução em `## RED` do relatório (a task é `sem teste:`) e commite com `Task: T-22`. Nenhuma chave nova em `translations.json` (as usadas já existem).
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 

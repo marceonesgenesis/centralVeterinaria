@@ -23,6 +23,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 - (d) As demais telas de `src/app/control/clinic/` no padrão (b): formulários em página cheia (sem `adianti_right_panel`), campos relacionais por `TDBCombo`/`TDBUniqueSearch` com filtro de tenant onde hoje há `TEntry` de id, listas com badges, "…" e rodapé de paginação.
 - Vocabulário novo em `translations.json`.
 - DML de registro de `FinancialOverview` e `CvShellController` (aprovação na hora).
+- (f) Onda 6 — correção dos achados de `reports/T-21.md` aprovada pelo usuário em 2026-09-29: B1 (carga duplicada do Chart.js no `layout.html` → TypeError no `SystemAdministrationDashboard`, T-22), O1 (status crus `draft`/`result_available` nas abas do plano do `EncounterView`, T-23), O2 (categoria crua `cash` em `FinancialOverview`/`FinancialEntryList`, T-24), mais a validação no gate dos fluxos que T-21 não exercitou (fechar caixa, salvar `PaymentForm`, salvar os 3 formulários de catálogo).
 - (e) Correções apontadas no gate/revisão da onda 2, na task da onda 3 dona de cada arquivo: `ServiceForm` atualiza quando há `id` e carrega por tenant, filtro "Inativo" de `ServiceList` e PATTERN0 (T-17); aba Receitas com `entry_type=income` (T-18); unidades por tenant em `CvShellController` e CSS de `.cv-unit-switch__select` (T-19); PATTERN0 nos formulários de T-15, T-16 e T-18.
 - Validação visual lado a lado com os 4 mocks + regressão da suíte.
 
@@ -52,7 +53,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 
 | Arquivo | Responsabilidade | Ação | Tasks que tocam |
 |---|---|---|---|
-| `src/app/templates/adminbs5/layout.html` | casca: sidebar, topbar, cartão do usuário, rodapé, links de CSS/JS | modificar | T-01 |
+| `src/app/templates/adminbs5/layout.html` | casca: sidebar, topbar, cartão do usuário, rodapé, links de CSS/JS | modificar | ⚠ T-01 (onda 1), T-22 (onda 6: remove a carga duplicada de `chart.umd.min.js`) |
 | `src/app/templates/adminbs5/custom.css` | estilos da casca e do menu | modificar | ⚠ T-01 (onda 1), T-19 (onda 3) |
 | `src/app/config/application.php` | flags de navbar (`has_master_menu` = 0 etc.) | modificar | T-01 |
 | `docker/php/Dockerfile` | gerar `src/buildid` na imagem | modificar | T-01 |
@@ -66,7 +67,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/app/lib/widget/CvForm.php` | formulário página cheia em grid de colunas | criar | T-02 |
 | `src/app/lib/widget/CvAvatar.php` | avatar placeholder (inicial/ícone de espécie) | criar | T-02 |
 | `src/app/lib/widget/CvWizard.php` | etapas numeradas | criar | T-02 |
-| `src/app/lib/widget/CvFormat.php` | dinheiro e variação percentual | criar | T-02 |
+| `src/app/lib/widget/CvFormat.php` | dinheiro, variação percentual e rótulo de forma de pagamento | criar/modificar | ⚠ T-02 (onda 1), T-24 (onda 6: `paymentMethod()`) |
 | `src/app/config/translations.json` | vocabulário en/pt | modificar | ⚠ T-03 (onda 1), T-20 (onda 4) |
 | `src/app/Core/Persistence/StockSalesOverviewReader.php` | SQL de indicadores de estoque/vendas | criar | T-04 |
 | `src/app/Core/Application/StockSalesOverviewService.php` | fachada de leitura estoque/vendas | criar | T-04 |
@@ -80,11 +81,11 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/sql/T-07-register-programs.sql` | rascunho do DML (executado após aprovação) | criar | T-07 |
 | `src/app/control/clinic/CvShellController.php` | contexto do usuário/unidades e troca de unidade | criar/modificar | ⚠ T-08 (onda 2), T-19 (onda 3: unidades por tenant) |
 | `src/app/templates/adminbs5/js/cv-shell.js` | papel no cartão, seletor de unidade, busca global, itens desabilitados | criar/modificar | ⚠ T-08 (onda 2), T-19 (onda 3) |
-| `src/app/control/clinic/FinancialOverview.php` | tela nova "Financeiro — Visão geral" | criar | T-09 |
+| `src/app/control/clinic/FinancialOverview.php` | tela nova "Financeiro — Visão geral" | criar/modificar | ⚠ T-09 (onda 2), T-24 (onda 6: categoria traduzida) |
 | `src/app/control/clinic/ProductList.php` | tela "Estoque e Vendas" | modificar | T-10 |
 | `src/app/control/clinic/ServiceList.php` | tabela + painel de detalhe | modificar | ⚠ T-11 (onda 2), T-17 (onda 3: filtro Inativo via `listAll()`) |
 | `src/app/control/clinic/PrescriptionForm.php` | prescrição em 2 colunas | modificar | T-12 |
-| `src/app/control/clinic/EncounterView.php` | atendimento com wizard | modificar | T-13 |
+| `src/app/control/clinic/EncounterView.php` | atendimento com wizard | modificar | ⚠ T-13 (onda 2), T-23 (onda 6: status do plano em `CvBadge`) |
 | `src/app/control/clinic/TutorList.php` | padrão de lista | modificar | T-14 |
 | `src/app/control/clinic/TutorForm.php` | página cheia | modificar | T-14 |
 | `src/app/control/clinic/PatientList.php` | padrão de lista | modificar | T-14 |
@@ -117,7 +118,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/app/Core/Persistence/ServiceRepository.php` | `listAll()` escopado por tenant | modificar | T-17 |
 | `src/tests/Unit/ServiceCatalogServiceTest.php` | testes de `update()`/`listAll()` (RED) | modificar | T-17 |
 | `src/tests/Support/FakeServiceRepository.php` | `listAll()` no Fake (fixture do RED) | modificar | T-17 |
-| `src/app/control/clinic/FinancialEntryList.php` | abas financeiras, filtro `entry_type` | modificar | T-18 |
+| `src/app/control/clinic/FinancialEntryList.php` | abas financeiras, filtro `entry_type` | modificar | ⚠ T-18 (onda 3), T-24 (onda 6: categoria traduzida) |
 | `src/app/control/clinic/FinancialEntryForm.php` | página cheia | modificar | T-18 |
 | `src/app/control/clinic/PayableList.php` | abas financeiras, badges | modificar | T-18 |
 | `src/app/control/clinic/PayableForm.php` | página cheia | modificar | T-18 |
@@ -129,7 +130,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/menu.xml` | menu reorganizado | modificar | T-19 |
 | banco `system_program`/`system_group_program` (mesmo banco da aplicação) | registrar 2 programas | DML | T-07 |
 
-Os 6 arquivos com ⚠ são serializados em ondas diferentes (escritor único por arquivo em cada onda). Os arquivos acrescentados na revisão antes da onda 3 (correções da onda 2) não colidem entre T-14..T-19: cada um está em uma só task da onda.
+Os 11 arquivos com ⚠ são serializados em ondas diferentes (escritor único por arquivo em cada onda); na onda 6 cada arquivo está em uma só task (T-22 `layout.html`; T-23 `EncounterView.php`; T-24 `CvFormat.php`, `FinancialOverview.php`, `FinancialEntryList.php`). Os arquivos acrescentados na revisão antes da onda 3 (correções da onda 2) não colidem entre T-14..T-19: cada um está em uma só task da onda.
 
 ## Decisões de arquitetura
 
@@ -160,6 +161,7 @@ Onda 3: T-14 (T-02) Recepção | T-15 (T-02,T-13) Clínico | T-16 (T-02) Catálo
         T-19 (T-01,T-07,T-08,T-09) menu + sidebar
 Onda 4: T-20 (T-03, ondas 2-3) consolidação i18n
 Onda 5: T-21 (todas) validação visual lado a lado + regressão
+Onda 6 — correção (usuário): T-22 (T-01,T-21) Chart.js duplicado | T-23 (T-13,T-21) status do plano | T-24 (T-09,T-18,T-21) forma de pagamento
 ```
 
 ## Estratégia de execução
@@ -188,24 +190,27 @@ Onda 5: T-21 (todas) validação visual lado a lado + regressão
 ### Onda 5
 - T-21
 
+### Onda 6 — correção (usuário)
+- T-22, T-23, T-24
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
 |---|---|---|---|
 | Sun Tzu — orquestrador | — | — | todas |
-| Athena | general-purpose | inherit | T-01, T-19 |
+| Athena | general-purpose | inherit | T-01, T-19, T-22 |
 | Platão | general-purpose | inherit | T-02, T-03, T-20 |
 | Arquimedes | general-purpose | inherit | T-04, T-05 |
 | Sherlock | general-purpose | inherit | T-06 |
 | Jaspion | general-purpose | inherit | T-07 |
 | Aang | general-purpose | inherit | T-08 |
-| Tesla | general-purpose | inherit | T-09, T-18 |
+| Tesla | general-purpose | inherit | T-09, T-18, T-24 |
 | Darwin | general-purpose | inherit | T-10, T-17 |
 | Levi | general-purpose | inherit | T-11, T-16 |
 | Kratos | general-purpose | inherit | T-12 |
-| Yoda | general-purpose | inherit | T-13, T-15 |
+| Yoda | general-purpose | inherit | T-13, T-15, T-23 |
 | Thanos | general-purpose | inherit | T-14 |
-| Spock — validador | geduc:validador | sonnet | T-21 |
+| Spock — validador | geduc:validador | sonnet | T-21, gate da onda 6 |
 
 ## Review Focus
 - Usuário vinculado a uma única unidade, ou `onSwitchUnit` com `unit_id` de unidade não vinculada → seletor lista só as unidades de `getSystemUserUnitIds()`; troca não vinculada devolve mensagem "Unauthorized access to that unit" e `userunitid` da sessão não muda → T-08
@@ -227,3 +232,4 @@ Onda 5: T-21 (todas) validação visual lado a lado + regressão
   - Onda 3: as 36 telas do Mapa de arquivos de T-14 a T-18 (listas e formulários, com salvar/voltar nos formulários; inclui `ServiceList`, que entrou em T-17 com o filtro Inativo), a sidebar de T-19 (clicar cada item de primeiro nível e cada item de Configurações) e o seletor de unidade de T-19 (`onContext`/`onSwitchUnit`); os passos de correção da onda 2 estão no bloco Validação de T-17, T-18 e T-19.
   - Onda 4: as telas das tasks citadas nas linhas `i18n:` do board (confere que nenhum rótulo pedido segue em inglês).
   - Onda 5 (T-21): todas as telas alcançáveis pelo `menu.xml` final — inclusive as administrativas do Adianti dentro de Configurações (só abrir, listar, filtrar e voltar) — mais as contextuais (`EncounterView`, `PrescriptionForm`, formulários abertos pelas listas), mapeando também bugs pré-existentes; bugs encontrados abrem `### Onda 6 — correção (usuário)` com IDs a partir de T-22 (bug em `src/lib/adianti` ou arquivo de `framework_hashes.php` é mapeado como "framework — não editável" e vai para Pendências).
+  - Onda 6 — correção (usuário), BASE `0a72b8a`: `SystemAdministrationDashboard` (T-22, com hover nos gráficos), `FinancialOverview` (T-22/T-24, gráficos e categorias), `EncounterView` 1547 (T-23, abas do plano), `FinancialEntryList` (T-24) e os fluxos que T-21 não exercitou, nesta ordem, todos com registros `F10 varredura`: (1) `EncounterAccountForm&encounter_id=1547` → adicionar item com valor > 0 → Fechar conta (gera o recebível); (2) `PendingReceivableList` → receber o recebível novo → `PaymentForm` com forma Dinheiro e o valor total → Salvar (evidência: `receivable.status` = `paid`, `SELECT COUNT(*) FROM payment` +1 e `financial_entry` nova `income`/`cash`, exibida como "Dinheiro" em `FinancialEntryList`); (3) `CashSessionForm` → fechar a sessão aberta da unidade 1 (hoje a id 1, aberta em 2026-09-23) com o saldo de fechamento sugerido → Fechar caixa (evidência: `cash_session.status` = `closed` e `closed_at` preenchido) → abrir nova sessão pelo mesmo formulário (evidência: nova linha `open`, para `PaymentForm` seguir utilizável); (4) `ExamCatalogForm`, `ProcedureCatalogForm` e `VaccineCatalogForm` → novo "F10 varredura <Exame|Procedimento|Vacina> T22" → Salvar (evidência: mensagem de registro salvo, item na lista correspondente e `SELECT COUNT(*)` do catálogo +1, sem duplicar). Cada tela: console 0 `error`, rede 0 ≥ 400, nenhum erro na tela; bug nesses fluxos sem task dona na onda 6 abre task nova (T-25 em diante).

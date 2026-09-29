@@ -9,6 +9,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 ## Tasks atribuídas
 - T-09: Tela nova FinancialOverview
 - T-18: Lote Financeiro no padrão, com abas financeiras + aba Receitas com `entry_type=income` em `src/app/lib/widget/CvNav.php` (só a linha `revenues` do grupo `finance`) e PATTERN0 em `EncounterAccountForm`. Inclui correções da onda 2 (achado, reprodução e validação na seção da task; convenção PATTERN0 no topo de `tasks.md`).
+- T-24: Onda 6 (O2) — forma de pagamento traduzida (`CvFormat::paymentMethod()`) em `FinancialOverview` e `FinancialEntryList`; `CvFormat.php` (kit de Platão) é seu nesta onda, só para acrescentar esse método. Onda 6 — correção (usuário), BASE `0a72b8a`: reproduza o achado descrito na seção da task antes de editar, cole a reprodução em `## RED` do relatório (a task é `sem teste:`) e commite com `Task: T-24`. Nenhuma chave nova em `translations.json` (as usadas já existem).
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 
