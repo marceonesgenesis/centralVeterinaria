@@ -78,8 +78,6 @@ class SaleForm extends TPage
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->encounterId = self::paramInt('encounter_id', $param);
         $this->patientId = self::paramInt('patient_id', $param);
         $this->savedSaleId = self::paramInt('sale_id', $param);
@@ -112,17 +110,13 @@ class SaleForm extends TPage
         $encounter_id = new TEntry('encounter_id');
 
         $encounter_id->setNumericMask(0, '', '', false, false, false);
+        $encounter_id->setProperty('pattern', '[0-9]*');
 
-        $this->form->addFields( [new TLabel(_t('Tutor'))] );
-        $this->form->addFields( [$tutor_id] );
-        $this->form->addFields( [new TLabel(_t('Patient'))] );
-        $this->form->addFields( [$patient_id] );
-        $this->form->addFields( [new TLabel(_t('Encounter'))] );
-        $this->form->addFields( [$encounter_id] );
-
-        $tutor_id->setSize('100%');
-        $patient_id->setSize('100%');
-        $encounter_id->setSize('100%');
+        $this->form->addFields(
+            [new TLabel(_t('Tutor'))], [$tutor_id],
+            [new TLabel(_t('Patient'))], [$patient_id]
+        );
+        $this->form->addFields( [new TLabel(_t('Encounter'))], [$encounter_id] );
 
         $patient_id->setValue($this->patientId);
         $encounter_id->setValue($this->encounterId);
@@ -146,92 +140,76 @@ class SaleForm extends TPage
         $product_quantity = new TEntry('product_quantity');
 
         $product_quantity->setNumericMask(0, '', '', false, false, false);
+        $product_quantity->setProperty('pattern', '[0-9]*');
         $product_quantity->setValue(1);
 
-        $this->form->addFields( [new TLabel(_t('Product'))] );
-        $this->form->addFields( [$product_id] );
-        $this->form->addFields( [new TLabel(_t('Product quantity'))] );
-        $this->form->addFields( [$product_quantity] );
-
-        $product_id->setSize('100%');
-        $product_quantity->setSize('100%');
+        $this->form->addFields(
+            [new TLabel(_t('Product'))], [$product_id],
+            [new TLabel(_t('Product quantity'))], [$product_quantity]
+        );
 
         // item entry: procedure
         $procedure_id = new TDBUniqueSearch('procedure_id', 'permission', 'ProcedureCatalogItem', 'id', 'name', 'name', $tenant_criteria);
         $procedure_quantity = new TEntry('procedure_quantity');
 
         $procedure_quantity->setNumericMask(0, '', '', false, false, false);
+        $procedure_quantity->setProperty('pattern', '[0-9]*');
         $procedure_quantity->setValue(1);
 
-        $this->form->addFields( [new TLabel(_t('Procedure'))] );
-        $this->form->addFields( [$procedure_id] );
-        $this->form->addFields( [new TLabel(_t('Procedure quantity'))] );
-        $this->form->addFields( [$procedure_quantity] );
+        $this->form->addFields(
+            [new TLabel(_t('Procedure'))], [$procedure_id],
+            [new TLabel(_t('Procedure quantity'))], [$procedure_quantity]
+        );
 
-        $procedure_id->setSize('100%');
-        $procedure_quantity->setSize('100%');
+        CvForm::decorate($this->form, 2);
 
         // form actions
         $addProductBtn = $this->form->addAction(_t('Add product'), new TAction(array($this, 'onAddProductItem')), 'fa:plus');
-        $addProductBtn->class = 'btn btn-sm btn-secondary';
+        $addProductBtn->class = 'btn btn-outline-secondary';
 
         $addProcedureBtn = $this->form->addAction(_t('Add procedure'), new TAction(array($this, 'onAddProcedureItem')), 'fa:plus');
-        $addProcedureBtn->class = 'btn btn-sm btn-secondary';
+        $addProcedureBtn->class = 'btn btn-outline-secondary';
+
+        $this->form->addActionLink(_t('Clear cart'), new TAction(array($this, 'onClearCart')), 'fa:eraser');
 
         $saveBtn = $this->form->addAction(_t('Finalize sale'), new TAction(array($this, 'onSave')), 'fa:check');
-        $saveBtn->class = 'btn btn-sm btn-primary';
-
-        $this->form->addActionLink(_t('Clear cart'), new TAction(array($this, 'onClearCart')), 'fa:eraser red');
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        $saveBtn->class = 'btn btn-primary';
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-08)
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Sale'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $headerActions = [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ProductList'],
+        ];
+        if ($this->savedSaleId !== null)
+        {
+            $headerActions[] = [
+                'label' => _t('Generate PDF'),
+                'href'  => 'index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=' . $this->savedSaleId,
+                'icon'  => 'fa:file-pdf',
+                'class' => 'btn btn-outline-secondary',
+            ];
+        }
 
+        $container->add(CvPage::header(_t('Sale'), null, $headerActions));
+        $container->add(CvNav::tabs('stock', 'sales'));
         $container->add($this->form);
 
-        $cartPanel = new TPanelGroup(_t('Cart'));
-        $cartPanel->class = 'cv-section';
-        $cartPanel->add($this->buildCartDatagrid());
+        $cartBody = new TElement('div');
+        $cartBody->add($this->buildCartDatagrid());
 
         $cartTotal = new TElement('p');
         $cartTotal->class = 'fw-semibold text-end mb-0';
         $cartTotal->style = 'margin-top: var(--cv-space-3); color: var(--cv-color-text)';
-        $cartTotal->add(_t('Total') . ': ' . self::formatCents($this->cartTotalCents()));
-        $cartPanel->add($cartTotal);
+        $cartTotal->add(CvFormat::e(_t('Total') . ': ' . self::formatCents($this->cartTotalCents())));
+        $cartBody->add($cartTotal);
 
-        $container->add($cartPanel);
-
-        if ($this->savedSaleId !== null)
-        {
-            $pdfLink = new TElement('a');
-            $pdfLink->href = 'index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=' . $this->savedSaleId;
-            $pdfLink->target = '_blank';
-            $pdfLink->class = 'btn btn-sm btn-outline-secondary';
-            $pdfLink->add('<i class="fa fa-file-pdf"></i> ' . _t('Generate PDF'));
-            $container->add($pdfLink);
-        }
+        $cartCard = CvCard::create(_t('Cart'), $cartBody);
+        $cartCard->style = 'margin-top: var(--cv-space-4)';
+        $container->add($cartCard);
 
         parent::add($container);
-    }
-
-    /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
     }
 
     /**
@@ -264,7 +242,7 @@ class SaleForm extends TPage
     private function buildCartDatagrid()
     {
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
+        CvDatagrid::decorate($this->datagrid, false);
 
         $column_type = new TDataGridColumn('type_label', _t('Type'), 'left', 100);
         $column_description = new TDataGridColumn('description', _t('Description'), 'left');
@@ -724,7 +702,7 @@ class SaleForm extends TPage
      */
     private static function formatCents(int $cents): string
     {
-        return 'R$ ' . number_format($cents / 100, 2, ',', '.');
+        return CvFormat::money($cents);
     }
 
     /**

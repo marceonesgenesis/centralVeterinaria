@@ -2,33 +2,22 @@
 /**
  * StockBatchForm
  *
- * Stock batch ("lot") entry screen for a product (T-07): receives
- * product_id by parameter (?product_id=..., mirroring PatientForm's
- * tutor_id-by-parameter pattern from Fase 1) and registers a new physical
- * batch through CentralVet\Application\StockService::receiveBatch() (T-03),
- * which persists both the `stock_batch` row and its matching `in`/
- * `purchase_entry` `stock_movement` row. No business rule of its own:
- * quantity/expiry validation lives in the Domain entity
- * CentralVet\Domain\StockBatch::receive(), reached only through the
- * Application service — this controller never touches Persistence/Domain
- * directly.
+ * Entrada de lote de um produto em página cheia (fase 10, kit Cv*). Com
+ * product_id na URL (…&product_id=<id>, vindo de "…" → Entrada de lote em
+ * ProductList) o produto fica fixo (campo oculto + nome só leitura); sem ele,
+ * o produto é escolhido num TDBUniqueSearch de Product filtrado pelo tenant da
+ * sessão. O registro é delegado a CentralVet\Application\StockService::
+ * receiveBatch() (stock_batch + stock_movement in/purchase_entry); a tela não
+ * tem regra de negócio. Depois de receber volta para ProductList.
  *
- * Create-only, same shape as PatientForm: there is no "edit a batch" use
- * case (StockService only exposes receiveBatch()/consume()), so onEdit()
- * just clears the form and re-applies the product_id received in the
- * querystring.
+ * Só criação: não há caso de uso de edição de lote, então onEdit() apenas
+ * limpa o formulário e reaplica o product_id da URL.
  *
- * PENDING: depends on the `product`/`stock_batch`/`stock_movement` tables
- * created by the not-yet-applied migration
- * src/app/database/migrations/20260924_0005_phase4_procedure_stock_sale.sql
- * (T-01). Validated only with `php -l` / `new StockBatchForm()` (no fatal
- * error) until that migration is applied.
- *
- * @version    1.0
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
-class StockBatchForm extends TStandardForm
+class StockBatchForm extends TPage
 {
     protected $form; // form
     protected $product_id; // received via querystring, forwarded to StockService
@@ -37,27 +26,27 @@ class StockBatchForm extends TStandardForm
      * Class constructor
      * Creates the page and the registration form
      */
-    function __construct($param = null)
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
+        $raw = $_GET['product_id'] ?? (is_array($param) ? ($param['product_id'] ?? null) : null);
+        $this->product_id = ($raw !== null && $raw !== '' && (int) $raw > 0) ? (int) $raw : null;
 
-        $this->product_id = (isset($param['product_id']) && $param['product_id'] !== '')
-            ? (int) $param['product_id']
-            : null;
-
-        $this->setDatabase('permission');           // defines the database
-        $this->setActiveRecord('StockBatch');         // defines the active record
-        $this->setUseToast(true);
-
-        // creates the form
         $this->form = new BootstrapFormBuilder('form_StockBatch');
         $this->form->setFormTitle(_t('Stock batch entry'));
         $this->form->enableClientValidation();
 
+        try
+        {
+            $tenant_id = self::resolveTenantContext()->tenantId();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            $tenant_id = -1;
+        }
+
         // create the form fields
-        $product_id = new TEntry('product_id');
         $lot = new TEntry('lot');
         $expiry_date = new TDate('expiry_date');
         $quantity = new TEntry('quantity');
@@ -65,67 +54,89 @@ class StockBatchForm extends TStandardForm
         $expiry_date->setMask('dd/mm/yyyy');
         $expiry_date->setDatabaseMask('yyyy-mm-dd');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Product'))] );
-        $this->form->addFields( [$product_id] );
-        $this->form->addFields( [new TLabel(_t('Lot'))] );
-        $this->form->addFields( [$lot] );
-        $this->form->addFields( [new TLabel(_t('Expiry date'))] );
-        $this->form->addFields( [$expiry_date] );
-        $this->form->addFields( [new TLabel(_t('Quantity'))] );
-        $this->form->addFields( [$quantity] );
-
-        // product_id comes exclusively from the querystring param; the
-        // field only echoes it back read-only, no Product lookup/UI is
-        // built here
-        $product_id->setEditable(FALSE);
-        $product_id->setSize('30%');
         if ($this->product_id !== null)
         {
+            // produto fixo: id oculto + nome só leitura
+            $product_id = new THidden('product_id');
             $product_id->setValue($this->product_id);
+
+            $hiddenRow = $this->form->addFields([$product_id]);
+            $hiddenRow->style = 'display: none';
+
+            $product_name = new TEntry('product_name');
+            $product_name->setEditable(false);
+            $product_name->setValue(self::productName($this->product_id));
+
+            $this->form->addFields([new TLabel(_t('Product'))], [$product_name]);
+        }
+        else
+        {
+            $tenant_criteria = new TCriteria;
+            $tenant_criteria->add(new TFilter('tenant_id', '=', $tenant_id));
+            $tenant_criteria->add(new TFilter('active', '=', 1));
+
+            $product_id = new TDBUniqueSearch('product_id', 'permission', 'Product', 'id', 'name', 'name', $tenant_criteria);
+            $product_id->setMinLength(0);
+            $product_id->addValidation(_t('Product'), new TRequiredValidator);
+
+            $this->form->addFields([new TLabel(_t('Product'))], [$product_id]);
         }
 
-        $lot->setSize('30%');
-        $expiry_date->setSize('30%');
-        $quantity->setSize('30%');
+        $this->form->addFields(
+            [new TLabel(_t('Lot'))], [$lot],
+            [new TLabel(_t('Expiry date'))], [$expiry_date]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Quantity'))], [$quantity]
+        );
+
         $quantity->setNumericMask(0, '', '');
+        $quantity->setProperty('pattern', '[0-9]*');
 
         $quantity->addValidation( _t('Quantity'), new TRequiredValidator );
 
+        CvForm::decorate($this->form, 2);
+
         // create the form actions
-        $btn = $this->form->addAction(_t('Receive'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $this->form->addActionLink(_t('Clear'), new TAction([$this, 'onEdit'], $this->product_id !== null ? ['product_id' => $this->product_id] : []), 'fa:eraser');
+        $btn = $this->form->addAction(_t('Receive'), new TAction([$this, 'onSave']), 'fa:check');
+        $btn->class = 'btn btn-primary';
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-04)
-        $header = new TElement('header');
-        $header->class = 'cv-page-header';
-
-        $header_text = new TElement('div');
-        $header_title = new TElement('h1');
-        $header_title->class = 'cv-page-title';
-        $header_title->add(_t('Stock batch entry'));
-        $header_text->add($header_title);
-
-        $header->add($header_text);
-
-        // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($header);
+        $container->add(CvPage::header(_t('Stock batch entry'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ProductList'],
+        ]));
+        $container->add(CvNav::tabs('stock', 'products'));
         $container->add($this->form);
 
         parent::add($container);
     }
 
     /**
-     * on close
+     * Name of the fixed product, read through ProductService::findById()
+     * (tenant-scoped repository). Unknown/foreign id → "—".
      */
-    public static function onClose($param)
+    private static function productName(int $product_id): string
     {
-        TScript::create("Template.closeRightPanel()");
+        try
+        {
+            TTransaction::open('permission');
+
+            $tenant_context = self::resolveTenantContext();
+            $repository = new \CentralVet\Persistence\ProductRepository($tenant_context, TTransaction::get());
+            $product = (new \CentralVet\Application\ProductService($repository, $tenant_context))->findById($product_id);
+
+            TTransaction::close();
+
+            return $product !== null ? $product->name() : '—';
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+
+            return '—';
+        }
     }
 
     /**
@@ -133,7 +144,7 @@ class StockBatchForm extends TStandardForm
      * StockBatch has no update use case (StockService only exposes
      * receiveBatch()/consume()), so this screen is create-only: onEdit()
      * just clears the form and re-applies the product_id received in the
-     * querystring, mirroring PatientForm::onEdit().
+     * querystring.
      */
     public function onEdit($param)
     {
@@ -143,19 +154,16 @@ class StockBatchForm extends TStandardForm
         {
             $data = new stdClass;
             $data->product_id = $this->product_id;
+            $data->product_name = self::productName($this->product_id);
             $this->form->setData($data);
         }
     }
 
     /**
      * method onSave()
-     * Registers the batch through StockService::receiveBatch(), which
-     * persists the stock_batch row and its matching in/purchase_entry
-     * stock_movement row. No validation/decision is made here: everything
-     * (quantity, expiry date) is enforced inside the Application/Domain
-     * layer; this method only forwards form data and translates the
-     * outcome into screen feedback, never letting an exception escape as a
-     * fatal error.
+     * Registers the batch through StockService::receiveBatch(). No
+     * validation/decision is made here: quantity/expiry rules live in the
+     * Application/Domain layer. On success returns to ProductList.
      */
     public function onSave($param = null)
     {
@@ -165,7 +173,7 @@ class StockBatchForm extends TStandardForm
 
             $this->form->validate();
 
-            $product_id = $this->product_id ?? (isset($data->product_id) ? (int) $data->product_id : null);
+            $product_id = $this->product_id ?? (!empty($data->product_id) ? (int) $data->product_id : null);
 
             if (empty($product_id))
             {
@@ -178,7 +186,7 @@ class StockBatchForm extends TStandardForm
 
             $service = self::buildStockService($tenant_context);
 
-            $batch = $service->receiveBatch(
+            $service->receiveBatch(
                 $tenant_context->tenantId(),
                 $tenant_context->requireUnitId(),
                 $product_id,
@@ -188,47 +196,39 @@ class StockBatchForm extends TStandardForm
                 $tenant_context->userId()
             );
 
-            $data->id = $batch->id();
-
             TTransaction::close();
 
-            if (!empty($this->useToast))
-            {
-                TToast::show('info', _t('Batch received'));
-            }
-            else
-            {
-                new TMessage('info', _t('Batch received'));
-            }
-
-            $this->form->clear(true);
-            $this->form->setData((object) ['product_id' => $product_id]);
-
-            return $batch;
+            TToast::show('info', _t('Batch received'));
+            AdiantiCoreApplication::loadPage('ProductList');
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', $e->getMessage());
         }
     }
