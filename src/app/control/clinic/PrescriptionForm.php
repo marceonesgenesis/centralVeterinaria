@@ -177,7 +177,7 @@ class PrescriptionForm extends TPage
         $prescription_date->setValue(date('d/m/Y'));
         $prescription_date->setEditable(false);
 
-        $professional_system_user_id = new TDBCombo('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
+        $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Veterinarian'), new TRequiredValidator);
 
@@ -824,7 +824,7 @@ class PrescriptionForm extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\PrescriptionService($prescriptions, $encounters, $authorization, $context);
+        return new \CentralVet\Application\PrescriptionService($prescriptions, $encounters, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

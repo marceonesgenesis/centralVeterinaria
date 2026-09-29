@@ -261,7 +261,7 @@ class ExamResultForm extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context);
+        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

@@ -291,7 +291,7 @@ class VaccinationCardView extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\VaccinationService($vaccinations, $catalog, $protocols, $encounters, $authorization, $tenant_context);
+        return new \CentralVet\Application\VaccinationService($vaccinations, $catalog, $protocols, $encounters, $authorization, $tenant_context, new \CentralVet\Persistence\TenantUserDirectory($tenant_context, $connection));
     }
 
     /**

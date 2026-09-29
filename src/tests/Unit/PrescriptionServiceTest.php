@@ -69,6 +69,7 @@ final class PrescriptionServiceTest
             $encounters,
             $policy,
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(
@@ -119,6 +120,7 @@ final class PrescriptionServiceTest
             $encounters,
             new FakeAuthorizationPolicy(allowed: true),
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         $created = $service->create([
@@ -152,6 +154,7 @@ final class PrescriptionServiceTest
             new FakeEncounterRepository(1),
             new FakeAuthorizationPolicy(allowed: true),
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::null($service->findById(999));

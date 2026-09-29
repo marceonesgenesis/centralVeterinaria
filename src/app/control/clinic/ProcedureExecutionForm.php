@@ -100,7 +100,7 @@ class ProcedureExecutionForm extends TPage
 
         // system_user não tem tenant_id: combo sem filtro de tenant (mesma
         // exceção documentada em PrescriptionForm)
-        $professional_system_user_id = new TDBCombo('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
+        $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Professional'), new TRequiredValidator);
 
@@ -322,7 +322,7 @@ class ProcedureExecutionForm extends TPage
 
         $stock = new \CentralVet\Application\StockService($stockBatches, $stockMovements, $authorization, $context);
 
-        return new \CentralVet\Application\ProcedureExecutionService($executions, $encounters, $catalog, $stock, $authorization, $context);
+        return new \CentralVet\Application\ProcedureExecutionService($executions, $encounters, $catalog, $stock, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

@@ -74,6 +74,7 @@ final class VaccinationServiceTest
             $encounters,
             $policy,
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(
@@ -136,6 +137,7 @@ final class VaccinationServiceTest
             $encounters,
             new FakeAuthorizationPolicy(allowed: true),
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         $vaccination = $service->apply([
@@ -194,6 +196,7 @@ final class VaccinationServiceTest
             $encounters,
             new FakeAuthorizationPolicy(allowed: true),
             TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         $vaccination = $service->apply([

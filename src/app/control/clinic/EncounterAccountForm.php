@@ -680,21 +680,7 @@ class EncounterAccountForm extends TPage
      */
     private static function tenantUsersCriteria(): TCriteria
     {
-        $tenantId = 0;
-        try
-        {
-            $tenantId = (int) self::resolveTenantContext()->tenantId();
-        }
-        catch (Exception $e)
-        {
-            $tenantId = 0;
-        }
-
-        $criteria = new TCriteria;
-        $criteria->add(new TFilter('active', '=', 'Y'));
-        $criteria->add(new TFilter('id', 'IN', 'NOESC:(SELECT system_user_id FROM tenant_user WHERE tenant_id = ' . $tenantId . ')'));
-
-        return $criteria;
+        return CvTenantUsers::criteria(static fn () => self::resolveTenantContext());
     }
 
     /**

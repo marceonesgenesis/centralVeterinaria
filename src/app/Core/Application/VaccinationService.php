@@ -10,6 +10,7 @@ use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\VaccinationRepositoryInterface;
 use CentralVet\Domain\Contract\VaccineCatalogRepositoryInterface;
 use CentralVet\Domain\Contract\VaccineProtocolRepositoryInterface;
+use CentralVet\Domain\Contract\TenantUserDirectoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Vaccination;
@@ -53,6 +54,7 @@ final class VaccinationService
         private readonly EncounterRepositoryInterface $encounters,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TenantUserDirectoryInterface $tenantUsers,
     ) {
     }
 
@@ -137,6 +139,15 @@ final class VaccinationService
         if (!$catalogItem instanceof VaccineCatalogItem) {
             throw new CrossTenantReferenceException(
                 "vaccine_catalog_item_id {$vaccineCatalogItemId} was not found for the authenticated tenant"
+            );
+        }
+
+        // final-fix: the professional comes from caller input, so it must
+        // resolve within the authenticated tenant like any other reference
+        // (nonexistent and other-tenant users are indistinguishable).
+        if (!$this->tenantUsers->isActiveMember($professionalSystemUserId)) {
+            throw new CrossTenantReferenceException(
+                "professional_system_user_id {$professionalSystemUserId} was not found for the authenticated tenant"
             );
         }
 

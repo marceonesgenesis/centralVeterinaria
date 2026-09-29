@@ -258,6 +258,7 @@ final class ExamServiceTest
             $encounters,
             $policy,
             $context ?? TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
         );
     }
 

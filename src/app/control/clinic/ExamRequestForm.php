@@ -71,7 +71,7 @@ class ExamRequestForm extends TPage
 
         // system_user não tem tenant_id: combo sem filtro de tenant (mesma
         // exceção documentada em PrescriptionForm)
-        $professional_system_user_id = new TDBCombo('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
+        $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Professional'), new TRequiredValidator);
 
@@ -269,7 +269,7 @@ class ExamRequestForm extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context);
+        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

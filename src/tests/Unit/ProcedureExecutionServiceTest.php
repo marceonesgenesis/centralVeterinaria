@@ -107,6 +107,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(
@@ -176,6 +177,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         $execution = $service->execute($encounterId, $procedureItemId, 10, 'observação', self::ACTION);
@@ -254,6 +256,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(

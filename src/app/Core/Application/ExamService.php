@@ -9,6 +9,8 @@ use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\ExamRequestRepositoryInterface;
 use CentralVet\Domain\Contract\ExamResultRepositoryInterface;
+use CentralVet\Domain\Contract\TenantUserDirectoryInterface;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\ExamRequest;
 use CentralVet\Domain\ExamResult;
 use CentralVet\Tenancy\TenantContext;
@@ -55,6 +57,7 @@ final class ExamService
         private readonly EncounterRepositoryInterface $encounters,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TenantUserDirectoryInterface $tenantUsers,
     ) {
     }
 
@@ -95,6 +98,15 @@ final class ExamService
         if ($encounter === null) {
             throw new InvalidArgumentException(
                 "encounter {$encounterId} was not found for the authenticated tenant"
+            );
+        }
+
+        // final-fix: the professional comes from caller input, so it must
+        // resolve within the authenticated tenant like any other reference
+        // (nonexistent and other-tenant users are indistinguishable).
+        if (!$this->tenantUsers->isActiveMember($professionalSystemUserId)) {
+            throw new CrossTenantReferenceException(
+                "professional_system_user_id {$professionalSystemUserId} was not found for the authenticated tenant"
             );
         }
 
