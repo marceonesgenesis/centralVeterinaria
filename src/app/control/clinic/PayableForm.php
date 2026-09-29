@@ -92,7 +92,8 @@ class PayableForm extends TStandardForm
 
     /**
      * method onSave()
-     * Persists the payable through PayableService::create(). No validation/
+     * Persists the payable through PayableService::create() — or, when the
+     * form carries an id, PayableService::update() (T-18). No validation/
      * decision is made here: required fields and amount rules are enforced
      * inside the Application service; unit-scope authorization is enforced
      * inside PayableService::create() itself (fail-closed, before any
@@ -112,15 +113,25 @@ class PayableForm extends TStandardForm
             $tenant_context = self::resolveTenantContext();
             $service = self::buildPayableService($tenant_context);
 
-            $payable = $service->create(
-                $tenant_context->requireUnitId(),
-                (string) $data->description_text,
-                (string) $data->category,
-                self::toCents($data->amount),
-                !empty($data->due_date) ? (string) $data->due_date : null,
-                $tenant_context->userId(),
-                __CLASS__ . '::' . __FUNCTION__,
-            );
+            // com id: edita a conta existente do tenant (nunca cria outra)
+            $payable = !empty($data->id)
+                ? $service->update(
+                    (int) $data->id,
+                    (string) $data->description_text,
+                    (string) $data->category,
+                    self::toCents($data->amount),
+                    !empty($data->due_date) ? (string) $data->due_date : null,
+                    __CLASS__ . '::' . __FUNCTION__,
+                )
+                : $service->create(
+                    $tenant_context->requireUnitId(),
+                    (string) $data->description_text,
+                    (string) $data->category,
+                    self::toCents($data->amount),
+                    !empty($data->due_date) ? (string) $data->due_date : null,
+                    $tenant_context->userId(),
+                    __CLASS__ . '::' . __FUNCTION__,
+                );
 
             $data->id = $payable->id();
 
@@ -143,6 +154,12 @@ class PayableForm extends TStandardForm
 
             return $data;
         }
+        catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
+        {
+            $this->form->setData($data ?? null);
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             $this->form->setData($data ?? null);
@@ -164,6 +181,62 @@ class PayableForm extends TStandardForm
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             $this->form->setData($data ?? null);
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * method onEdit()
+     * Carrega a conta pelo repositório escopado ao tenant (id de outro
+     * tenant ou inexistente → erro, formulário vazio) e preenche o valor no
+     * formato do campo ("1.234,56"). Sem key, limpa o formulário.
+     */
+    public function onEdit($param)
+    {
+        try
+        {
+            $key = $param['key'] ?? ($param['id'] ?? null);
+
+            if ($key === null || $key === '')
+            {
+                $this->form->clear(true);
+                return;
+            }
+
+            TTransaction::open('permission');
+
+            $tenant_context = self::resolveTenantContext();
+            $payables = new \CentralVet\Persistence\PayableRepository($tenant_context, TTransaction::get());
+            $payable = $payables->findById((int) $key);
+
+            TTransaction::close();
+
+            if (!$payable instanceof \CentralVet\Domain\Payable)
+            {
+                $this->form->clear(true);
+                new TMessage('error', _t('Record not found'));
+                return;
+            }
+
+            $data = new stdClass;
+            $data->id               = $payable->id();
+            $data->description_text = $payable->descriptionText();
+            $data->category         = $payable->category();
+            $data->amount           = number_format($payable->amountCents() / 100, 2, ',', '.');
+            $data->due_date         = $payable->dueDate()?->format('Y-m-d');
+
+            $this->form->setData($data);
+
+            return $data;
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('An authenticated session with a tenant is required'));
+        }
+        catch (Exception $e)
+        {
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }

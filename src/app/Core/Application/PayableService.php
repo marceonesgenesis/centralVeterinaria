@@ -86,6 +86,53 @@ final class PayableService
     }
 
     /**
+     * Edits an open payable of the current tenant (fase 10, T-18): loads
+     * it through the tenant-scoped repository (a cross-tenant or unknown
+     * id resolves to null → InvalidArgumentException, nothing written),
+     * authorizes against ITS real system_unit_id, then applies
+     * Payable::changeDetails() (open only, same field rules as create())
+     * and saves the same row — never inserts a new payable.
+     *
+     * @throws InvalidStatusTransitionException when the payable is not 'open'
+     */
+    public function update(
+        int $payableId,
+        string $descriptionText,
+        string $category,
+        int $amountCents,
+        ?string $dueDate,
+        string $action,
+    ): Payable {
+        /** @var Payable|null $payable */
+        $payable = $this->payables->findById($payableId);
+
+        if (!$payable instanceof Payable || $payable->tenantId() !== $this->context->tenantId()) {
+            throw new InvalidArgumentException("Payable {$payableId} not found for this tenant");
+        }
+
+        $this->authorization->decide(new AuthorizationRequest(
+            context: $this->context,
+            action: $action,
+            requiresUnitScope: true,
+            resourceUnitId: $payable->systemUnitId(),
+            entityType: 'payable',
+            entityId: $payableId,
+        ))->assertAllowed();
+
+        $payable->changeDetails(
+            $descriptionText,
+            $category,
+            $amountCents,
+            $dueDate !== null && $dueDate !== '' ? new DateTimeImmutable($dueDate) : null,
+        );
+
+        /** @var Payable $saved */
+        $saved = $this->payables->save($payable);
+
+        return $saved;
+    }
+
+    /**
      * Settles a payable. Loads the real Payable first (repository reads
      * are already tenant-scoped, so a cross-tenant id resolves to null
      * below, same convention as VaccineProtocolService::findById()),

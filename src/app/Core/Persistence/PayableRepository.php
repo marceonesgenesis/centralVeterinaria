@@ -110,11 +110,17 @@ final class PayableRepository extends AbstractTenantRepository implements Payabl
         $query = $this->tenantQuery()->andEquals('id', $entity->id());
 
         $statement = $this->connection->prepare(
-            'UPDATE payable SET status = :status, paid_at = :paid_at, updated_at = CURRENT_TIMESTAMP '
+            'UPDATE payable SET description_text = :description_text, category = :category, '
+            . 'amount_cents = :amount_cents, due_date = :due_date, '
+            . 'status = :status, paid_at = :paid_at, updated_at = CURRENT_TIMESTAMP '
             . "WHERE {$query->whereSql()}"
         );
         $statement->execute([
             ...$query->parameters(),
+            ':description_text' => $entity->descriptionText(),
+            ':category' => $entity->category(),
+            ':amount_cents' => $entity->amountCents(),
+            ':due_date' => $entity->dueDate()?->format('Y-m-d'),
             ':status' => $entity->status(),
             ':paid_at' => $entity->paidAt()?->format('Y-m-d H:i:s'),
         ]);

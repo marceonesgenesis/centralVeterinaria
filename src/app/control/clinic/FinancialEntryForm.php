@@ -114,6 +114,26 @@ class FinancialEntryForm extends TStandardForm
     }
 
     /**
+     * method onEdit()
+     * financial_entry é append-only: não há edição por key. "Novo"/"Limpar"
+     * apenas esvaziam o formulário (mantendo o tipo da aba). Substitui o
+     * onEdit() herdado, que exigia setActiveRecord() e mostrava erro
+     * "Active Record não definido" (T-18, Correção 2).
+     */
+    public function onEdit($param = null)
+    {
+        $this->form->clear(true);
+
+        $requested_type = self::requestedType($param['entry_type'] ?? ($_REQUEST['entry_type'] ?? null));
+        if ($requested_type !== null)
+        {
+            $data = new stdClass;
+            $data->entry_type = $requested_type;
+            $this->form->setData($data);
+        }
+    }
+
+    /**
      * on close
      */
     public static function onClose($param)
