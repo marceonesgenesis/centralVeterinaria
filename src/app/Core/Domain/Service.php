@@ -145,6 +145,33 @@ final class Service
         return $this->updatedAt;
     }
 
+    /**
+     * Replaces the editable details of an existing service, applying the
+     * same rules as create(). Active/inactive stays with activate()/deactivate().
+     */
+    public function changeDetails(string $name, ?string $category, int $durationMinutes, int $priceCents): void
+    {
+        $name = trim($name);
+        $category = $category !== null ? trim($category) : null;
+
+        if ($name === '') {
+            throw new InvalidArgumentException('Service name is required');
+        }
+
+        if ($durationMinutes <= 0) {
+            throw new InvalidArgumentException('Duration must be a positive number of minutes');
+        }
+
+        if ($priceCents < 0) {
+            throw new InvalidArgumentException('Price cannot be negative');
+        }
+
+        $this->name = $name;
+        $this->category = $category !== null && $category !== '' ? $category : null;
+        $this->durationMinutes = $durationMinutes;
+        $this->priceCents = $priceCents;
+    }
+
     public function activate(): void
     {
         $this->active = true;

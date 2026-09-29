@@ -27,4 +27,11 @@ interface ServiceRepositoryInterface extends TenantRepositoryInterface
      * @return list<TEntity>
      */
     public function listActive(): array;
+
+    /**
+     * Lists active and inactive services within the current tenant, ordered by name.
+     *
+     * @return list<TEntity>
+     */
+    public function listAll(): array;
 }

@@ -65,6 +65,55 @@ final class ServiceCatalogService
         return $saved;
     }
 
+    /**
+     * Updates an existing service of the current tenant in place (never inserts).
+     *
+     * @param array{name: string, category?: string|null, duration_minutes: int, price_cents: int, active?: bool} $data
+     */
+    public function update(int $id, array $data): Service
+    {
+        $service = $this->repository->findById($id);
+
+        if (!$service instanceof Service || $service->tenantId() !== $this->context->tenantId()) {
+            throw new InvalidArgumentException('Service not found for this tenant');
+        }
+
+        foreach (['name', 'duration_minutes', 'price_cents'] as $required) {
+            if (!array_key_exists($required, $data)) {
+                throw new InvalidArgumentException("{$required} is required");
+            }
+        }
+
+        $name = (string) $data['name'];
+        $category = isset($data['category']) && $data['category'] !== '' ? (string) $data['category'] : null;
+
+        $sameName = $this->repository->findByName(trim($name));
+
+        if ($sameName instanceof Service && $sameName->id() !== $service->id()) {
+            throw new InvalidArgumentException("A service named \"{$name}\" already exists for this tenant");
+        }
+
+        $service->changeDetails($name, $category, (int) $data['duration_minutes'], (int) $data['price_cents']);
+
+        if (array_key_exists('active', $data)) {
+            (bool) $data['active'] ? $service->activate() : $service->deactivate();
+        }
+
+        /** @var Service $saved */
+        $saved = $this->repository->save($service);
+
+        return $saved;
+    }
+
+    /** @return list<Service> active and inactive services of the tenant, ordered by name */
+    public function listAll(): array
+    {
+        /** @var list<Service> $services */
+        $services = $this->repository->listAll();
+
+        return $services;
+    }
+
     /** @return list<Service> */
     public function listActive(): array
     {

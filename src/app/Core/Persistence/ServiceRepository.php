@@ -76,6 +76,24 @@ final class ServiceRepository extends AbstractTenantRepository implements Servic
         return $services;
     }
 
+    public function listAll(): array
+    {
+        $query = $this->tenantQuery();
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM service WHERE {$query->whereSql()} ORDER BY name ASC"
+        );
+        $statement->execute($query->parameters());
+
+        $services = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $services[] = $this->hydrate($row);
+        }
+
+        return $services;
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof Service) {
