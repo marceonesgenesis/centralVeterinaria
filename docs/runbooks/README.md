@@ -1,0 +1,19 @@
+# Runbooks operacionais
+
+Procedimentos práticos para operar a fundação do Central Vet Pro em
+desenvolvimento. Staging e produção ainda não são implantados nesta fase
+(sem domínio, TLS ou infraestrutura real contratada); onde aplicável, os
+runbooks indicam o que muda nesses ambientes.
+
+- [`local-environment.md`](./local-environment.md) — subir o ambiente local com Docker Compose.
+- [`tests.md`](./tests.md) — rodar a suíte de testes automatizados.
+- [`migrations.md`](./migrations.md) — aplicar uma migration versionada.
+- [`migration-rollback.md`](./migration-rollback.md) — reverter uma migration mal aplicada.
+- [`restore-backup.md`](./restore-backup.md) — restaurar o MySQL a partir de um backup.
+- [`build-versioning.md`](./build-versioning.md) — estratégia de tag de imagem e o pipeline de CI.
+- [`environments.md`](./environments.md) — configuração esperada por ambiente (development/staging/production).
+
+Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
+banco (migration, rollback, restore) exigem autorização explícita antes de
+qualquer execução, conforme `src/app/database/migrations/README.md` e as
+notas de execução da Fase 0.

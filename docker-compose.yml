@@ -1,0 +1,221 @@
+name: ${COMPOSE_PROJECT_NAME:-centralvet}
+
+x-php-service: &php-service
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  restart: unless-stopped
+  init: true
+  environment: &app-environment
+    APP_ENV: ${APP_ENV:-development}
+    APP_DEBUG: ${APP_DEBUG:-false}
+    APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
+    APP_SEED: ${APP_SEED:?APP_SEED must be set}
+    DB_HOST: ${DB_HOST:-mysql}
+    DB_PORT: ${DB_PORT:-3306}
+    DB_DATABASE: ${MYSQL_DATABASE:-centralvet}
+    DB_USERNAME: ${MYSQL_USER:-centralvet}
+    DB_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+    REDIS_HOST: ${REDIS_HOST:-redis}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    REDIS_DATABASE: ${REDIS_DATABASE:-0}
+    REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    SESSION_DRIVER: ${SESSION_DRIVER:-redis}
+    SESSION_PREFIX: ${SESSION_PREFIX:-centralvet:session:}
+    SESSION_LIFETIME: ${SESSION_LIFETIME:-7200}
+    LOGIN_RATE_LIMIT_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:-5}
+    LOGIN_RATE_LIMIT_DECAY_SECONDS: ${LOGIN_RATE_LIMIT_DECAY_SECONDS:-900}
+    WORKER_QUEUE_NAMES: ${WORKER_QUEUE_NAMES:-default}
+    QUEUE_BACKOFF_SECONDS: ${QUEUE_BACKOFF_SECONDS:-5}
+    LOG_STREAM: ${LOG_STREAM:-php://stderr}
+    LOG_MIN_LEVEL: ${LOG_MIN_LEVEL:-debug}
+    METRICS_DRIVER: ${METRICS_DRIVER:-null}
+    ERROR_TRACKING_DRIVER: ${ERROR_TRACKING_DRIVER:-null}
+    STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+    S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+    S3_REGION: ${S3_REGION:-us-east-1}
+    S3_BUCKET: ${S3_BUCKET:-centralvet-local}
+    S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+    S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
+  volumes:
+    - app_files:/var/www/html/src/files
+  networks:
+    - backend
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=32m
+    - /var/www/html/src/tmp:rw,noexec,nosuid,nodev,uid=33,gid=33,mode=0770,size=32m
+    - /var/www/html/src/app/output:rw,noexec,nosuid,nodev,uid=33,gid=33,mode=0770,size=64m
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  nginx:
+    image: nginx:1.27.5-alpine
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8081}:8080"
+    volumes:
+      - ./src:/var/www/html/src:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  app:
+    <<: *php-service
+    # Local/CI image tag only; no registry is pushed to. IMAGE_TAG defaults to
+    # "dev" for local `docker compose build`; CI sets it to the commit SHA so
+    # each run builds a distinctly tagged (but never published) image.
+    image: ${IMAGE_REGISTRY:-centralvet}/app:${IMAGE_TAG:-dev}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 2>/dev/null | grep -q pong"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    <<: *php-service
+    image: ${IMAGE_REGISTRY:-centralvet}/worker:${IMAGE_TAG:-dev}
+    command: ["php", "/var/www/html/src/bin/worker.php"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/centralvet-worker.heartbeat && test $$(($$(date +%s) - $$(stat -c %Y /tmp/centralvet-worker.heartbeat))) -lt 30"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  mysql:
+    image: mysql:8.0.43
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=-03:00
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-centralvet}
+      MYSQL_USER: ${MYSQL_USER:-centralvet}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
+      TZ: ${APP_TIMEZONE:-America/Fortaleza}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  redis:
+    image: redis:7.4.5-alpine
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # Optional local-only S3-compatible storage for CentralVet\Storage adapters.
+  # Not started by default: run with `docker compose --profile minio up -d`.
+  # No external provider or real credential is involved; MINIO_ROOT_* below
+  # are local placeholders, mirrored in .env.example.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    profiles: ["minio"]
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  mysql_data:
+  redis_data:
+  minio_data:
+  app_files:

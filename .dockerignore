@@ -1,0 +1,8 @@
+.git
+.tasks
+.env
+PRD_*.docx
+var/backups
+var/log
+vendor
+

@@ -1,0 +1,234 @@
+<menu>
+    <menuitem label='_t{Administration}'>
+        <icon>fas:sliders fa-fw</icon>
+        <menu>
+              <menuitem label='Dashboard'>
+                  <icon>fas:tachometer-alt fa-fw</icon>
+                  <action>SystemAdministrationDashboard</action>
+              </menuitem>
+              <menuitem label='_t{Programs}'>
+                  <icon>far:file-code fa-fw</icon>
+                  <action>SystemProgramList</action>
+              </menuitem>
+              <menuitem label='_t{Groups}'>
+                  <icon>fas:users fa-fw</icon>
+                  <action>SystemGroupList</action>
+              </menuitem>
+              <menuitem label='_t{Units}'>
+                  <icon>fas:university fa-fw</icon>
+                  <action>SystemUnitList</action>
+              </menuitem>
+              <menuitem label='_t{Roles}'>
+                  <icon>fas:user-tag fa-fw</icon>
+                  <action>SystemRoleList</action>
+              </menuitem>
+              <menuitem label='_t{Users}'>
+                  <icon>fas:user fa-fw</icon>
+                  <action>SystemUserList</action>
+              </menuitem>
+              <menuitem label='_t{Page management}'>
+                    <icon>fab:wikipedia-w fa-fw</icon>
+                    <action>SystemWikiList</action>
+              </menuitem>
+              <menuitem label='_t{News management}'>
+                    <icon>fas:pen-square fa-fw</icon>
+                    <action>SystemPostList</action>
+              </menuitem>
+              <menuitem label='_t{Schedules}'>
+                  <icon>fas:clock fa-fw</icon>
+                  <action>SystemScheduleList#method=onReload</action>
+              </menuitem>
+              <menuitem label='_t{Preferences}'>
+                  <icon>fas:cog fa-fw</icon>
+                  <action>SystemPreferenceForm#method=onEdit</action>
+              </menuitem>
+        </menu>
+    </menuitem>
+    
+    <menuitem label='Logs'>
+        <icon>fas:desktop fa-fw</icon>
+        <menu>
+              <menuitem label='Dashboard'>
+                  <icon>fas:tachometer-alt fa-fw</icon>
+                  <action>SystemLogDashboard</action>
+              </menuitem>
+              <menuitem label='_t{Access Log}'>
+                  <icon>fas:key fa-fw</icon>
+                  <action>SystemAccessLogList</action>
+              </menuitem>
+              <menuitem label='_t{Change Log}'>
+                  <icon>fas:film fa-fw</icon>
+                  <action>SystemChangeLogView</action>
+              </menuitem>
+              <menuitem label='_t{SQL Log}'>
+                  <icon>fas:database fa-fw</icon>
+                  <action>SystemSqlLogList</action>
+              </menuitem>
+              <menuitem label='_t{Request Log}'>
+                  <icon>fas:globe fa-fw</icon>
+                  <action>SystemRequestLogList</action>
+              </menuitem>
+              <menuitem label='_t{Schedules}'>
+                  <icon>fas:clock fa-fw</icon>
+                  <action>SystemScheduleLogList</action>
+              </menuitem>
+              <menuitem label='_t{PHP Log}'>
+                  <icon>fas:exclamation-triangle fa-fw</icon>
+                  <action>SystemPHPErrorLogView</action>
+              </menuitem>
+              <menuitem label='Session vars'>
+                  <icon>fas:code fa-fw</icon>
+                  <action>SystemSessionVarsView</action>
+              </menuitem>
+        </menu>
+    </menuitem>
+        
+    <menuitem label='Common pages'>
+        <menu>
+            <menuitem label='Common page 1'>
+                <icon></icon>
+                <action>CommonPage</action>
+            </menuitem>
+            <menuitem label='Common page 2'>
+                <icon></icon>
+                <action>CommonPage</action>
+            </menuitem>
+            <menuitem label='Common page 3'>
+                <icon></icon>
+                <action>CommonPage</action>
+            </menuitem>
+        </menu>
+    </menuitem>
+    
+    <menuitem label='_t{Reception}'>
+        <icon>fas:clinic-medical fa-fw</icon>
+        <menu>
+              <menuitem label='_t{Tutors}'>
+                  <icon>fas:user-friends fa-fw</icon>
+                  <action>TutorForm</action>
+              </menuitem>
+              <menuitem label='_t{Services}'>
+                  <icon>fas:concierge-bell fa-fw</icon>
+                  <action>ServiceList</action>
+              </menuitem>
+              <menuitem label='_t{New service}'>
+                  <icon>fas:plus fa-fw</icon>
+                  <action>ServiceForm</action>
+              </menuitem>
+              <menuitem label='_t{Agenda}'>
+                  <icon>fas:calendar-alt fa-fw</icon>
+                  <action>AgendaView</action>
+              </menuitem>
+              <menuitem label='_t{Queue}'>
+                  <icon>fas:list-ol fa-fw</icon>
+                  <action>QueueEntryView</action>
+              </menuitem>
+              <menuitem label='_t{Care}'>
+                  <icon>fas:stethoscope fa-fw</icon>
+                  <action>EncounterView</action>
+              </menuitem>
+              <menuitem label='_t{Clinical records}'>
+                  <icon>fas:notes-medical fa-fw</icon>
+                  <menu>
+                        <menuitem label='_t{Exam catalog}'>
+                            <icon>fas:vials fa-fw</icon>
+                            <action>ExamCatalogList</action>
+                        </menuitem>
+                        <menuitem label='_t{New exam catalog entry}'>
+                            <icon>fas:plus fa-fw</icon>
+                            <action>ExamCatalogForm</action>
+                        </menuitem>
+                        <menuitem label='_t{Exam results}'>
+                            <icon>fas:file-medical-alt fa-fw</icon>
+                            <action>PendingExamResultList</action>
+                        </menuitem>
+                        <menuitem label='_t{Vaccine catalog}'>
+                            <icon>fas:syringe fa-fw</icon>
+                            <action>VaccineCatalogList</action>
+                        </menuitem>
+                        <menuitem label='_t{New vaccine catalog entry}'>
+                            <icon>fas:plus fa-fw</icon>
+                            <action>VaccineCatalogForm</action>
+                        </menuitem>
+                        <menuitem label='_t{Vaccination card}'>
+                            <icon>fas:id-card fa-fw</icon>
+                            <action>VaccinationCardView</action>
+                        </menuitem>
+                  </menu>
+              </menuitem>
+              <menuitem label='_t{Search}'>
+                  <icon>fas:search fa-fw</icon>
+                  <action>GlobalSearchController</action>
+              </menuitem>
+        </menu>
+    </menuitem>
+
+    <menuitem label='_t{Stock and sales}'>
+        <icon>fas:boxes fa-fw</icon>
+        <menu>
+              <menuitem label='_t{Products}'>
+                  <icon>fas:pills fa-fw</icon>
+                  <action>ProductList</action>
+              </menuitem>
+              <menuitem label='_t{New product}'>
+                  <icon>fas:plus fa-fw</icon>
+                  <action>ProductForm</action>
+              </menuitem>
+              <menuitem label='_t{Procedure catalog}'>
+                  <icon>fas:clipboard-list fa-fw</icon>
+                  <action>ProcedureCatalogList</action>
+              </menuitem>
+              <menuitem label='_t{New procedure catalog entry}'>
+                  <icon>fas:plus fa-fw</icon>
+                  <action>ProcedureCatalogForm</action>
+              </menuitem>
+              <menuitem label='_t{Procedure inputs}'>
+                  <icon>fas:box-open fa-fw</icon>
+                  <action>ProcedureInputForm</action>
+              </menuitem>
+              <menuitem label='_t{Sales}'>
+                  <icon>fas:cash-register fa-fw</icon>
+                  <action>SaleForm</action>
+              </menuitem>
+        </menu>
+    </menuitem>
+
+    <menuitem label='_t{Financial}'>
+        <icon>fas:hand-holding-usd fa-fw</icon>
+        <menu>
+              <menuitem label='_t{Cash session}'>
+                  <icon>fas:cash-register fa-fw</icon>
+                  <action>CashSessionForm</action>
+              </menuitem>
+              <menuitem label='_t{Cash session history}'>
+                  <icon>fas:history fa-fw</icon>
+                  <action>CashSessionList</action>
+              </menuitem>
+              <menuitem label='_t{Payables}'>
+                  <icon>fas:file-invoice-dollar fa-fw</icon>
+                  <action>PayableList</action>
+              </menuitem>
+              <menuitem label='_t{New payable}'>
+                  <icon>fas:plus fa-fw</icon>
+                  <action>PayableForm</action>
+              </menuitem>
+              <menuitem label='_t{Financial entries}'>
+                  <icon>fas:chart-line fa-fw</icon>
+                  <action>FinancialEntryList</action>
+              </menuitem>
+              <menuitem label='_t{New financial entry}'>
+                  <icon>fas:plus fa-fw</icon>
+                  <action>FinancialEntryForm</action>
+              </menuitem>
+              <menuitem label='_t{Register payment}'>
+                  <icon>fas:credit-card fa-fw</icon>
+                  <action>PendingReceivableList</action>
+              </menuitem>
+        </menu>
+    </menuitem>
+
+    <menuitem label='Logout'>
+        <action>LoginForm#method=onLogout#static=1</action>
+        <icon>fas:sign-out-alt fa-fw</icon>
+    </menuitem>
+</menu>

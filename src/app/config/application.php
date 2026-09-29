@@ -1,0 +1,106 @@
+<?php
+
+$applicationSeed = getenv('APP_SEED');
+
+if (!is_string($applicationSeed) || strlen($applicationSeed) < 32 || str_starts_with($applicationSeed, 'change-this'))
+{
+    throw new RuntimeException('APP_SEED must be configured with at least 32 non-placeholder characters');
+}
+
+return [
+    'general' =>  [
+        'timezone' => getenv('APP_TIMEZONE') ?: 'America/Fortaleza',
+        'language' => 'pt',
+        'application' => 'centralvet',
+        'title' => 'Central Vet Pro',
+        'theme' => 'adminbs5',
+        'seed' => $applicationSeed,
+        'rest_key' => '',
+        'multiunit' => '1',
+        'public_view' => '0',
+        'public_entry' => '',
+        'debug' => (getenv('APP_DEBUG') === 'true') ? '1' : '0',
+        'strict_request' => '0',
+        'multi_lang' => '1',
+        'require_terms' => '0',
+        'concurrent_sessions' => '1',
+        'lang_options' => [
+          'pt' => 'Português',
+          'en' => 'English',
+          'es' => 'Español',
+          'fr' => 'Français',
+          'de' => 'Deutsch',
+          'it' => 'Italiano',
+        ],
+        'multi_database' => '0',
+        'validate_strong_pass' => '1',
+        'notification_login' => '0',
+        'welcome_message' => 'Have a great jorney!',
+        'request_log_service' => 'SystemRequestLogService',
+        'request_log' => '0',
+        'request_log_types' => 'cli,web,rest',
+        /*'password_renewal_interval' => '',*/
+    ],
+    'recaptcha' => [
+        'enabled' => '0',
+        'key' => '...',
+        'secret' => '...'
+    ],
+    'permission' =>  [
+        'public_classes' => [
+          'SystemRequestPasswordResetForm',
+          'SystemPasswordResetForm',
+          'SystemRegistrationForm',
+          'SystemPasswordRenewalForm',
+          'SystemConcurrentAccessView',
+          'SystemInvalidAccessView'
+        ],
+        'user_register' => '1',
+        'reset_password' => '1',
+        'default_groups' => '2',
+        'default_screen' => '30',
+        'default_units' => '1',
+        'user_deletion' => '1'
+    ],
+    'highlight' => [
+        'comment' => '#808080',
+        'default' => '#FFFFFF',
+        'html' => '#C0C0C0',
+        'keyword' => '#62d3ea',
+        'string' => '#FFC472',
+    ],
+    'login' => [
+        'logo' => '',
+        'background' => ''
+    ],
+    'template' => [
+        'navbar' => [
+            'has_program_search' => '1',
+            'has_notifications' => '1',
+            'has_messages' => '1',
+            'has_docs' => '1',
+            'has_contacts' => '1',
+            'has_support_form' => '1',
+            'has_wiki' => '1',
+            'has_news' => '1',
+            'has_menu_mode_switch' => '1',
+            'has_main_mode_switch' => '1',
+            'has_master_menu' => '1',
+            'always_collapse' => '0',
+            'allow_page_tabs' => '0',
+            'only_top_menu' => '0',
+            'header_display' => "visible",
+            'footer_display' => "visible"
+        ],
+        'dialogs' => [
+            'use_swal' => '1'
+        ],
+        'theme' => [
+            /*'menu_dark_color' => 'rgb(29 45 83)',*/
+            'login_mode'  => 'light',
+            'menu_mode'  => 'dark',
+            'main_mode'  => 'light',
+            'box_layout' => '0'
+        ]
+    ]
+];

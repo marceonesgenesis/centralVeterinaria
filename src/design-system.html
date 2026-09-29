@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR" data-bs-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Design system — Central Vet Pro</title>
+    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css?afver=860">
+    <link rel="stylesheet" href="app/templates/adminbs5/theme.css?afver=860">
+    <link rel="stylesheet" href="app/templates/adminbs5/custom.css?appver=1">
+</head>
+<body>
+    <a class="cv-visually-hidden focusable" href="#conteudo">Pular para o conteúdo</a>
+    <main id="conteudo" class="cv-page container-fluid py-4" tabindex="-1">
+        <header class="cv-page-header">
+            <div>
+                <p class="text-uppercase fw-semibold text-secondary mb-1">Fundação visual</p>
+                <h1 class="cv-page-title">Central Vet Pro</h1>
+                <p class="cv-page-description">Componentes neutros para fluxos administrativos e clínicos, com estados explícitos, contraste e navegação por teclado.</p>
+            </div>
+            <button class="btn btn-primary" type="button">Ação principal</button>
+        </header>
+
+        <div class="cv-demo-grid">
+            <section class="cv-section" aria-labelledby="states-title">
+                <h2 id="states-title" class="h4">Estados de interface</h2>
+                <div class="cv-state cv-state--loading" role="status" aria-live="polite">
+                    <span class="cv-state__icon" aria-hidden="true">◌</span>
+                    <div>
+                        <h3 class="cv-state__title">Carregando</h3>
+                        <p class="cv-state__message">Aguarde enquanto buscamos as informações.</p>
+                        <span class="cv-skeleton" aria-hidden="true"></span>
+                    </div>
+                </div>
+                <div class="cv-state cv-state--empty">
+                    <span class="cv-state__icon" aria-hidden="true">○</span>
+                    <div><h3 class="cv-state__title">Nenhum resultado</h3><p class="cv-state__message">Ajuste os filtros ou crie o primeiro registro.</p></div>
+                </div>
+                <div class="cv-state cv-state--error" role="alert">
+                    <span class="cv-state__icon" aria-hidden="true">!</span>
+                    <div><h3 class="cv-state__title">Não foi possível concluir</h3><p class="cv-state__message">Tente novamente. Se o problema continuar, contate o suporte.</p></div>
+                </div>
+                <div class="cv-state cv-state--success" role="status">
+                    <span class="cv-state__icon" aria-hidden="true">✓</span>
+                    <div><h3 class="cv-state__title">Alterações salvas</h3><p class="cv-state__message">As informações foram atualizadas com sucesso.</p></div>
+                </div>
+                <div class="cv-state cv-state--denied" role="alert">
+                    <span class="cv-state__icon" aria-hidden="true">×</span>
+                    <div><h3 class="cv-state__title">Permissão necessária</h3><p class="cv-state__message">Seu perfil não permite acessar este conteúdo.</p></div>
+                </div>
+            </section>
+
+            <section class="cv-section" aria-labelledby="controls-title">
+                <h2 id="controls-title" class="h4">Controles e foco</h2>
+                <form action="#" onsubmit="return false">
+                    <div class="mb-3">
+                        <label class="form-label" for="demo-name">Nome de exemplo</label>
+                        <input class="form-control" id="demo-name" type="text" autocomplete="off" aria-describedby="demo-name-help">
+                        <div id="demo-name-help" class="form-text">Texto de apoio associado ao campo.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="demo-status">Situação</label>
+                        <select class="form-select" id="demo-status"><option>Selecione</option><option>Ativo</option></select>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-primary" type="submit">Confirmar</button>
+                        <button class="btn btn-outline-secondary" type="button">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="cv-section" aria-labelledby="responsive-title">
+                <h2 id="responsive-title" class="h4">Conteúdo responsivo</h2>
+                <p class="text-secondary">A tabela preserva a leitura em telas estreitas sem comprimir colunas.</p>
+                <div class="cv-table-scroll" tabindex="0" role="region" aria-label="Exemplo de tabela responsiva">
+                    <table class="table table-striped mb-0">
+                        <thead><tr><th scope="col">Item</th><th scope="col">Estado</th><th scope="col">Atualização</th></tr></thead>
+                        <tbody><tr><th scope="row">Componente base</th><td>Disponível</td><td>Hoje</td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cv-section" aria-labelledby="principles-title">
+                <h2 id="principles-title" class="h4">Princípios</h2>
+                <ul class="mb-0">
+                    <li>Informação nunca depende apenas de cor.</li>
+                    <li>Foco visível em todos os controles interativos.</li>
+                    <li>Alvos de toque de pelo menos 44 px em dispositivos touch.</li>
+                    <li>Movimento reduzido acompanha a preferência do sistema.</li>
+                </ul>
+            </section>
+        </div>
+    </main>
+</body>
+</html>

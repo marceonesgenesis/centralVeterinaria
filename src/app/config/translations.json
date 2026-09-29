@@ -1,0 +1,2350 @@
+[
+  {
+    "en": "A new seed is required in the application.ini for security reasons",
+    "pt": "É necessária uma nova seed no application.ini por motivos de segurança"
+  },
+  {
+    "en": "A procedure catalog item is required",
+    "pt": "É necessário um item do catálogo de procedimentos"
+  },
+  {
+    "en": "A product must be informed to receive a stock batch",
+    "pt": "É necessário informar um produto para receber um lote de estoque"
+  },
+  {
+    "en": "A tutor must be informed to register a patient",
+    "pt": "É necessário informar um tutor para cadastrar um paciente"
+  },
+  {
+    "en": "A vaccine catalog item is required",
+    "pt": "É necessário um item do catálogo de vacinas"
+  },
+  {
+    "en": "About",
+    "pt": "Sobre"
+  },
+  {
+    "en": "Accept",
+    "pt": "Aceitar"
+  },
+  {
+    "en": "Accepted summary",
+    "pt": "Resumo aceito"
+  },
+  {
+    "en": "Access Log",
+    "pt": "Log de acessos"
+  },
+  {
+    "en": "Accesses by day",
+    "pt": "Acessos por dia"
+  },
+  {
+    "en": "Accesses today",
+    "pt": "Acessos hoje"
+  },
+  {
+    "en": "Account",
+    "pt": "Conta"
+  },
+  {
+    "en": "Account closed successfully",
+    "pt": "Conta fechada com sucesso"
+  },
+  {
+    "en": "Account created",
+    "pt": "Conta criada"
+  },
+  {
+    "en": "Activate/Deactivate",
+    "pt": "Ativar/Desativar"
+  },
+  {
+    "en": "Active",
+    "pt": "Ativo"
+  },
+  {
+    "en": "Add at least one item before saving",
+    "pt": "Adicione pelo menos um item antes de salvar"
+  },
+  {
+    "en": "Add at least one item to the cart before finalizing the sale",
+    "pt": "Adicione pelo menos um item ao carrinho antes de finalizar a venda"
+  },
+  {
+    "en": "Add dose",
+    "pt": "Adicionar dose"
+  },
+  {
+    "en": "Add input",
+    "pt": "Adicionar insumo"
+  },
+  {
+    "en": "Add item",
+    "pt": "Adicionar item"
+  },
+  {
+    "en": "Add manual item",
+    "pt": "Adicionar item manual"
+  },
+  {
+    "en": "Add procedure",
+    "pt": "Adicionar procedimento"
+  },
+  {
+    "en": "Add product",
+    "pt": "Adicionar produto"
+  },
+  {
+    "en": "Add wiki link",
+    "pt": "Adicionar link da wiki"
+  },
+  {
+    "en": "Address",
+    "pt": "Endereço"
+  },
+  {
+    "en": "Administration",
+    "pt": "Administração"
+  },
+  {
+    "en": "Advance status",
+    "pt": "Avançar status"
+  },
+  {
+    "en": "Agenda",
+    "pt": "Agenda"
+  },
+  {
+    "en": "AI summary",
+    "pt": "Resumo de IA"
+  },
+  {
+    "en": "All fields are required",
+    "pt": "Todos os campos são obrigatórios"
+  },
+  {
+    "en": "All framework files are in their original state",
+    "pt": "Todos os arquivos do framework estão no estado original"
+  },
+  {
+    "en": "Amount",
+    "pt": "Valor"
+  },
+  {
+    "en": "Amount (R$)",
+    "pt": "Valor (R$)"
+  },
+  {
+    "en": "An authenticated session with a tenant is required",
+    "pt": "É necessária uma sessão autenticada com um tenant"
+  },
+  {
+    "en": "An authenticated session with an active unit is required",
+    "pt": "É necessária uma sessão autenticada com uma unidade ativa"
+  },
+  {
+    "en": "An user with this e-mail is already registered",
+    "pt": "Já existe um usuário cadastrado com este e-mail"
+  },
+  {
+    "en": "An user with this login is already registered",
+    "pt": "Já existe um usuário cadastrado com este login"
+  },
+  {
+    "en": "Anamnesis (voice dictation available)",
+    "pt": "Anamnese (ditado por voz disponível)"
+  },
+  {
+    "en": "Applied at",
+    "pt": "Aplicado em"
+  },
+  {
+    "en": "Apply",
+    "pt": "Aplicar"
+  },
+  {
+    "en": "Apply discount",
+    "pt": "Aplicar desconto"
+  },
+  {
+    "en": "Apply vaccine",
+    "pt": "Aplicar vacina"
+  },
+  {
+    "en": "Appointment",
+    "pt": "Agendamento"
+  },
+  {
+    "en": "Appointment scheduled successfully",
+    "pt": "Agendamento realizado com sucesso"
+  },
+  {
+    "en": "Attach",
+    "pt": "Anexar"
+  },
+  {
+    "en": "Attachment",
+    "pt": "Anexo"
+  },
+  {
+    "en": "Attachments",
+    "pt": "Anexos"
+  },
+  {
+    "en": "Attended",
+    "pt": "Atendido"
+  },
+  {
+    "en": "Authenticate",
+    "pt": "Autenticar"
+  },
+  {
+    "en": "Authentication code",
+    "pt": "Código de autenticação"
+  },
+  {
+    "en": "Authorized by (system user id)",
+    "pt": "Autorizado por (id do usuário do sistema)"
+  },
+  {
+    "en": "Autosave active",
+    "pt": "Salvamento automático ativo"
+  },
+  {
+    "en": "Back",
+    "pt": "Voltar"
+  },
+  {
+    "en": "Balance due",
+    "pt": "Saldo devedor"
+  },
+  {
+    "en": "Bank transfer",
+    "pt": "Transferência bancária"
+  },
+  {
+    "en": "Batch",
+    "pt": "Lote"
+  },
+  {
+    "en": "Batch received",
+    "pt": "Lote recebido"
+  },
+  {
+    "en": "Birth date",
+    "pt": "Data de nascimento"
+  },
+  {
+    "en": "Bookmarks",
+    "pt": "Favoritos"
+  },
+  {
+    "en": "Breed",
+    "pt": "Raça"
+  },
+  {
+    "en": "Capillary refill (s)",
+    "pt": "Tempo de perfusão capilar (s)"
+  },
+  {
+    "en": "Care",
+    "pt": "Atendimento"
+  },
+  {
+    "en": "Cart",
+    "pt": "Carrinho"
+  },
+  {
+    "en": "Cash",
+    "pt": "Dinheiro"
+  },
+  {
+    "en": "Cash session",
+    "pt": "Sessão de caixa"
+  },
+  {
+    "en": "Cash session closed",
+    "pt": "Sessão de caixa fechada"
+  },
+  {
+    "en": "Cash session history",
+    "pt": "Histórico de sessões de caixa"
+  },
+  {
+    "en": "Cash session open since",
+    "pt": "Sessão de caixa aberta desde"
+  },
+  {
+    "en": "Cash session opened",
+    "pt": "Sessão de caixa aberta"
+  },
+  {
+    "en": "Cash sessions",
+    "pt": "Sessões de caixa"
+  },
+  {
+    "en": "Cat",
+    "pt": "Gato"
+  },
+  {
+    "en": "Category",
+    "pt": "Categoria"
+  },
+  {
+    "en": "Change Log",
+    "pt": "Log de alterações"
+  },
+  {
+    "en": "Check the owner of the log file. He must be the same as the web user (usually www-data, www, etc)",
+    "pt": "Verifique o proprietário do arquivo de log. Ele deve ser o mesmo do usuário web (geralmente www-data, www, etc)"
+  },
+  {
+    "en": "Choose a file to attach",
+    "pt": "Escolha um arquivo para anexar"
+  },
+  {
+    "en": "Class",
+    "pt": "Classe"
+  },
+  {
+    "en": "Clear",
+    "pt": "Limpar"
+  },
+  {
+    "en": "Clear cart",
+    "pt": "Limpar carrinho"
+  },
+  {
+    "en": "Clear form",
+    "pt": "Limpar formulário"
+  },
+  {
+    "en": "Click here for more information",
+    "pt": "Clique aqui para mais informações"
+  },
+  {
+    "en": "Clinical plan",
+    "pt": "Plano clínico"
+  },
+  {
+    "en": "Clinical record",
+    "pt": "Prontuário"
+  },
+  {
+    "en": "Clinical records",
+    "pt": "Prontuários"
+  },
+  {
+    "en": "Clone",
+    "pt": "Clonar"
+  },
+  {
+    "en": "Close",
+    "pt": "Fechar"
+  },
+  {
+    "en": "Close account",
+    "pt": "Fechar conta"
+  },
+  {
+    "en": "Close cash session",
+    "pt": "Fechar sessão de caixa"
+  },
+  {
+    "en": "Closed",
+    "pt": "Fechado"
+  },
+  {
+    "en": "Closed at",
+    "pt": "Fechado em"
+  },
+  {
+    "en": "Closing balance",
+    "pt": "Saldo de fechamento"
+  },
+  {
+    "en": "Color",
+    "pt": "Cor"
+  },
+  {
+    "en": "Column",
+    "pt": "Coluna"
+  },
+  {
+    "en": "Comment",
+    "pt": "Comentário"
+  },
+  {
+    "en": "Comments",
+    "pt": "Comentários"
+  },
+  {
+    "en": "Configure two-factor authentication",
+    "pt": "Configurar autenticação de dois fatores"
+  },
+  {
+    "en": "Contacts",
+    "pt": "Contatos"
+  },
+  {
+    "en": "Content",
+    "pt": "Conteúdo"
+  },
+  {
+    "en": "Controller",
+    "pt": "Controlador"
+  },
+  {
+    "en": "Could not load the exam catalog",
+    "pt": "Não foi possível carregar o catálogo de exames"
+  },
+  {
+    "en": "Could not load the procedure catalog",
+    "pt": "Não foi possível carregar o catálogo de procedimentos"
+  },
+  {
+    "en": "Count",
+    "pt": "Contagem"
+  },
+  {
+    "en": "CPU usage",
+    "pt": "Uso de CPU"
+  },
+  {
+    "en": "Create",
+    "pt": "Criar"
+  },
+  {
+    "en": "Create account",
+    "pt": "Criar conta"
+  },
+  {
+    "en": "Created at",
+    "pt": "Criado em"
+  },
+  {
+    "en": "Created by",
+    "pt": "Criado por"
+  },
+  {
+    "en": "Credit card",
+    "pt": "Cartão de crédito"
+  },
+  {
+    "en": "Current Frequency",
+    "pt": "Frequência atual"
+  },
+  {
+    "en": "Custom code",
+    "pt": "Código customizado"
+  },
+  {
+    "en": "Database",
+    "pt": "Banco de dados"
+  },
+  {
+    "en": "Date",
+    "pt": "Data"
+  },
+  {
+    "en": "Date/time",
+    "pt": "Data/hora"
+  },
+  {
+    "en": "Date/Time",
+    "pt": "Data/Hora"
+  },
+  {
+    "en": "Date/time and service id are required to schedule a follow-up",
+    "pt": "Data/hora e id do serviço são obrigatórios para agendar um retorno"
+  },
+  {
+    "en": "Debit card",
+    "pt": "Cartão de débito"
+  },
+  {
+    "en": "Delete",
+    "pt": "Excluir"
+  },
+  {
+    "en": "Description",
+    "pt": "Descrição"
+  },
+  {
+    "en": "Details",
+    "pt": "Detalhes"
+  },
+  {
+    "en": "Device",
+    "pt": "Dispositivo"
+  },
+  {
+    "en": "Device name",
+    "pt": "Nome do dispositivo"
+  },
+  {
+    "en": "Diagnosis",
+    "pt": "Diagnóstico"
+  },
+  {
+    "en": "Disable two-factor authentication",
+    "pt": "Desativar autenticação de dois fatores"
+  },
+  {
+    "en": "Discount",
+    "pt": "Desconto"
+  },
+  {
+    "en": "Discount (R$)",
+    "pt": "Desconto (R$)"
+  },
+  {
+    "en": "Discount applied successfully",
+    "pt": "Desconto aplicado com sucesso"
+  },
+  {
+    "en": "Disk devices",
+    "pt": "Dispositivos de disco"
+  },
+  {
+    "en": "Do you want to insert the sample data?",
+    "pt": "Deseja inserir os dados de exemplo?"
+  },
+  {
+    "en": "Document",
+    "pt": "Documento"
+  },
+  {
+    "en": "Document (CPF/CNPJ)",
+    "pt": "Documento (CPF/CNPJ)"
+  },
+  {
+    "en": "Document attached successfully",
+    "pt": "Documento anexado com sucesso"
+  },
+  {
+    "en": "Dog",
+    "pt": "Cachorro"
+  },
+  {
+    "en": "Dose",
+    "pt": "Dose"
+  },
+  {
+    "en": "Dose added to the schedule",
+    "pt": "Dose adicionada ao esquema"
+  },
+  {
+    "en": "Dose number",
+    "pt": "Número da dose"
+  },
+  {
+    "en": "Dose removed",
+    "pt": "Dose removida"
+  },
+  {
+    "en": "Dose schedule",
+    "pt": "Esquema de doses"
+  },
+  {
+    "en": "Dose unit",
+    "pt": "Unidade da dose"
+  },
+  {
+    "en": "Download",
+    "pt": "Baixar"
+  },
+  {
+    "en": "Download as CSV",
+    "pt": "Baixar como CSV"
+  },
+  {
+    "en": "Download as SQL",
+    "pt": "Baixar como SQL"
+  },
+  {
+    "en": "Due date",
+    "pt": "Data de vencimento"
+  },
+  {
+    "en": "Duration",
+    "pt": "Duração"
+  },
+  {
+    "en": "Duration (min)",
+    "pt": "Duração (min)"
+  },
+  {
+    "en": "Duration (minutes)",
+    "pt": "Duração (minutos)"
+  },
+  {
+    "en": "Each five minutes",
+    "pt": "A cada cinco minutos"
+  },
+  {
+    "en": "Edit",
+    "pt": "Editar"
+  },
+  {
+    "en": "Email",
+    "pt": "E-mail"
+  },
+  {
+    "en": "Enable 2FA",
+    "pt": "Ativar 2FA"
+  },
+  {
+    "en": "Encounter",
+    "pt": "Atendimento"
+  },
+  {
+    "en": "Encounter account",
+    "pt": "Conta do atendimento"
+  },
+  {
+    "en": "Encounter finished",
+    "pt": "Atendimento finalizado"
+  },
+  {
+    "en": "Encounter not found",
+    "pt": "Atendimento não encontrado"
+  },
+  {
+    "en": "End date",
+    "pt": "Data final"
+  },
+  {
+    "en": "Enter the 6-digit code from your authenticator app",
+    "pt": "Digite o código de 6 dígitos do seu aplicativo autenticador"
+  },
+  {
+    "en": "Equal",
+    "pt": "Igual"
+  },
+  {
+    "en": "Error",
+    "pt": "Erro"
+  },
+  {
+    "en": "Error log is empty or has not been configured correctly. Define the error log file, setting <b>error_log</b> at php.ini",
+    "pt": "O log de erros está vazio ou não foi configurado corretamente. Defina o arquivo de log de erros, configurando <b>error_log</b> no php.ini"
+  },
+  {
+    "en": "Errors are not being logged. Please turn <b>log_errors = On</b> at php.ini",
+    "pt": "Os erros não estão sendo registrados. Ative <b>log_errors = On</b> no php.ini"
+  },
+  {
+    "en": "Errors are not currently being displayd because the <b>display_errors</b> is set to Off in php.ini",
+    "pt": "Os erros não estão sendo exibidos no momento porque <b>display_errors</b> está definido como Off no php.ini"
+  },
+  {
+    "en": "Exam",
+    "pt": "Exame"
+  },
+  {
+    "en": "Exam catalog",
+    "pt": "Catálogo de exames"
+  },
+  {
+    "en": "Exam request",
+    "pt": "Solicitação de exame"
+  },
+  {
+    "en": "Exam request not found",
+    "pt": "Solicitação de exame não encontrada"
+  },
+  {
+    "en": "Exam requested successfully",
+    "pt": "Exame solicitado com sucesso"
+  },
+  {
+    "en": "Exam requests",
+    "pt": "Solicitações de exame"
+  },
+  {
+    "en": "Exam result",
+    "pt": "Resultado do exame"
+  },
+  {
+    "en": "Exam result recorded successfully",
+    "pt": "Resultado do exame registrado com sucesso"
+  },
+  {
+    "en": "Exam results",
+    "pt": "Resultados de exames"
+  },
+  {
+    "en": "Exams",
+    "pt": "Exames"
+  },
+  {
+    "en": "Execute",
+    "pt": "Executar"
+  },
+  {
+    "en": "Execute procedure",
+    "pt": "Executar procedimento"
+  },
+  {
+    "en": "Execution trace",
+    "pt": "Rastro de execução"
+  },
+  {
+    "en": "Expense",
+    "pt": "Despesa"
+  },
+  {
+    "en": "Expiry date",
+    "pt": "Data de validade"
+  },
+  {
+    "en": "Export",
+    "pt": "Exportar"
+  },
+  {
+    "en": "Female",
+    "pt": "Fêmea"
+  },
+  {
+    "en": "File",
+    "pt": "Arquivo"
+  },
+  {
+    "en": "Filesystem",
+    "pt": "Sistema de arquivos"
+  },
+  {
+    "en": "Fill in all item fields before adding",
+    "pt": "Preencha todos os campos do item antes de adicionar"
+  },
+  {
+    "en": "Filters",
+    "pt": "Filtros"
+  },
+  {
+    "en": "Finalize sale",
+    "pt": "Finalizar venda"
+  },
+  {
+    "en": "Financial",
+    "pt": "Financeiro"
+  },
+  {
+    "en": "Financial entries",
+    "pt": "Lançamentos financeiros"
+  },
+  {
+    "en": "Financial entry",
+    "pt": "Lançamento financeiro"
+  },
+  {
+    "en": "Financial summary",
+    "pt": "Resumo financeiro"
+  },
+  {
+    "en": "Find",
+    "pt": "Buscar"
+  },
+  {
+    "en": "Finish encounter",
+    "pt": "Finalizar atendimento"
+  },
+  {
+    "en": "Finished",
+    "pt": "Finalizado"
+  },
+  {
+    "en": "Folder",
+    "pt": "Pasta"
+  },
+  {
+    "en": "Follow-up",
+    "pt": "Retorno"
+  },
+  {
+    "en": "Follow-up scheduled successfully",
+    "pt": "Retorno agendado com sucesso"
+  },
+  {
+    "en": "Framework information",
+    "pt": "Informações do framework"
+  },
+  {
+    "en": "Free",
+    "pt": "Livre"
+  },
+  {
+    "en": "Frequency",
+    "pt": "Frequência"
+  },
+  {
+    "en": "Friday",
+    "pt": "Sexta-feira"
+  },
+  {
+    "en": "From",
+    "pt": "De"
+  },
+  {
+    "en": "Front page",
+    "pt": "Página inicial"
+  },
+  {
+    "en": "Full name",
+    "pt": "Nome completo"
+  },
+  {
+    "en": "Function",
+    "pt": "Função"
+  },
+  {
+    "en": "Generate",
+    "pt": "Gerar"
+  },
+  {
+    "en": "Generate PDF",
+    "pt": "Gerar PDF"
+  },
+  {
+    "en": "Global search",
+    "pt": "Busca global"
+  },
+  {
+    "en": "Grand total",
+    "pt": "Total geral"
+  },
+  {
+    "en": "Group",
+    "pt": "Grupo"
+  },
+  {
+    "en": "Groups",
+    "pt": "Grupos"
+  },
+  {
+    "en": "Heart rate (bpm)",
+    "pt": "Frequência cardíaca (bpm)"
+  },
+  {
+    "en": "Hour",
+    "pt": "Hora"
+  },
+  {
+    "en": "I have read and agree to the terms of use and privacy policy",
+    "pt": "Li e concordo com os termos de uso e política de privacidade"
+  },
+  {
+    "en": "Impersonated",
+    "pt": "Personificado"
+  },
+  {
+    "en": "Impersonated by",
+    "pt": "Personificado por"
+  },
+  {
+    "en": "Impersonation",
+    "pt": "Personificação"
+  },
+  {
+    "en": "Import SQL",
+    "pt": "Importar SQL"
+  },
+  {
+    "en": "In progress",
+    "pt": "Em andamento"
+  },
+  {
+    "en": "Inactive",
+    "pt": "Inativo"
+  },
+  {
+    "en": "Inactive user",
+    "pt": "Usuário inativo"
+  },
+  {
+    "en": "Income",
+    "pt": "Receita"
+  },
+  {
+    "en": "Inform the procedure id",
+    "pt": "Informe o id do procedimento"
+  },
+  {
+    "en": "Inform the product id",
+    "pt": "Informe o id do produto"
+  },
+  {
+    "en": "Inform who authorized the discount",
+    "pt": "Informe quem autorizou o desconto"
+  },
+  {
+    "en": "Inline actions",
+    "pt": "Ações em linha"
+  },
+  {
+    "en": "Input added",
+    "pt": "Insumo adicionado"
+  },
+  {
+    "en": "Inputs",
+    "pt": "Insumos"
+  },
+  {
+    "en": "Inputs (bill of materials)",
+    "pt": "Insumos (lista de materiais)"
+  },
+  {
+    "en": "Insert sample data",
+    "pt": "Inserir dados de exemplo"
+  },
+  {
+    "en": "Insufficient stock to execute this procedure",
+    "pt": "Estoque insuficiente para executar este procedimento"
+  },
+  {
+    "en": "Interval from previous dose",
+    "pt": "Intervalo desde a dose anterior"
+  },
+  {
+    "en": "Interval from previous dose (days)",
+    "pt": "Intervalo desde a dose anterior (dias)"
+  },
+  {
+    "en": "Invalid access",
+    "pt": "Acesso inválido"
+  },
+  {
+    "en": "Invalid account",
+    "pt": "Conta inválida"
+  },
+  {
+    "en": "Invalid captcha",
+    "pt": "Captcha inválido"
+  },
+  {
+    "en": "Invalid command",
+    "pt": "Comando inválido"
+  },
+  {
+    "en": "Invalid encounter id",
+    "pt": "Id de atendimento inválido"
+  },
+  {
+    "en": "Invalid exam request id",
+    "pt": "Id de solicitação de exame inválido"
+  },
+  {
+    "en": "Invalid inline action",
+    "pt": "Ação em linha inválida"
+  },
+  {
+    "en": "Invalid prescription",
+    "pt": "Prescrição inválida"
+  },
+  {
+    "en": "Invalid queue entry id",
+    "pt": "Id de entrada da fila inválido"
+  },
+  {
+    "en": "Invalid receivable",
+    "pt": "Conta a receber inválida"
+  },
+  {
+    "en": "Invalid sale",
+    "pt": "Venda inválida"
+  },
+  {
+    "en": "Invalid selection",
+    "pt": "Seleção inválida"
+  },
+  {
+    "en": "Items",
+    "pt": "Itens"
+  },
+  {
+    "en": "Label",
+    "pt": "Rótulo"
+  },
+  {
+    "en": "Language",
+    "pt": "Idioma"
+  },
+  {
+    "en": "Last modification",
+    "pt": "Última modificação"
+  },
+  {
+    "en": "Late",
+    "pt": "Atrasado"
+  },
+  {
+    "en": "Like",
+    "pt": "Curtir"
+  },
+  {
+    "en": "Log in",
+    "pt": "Entrar"
+  },
+  {
+    "en": "Login",
+    "pt": "Login"
+  },
+  {
+    "en": "Lot",
+    "pt": "Lote"
+  },
+  {
+    "en": "Mail from",
+    "pt": "Remetente do e-mail"
+  },
+  {
+    "en": "Main unit",
+    "pt": "Unidade principal"
+  },
+  {
+    "en": "Male",
+    "pt": "Macho"
+  },
+  {
+    "en": "Manual item added successfully",
+    "pt": "Item manual adicionado com sucesso"
+  },
+  {
+    "en": "Manufacturer",
+    "pt": "Fabricante"
+  },
+  {
+    "en": "Medication",
+    "pt": "Medicamento"
+  },
+  {
+    "en": "Menu path",
+    "pt": "Caminho do menu"
+  },
+  {
+    "en": "Message",
+    "pt": "Mensagem"
+  },
+  {
+    "en": "Message sent successfully",
+    "pt": "Mensagem enviada com sucesso"
+  },
+  {
+    "en": "Messages",
+    "pt": "Mensagens"
+  },
+  {
+    "en": "Method",
+    "pt": "Método"
+  },
+  {
+    "en": "Minimum stock",
+    "pt": "Estoque mínimo"
+  },
+  {
+    "en": "Minimum stock quantity",
+    "pt": "Quantidade mínima em estoque"
+  },
+  {
+    "en": "Minute",
+    "pt": "Minuto"
+  },
+  {
+    "en": "Model",
+    "pt": "Modelo"
+  },
+  {
+    "en": "Modified",
+    "pt": "Modificado"
+  },
+  {
+    "en": "Monday",
+    "pt": "Segunda-feira"
+  },
+  {
+    "en": "Month day",
+    "pt": "Dia do mês"
+  },
+  {
+    "en": "More",
+    "pt": "Mais"
+  },
+  {
+    "en": "Mount point",
+    "pt": "Ponto de montagem"
+  },
+  {
+    "en": "Mucous membranes",
+    "pt": "Mucosas"
+  },
+  {
+    "en": "My documents",
+    "pt": "Meus documentos"
+  },
+  {
+    "en": "Name",
+    "pt": "Nome"
+  },
+  {
+    "en": "Network devices",
+    "pt": "Dispositivos de rede"
+  },
+  {
+    "en": "New",
+    "pt": "Novo"
+  },
+  {
+    "en": "New appointment",
+    "pt": "Novo agendamento"
+  },
+  {
+    "en": "New exam catalog entry",
+    "pt": "Novo item do catálogo de exames"
+  },
+  {
+    "en": "New financial entry",
+    "pt": "Novo lançamento financeiro"
+  },
+  {
+    "en": "New folder",
+    "pt": "Nova pasta"
+  },
+  {
+    "en": "New patient",
+    "pt": "Novo paciente"
+  },
+  {
+    "en": "New payable",
+    "pt": "Nova conta a pagar"
+  },
+  {
+    "en": "New procedure catalog entry",
+    "pt": "Novo item do catálogo de procedimentos"
+  },
+  {
+    "en": "New product",
+    "pt": "Novo produto"
+  },
+  {
+    "en": "New service",
+    "pt": "Novo serviço"
+  },
+  {
+    "en": "New tutor",
+    "pt": "Novo tutor"
+  },
+  {
+    "en": "New vaccine catalog entry",
+    "pt": "Novo item do catálogo de vacinas"
+  },
+  {
+    "en": "New value",
+    "pt": "Novo valor"
+  },
+  {
+    "en": "News management",
+    "pt": "Gerenciamento de notícias"
+  },
+  {
+    "en": "Next",
+    "pt": "Próximo"
+  },
+  {
+    "en": "Next dose",
+    "pt": "Próxima dose"
+  },
+  {
+    "en": "No",
+    "pt": "Não"
+  },
+  {
+    "en": "No events yet",
+    "pt": "Nenhum evento ainda"
+  },
+  {
+    "en": "No payments recorded in this session yet",
+    "pt": "Nenhum pagamento registrado nesta sessão ainda"
+  },
+  {
+    "en": "No price available for this encounter yet",
+    "pt": "Nenhum preço disponível para este atendimento ainda"
+  },
+  {
+    "en": "No professionals found for the authenticated tenant",
+    "pt": "Nenhum profissional encontrado para o tenant autenticado"
+  },
+  {
+    "en": "No suggestions at the moment",
+    "pt": "Nenhuma sugestão no momento"
+  },
+  {
+    "en": "No summary available to accept",
+    "pt": "Nenhum resumo disponível para aceitar"
+  },
+  {
+    "en": "No summary available yet",
+    "pt": "Nenhum resumo disponível ainda"
+  },
+  {
+    "en": "No support e-mail configured",
+    "pt": "Nenhum e-mail de suporte configurado"
+  },
+  {
+    "en": "not found",
+    "pt": "não encontrado"
+  },
+  {
+    "en": "Not scheduled",
+    "pt": "Não agendado"
+  },
+  {
+    "en": "Notes",
+    "pt": "Observações"
+  },
+  {
+    "en": "Notification",
+    "pt": "Notificação"
+  },
+  {
+    "en": "Notifications",
+    "pt": "Notificações"
+  },
+  {
+    "en": "Old value",
+    "pt": "Valor antigo"
+  },
+  {
+    "en": "Once a day",
+    "pt": "Uma vez por dia"
+  },
+  {
+    "en": "Once a month",
+    "pt": "Uma vez por mês"
+  },
+  {
+    "en": "Once a week",
+    "pt": "Uma vez por semana"
+  },
+  {
+    "en": "Once an hour",
+    "pt": "Uma vez por hora"
+  },
+  {
+    "en": "Open",
+    "pt": "Abrir"
+  },
+  {
+    "en": "Open (status)",
+    "pt": "Aberto"
+  },
+  {
+    "en": "Open cash session",
+    "pt": "Abrir sessão de caixa"
+  },
+  {
+    "en": "Open receivables",
+    "pt": "Contas a receber em aberto"
+  },
+  {
+    "en": "Open ticket",
+    "pt": "Abrir chamado"
+  },
+  {
+    "en": "Opened at",
+    "pt": "Aberto em"
+  },
+  {
+    "en": "Opening balance",
+    "pt": "Saldo de abertura"
+  },
+  {
+    "en": "Operation",
+    "pt": "Operação"
+  },
+  {
+    "en": "Orientation",
+    "pt": "Orientação"
+  },
+  {
+    "en": "Other",
+    "pt": "Outro"
+  },
+  {
+    "en": "Page",
+    "pt": "Página"
+  },
+  {
+    "en": "Page management",
+    "pt": "Gerenciamento de páginas"
+  },
+  {
+    "en": "Paid",
+    "pt": "Pago"
+  },
+  {
+    "en": "Partially paid",
+    "pt": "Parcialmente paga"
+  },
+  {
+    "en": "Partner",
+    "pt": "Parceiro"
+  },
+  {
+    "en": "Password",
+    "pt": "Senha"
+  },
+  {
+    "en": "Password confirmation",
+    "pt": "Confirmação de senha"
+  },
+  {
+    "en": "Password reset",
+    "pt": "Redefinição de senha"
+  },
+  {
+    "en": "Patient",
+    "pt": "Paciente"
+  },
+  {
+    "en": "Patients",
+    "pt": "Pacientes"
+  },
+  {
+    "en": "Pay",
+    "pt": "Pagar"
+  },
+  {
+    "en": "Payable",
+    "pt": "Conta a pagar"
+  },
+  {
+    "en": "Payable paid successfully",
+    "pt": "Conta a pagar paga com sucesso"
+  },
+  {
+    "en": "Payables",
+    "pt": "Contas a pagar"
+  },
+  {
+    "en": "Payment method",
+    "pt": "Forma de pagamento"
+  },
+  {
+    "en": "Payment registered successfully",
+    "pt": "Pagamento registrado com sucesso"
+  },
+  {
+    "en": "Pending exam results",
+    "pt": "Resultados de exame pendentes"
+  },
+  {
+    "en": "Pending review",
+    "pt": "Aguardando revisão"
+  },
+  {
+    "en": "Percentage used",
+    "pt": "Percentual utilizado"
+  },
+  {
+    "en": "Permanently delete",
+    "pt": "Excluir permanentemente"
+  },
+  {
+    "en": "Permission",
+    "pt": "Permissão"
+  },
+  {
+    "en": "Permission denied",
+    "pt": "Permissão negada"
+  },
+  {
+    "en": "Permission to use this program will be automatically granted to all user groups selected here",
+    "pt": "A permissão para usar este programa será concedida automaticamente a todos os grupos de usuários selecionados aqui"
+  },
+  {
+    "en": "Phone",
+    "pt": "Telefone"
+  },
+  {
+    "en": "Photo",
+    "pt": "Foto"
+  },
+  {
+    "en": "PHP Log",
+    "pt": "Log do PHP"
+  },
+  {
+    "en": "Physical exam",
+    "pt": "Exame físico"
+  },
+  {
+    "en": "Pix",
+    "pt": "Pix"
+  },
+  {
+    "en": "Port speed",
+    "pt": "Velocidade da porta"
+  },
+  {
+    "en": "Posts",
+    "pt": "Publicações"
+  },
+  {
+    "en": "Preferences",
+    "pt": "Preferências"
+  },
+  {
+    "en": "Preparation notes",
+    "pt": "Observações de preparo"
+  },
+  {
+    "en": "Prescription",
+    "pt": "Prescrição"
+  },
+  {
+    "en": "Prescription saved successfully",
+    "pt": "Prescrição salva com sucesso"
+  },
+  {
+    "en": "Prescriptions",
+    "pt": "Prescrições"
+  },
+  {
+    "en": "Previous",
+    "pt": "Anterior"
+  },
+  {
+    "en": "Price",
+    "pt": "Preço"
+  },
+  {
+    "en": "Procedure",
+    "pt": "Procedimento"
+  },
+  {
+    "en": "Procedure (catalog item id)",
+    "pt": "Procedimento (id do item do catálogo)"
+  },
+  {
+    "en": "Procedure catalog",
+    "pt": "Catálogo de procedimentos"
+  },
+  {
+    "en": "Procedure executed successfully",
+    "pt": "Procedimento executado com sucesso"
+  },
+  {
+    "en": "Procedure execution",
+    "pt": "Execução de procedimento"
+  },
+  {
+    "en": "Procedure inputs",
+    "pt": "Insumos do procedimento"
+  },
+  {
+    "en": "Procedure not found or inactive",
+    "pt": "Procedimento não encontrado ou inativo"
+  },
+  {
+    "en": "Procedure quantity",
+    "pt": "Quantidade do procedimento"
+  },
+  {
+    "en": "Procedures",
+    "pt": "Procedimentos"
+  },
+  {
+    "en": "Product",
+    "pt": "Produto"
+  },
+  {
+    "en": "Product not found or inactive",
+    "pt": "Produto não encontrado ou inativo"
+  },
+  {
+    "en": "Product quantity",
+    "pt": "Quantidade do produto"
+  },
+  {
+    "en": "Products",
+    "pt": "Produtos"
+  },
+  {
+    "en": "Professional",
+    "pt": "Profissional"
+  },
+  {
+    "en": "Professional (system user id)",
+    "pt": "Profissional (id do usuário do sistema)"
+  },
+  {
+    "en": "Profile",
+    "pt": "Perfil"
+  },
+  {
+    "en": "Program",
+    "pt": "Programa"
+  },
+  {
+    "en": "Programs",
+    "pt": "Programas"
+  },
+  {
+    "en": "Properties",
+    "pt": "Propriedades"
+  },
+  {
+    "en": "Protocol",
+    "pt": "Protocolo"
+  },
+  {
+    "en": "Provide a structured result or an attachment",
+    "pt": "Informe um resultado estruturado ou um anexo"
+  },
+  {
+    "en": "Provide a valid encounter_id to open its account.",
+    "pt": "Informe um encounter_id válido para abrir sua conta."
+  },
+  {
+    "en": "Provide a valid receivable_id to register a payment.",
+    "pt": "Informe um receivable_id válido para registrar um pagamento."
+  },
+  {
+    "en": "Provide an encounter_id to resume an encounter, or a patient_id (optionally with appointment_id/service_id) to start a new one.",
+    "pt": "Informe um encounter_id para retomar um atendimento, ou um patient_id (opcionalmente com appointment_id/service_id) para iniciar um novo."
+  },
+  {
+    "en": "Provide an exam_request_id to record its result.",
+    "pt": "Informe um exam_request_id para registrar seu resultado."
+  },
+  {
+    "en": "Provide encounter_id and patient_id to execute a procedure.",
+    "pt": "Informe encounter_id e patient_id para executar um procedimento."
+  },
+  {
+    "en": "Provide encounter_id and patient_id to request an exam.",
+    "pt": "Informe encounter_id e patient_id para solicitar um exame."
+  },
+  {
+    "en": "Qty",
+    "pt": "Qtd"
+  },
+  {
+    "en": "Quantity",
+    "pt": "Quantidade"
+  },
+  {
+    "en": "Quantity must be at least 1",
+    "pt": "A quantidade deve ser pelo menos 1"
+  },
+  {
+    "en": "Quantity per execution",
+    "pt": "Quantidade por execução"
+  },
+  {
+    "en": "Queue",
+    "pt": "Fila"
+  },
+  {
+    "en": "RAM Memory",
+    "pt": "Memória RAM"
+  },
+  {
+    "en": "Receivable",
+    "pt": "Conta a receber"
+  },
+  {
+    "en": "Receivable not found",
+    "pt": "Conta a receber não encontrada"
+  },
+  {
+    "en": "Receivable total",
+    "pt": "Total a receber"
+  },
+  {
+    "en": "Receive",
+    "pt": "Receber"
+  },
+  {
+    "en": "Receive payment",
+    "pt": "Receber pagamento"
+  },
+  {
+    "en": "Reception",
+    "pt": "Recepção"
+  },
+  {
+    "en": "Recieved",
+    "pt": "Recebido"
+  },
+  {
+    "en": "Record deleted",
+    "pt": "Registro excluído"
+  },
+  {
+    "en": "Record not found",
+    "pt": "Registro não encontrado"
+  },
+  {
+    "en": "Record result",
+    "pt": "Registrar resultado"
+  },
+  {
+    "en": "Record saved",
+    "pt": "Registro salvo"
+  },
+  {
+    "en": "Recorded",
+    "pt": "Registrado"
+  },
+  {
+    "en": "Records imported successfully",
+    "pt": "Registros importados com sucesso"
+  },
+  {
+    "en": "Reference",
+    "pt": "Referência"
+  },
+  {
+    "en": "Register payment",
+    "pt": "Registrar pagamento"
+  },
+  {
+    "en": "Register result",
+    "pt": "Registrar resultado"
+  },
+  {
+    "en": "Remove",
+    "pt": "Remover"
+  },
+  {
+    "en": "Remove from bookmark",
+    "pt": "Remover dos favoritos"
+  },
+  {
+    "en": "Removed",
+    "pt": "Removido"
+  },
+  {
+    "en": "Renewal password",
+    "pt": "Renovação de senha"
+  },
+  {
+    "en": "Request",
+    "pt": "Solicitação"
+  },
+  {
+    "en": "Request exam",
+    "pt": "Solicitar exame"
+  },
+  {
+    "en": "Request Log",
+    "pt": "Log de requisições"
+  },
+  {
+    "en": "Request time average",
+    "pt": "Tempo médio de requisição"
+  },
+  {
+    "en": "Requested at",
+    "pt": "Solicitado em"
+  },
+  {
+    "en": "Requests by day",
+    "pt": "Requisições por dia"
+  },
+  {
+    "en": "Requests today",
+    "pt": "Requisições hoje"
+  },
+  {
+    "en": "Reset password",
+    "pt": "Redefinir senha"
+  },
+  {
+    "en": "Respiratory rate (mpm)",
+    "pt": "Frequência respiratória (mpm)"
+  },
+  {
+    "en": "Restore from trash",
+    "pt": "Restaurar da lixeira"
+  },
+  {
+    "en": "Restored",
+    "pt": "Restaurado"
+  },
+  {
+    "en": "Restricted methods",
+    "pt": "Métodos restritos"
+  },
+  {
+    "en": "Results",
+    "pt": "Resultados"
+  },
+  {
+    "en": "Role",
+    "pt": "Papel"
+  },
+  {
+    "en": "Roles",
+    "pt": "Papéis"
+  },
+  {
+    "en": "Route",
+    "pt": "Rota"
+  },
+  {
+    "en": "Sale",
+    "pt": "Venda"
+  },
+  {
+    "en": "Sale completed successfully",
+    "pt": "Venda concluída com sucesso"
+  },
+  {
+    "en": "Sale receipt",
+    "pt": "Recibo de venda"
+  },
+  {
+    "en": "Sales",
+    "pt": "Vendas"
+  },
+  {
+    "en": "Sample data inserted successfully",
+    "pt": "Dados de exemplo inseridos com sucesso"
+  },
+  {
+    "en": "Saturday",
+    "pt": "Sábado"
+  },
+  {
+    "en": "Save",
+    "pt": "Salvar"
+  },
+  {
+    "en": "Save as CSV",
+    "pt": "Salvar como CSV"
+  },
+  {
+    "en": "Save as PDF",
+    "pt": "Salvar como PDF"
+  },
+  {
+    "en": "Save as XML",
+    "pt": "Salvar como XML"
+  },
+  {
+    "en": "Saved at",
+    "pt": "Salvo em"
+  },
+  {
+    "en": "Scan the QR code with your phone to get started",
+    "pt": "Escaneie o QR code com seu celular para começar"
+  },
+  {
+    "en": "Schedule",
+    "pt": "Agenda"
+  },
+  {
+    "en": "Schedule follow-up",
+    "pt": "Agendar retorno"
+  },
+  {
+    "en": "Schedule type",
+    "pt": "Tipo de agendamento"
+  },
+  {
+    "en": "Schedules",
+    "pt": "Agendamentos"
+  },
+  {
+    "en": "Search",
+    "pt": "Pesquisar"
+  },
+  {
+    "en": "Search by id, patient or professional",
+    "pt": "Pesquisar por id, paciente ou profissional"
+  },
+  {
+    "en": "Search by name, CPF/CNPJ or phone",
+    "pt": "Pesquisar por nome, CPF/CNPJ ou telefone"
+  },
+  {
+    "en": "Search tutors and patients by name, document, phone or species",
+    "pt": "Pesquisar tutores e pacientes por nome, documento, telefone ou espécie"
+  },
+  {
+    "en": "Searchable",
+    "pt": "Pesquisável"
+  },
+  {
+    "en": "Secret key",
+    "pt": "Chave secreta"
+  },
+  {
+    "en": "Select",
+    "pt": "Selecionar"
+  },
+  {
+    "en": "Select a patient",
+    "pt": "Selecionar um paciente"
+  },
+  {
+    "en": "Select all users who will be part of this group",
+    "pt": "Selecione todos os usuários que farão parte deste grupo"
+  },
+  {
+    "en": "Selected tutor was not found for your account",
+    "pt": "O tutor selecionado não foi encontrado para sua conta"
+  },
+  {
+    "en": "Send",
+    "pt": "Enviar"
+  },
+  {
+    "en": "Send message",
+    "pt": "Enviar mensagem"
+  },
+  {
+    "en": "Send to trash",
+    "pt": "Enviar para a lixeira"
+  },
+  {
+    "en": "Sent",
+    "pt": "Enviado"
+  },
+  {
+    "en": "Sent out",
+    "pt": "Enviado"
+  },
+  {
+    "en": "Sent to trash",
+    "pt": "Enviado para a lixeira"
+  },
+  {
+    "en": "Service",
+    "pt": "Serviço"
+  },
+  {
+    "en": "Service id",
+    "pt": "Id do serviço"
+  },
+  {
+    "en": "Services",
+    "pt": "Serviços"
+  },
+  {
+    "en": "Session",
+    "pt": "Sessão"
+  },
+  {
+    "en": "Session Closed",
+    "pt": "Sessão encerrada"
+  },
+  {
+    "en": "Set bookmark",
+    "pt": "Adicionar aos favoritos"
+  },
+  {
+    "en": "Sex",
+    "pt": "Sexo"
+  },
+  {
+    "en": "Share",
+    "pt": "Compartilhar"
+  },
+  {
+    "en": "Shared with me",
+    "pt": "Compartilhado comigo"
+  },
+  {
+    "en": "Slower methods",
+    "pt": "Métodos mais lentos"
+  },
+  {
+    "en": "Slower pages",
+    "pt": "Páginas mais lentas"
+  },
+  {
+    "en": "SMTP Auth",
+    "pt": "Autenticação SMTP"
+  },
+  {
+    "en": "SMTP Host",
+    "pt": "Servidor SMTP"
+  },
+  {
+    "en": "SMTP Pass",
+    "pt": "Senha SMTP"
+  },
+  {
+    "en": "SMTP Port",
+    "pt": "Porta SMTP"
+  },
+  {
+    "en": "SMTP User",
+    "pt": "Usuário SMTP"
+  },
+  {
+    "en": "Species",
+    "pt": "Espécie"
+  },
+  {
+    "en": "SQL DML Statements",
+    "pt": "Comandos SQL DML"
+  },
+  {
+    "en": "SQL Log",
+    "pt": "Log de SQL"
+  },
+  {
+    "en": "SQL Panel",
+    "pt": "Painel de SQL"
+  },
+  {
+    "en": "SQL statements by day",
+    "pt": "Comandos SQL por dia"
+  },
+  {
+    "en": "Start date",
+    "pt": "Data inicial"
+  },
+  {
+    "en": "Status",
+    "pt": "Status"
+  },
+  {
+    "en": "Status updated",
+    "pt": "Status atualizado"
+  },
+  {
+    "en": "Stock",
+    "pt": "Estoque"
+  },
+  {
+    "en": "Stock and sales",
+    "pt": "Estoque e vendas"
+  },
+  {
+    "en": "Stock batch entry",
+    "pt": "Entrada de lote de estoque"
+  },
+  {
+    "en": "Stock batches",
+    "pt": "Lotes de estoque"
+  },
+  {
+    "en": "Stock quantity",
+    "pt": "Quantidade em estoque"
+  },
+  {
+    "en": "Structured result",
+    "pt": "Resultado estruturado"
+  },
+  {
+    "en": "Subject",
+    "pt": "Assunto"
+  },
+  {
+    "en": "Submission date",
+    "pt": "Data de envio"
+  },
+  {
+    "en": "Subtotal",
+    "pt": "Subtotal"
+  },
+  {
+    "en": "Suggested next steps",
+    "pt": "Próximos passos sugeridos"
+  },
+  {
+    "en": "Sum",
+    "pt": "Soma"
+  },
+  {
+    "en": "Summary accepted",
+    "pt": "Resumo aceito"
+  },
+  {
+    "en": "Sunday",
+    "pt": "Domingo"
+  },
+  {
+    "en": "Support mail",
+    "pt": "E-mail de suporte"
+  },
+  {
+    "en": "System information",
+    "pt": "Informações do sistema"
+  },
+  {
+    "en": "Table",
+    "pt": "Tabela"
+  },
+  {
+    "en": "Tables",
+    "pt": "Tabelas"
+  },
+  {
+    "en": "Temperature (C)",
+    "pt": "Temperatura (C)"
+  },
+  {
+    "en": "Terms of use",
+    "pt": "Termos de uso"
+  },
+  {
+    "en": "Terms of use and privacy policy",
+    "pt": "Termos de uso e política de privacidade"
+  },
+  {
+    "en": "The following files have been modified from the original framework",
+    "pt": "Os seguintes arquivos foram modificados em relação ao framework original"
+  },
+  {
+    "en": "The password has been changed",
+    "pt": "A senha foi alterada"
+  },
+  {
+    "en": "The password reset is disabled",
+    "pt": "A redefinição de senha está desativada"
+  },
+  {
+    "en": "The passwords do not match",
+    "pt": "As senhas não coincidem"
+  },
+  {
+    "en": "The programs selected here will automatically have access permission granted to this user group",
+    "pt": "Os programas selecionados aqui terão permissão de acesso concedida automaticamente a este grupo de usuários"
+  },
+  {
+    "en": "The user registration is disabled",
+    "pt": "O cadastro de usuários está desativado"
+  },
+  {
+    "en": "There is no open cash session for this unit",
+    "pt": "Não há sessão de caixa aberta para esta unidade"
+  },
+  {
+    "en": "There is no open cash session for this unit. Open a cash session before registering a payment.",
+    "pt": "Não há sessão de caixa aberta para esta unidade. Abra uma sessão de caixa antes de registrar um pagamento."
+  },
+  {
+    "en": "This configuration is usually recommended for production, not development purposes",
+    "pt": "Esta configuração geralmente é recomendada para produção, não para fins de desenvolvimento"
+  },
+  {
+    "en": "This folder already exists",
+    "pt": "Esta pasta já existe"
+  },
+  {
+    "en": "This operation is not allowed",
+    "pt": "Esta operação não é permitida"
+  },
+  {
+    "en": "This receivable is already fully paid.",
+    "pt": "Esta conta a receber já está totalmente paga."
+  },
+  {
+    "en": "This will remove all the contents of the folder",
+    "pt": "Isso removerá todo o conteúdo da pasta"
+  },
+  {
+    "en": "Thursday",
+    "pt": "Quinta-feira"
+  },
+  {
+    "en": "Ticket",
+    "pt": "Chamado"
+  },
+  {
+    "en": "Time",
+    "pt": "Hora"
+  },
+  {
+    "en": "Timeline",
+    "pt": "Linha do tempo"
+  },
+  {
+    "en": "Title",
+    "pt": "Título"
+  },
+  {
+    "en": "To",
+    "pt": "Para"
+  },
+  {
+    "en": "To enable scheduling, add the following line to crontab (Linux)",
+    "pt": "Para habilitar o agendamento, adicione a seguinte linha ao crontab (Linux)"
+  },
+  {
+    "en": "Today",
+    "pt": "Hoje"
+  },
+  {
+    "en": "Today queue",
+    "pt": "Fila de hoje"
+  },
+  {
+    "en": "Token is invalid or expired. Please log in again",
+    "pt": "O token é inválido ou expirou. Faça login novamente"
+  },
+  {
+    "en": "Total",
+    "pt": "Total"
+  },
+  {
+    "en": "Trash",
+    "pt": "Lixeira"
+  },
+  {
+    "en": "Tuesday",
+    "pt": "Terça-feira"
+  },
+  {
+    "en": "Tutor",
+    "pt": "Tutor"
+  },
+  {
+    "en": "Tutors",
+    "pt": "Tutores"
+  },
+  {
+    "en": "Two factor authentication",
+    "pt": "Autenticação de dois fatores"
+  },
+  {
+    "en": "Type",
+    "pt": "Tipo"
+  },
+  {
+    "en": "Unit",
+    "pt": "Unidade"
+  },
+  {
+    "en": "Unit cost",
+    "pt": "Custo unitário"
+  },
+  {
+    "en": "Unit of measure",
+    "pt": "Unidade de medida"
+  },
+  {
+    "en": "Unit price",
+    "pt": "Preço unitário"
+  },
+  {
+    "en": "Units",
+    "pt": "Unidades"
+  },
+  {
+    "en": "Updated at",
+    "pt": "Atualizado em"
+  },
+  {
+    "en": "Uploaded file was not found",
+    "pt": "Arquivo enviado não foi encontrado"
+  },
+  {
+    "en": "Use authencator app like Google Authenticator or Authy",
+    "pt": "Use um aplicativo autenticador como Google Authenticator ou Authy"
+  },
+  {
+    "en": "User",
+    "pt": "Usuário"
+  },
+  {
+    "en": "User not found",
+    "pt": "Usuário não encontrado"
+  },
+  {
+    "en": "User not found or wrong password",
+    "pt": "Usuário não encontrado ou senha incorreta"
+  },
+  {
+    "en": "User registration",
+    "pt": "Cadastro de usuário"
+  },
+  {
+    "en": "Users",
+    "pt": "Usuários"
+  },
+  {
+    "en": "Users by group",
+    "pt": "Usuários por grupo"
+  },
+  {
+    "en": "Users by unit",
+    "pt": "Usuários por unidade"
+  },
+  {
+    "en": "Using/Total",
+    "pt": "Em uso/Total"
+  },
+  {
+    "en": "Vaccination",
+    "pt": "Vacinação"
+  },
+  {
+    "en": "Vaccination card",
+    "pt": "Carteira de vacinação"
+  },
+  {
+    "en": "Vaccine",
+    "pt": "Vacina"
+  },
+  {
+    "en": "Vaccine (catalog item id)",
+    "pt": "Vacina (id do item do catálogo)"
+  },
+  {
+    "en": "Vaccine applied successfully",
+    "pt": "Vacina aplicada com sucesso"
+  },
+  {
+    "en": "Vaccine catalog",
+    "pt": "Catálogo de vacinas"
+  },
+  {
+    "en": "Vaccine protocol",
+    "pt": "Protocolo de vacina"
+  },
+  {
+    "en": "Vaccine protocols",
+    "pt": "Protocolos de vacina"
+  },
+  {
+    "en": "Vaccines",
+    "pt": "Vacinas"
+  },
+  {
+    "en": "Vendor",
+    "pt": "Fornecedor"
+  },
+  {
+    "en": "View all",
+    "pt": "Ver tudo"
+  },
+  {
+    "en": "View card",
+    "pt": "Ver carteira"
+  },
+  {
+    "en": "Waiting",
+    "pt": "Aguardando"
+  },
+  {
+    "en": "We have verified that your account was accessed in another session. Since our application does not allow concurrent logins, you were automatically logged out of this session. Please log in again to continue using our services",
+    "pt": "Verificamos que sua conta foi acessada em outra sessão. Como nossa aplicação não permite logins simultâneos, você foi desconectado automaticamente desta sessão. Faça login novamente para continuar usando nossos serviços"
+  },
+  {
+    "en": "Webserver and Process",
+    "pt": "Servidor web e processo"
+  },
+  {
+    "en": "Wednesday",
+    "pt": "Quarta-feira"
+  },
+  {
+    "en": "Week day",
+    "pt": "Dia da semana"
+  },
+  {
+    "en": "Weight (kg)",
+    "pt": "Peso (kg)"
+  },
+  {
+    "en": "Welcome",
+    "pt": "Bem-vindo"
+  },
+  {
+    "en": "When defining a restricted method, only users with the selected role will be able to execute that method",
+    "pt": "Ao definir um método restrito, somente usuários com o papel selecionado poderão executar esse método"
+  },
+  {
+    "en": "Yes",
+    "pt": "Sim"
+  },
+  {
+    "en": "You are not allowed to access this encounter account",
+    "pt": "Você não tem permissão para acessar a conta deste atendimento"
+  },
+  {
+    "en": "You are not allowed to add items to this account",
+    "pt": "Você não tem permissão para adicionar itens a esta conta"
+  },
+  {
+    "en": "You are not allowed to advance a queue entry from another unit",
+    "pt": "Você não tem permissão para avançar uma entrada da fila de outra unidade"
+  },
+  {
+    "en": "You are not allowed to apply a discount to this account",
+    "pt": "Você não tem permissão para aplicar um desconto nesta conta"
+  },
+  {
+    "en": "You are not allowed to apply a vaccine for this unit",
+    "pt": "Você não tem permissão para aplicar uma vacina para esta unidade"
+  },
+  {
+    "en": "You are not allowed to close this account",
+    "pt": "Você não tem permissão para fechar esta conta"
+  },
+  {
+    "en": "You are not allowed to execute a procedure for this unit",
+    "pt": "Você não tem permissão para executar um procedimento para esta unidade"
+  },
+  {
+    "en": "You are not allowed to finish this encounter",
+    "pt": "Você não tem permissão para finalizar este atendimento"
+  },
+  {
+    "en": "You are not allowed to issue a prescription for this unit",
+    "pt": "Você não tem permissão para emitir uma prescrição para esta unidade"
+  },
+  {
+    "en": "You are not allowed to perform this action",
+    "pt": "Você não tem permissão para realizar esta ação"
+  },
+  {
+    "en": "You are not allowed to record this exam result",
+    "pt": "Você não tem permissão para registrar este resultado de exame"
+  },
+  {
+    "en": "You are not allowed to register a payment for this unit",
+    "pt": "Você não tem permissão para registrar um pagamento para esta unidade"
+  },
+  {
+    "en": "You are not allowed to register a sale for this unit",
+    "pt": "Você não tem permissão para registrar uma venda para esta unidade"
+  },
+  {
+    "en": "You are not allowed to request an exam for this unit",
+    "pt": "Você não tem permissão para solicitar um exame para esta unidade"
+  },
+  {
+    "en": "You are not allowed to schedule an appointment for this unit",
+    "pt": "Você não tem permissão para agendar um compromisso para esta unidade"
+  },
+  {
+    "en": "You are not allowed to start an encounter for this unit",
+    "pt": "Você não tem permissão para iniciar um atendimento para esta unidade"
+  },
+  {
+    "en": "You are not allowed to view this encounter",
+    "pt": "Você não tem permissão para visualizar este atendimento"
+  },
+  {
+    "en": "You have already registered this password",
+    "pt": "Você já cadastrou esta senha anteriormente"
+  },
+  {
+    "en": "You need read and agree to the terms of use and privacy policy",
+    "pt": "Você precisa ler e concordar com os termos de uso e política de privacidade"
+  },
+  {
+    "en": "Your session does not have an active tenant. Please log in again",
+    "pt": "Sua sessão não possui um tenant ativo. Faça login novamente"
+  }
+]

@@ -1,0 +1,11 @@
+.env
+var/backups/*
+!var/backups/.gitkeep
+var/log/*
+!var/log/.gitkeep
+var/sql-bootstrap/
+vendor/
+.idea/
+.vscode/
+.playwright-mcp/
+src/tmp/*

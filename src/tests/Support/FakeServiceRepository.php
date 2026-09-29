@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CentralVet\Tests\Support;
+
+use CentralVet\Domain\Contract\ServiceRepositoryInterface;
+use CentralVet\Domain\Service;
+use InvalidArgumentException;
+
+/**
+ * In-memory double for ServiceRepositoryInterface (T-16): the `service`
+ * table does not exist yet (migration T-01 not applied), so
+ * ServiceCatalogService/AppointmentService unit tests exercise this instead
+ * of a real database. Tenant-scoped like the real ServiceRepository
+ * (ADR 0002): findById()/findByName()/listActive() only ever return
+ * services whose tenantId() matches this instance's own $tenantId.
+ */
+final class FakeServiceRepository implements ServiceRepositoryInterface
+{
+    /** @var array<int, Service> */
+    private array $services = [];
+    private int $nextId = 1;
+
+    public function __construct(private readonly int $tenantId, Service ...$seed)
+    {
+        foreach ($seed as $service) {
+            $this->save($service);
+        }
+    }
+
+    public function tenantId(): int
+    {
+        return $this->tenantId;
+    }
+
+    public function findById(int|string $id): ?object
+    {
+        $service = $this->services[(int) $id] ?? null;
+
+        if ($service === null || $service->tenantId() !== $this->tenantId) {
+            return null;
+        }
+
+        return $service;
+    }
+
+    public function findByName(string $name): ?object
+    {
+        foreach ($this->services as $service) {
+            if ($service->tenantId() === $this->tenantId && $service->name() === $name) {
+                return $service;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<Service> */
+    public function listActive(): array
+    {
+        return array_values(array_filter(
+            $this->services,
+            fn (Service $service): bool => $service->tenantId() === $this->tenantId && $service->isActive(),
+        ));
+    }
+
+    public function save(object $entity): object
+    {
+        if (!$entity instanceof Service) {
+            throw new InvalidArgumentException('FakeServiceRepository only stores Service entities');
+        }
+
+        if ($entity->id() === null) {
+            $entity->assignId($this->nextId++);
+        }
+
+        $this->services[$entity->id()] = $entity;
+
+        return $entity;
+    }
+
+    public function remove(object $entity): void
+    {
+        if ($entity instanceof Service && $entity->id() !== null) {
+            unset($this->services[$entity->id()]);
+        }
+    }
+}

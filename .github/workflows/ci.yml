@@ -1,0 +1,67 @@
+name: CI
+
+# Pipeline preparado para quando o repositório remoto existir. Ele só builda
+# e testa localmente dentro do runner: nenhum registry externo é usado e
+# nenhuma imagem é publicada. Ver docs/runbooks/build-versioning.md.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build images and run test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Estratégia de build versionado: a tag da imagem é o SHA do commit.
+      # Sem registry configurado — a imagem fica só no daemon local do runner
+      # e é descartada com o runner ao final do job.
+      IMAGE_REGISTRY: centralvet
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate ephemeral local .env (CI-only, discarded with the runner)
+        run: |
+          set -eu
+          umask 077
+          {
+            echo "COMPOSE_PROJECT_NAME=centralvet-ci"
+            echo "APP_ENV=development"
+            echo "APP_DEBUG=false"
+            echo "APP_SEED=$(openssl rand -hex 32)"
+            echo "APP_TIMEZONE=America/Fortaleza"
+            echo "HTTP_PORT=8081"
+            echo "MYSQL_DATABASE=centralvet"
+            echo "MYSQL_USER=centralvet"
+            echo "MYSQL_PASSWORD=$(openssl rand -hex 24)"
+            echo "MYSQL_ROOT_PASSWORD=$(openssl rand -hex 24)"
+            echo "IMAGE_REGISTRY=${IMAGE_REGISTRY}"
+            echo "IMAGE_TAG=${IMAGE_TAG}"
+          } > .env
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build application images (tagged with the commit SHA)
+        run: docker compose build app worker
+
+      - name: Start required services (mysql, redis, app, worker)
+        run: docker compose up -d --wait --wait-timeout 180 mysql redis app worker
+
+      - name: Run automated test suite (src/tests/run.php, real Redis)
+        run: docker compose exec -T app php tests/run.php
+
+      - name: Show recent logs on failure
+        if: failure()
+        run: docker compose logs --tail=200 mysql redis app worker
+
+      - name: Tear down ephemeral stack
+        if: always()
+        run: docker compose down -v
