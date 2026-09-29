@@ -12,6 +12,11 @@
 - 2026-09-29 · plano (revisão) · onda 0 — O projeto passou a ter git (decisão do usuário): repositório único `/var/www/html/centralvet`, `main` @ `9efef4e` ("chore: estado inicial do projeto"). Deixa de valer tudo o que dizia "sem git / sem commits / Commit RED não se aplica". Branch de trabalho `feat/fidelidade-visual-mocks` (base `main`), criada pelo orquestrador antes da onda 1; commits por task listando os caminhos, com trailer `Task: T-NN`; nas tasks com teste (T-04/T-05/T-06) o teste falhando vai antes, num commit só do arquivo de teste com `Task: T-NN (RED)`, e o hash entra em "Commit RED" do relatório; as tasks visuais seguem `sem teste: <motivo>`. Proibidos na árvore compartilhada: `git add -A`/`.`, `commit -a`, `checkout`, `switch`, `reset`, `stash`, `restore`, `rebase`, `push`. Isolamento continua `caminho exclusivo` no checkout compartilhado (repositório único, sem worktree).
 - 2026-09-29 · plano (revisão) · onda 0 — Varredura Playwright (pedido do usuário): em cada gate, além da Validação das tasks, o validador percorre com o Playwright MCP (sessão admin) as telas tocadas na onda (lista por onda em `plan.md § Critérios gerais de aceite`), exercitando abrir/listar/filtrar/salvar/voltar e checando console (`error`) e rede (≥ 400); bug em tela de task da onda reprova a task dona (fix loop), bug sem dona vira task de correção da onda. Em T-21 a varredura cobre todas as telas do `menu.xml` (inclusive as administrativas do Adianti, só leitura) e mapeia bugs pré-existentes; os bugs abrem `### Onda 6 — correção (usuário)` com IDs a partir de T-22. Registros de teste criados pela varredura levam o prefixo `F10 varredura`; nada de excluir, estornar, fechar caixa ou finalizar atendimento que não seja da própria varredura.
 - 2026-09-23 · plano · onda 0 — `EncounterView`: wizard só no cliente sobre o mesmo formulário (mantém `DRAFT_FIELDS`, autosave de 20 s e finalizar enviando todos os campos); não renomear `onStart`/`onAutosave`/`onFinish` (strings de auditoria em `EncounterTimelineIntegrationTest.php:69-86`); manter o padrão `new TButton(); ->setAction(); ->setFormName('form_EncounterView_' . id)` da fase 08 (nunca `TButton::create()` com `TAction` pronta). Botão Pausar omitido (sem dado de pausa no schema).
+- 2026-09-29 · T-08..T-13 · onda 2 — Texto "Message not found: <chave>" em rótulos com chave pedida no board é aceito até T-20 (o plano previa a chave em inglês, mas o Adianti mostra "Message not found"); lista por tela em reviews/T-*.md § Gate.
+- 2026-09-29 · T-08..T-13 · onda 2 — Mocks images/1-4.png não existem no host: comparação lado a lado não rodada; telas seguiram a especificação escrita. Perguntar ao usuário o caminho dos mocks antes de T-21.
+- 2026-09-29 · T-11 · onda 2 — Achado plano-mandou do revisor: Editar leva a ServiceForm::onSave, que só chama create(); onEdit herdado carrega o Service por id sem filtro de tenant. T-11 aprovada; correção vai para a task da onda 3 dona de ServiceForm.php (onSave atualiza quando houver id; onEdit filtra por tenant); o planejador inclui na spec antes da onda 3.
+- 2026-09-29 · T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados (revisor); defesa em profundidade fica como pendência.
+- 2026-09-29 · T-13 · onda 2 — Tela "Informe um encounter_id…" após Finalizar já existia no BASE e o timer em atendimento finalizado não se reproduziu; ambos ficam como sugestão.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -37,6 +42,13 @@
 - [T-01] cv-shell.js existe como stub (b325eb4); T-08 substitui o conteúdo inteiro. `#sidebar.collapsed` recolhe para largura 0.
 - [T-02] Kit Cv* (d2989e4): `CvDatagrid::decorate()` antes dos demais addColumn; textos são escapados internamente (não passar HTML pronto); `.cv-kpi-row` é só classe CSS. Correção 1 (e1e5ae6): atributos escapados com CvFormat::e(); CvForm com grid só em linhas de slot.
 - [T-03] translations.json: 43 chaves novas (total 630); `Showing %1–%2 of %3` usa %1..%3, substituição em CvDatagrid::footer.
+- [T-08] Board onda 2: CvShellController onContext devolve {user:{name,role},units:[...]}; role = grupo de menor id; `window.CvShell.init()`/`reload()`; select `.cv-unit-switch__select` montado por JS.
+- [T-09] FinancialOverview: aceita from/to em Y-m-d ou dd/mm/yyyy; canvas `#cv-fin-line` e `#cv-fin-donut`; Descrição = reference ou "—".
+- [T-10] ProductList virou TPage; Entrada de lote usa `StockBatchForm&method=onEdit&product_id=<id>`; título "Estoque e vendas" vem de T-03.
+- [T-11] ServiceList virou TPage (filtros `search`/`category`/`status`, painel por `service_id`); ServiceCatalogService só expõe listActive().
+- [T-12] PrescriptionForm sem right panel; novo `onClear`; `onSave` inclui bloco de medicamento preenchido e não adicionado; veterinário por TDBCombo sem critério.
+- [T-13] EncounterView: TForm `form_EncounterView_<id>` com painéis `#encounter_step_<id>_<n>`; autosave escopado ao form com clearInterval; ações Vacina/Conta no dropdown "Mais".
+- Ondas 2 (i18n): chaves novas pedidas no board por T-09..T-13 ficam como "Message not found" até T-20 (lista em board.md).
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
@@ -51,6 +63,14 @@
 - T-06: lastEncounter($p, $exclude) devolve o mais recente diferente do excluído, não o anterior; filtrar por started_at se T-13 precisar de "anterior"; faltam testes de tutor sem e-mail/telefone e do "…" de truncamento.
 - T-07: CvShellController só no grupo 1 (usuário só do grupo 2 teria seletor/cartão negados); ids 104/105 fixos no SQL (já executado).
 - Onda 1 (validador): varredura cobriu só abrir, sidebar e dropdown, sem paginar, filtrar ou salvar; `adianti_right_panel` ainda em 16 *Form.php (escopo T-14 a T-18); comparação com os mocks fica para as ondas 2 e 3.
+- T-08: filtrar unidades por tenant em CvShellController onContext/onSwitchUnit (defesa em profundidade); onSwitchUnit muda estado por GET sem token; aria-label "Unidade" fixo em pt (T-20); caso de usuário com unidade única sem evidência de gate; `.cv-unit-switch__select` sem CSS.
+- T-09: "Lançamentos recentes" não filtra pelo período mas o vazio diz "neste período"; KPI mostra fixo "vs. mês anterior" com filtro fora do mês cheio.
+- T-10: "Ver tudo" de estoque baixo leva a status=low (exclui Sem estoque) enquanto o card lista low+out; dois TMessage sem tenant; products() varrido 3x por carga; título "Estoque e vendas"/KPI "Vendas do mês" diferem do critério (traduções de T-03).
+- T-11: filtro Inativo sempre vazio (listActive); clique na linha sem link focável (teclado); CvCard e CvFormat::e fora de "Consome"; correção de ServiceForm (onSave atualiza com id; onEdit filtra por tenant) vai para a task da onda 3 dona de ServiceForm.php.
+- T-12: rótulo "Rota" vs "Via" do mock (T-20); onEdit vazio sem chamador; estilos inline em vez de classes do kit; loadSummary captura só Exception (usar Throwable).
+- T-13: após Finalizar aparece o vazio "Informe um encounter_id…" (já no BASE); "Atendimento anterior" usa lastEncounter (mais recente diferente do excluído); docblock de onInlineAction desatualizado.
+- Onda 2 (validador): mocks images/1-4.png ausentes no host, screenshot lado a lado não rodada (perguntar caminho ao usuário antes de T-21); CvNav usa entry_type=revenue mas o schema usa 'income' (T-18); ServiceForm com `pattern` inválido `{1,0}` no campo price gera erro de console (onda 3); EncounterDocumentService::list() sempre vazio.
+- Dados de teste que permanecem: serviço "F10 varredura Banho" id 2, prescrição 247, atendimento 556 finalizado.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -68,5 +88,6 @@
 - BASE da onda 1: 9efef4e
 - Commits por onda:
   - Onda 1: BASE 9efef4e → HEAD e1e5ae6 (70211df, 646f016, a492cc2, ae079cf, 728a64a, cfcdf05, fb9dee2, 132d88f, d2989e4, a1da8e8, b325eb4, e1e5ae6)
-- Último status conhecido: onda 1 fechada, T-01 a T-07 [x]; DML de T-07 executado (programas 104/105).
-- Próxima onda recomendada: 2 (T-08, T-09, T-10, T-11, T-12, T-13)
+  - Onda 2: BASE beb884c → HEAD b079655 (9e8ff1b, dcbd3a2, f3b1a5c, 745ef58, c6c946b, b079655)
+- Último status conhecido: onda 2 fechada, T-01 a T-13 [x]; DML de T-07 executado (programas 104/105).
+- Próxima onda recomendada: 3 (após o planejador incluir a correção de ServiceForm na spec)

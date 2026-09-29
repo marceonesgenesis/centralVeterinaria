@@ -27,3 +27,36 @@ EOF
 - [T-03] translations.json: 43 chaves novas (a1da8e8; total 630). `Showing %1–%2 of %3` usa `%1..%3` (não `^1`); a substituição é feita em `CvDatagrid::footer`. Já existiam: In progress, Physical exam, Diagnosis, Clinical plan, Financial summary. Extras do kit: Receivables, Movements, Categories, Suppliers, Reports, Packages, Pricing, Select all, Select row, More actions.
 - [T-01] Correção 1: `src/app/templates/adminbs5/js/cv-shell.js` agora existe como stub (IIFE vazio, commit b325eb4); T-08 substitui o conteúdo inteiro. `#sidebar.collapsed` em custom.css recolhe para largura 0 (antes: margem negativa com largura constante).
 - [T-02] Correção 1: atributos com dado do chamador (title/href/class/aria-label) agora escapados com `CvFormat::e()`. `CvForm`: grid só em linhas com slots `cv-form__slot`; linha de slot único ocupa a largura toda; linhas com `setLayout` ficam no row Bootstrap. `.cv-kpi-row` é classe CSS sem helper PHP: telas com KPIs envolvem os `CvKpiCard::create` num `TElement('div')` com `class="cv-kpi-row"` (T-09/T-10). Ação só com ícone em `CvPage::header` precisa de `title` (exceto voltar, que recebe "Voltar").
+- [T-08] CvShellController + cv-shell.js prontos (9e8ff1b): onContext → {"user":{"name","role"},"units":[{"id","name","current"}]}, role = grupo de menor id; `window.CvShell.init()`/`CvShell.reload()`; select `.cv-unit-switch__select` montado por MutationObserver em cada `[data-cv-unit-switch]` (inclusive páginas via __adianti_load_page). Sessão admin precisa de re-login para o programa 105 valer.
+- [T-09] i18n: Revenues, expenses and cash of the unit → Receitas, despesas e caixa da unidade
+- [T-09] i18n: Result → Resultado
+- [T-09] i18n: No open cash register → Nenhum caixa aberto
+- [T-09] i18n: No entries in this period → Nenhum lançamento no período
+- [T-09] FinancialOverview pronto: aceita from/to em Y-m-d ou dd/mm/yyyy (TDate `from`/`to` do form `form_FinancialOverview`, ação onFilter); canvas `#cv-fin-line` e `#cv-fin-donut`; coluna Descrição = reference ("<reference_type> #<id>") ou "—" (schema sem descrição). CvNav finance aponta Receitas/Despesas para FinancialEntryList&entry_type=revenue, mas entry_type no schema é 'income'/'expense' (para T-18).
+- [T-11] i18n: services → serviços
+- [T-11] i18n: Standard price → Preço padrão
+- [T-11] i18n: Estimated duration → Duração estimada
+- [T-11] i18n: Data → Dados
+- [T-11] i18n: Prices → Preços
+- [T-11] i18n: Links → Vinculações
+- [T-11] i18n: History → Histórico
+- [T-11] i18n: All categories → Todas as categorias
+- [T-11] i18n: All statuses → Todos os status
+- [T-11] i18n: Search services → Buscar serviços
+- [T-11] i18n: No services found → Nenhum serviço encontrado
+- [T-11] _t() com chave ausente renderiza "Message not found: <chave>" (não a chave em inglês) até T-20 — vale para todas as chaves pedidas no board.
+- [T-11] ServiceList agora é TPage (não TStandardList): filtros por GET/POST `search`/`category`/`status`, painel por `service_id`; onShowCurtainFilters/onChangeLimit removidos. ServiceCatalogService só expõe listActive(): filtro "Inativo" sempre vazio e ServiceForm::onSave só cria (Editar abre o form, mas salvar duplica) — escopo de T-17.
+- [T-10] i18n: Current stock → Estoque atual
+- [T-10] i18n: No recent sales → Nenhuma venda recente
+- [T-10] i18n: No low stock products → Nenhum produto com estoque baixo
+- [T-10] Chave ausente em translations.json não aparece em inglês: o Adianti exibe "Message not found: <chave>" até T-20 (vale para todas as chaves pedidas no board).
+- [T-10] ProductList (TPage, não mais TStandardList): ação "Entrada de lote" gera `index.php?class=StockBatchForm&method=onEdit&product_id=<id>` (method=onEdit acrescentado; o construtor já lê product_id); Editar gera `ProductForm&method=onEdit&id=<id>` — ProductForm ainda não tem onEdit (T-17). `ProductList::onReload` preservado (setAfterSaveAction do ProductForm). Título usa `_t('Stock and sales')` = "Estoque e vendas" (v minúsculo, vindo de T-03).
+- [T-12] i18n: Prescription data → Dados da prescrição
+- [T-12] i18n: Veterinarian → Veterinário
+- [T-12] i18n: Save prescription → Salvar prescrição
+- [T-12] i18n: Age → Idade
+- [T-12] i18n: Draft → Rascunho
+- [T-12] i18n: Issued → Emitida
+- [T-12] PrescriptionForm sem right panel: header com voltar para `EncounterView&encounter_id=`; aba history via `tab=history` (célula de itens com `data-items-count`); "Limpar" = novo `onClear` (esvazia o rascunho da sessão); `onSave` inclui o bloco de medicamento preenchido e ainda não adicionado como último item. Tradução existente de `Route` é "Rota" (mock diz "Via") — decidir em T-20.
+- [T-13] i18n: In service → Em atendimento; Print → Imprimir; Finalization → Finalização; Prescribe → Prescrever; Guidance → Orientações; History → Histórico; Previous encounter → Atendimento anterior; Age → Idade; Weight → Peso; Elapsed time → Tempo decorrido; Encounter summary → Resumo do atendimento; No items yet → Nenhum item ainda; No attachments yet → Nenhum anexo ainda
+- [T-13] EncounterView: formulário agora é TForm `form_EncounterView_<id>` (não BootstrapFormBuilder) com painéis do wizard `#encounter_step_<id>_<n>`; ações inline Vacina/Conta ficam no dropdown "Mais" como links `a#inline_vaccine`/`a#inline_account` (Prescrever/Solicitar exame/Procedimento seguem TButton `#tbutton_inline_<kind>`); abas do plano são client-side (`window.cvEncounterPlanTab`); resumo financeiro lê EncounterAccountRepository::findByEncounterId (somente leitura) antes do preço do serviço; autosave se desliga quando o form some da página.

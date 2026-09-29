@@ -16,12 +16,12 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-05 | backend | Leitura de indicadores financeiros | — | sim | média | Arquimedes | [x] |
 | T-06 | backend | Leitura de resumo clínico (paciente, último atendimento, prescrições, itens do atendimento) | — | sim | média | Sherlock | [x] |
 | T-07 | database | DML de registro de FinancialOverview e CvShellController (aprovação na hora) | — | sim | simples | Jaspion | [x] |
-| T-08 | frontend | CvShellController + cv-shell.js (papel do usuário, seletor de unidade, busca global) | T-01, T-02, T-07 | sim | média | Aang | [ ] |
-| T-09 | frontend | Tela nova FinancialOverview (Financeiro — Visão geral) | T-02, T-03, T-05, T-07 | sim | alta | Tesla | [ ] |
-| T-10 | frontend | ProductList → Estoque e Vendas | T-02, T-03, T-04 | sim | alta | Darwin | [ ] |
-| T-11 | frontend | ServiceList com painel de detalhe | T-02, T-03 | sim | média | Levi | [ ] |
-| T-12 | frontend | PrescriptionForm em 2 colunas | T-02, T-03, T-06 | sim | alta | Kratos | [ ] |
-| T-13 | frontend | EncounterView com cabeçalho do paciente, wizard e plano clínico | T-02, T-03, T-06 | sim | alta | Yoda | [ ] |
+| T-08 | frontend | CvShellController + cv-shell.js (papel do usuário, seletor de unidade, busca global) | T-01, T-02, T-07 | sim | média | Aang | [x] |
+| T-09 | frontend | Tela nova FinancialOverview (Financeiro — Visão geral) | T-02, T-03, T-05, T-07 | sim | alta | Tesla | [x] |
+| T-10 | frontend | ProductList → Estoque e Vendas | T-02, T-03, T-04 | sim | alta | Darwin | [x] |
+| T-11 | frontend | ServiceList com painel de detalhe | T-02, T-03 | sim | média | Levi | [x] |
+| T-12 | frontend | PrescriptionForm em 2 colunas | T-02, T-03, T-06 | sim | alta | Kratos | [x] |
+| T-13 | frontend | EncounterView com cabeçalho do paciente, wizard e plano clínico | T-02, T-03, T-06 | sim | alta | Yoda | [x] |
 | T-14 | frontend | Lote Recepção/cadastros no padrão | T-02 | sim | média | Thanos | [ ] |
 | T-15 | frontend | Lote Clínico no padrão | T-02, T-13 | sim | média | Yoda | [ ] |
 | T-16 | frontend | Lote Catálogos no padrão | T-02 | sim | média | Levi | [ ] |
