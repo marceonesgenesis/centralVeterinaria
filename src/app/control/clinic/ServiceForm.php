@@ -2,18 +2,21 @@
 /**
  * ServiceForm
  *
- * Registration screen for the service catalog (T-11). Follows the
- * TStandardForm pattern used by SystemUnitForm, but contains no business
- * rule of its own: creation is delegated entirely to
- * CentralVet\Application\ServiceCatalogService (T-06) — name uniqueness,
- * price/duration validation and the "active by default" rule all live
- * there.
+ * Cadastro/edição de serviço do catálogo em página cheia (fase 10, kit Cv*).
+ * Não contém regra de negócio: criação e edição são delegadas a
+ * CentralVet\Application\ServiceCatalogService (create()/update()), que
+ * valida nome único, preço/duração e escopo de tenant.
  *
- * @version    1.0
+ * onEdit carrega o serviço por ServiceCatalogService::findById() (repositório
+ * escopado ao tenant da sessão) — nunca pelo ActiveRecord Service, que não
+ * filtra tenant. onSave chama update() quando o campo id vem preenchido e
+ * create() quando vazio; depois de salvar volta para ServiceList.
+ *
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
-class ServiceForm extends TStandardForm
+class ServiceForm extends TPage
 {
     protected $form; // form
 
@@ -21,24 +24,16 @@ class ServiceForm extends TStandardForm
      * Class constructor
      * Creates the page and the registration form
      */
-    function __construct()
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
-        $this->setDatabase('permission');           // defines the database
-        $this->setActiveRecord('Service');           // defines the active record
-        $this->setAfterSaveAction( new TAction(['ServiceList', 'onReload']) );
-        $this->setUseToast(true);
-
-        // creates the form
         $this->form = new BootstrapFormBuilder('form_Service');
         $this->form->setFormTitle(_t('Service'));
         $this->form->enableClientValidation();
 
         // create the form fields
-        $id = new TEntry('id');
+        $id = new THidden('id');
         $name = new TEntry('name');
         $category = new TEntry('category');
         $duration_minutes = new TEntry('duration_minutes');
@@ -46,74 +41,118 @@ class ServiceForm extends TStandardForm
         $active = new TCombo('active');
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
 
-        // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Category'))] );
-        $this->form->addFields( [$category] );
-        $this->form->addFields( [new TLabel(_t('Duration (minutes)'))] );
-        $this->form->addFields( [$duration_minutes] );
-        $this->form->addFields( [new TLabel(_t('Price'))] );
-        $this->form->addFields( [$price] );
-        $this->form->addFields( [new TLabel(_t('Status'))] );
-        $this->form->addFields( [$active] );
+        $hiddenRow = $this->form->addFields([$id]);
+        $hiddenRow->style = 'display: none';
 
-        $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $name->setSize('100%');
-        $category->setSize('100%');
-        $duration_minutes->setSize('30%');
+        $this->form->addFields(
+            [new TLabel(_t('Name'))], [$name],
+            [new TLabel(_t('Category'))], [$category]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Duration (minutes)'))], [$duration_minutes],
+            [new TLabel(_t('Price'))], [$price]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Status'))], [$active]
+        );
+
         $duration_minutes->setNumericMask(0, '', '');
-        $price->setSize('30%');
+        $duration_minutes->setProperty('pattern', '[0-9]*');
         $price->setNumericMask(2, ',', '.');
-        $active->setSize('100%');
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
         $duration_minutes->addValidation( _t('Duration (minutes)'), new TRequiredValidator );
         $price->addValidation( _t('Price'), new TRequiredValidator );
 
+        CvForm::decorate($this->form, 2);
+
         // create the form actions
-        $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $this->form->addActionLink(_t('Clear'), new TAction([$this, 'onClear']), 'fa:eraser');
+        $btn = $this->form->addAction(_t('Save'), new TAction([$this, 'onSave']), 'fa:check');
+        $btn->class = 'btn btn-primary';
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Service'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
-
-        // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
+        $container->add(CvPage::header(_t('Service'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ServiceList'],
+        ]));
+        $container->add(CvNav::tabs('services', 'services'));
         $container->add($this->form);
 
-        parent::add($page_header);
         parent::add($container);
     }
 
     /**
-     * on close
+     * method onClear()
+     * Empties the form (new service).
      */
-    public static function onClose($param)
+    public function onClear($param = null)
     {
-        TScript::create("Template.closeRightPanel()");
+        $this->form->clear(true);
+        $this->form->setData((object) ['active' => 1]);
+    }
+
+    /**
+     * method onEdit()
+     * Loads the service through ServiceCatalogService::findById(), which is
+     * scoped to the session tenant. Unknown id or another tenant's id →
+     * "Record not found" and an empty form.
+     */
+    public function onEdit($param)
+    {
+        $id = isset($param['id']) ? (int) $param['id'] : (isset($param['key']) ? (int) $param['key'] : 0);
+
+        if ($id <= 0)
+        {
+            $this->onClear($param);
+            return;
+        }
+
+        try
+        {
+            TTransaction::open('permission');
+
+            $service = self::buildServiceCatalogService()->findById($id);
+
+            TTransaction::close();
+
+            if ($service === null)
+            {
+                $this->form->clear(true);
+                new TMessage('error', _t('Record not found'));
+                return;
+            }
+
+            $data = new stdClass;
+            $data->id = $service->id();
+            $data->name = $service->name();
+            $data->category = $service->category();
+            $data->duration_minutes = $service->durationMinutes();
+            $data->price = number_format($service->priceCents() / 100, 2, ',', '.');
+            $data->active = $service->isActive() ? 1 : 0;
+
+            $this->form->setData($data);
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->form->clear(true);
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            $this->form->clear(true);
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     /**
      * method onSave()
-     * Persists the catalog entry through ServiceCatalogService::create().
-     * No validation/decision is made here: everything (required fields,
-     * uniqueness, defaults) is enforced inside the Application service.
+     * update() when the id field is filled, create() otherwise. No
+     * validation/decision is made here: everything (required fields,
+     * uniqueness, tenant scope) is enforced inside the Application service.
      */
     public function onSave($param = null)
     {
@@ -123,49 +162,48 @@ class ServiceForm extends TStandardForm
 
             $this->form->validate();
 
-            // open a transaction with database
             TTransaction::open('permission');
 
             $catalog = self::buildServiceCatalogService();
 
-            $service = $catalog->create([
-                'name'              => $data->name,
+            $input = [
+                'name'              => (string) $data->name,
                 'category'          => $data->category,
-                'duration_minutes'  => $data->duration_minutes,
+                'duration_minutes'  => (int) $data->duration_minutes,
                 'price_cents'       => self::toCents($data->price),
-            ]);
+            ];
 
-            $data->id = $service->id();
-
-            // fill the form with the active record data
-            $this->form->setData($data);
-
-            // close the transaction
-            TTransaction::close();
-
-            // shows the success message
-            if (!empty($this->useToast))
+            if (!empty($data->id))
             {
-                TToast::show('info', _t('Record saved'));
-                AdiantiCoreApplication::loadPageURL( $this->afterSaveAction->serialize() );
+                $input['active'] = ((string) $data->active) !== '0';
+                $service = $catalog->update((int) $data->id, $input);
             }
             else
             {
-                new TMessage('info', _t('Record saved'), $this->afterSaveAction);
+                $service = $catalog->create($input);
+
+                if (((string) $data->active) === '0')
+                {
+                    $service = $catalog->update((int) $service->id(), $input + ['active' => false]);
+                }
             }
 
-            return $data;
+            TTransaction::close();
+
+            TToast::show('info', _t('Record saved'));
+            AdiantiCoreApplication::loadPageURL('index.php?class=ServiceList&service_id=' . (int) $service->id());
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->form->setData($data ?? null);
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e) // in case of exception
         {
-            // fill the form with the active record data
-            $this->form->setData($data ?? null);
-
-            // shows the exception error message
-            new TMessage('error', $e->getMessage());
-
-            // undo all pending operations
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
+            new TMessage('error', $e->getMessage());
         }
     }
 

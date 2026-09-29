@@ -154,7 +154,7 @@ class ServiceList extends TPage
             TTransaction::open('permission');
 
             $catalog  = self::buildServiceCatalogService();
-            $services = $catalog->listActive();
+            $services = $catalog->listAll();
 
             $this->filters = self::readFilters($param);
 
