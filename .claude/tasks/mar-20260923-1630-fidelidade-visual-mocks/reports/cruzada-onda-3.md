@@ -17,3 +17,12 @@
 ## Observações
 - Com `error_log` em stderr, a tela sempre ficará vazia (os logs vão para `docker compose logs app`). Mostrar logs de verdade exigiria apontar `error_log` para um arquivo (ex.: `/var/www/html/src/tmp/php-error.log`) — decisão de infraestrutura, fora deste escopo.
 - O `is_writable($error_log)` mais abaixo pode exibir o aviso "not writable" para o pipe; é só alerta, sem erro.
+
+## 3. Paginação: marcadores vazios nas listas com rodapé paginado
+- HTML do `TPageNavigation::show()` (src/lib, só leitura): `nav.tpagenavigation > ul.pagination`; páginas reais `li.page-item` (a atual `li.active.page-item`) com `a.page-link[href]`; o laço "inactive pages/placeholders" completa até 10 com `li.off.page-item > a.page-link` **sem href**; as setas first/prev/next/last são `li` sem classe, geradas só quando válidas (`first_page > 1` / `pages > max`).
+- Correção: regra geral em `src/app/templates/adminbs5/cv-components.css` (após o bloco `.cv-pager`):
+  `.tpagenavigation .pagination > li.page-item.off { display: none; }`
+  Não alcança a página atual nem as setas (nenhuma leva `off`); vale fora de `.cv-pager` também (TStandardList do admin).
+- `grep -n "\.off\b" src/app/templates/adminbs5/*.css` antes da edição → nenhuma regra conflitante.
+- O `<style>` inline da GlobalSearchController (32130d9) fica redundante, mas não foi tocado (arquivo de outra task); pode ser removido pela dona.
+- Pendente: conferência visual no gate (TutorList, PatientList, QueueEntryView) após o rebuild.

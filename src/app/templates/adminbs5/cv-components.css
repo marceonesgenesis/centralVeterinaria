@@ -369,6 +369,12 @@ a.cv-tab:hover {
     border-color: var(--cv-color-primary);
     color: #ffffff;
 }
+/* TPageNavigation (framework) sempre desenha 10 itens: as páginas inexistentes
+   saem como <li class="off page-item"> sem href. A página atual ("active page-item")
+   e as setas (<li> sem classe, só quando válidas) não levam "off". */
+.tpagenavigation .pagination > li.page-item.off {
+    display: none;
+}
 
 /* ---------- Formulário ---------- */
 .cv-form.card {
