@@ -843,7 +843,7 @@ class EncounterView extends TPage
             $panel->{'id'} = $prefix . $key;
             $panel->{'role'} = 'tabpanel';
             $panel->style = 'padding:var(--cv-space-3) 0' . ($first ? '' : '; display:none');
-            $panel->add(self::planItemList($items));
+            $panel->add(self::planItemList($items, in_array($key, ['prescriptions', 'exams'], true)));
             $panels->add($panel);
 
             $first = false;
@@ -877,7 +877,31 @@ class EncounterView extends TPage
         return $wrap;
     }
 
-    private static function planItemList(array $items): TElement
+    /**
+     * Prescription/exam status as a translated CvBadge; unknown statuses stay
+     * neutral with the raw value.
+     */
+    private static function planStatusBadge(string $status): TElement
+    {
+        $map = [
+            'draft' => ['Draft', 'neutral'],
+            'issued' => ['Issued', 'success'],
+            'requested' => ['Requested', 'info'],
+            'result_available' => ['Result available', 'success'],
+        ];
+
+        if (isset($map[$status]))
+        {
+            return CvBadge::create(_t($map[$status][0]), $map[$status][1]);
+        }
+
+        return CvBadge::create($status, 'neutral');
+    }
+
+    /**
+     * @param bool $detailIsStatus prescriptions/exams: `detail` is the raw status
+     */
+    private static function planItemList(array $items, bool $detailIsStatus = false): TElement
     {
         if (empty($items))
         {
@@ -895,7 +919,11 @@ class EncounterView extends TPage
             $text = new TElement('div');
             $text->add(TElement::tag('div', CvFormat::e((string) $item['title']), ['style' => 'font-weight:600']));
 
-            if (!empty($item['detail']))
+            if (!empty($item['detail']) && $detailIsStatus)
+            {
+                $text->add(TElement::tag('div', self::planStatusBadge((string) $item['detail']), ['style' => 'margin-top:2px']));
+            }
+            elseif (!empty($item['detail']))
             {
                 $text->add(TElement::tag('div', CvFormat::e((string) $item['detail']), ['style' => 'font-size:12px; color:var(--cv-color-text-muted)']));
             }
