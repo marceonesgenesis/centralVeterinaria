@@ -214,7 +214,7 @@ class FinancialOverview extends TPage
         {
             $item = new TElement('li');
             $item->{'class'} = 'd-flex justify-content-between';
-            $item->add(TElement::tag('span', CvFormat::e($category['category']), []));
+            $item->add(TElement::tag('span', CvFormat::e(CvFormat::paymentMethod((string) $category['category'])), []));
             $item->add(TElement::tag('span',
                 CvFormat::e(CvFormat::money($category['amount_cents']) . ' · ' . number_format($category['share'] * 100, 1, ',', '.') . '%'),
                 ['class' => 'text-muted']));
@@ -265,7 +265,7 @@ class FinancialOverview extends TPage
             $row = new TElement('tr');
             $row->add(TElement::tag('td', CvFormat::e($date), []));
             $row->add(TElement::tag('td', CvFormat::e($entry['reference'] ?? '—'), []));
-            $row->add(TElement::tag('td', CvFormat::e($entry['category']), []));
+            $row->add(TElement::tag('td', CvFormat::e(CvFormat::paymentMethod((string) $entry['category'])), []));
 
             $typeCell = new TElement('td');
             $typeCell->add($isExpense ? CvBadge::create(_t('Expense'), 'danger') : CvBadge::create(_t('Income'), 'success'));
@@ -295,7 +295,7 @@ class FinancialOverview extends TPage
             'expense'  => array_map(static fn (array $d): float => $d['expense_cents'] / 100, $series),
             'revLabel' => _t('Revenues'),
             'expLabel' => _t('Expenses'),
-            'catLabels' => array_column($categories, 'category'),
+            'catLabels' => array_map(static fn (array $c): string => CvFormat::paymentMethod((string) $c['category']), $categories),
             'catValues' => array_map(static fn (array $c): float => $c['amount_cents'] / 100, $categories),
         ];
 

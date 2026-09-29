@@ -199,7 +199,7 @@ class FinancialEntryList extends TStandardList
                 $row = new stdClass;
                 $row->id                 = $entry->id();
                 $row->entry_type         = $entry->entryType();
-                $row->category           = $entry->category();
+                $row->category           = CvFormat::paymentMethod((string) $entry->category());
                 $row->amount_cents       = $entry->amountCents();
                 $row->occurred_at_label  = $entry->occurredAt()->format('d/m/Y H:i');
                 $row->reference_label    = $entry->referenceType() !== null

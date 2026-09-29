@@ -43,6 +43,23 @@ class CvFormat
     }
 
     /**
+     * Forma de pagamento gravada como categoria (Payment::METHOD_*) → rótulo traduzido.
+     * Qualquer outro valor (categoria digitada) volta igual.
+     */
+    public static function paymentMethod(string $value): string
+    {
+        $labels = [
+            'cash'          => 'Cash',
+            'debit_card'    => 'Debit card',
+            'credit_card'   => 'Credit card',
+            'pix'           => 'Pix',
+            'bank_transfer' => 'Bank transfer',
+        ];
+
+        return isset($labels[$value]) ? _t($labels[$value]) : $value;
+    }
+
+    /**
      * Escapa texto para saída HTML dentro de TElement.
      */
     public static function e(?string $text): string
