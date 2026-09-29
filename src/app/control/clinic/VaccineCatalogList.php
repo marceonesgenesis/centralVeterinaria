@@ -2,30 +2,29 @@
 /**
  * VaccineCatalogList
  *
- * Listing screen for the vaccine catalog (T-08). Mirrors ServiceList
- * (Fase 1) / ExamCatalogList (T-07): this listing has no data-access logic
- * of its own — onReload() is overridden to source every row from
- * CentralVet\Application\VaccineCatalogService::listActive() (T-05) — the
- * Persistence layer (CentralVet\Persistence\VaccineCatalogRepository) is
- * never touched from here.
+ * Tela de listagem do catálogo de vacinas no padrão do kit Cv* (fase 10, T-16):
+ * cabeçalho CvPage com "Novo", barra de filtros em linha (no lugar da cortina
+ * do right panel), tabela CvDatagrid com status em CvBadge e rodapé paginado.
  *
- * There is no Edit/Delete row action: VaccineCatalogService only exposes
- * create()/listActive()/findById() for now, so offering edit/delete here
- * would force this controller to bypass the Application service and hit
- * Persistence/Domain directly, which is out of scope for this task.
+ * Toda linha vem de CentralVet\Application\VaccineCatalogService::listActive() — a
+ * camada Persistence nunca é acessada daqui; o escopo por tenant acontece
+ * dentro do serviço/repositório.
  *
- * The "New" action links to VaccineProtocolForm as well, so a freshly
- * created vaccine can have its dose schedule configured right away.
+ * Sem ação de Editar/Excluir: VaccineCatalogService não expõe atualização nem remoção.
  *
- * @version    1.0
+ * A ação de linha "Protocolo" abre VaccineProtocolForm (esquema de doses)
+ * em página cheia.
+ *
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
 class VaccineCatalogList extends TStandardList
 {
-    protected $form;     // registration form
+    protected $form;     // barra de filtros
     protected $datagrid; // listing
     protected $pageNavigation;
+    protected $footerBox;
 
     /**
      * Page constructor
@@ -34,114 +33,85 @@ class VaccineCatalogList extends TStandardList
     {
         parent::__construct();
 
-        // 'VaccineCatalogItem' is only used here as the session-key
-        // namespace for the filter form (see
-        // AdiantiStandardCollectionTrait::onSearch()); the actual listing
-        // never queries the `vaccine_catalog_item` table through it.
+        // 'VaccineCatalogItem' is only used here as the session-key namespace for the
+        // filter form (see AdiantiStandardCollectionTrait::onSearch()); the
+        // actual listing never queries the table through it.
         parent::setActiveRecord('VaccineCatalogItem');
         parent::setDefaultOrder('name', 'asc');
         parent::addFilterField('name', 'like', 'name'); // filterField, operator, formField
         parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
+        // barra de filtros em linha (busca por nome)
+        $this->form = new TForm('form_search_VaccineCatalogItem');
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_VaccineCatalogItem');
-        $this->form->setFormTitle(_t('Vaccines'));
-
-        // create the form fields
         $name = new TEntry('name');
-
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-
+        $name->placeholder = _t('Name');
         $name->setSize('100%');
+
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
+
+        $this->form->add(CvPage::filterBar([$name, $find]));
+        $this->form->setFields([$name, $find]);
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue('VaccineCatalogItem_filter_data') );
 
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
-        // creates a DataGrid
+        // tabela
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->setActionSide('right');
 
-        // creates the datagrid columns
-        $column_id            = new TDataGridColumn('id', 'Id', 'center', 50);
-        $column_name          = new TDataGridColumn('name', _t('Name'), 'left');
-        $column_manufacturer  = new TDataGridColumn('manufacturer', _t('Manufacturer'), 'left');
-        $column_stock         = new TDataGridColumn('stock_quantity', _t('Stock'), 'center', 90);
-        $column_status        = new TDataGridColumn('status_label', _t('Status'), 'center', 100);
+        $column_name         = new TDataGridColumn('name', _t('Name'), 'left');
+        $column_manufacturer = new TDataGridColumn('manufacturer', _t('Manufacturer'), 'left');
+        $column_stock        = new TDataGridColumn('stock_quantity', _t('Stock'), 'right');
+        $column_manufacturer->setTransformer(function ($value) {
+            return ($value === null || $value === '') ? '—' : CvFormat::e((string) $value);
+        });
 
-        // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
+        $column_status = new TDataGridColumn('active', _t('Status'), 'left');
+        $column_status->setTransformer(function ($value) {
+            return $value ? CvBadge::create(_t('Active'), 'success') : CvBadge::create(_t('Inactive'), 'neutral');
+        });
+
         $this->datagrid->addColumn($column_name);
         $this->datagrid->addColumn($column_manufacturer);
         $this->datagrid->addColumn($column_stock);
         $this->datagrid->addColumn($column_status);
 
         // row action: configure this vaccine's dose schedule
-        $action_protocol = new TDataGridAction(['VaccineProtocolForm', 'onEdit'], ['vaccine_catalog_item_id' => '{id}', 'register_state' => 'false']);
-        $action_protocol->setLabel(_t('Protocol'));
-        $action_protocol->setImage('fa:syringe blue');
-        $this->datagrid->addAction($action_protocol);
+        $action_protocol = new TDataGridAction(['VaccineProtocolForm', 'onEdit'], ['vaccine_catalog_item_id' => '{id}']);
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Protocol'), 'action' => $action_protocol, 'icon' => 'fa:syringe'],
+        ]));
 
         // create the datagrid model
         $this->datagrid->createModel();
 
         // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
         $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
+        $this->footerBox = new TElement('div');
 
-        $btnf = TButton::create('find', [$this, 'onSearch'], '', 'fa:search');
-        $btnf->style = 'height: 37px; margin-right:4px;';
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $card->{'style'} = 'padding: 16px';
+        $card->add($this->form);
+        $card->add($this->datagrid);
+        $card->add($this->footerBox);
 
-        $form_search = new TForm('form_search_name');
-        $form_search->style = 'float:left;display:flex';
-        $form_search->add($name, true);
-        $form_search->add($btnf, true);
-
-        $panel->addHeaderWidget($form_search);
-
-        $panel->addHeaderActionLink('', new TAction(['VaccineCatalogForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
-
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-
-        // vertical box container
-        // No TXMLBreadCrumb here on purpose: registering VaccineCatalogList
-        // in menu.xml is explicitly T-10's job, not T-08's (same precedent
-        // as ExamCatalogList::__construct()'s own docblock) — TXMLBreadCrumb
-        // throws when the class is not yet listed there, which would make
-        // `new VaccineCatalogList()` fatal ahead of that registration.
+        // No TXMLBreadCrumb here on purpose (menu.xml registration is not
+        // guaranteed for this class; TXMLBreadCrumb throws when it is absent).
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Vaccines'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
-
-        $container->add($panel);
+        $container->add(CvPage::header(_t('Vaccines'), null, [
+            ['label' => _t('New'), 'href' => 'index.php?class=VaccineCatalogForm', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]));
+        $container->add($card);
 
         parent::add($container);
     }
@@ -149,8 +119,8 @@ class VaccineCatalogList extends TStandardList
     /**
      * method onReload()
      * Loads the datagrid exclusively from
-     * CentralVet\Application\VaccineCatalogService::listActive() — the
-     * tenant scoping happens inside that service/repository, never here.
+     * CentralVet\Application\VaccineCatalogService::listActive() — the tenant
+     * scoping happens inside that service/repository, never here.
      */
     public function onReload($param = NULL)
     {
@@ -169,8 +139,10 @@ class VaccineCatalogList extends TStandardList
             // every row this listing can ever show comes from this call
             $items = $catalog->listActive();
 
-            $name_filter = TSession::getValue('VaccineCatalogItem_filter_name');
-            $name_filter = !empty($name_filter) ? mb_strtolower((string) $name_filter) : null;
+            // valor digitado na busca (onSearch grava '<record>_name'; a chave
+            // '<record>_filter_name' guarda um TFilter, não o texto)
+            $name_filter = TSession::getValue('VaccineCatalogItem_name');
+            $name_filter = (is_scalar($name_filter) && $name_filter !== '') ? mb_strtolower((string) $name_filter) : null;
 
             $rows = [];
             foreach ($items as $item)
@@ -181,22 +153,25 @@ class VaccineCatalogList extends TStandardList
                 }
 
                 $row = new stdClass;
-                $row->id              = $item->id();
-                $row->name            = $item->name();
-                $row->manufacturer    = $item->manufacturer();
-                $row->stock_quantity  = $item->stockQuantity();
-                $row->status_label    = $item->active() ? _t('Active') : _t('Inactive');
+                $row->id     = $item->id();
+                $row->name   = $item->name();
+                $row->manufacturer   = $item->manufacturer();
+                $row->stock_quantity = $item->stockQuantity();
+                $row->active = $item->active();
 
                 $rows[] = $row;
             }
 
             // total count for this tenant, as returned by listActive()
-            // (after the optional name filter, mirroring TStandardList's
-            // own filtered-count semantics)
+            // (after the optional name filter)
             $count = count($rows);
 
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
             $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
+            if ($offset >= $count)
+            {
+                $offset = 0;
+            }
 
             $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
 
@@ -206,12 +181,17 @@ class VaccineCatalogList extends TStandardList
                 $this->datagrid->addItem($row);
             }
 
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
+            $this->pageNavigation->setCount($count); // count of records
+            $this->pageNavigation->setProperties($param); // order, page
+            $this->pageNavigation->setLimit($limit); // limit
+
+            $this->footerBox->add(CvDatagrid::footer(
+                $this->pageNavigation,
+                $offset + 1,
+                $offset + count($page_rows),
+                $count,
+                mb_strtolower(_t('Vaccines'))
+            ));
 
             // close the transaction
             TTransaction::close();
@@ -236,67 +216,10 @@ class VaccineCatalogList extends TStandardList
     /**
      *
      */
-    public function onAfterSearch($datagrid, $options)
-    {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
-        }
-
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            $obj = new stdClass;
-            $obj->name = TSession::getValue(get_class($this).'_filter_data')->name;
-            TForm::sendData('form_search_name', $obj);
-        }
-    }
-
-    /**
-     *
-     */
     public static function onChangeLimit($param)
     {
         TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
         AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
-        }
-        catch (Exception $e)
-        {
-            new TMessage('error', $e->getMessage());
-        }
     }
 
     /**

@@ -31,8 +31,6 @@ class ExamCatalogForm extends TStandardForm
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->setDatabase('permission');           // defines the database
         $this->setActiveRecord('ExamCatalogItem');    // defines the active record
         $this->setAfterSaveAction( new TAction(['ExamCatalogList', 'onReload']) );
@@ -40,8 +38,8 @@ class ExamCatalogForm extends TStandardForm
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_ExamCatalogItem');
-        $this->form->setFormTitle(_t('Exam'));
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
         // create the form fields
         $id = new TEntry('id');
@@ -52,24 +50,13 @@ class ExamCatalogForm extends TStandardForm
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
 
         // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Partner'))] );
-        $this->form->addFields( [$partner_name] );
-        $this->form->addFields( [new TLabel(_t('Price'))] );
-        $this->form->addFields( [$price] );
-        $this->form->addFields( [new TLabel(_t('Status'))] );
-        $this->form->addFields( [$active] );
+        // pares rótulo/campo em 2 colunas, rótulo acima (CvForm)
+        $this->form->addFields( [new TLabel(_t('Name'))], [$name], [new TLabel(_t('Partner'))], [$partner_name] );
+        $this->form->addFields( [new TLabel(_t('Price'))], [$price], [new TLabel(_t('Status'))], [$active] );
+        $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $name->setSize('100%');
-        $partner_name->setSize('100%');
-        $price->setSize('30%');
         $price->setNumericMask(2, ',', '.');
-        $active->setSize('100%');
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
@@ -77,36 +64,18 @@ class ExamCatalogForm extends TStandardForm
 
         // create the form actions
         $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Exam'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
-
+        $container->add(CvPage::header(_t('Exam'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ExamCatalogList'],
+        ]));
         $container->add($this->form);
 
         parent::add($container);
-    }
-
-    /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
     }
 
     /**
