@@ -8,7 +8,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 
 ## Tasks atribuídas
 - T-11: ServiceList com painel de detalhe
-- T-16: Lote Catálogos no padrão
+- T-16: Lote Catálogos no padrão + PATTERN0 em `ProcedureInputForm`, `ProcedureCatalogForm`, `VaccineProtocolForm` e `VaccineCatalogForm`. Inclui correções da onda 2 (achado, reprodução e validação na seção da task; convenção PATTERN0 no topo de `tasks.md`). `ServiceList.php` passou para Darwin (T-17) nesta onda: não o edite.
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 

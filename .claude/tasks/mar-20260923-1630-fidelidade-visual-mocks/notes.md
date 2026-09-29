@@ -16,7 +16,18 @@
 - 2026-09-29 · T-08..T-13 · onda 2 — Mocks images/1-4.png não existem no host: comparação lado a lado não rodada; telas seguiram a especificação escrita. Perguntar ao usuário o caminho dos mocks antes de T-21.
 - 2026-09-29 · T-11 · onda 2 — Achado plano-mandou do revisor: Editar leva a ServiceForm::onSave, que só chama create(); onEdit herdado carrega o Service por id sem filtro de tenant. T-11 aprovada; correção vai para a task da onda 3 dona de ServiceForm.php (onSave atualiza quando houver id; onEdit filtra por tenant); o planejador inclui na spec antes da onda 3.
 - 2026-09-29 · T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados (revisor); defesa em profundidade fica como pendência.
+- 2026-09-29 · plano (revisão) · onda 3 — Correções da onda 2 entram nas tasks da onda 3 donas dos arquivos, sem colisão (BASE da onda 3 = f48ebe0): T-17 (Darwin) recebe `ServiceForm` (onSave → `ServiceCatalogService::update()` com id; onEdit por `findById()` escopado ao tenant) e `ServiceList.php` (filtro Inativo via `listAll()`, sem filtro lista ativos e inativos), com casos de uso novos `update()`/`listAll()`, `Service::changeDetails()`, `ServiceRepositoryInterface::listAll()` e Teste RED em `ServiceCatalogServiceTest` + `FakeServiceRepository` — T-17 passa a `alta`; T-18 (Tesla) recebe `CvNav.php` (aba Receitas → `entry_type=income`, valor do schema); T-19 (Athena) recebe `CvShellController.php` (unidades filtradas por `system_unit.tenant_id` = `tenantid` da sessão em `onContext` e recusa em `onSwitchUnit`) e o CSS de `.cv-unit-switch__select` em `custom.css`.
+- 2026-09-29 · plano (revisão) · onda 3 — Causa do `pattern` inválido (`\d{1,0}`): `TEntry::setNumericMask(0, …)` do framework (`TEntry.php:148`, em `framework_hashes.php`, não editável), não o campo `price`; atinge todo `setNumericMask(0` dos formulários da onda 3. Correção por campo (`setProperty('pattern', '[0-9]*')`, convenção PATTERN0 em `tasks.md`) em T-15 (VaccinationForm), T-16 (4 formulários de catálogo), T-17 (4 formulários) e T-18 (EncounterAccountForm), para a varredura do gate não reprovar essas tasks pelo mesmo erro de console.
+- 2026-09-29 · plano (revisão) · onda 3 — Só existe o tenant 1 no banco de desenvolvimento: "id de outro tenant negado" (ServiceForm, onSwitchUnit) usa o id de outro tenant se o SELECT achar um, senão `999999`; o caso de outro tenant real fica no teste unitário de T-17 (Fake com `tenantId` 2). Um fixture real de tenant 2 exigiria DML com aprovação do usuário.
 - 2026-09-29 · T-13 · onda 2 — Tela "Informe um encounter_id…" após Finalizar já existia no BASE e o timer em atendimento finalizado não se reproduziu; ambos ficam como sugestão.
+- 2026-09-29 · onda 3 · onda 3 — O gate não pôde fazer login admin: a leitura do .env foi negada pelo classificador, também para o orquestrador; o usuário passou a senha na conversa e o orquestrador fez o login no Playwright (senha não registrada em arquivo).
+- 2026-09-29 · T-17 · onda 3 — StockService.php e StockServiceTest.php ficaram fora dos Arquivos prováveis, mas foram autorizados (pedido do orquestrador). O [HIGH] "Spoofable Policy Key" da revisão de segurança não se confirma: o único chamador passa uma constante, no mesmo padrão de SaleService.
+- 2026-09-29 · T-18 · onda 3 — Arquivos de Core e teste (PayableService, Payable, PayableRepository, PayableServiceTest, FakePayableRepository) ficaram fora dos Arquivos prováveis, mas foram autorizados: a correção exigia a camada Core.
+- 2026-09-29 · cruzada-onda-3 · onda 3 — Trailer sem T-NN (`Task: cruzada-onda-3`) aceito, definido pelo orquestrador (b9ea10c, dd4efaa).
+- 2026-09-29 · T-14 · onda 3 — Abrir tutor, paciente ou agendamento só para leitura é limitação pré-existente, não regressão; a edição fica como demanda futura, fora do plano.
+- 2026-09-29 · T-15 · onda 3 — Os pontos "Aplicar vacina" e badge sempre "Solicitado" foram julgados pelo revisor (reviews/T-15.md).
+- 2026-09-29 · plano · onda 3 — Pergunta do planejador sobre fixture de tenant 2: seguiu-se sem fixture; o caso fica coberto pelos testes unitários.
+- 2026-09-29 · plano · onda 3 — Mocks ausentes no host; "Message not found" aceito até T-20.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -49,6 +60,15 @@
 - [T-12] PrescriptionForm sem right panel; novo `onClear`; `onSave` inclui bloco de medicamento preenchido e não adicionado; veterinário por TDBCombo sem critério.
 - [T-13] EncounterView: TForm `form_EncounterView_<id>` com painéis `#encounter_step_<id>_<n>`; autosave escopado ao form com clearInterval; ações Vacina/Conta no dropdown "Mais".
 - Ondas 2 (i18n): chaves novas pedidas no board por T-09..T-13 ficam como "Message not found" até T-20 (lista em board.md).
+- [T-14] TPageNavigation desenha sempre 10 páginas (inexistentes como li.off.page-item); dd4efaa oculta os marcadores vazios em cv-components.css (Task: cruzada-onda-3).
+- [T-14] i18n pedida ao board: tutors, patients, results, Scheduled, Confirmed, Canceled, No-show. TutorForm/PatientForm/AppointmentForm em página cheia, modo leitura com key/id (serviços sem update).
+- [T-15] i18n: Requested → Solicitado; Result available → Resultado disponível. Lote clínico (78e1b4b): forms voltam a EncounterView após salvar.
+- [T-16] Catálogos (490b414): listas TStandardList com barra form_search_<Record>; forms em página cheia com voltar para a lista.
+- [T-17] ServiceCatalogService::update/listAll (5e4f840); Service/Product/StockBatchForm viraram TPage; StockService::receiveBatch ganhou $action obrigatório (c96fee2); ProductService sem update().
+- [T-18] i18n: entries, accounts, sessions, Authorized by. CvNav finance revenues → FinancialEntryList&entry_type=income; PayableService::update novo (68206c7); PayableService::listOpen: conta paga some ao recarregar.
+- [T-19] i18n: Encounters, Surgeries, CRM / Communication, Clinical catalogs. menu.xml com itens desabilitados via CvShellController#onComingSoon; allowedUnitIds() filtra unidades por tenant.
+- [cruzada-onda-3] Dockerfile ganhou extensão calendar e SystemPHPErrorLogView corrigida (b9ea10c); tela Log do PHP fica vazia porque error_log aponta para stderr (decisão de infra).
+- Dados de teste da onda 3: Tutor/Pet F10, payable id 2, financial_entry 1623, stock_batch 729. Suíte 182/182; 40 itens de menu sem erro.
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
@@ -71,6 +91,14 @@
 - T-13: após Finalizar aparece o vazio "Informe um encounter_id…" (já no BASE); "Atendimento anterior" usa lastEncounter (mais recente diferente do excluído); docblock de onInlineAction desatualizado.
 - Onda 2 (validador): mocks images/1-4.png ausentes no host, screenshot lado a lado não rodada (perguntar caminho ao usuário antes de T-21); CvNav usa entry_type=revenue mas o schema usa 'income' (T-18); ServiceForm com `pattern` inválido `{1,0}` no campo price gera erro de console (onda 3); EncounterDocumentService::list() sempre vazio.
 - Dados de teste que permanecem: serviço "F10 varredura Banho" id 2, prescrição 247, atendimento 556 finalizado.
+- Onda 3: tela Log do PHP sempre vazia (error_log para stderr; decisão de infra); `<style>` inline de GlobalSearchController redundante com a regra de cv-components.css; "Message not found: results" no rodapé (T-20); `&query=` na URL não dispara a busca global; ProductService sem update() (ProductForm edita no controller); PayableService::listOpen: conta paga some ao recarregar; PHPSESSID na URL parece vir do Playwright, não do código.
+- Onda 3, não rodados no gate (vão para T-21): fluxo de exames (sem atendimento em andamento), salvar catálogos, CashSessionForm e PaymentForm, agenda e fila.
+- T-14: QueueEntryView carrega a fila duas vezes por requisição com method (pré-existente); editar tutor/paciente/agendamento é demanda futura.
+- T-15: ramo morto "Result available" no transformer de status; VaccinationCardView sem pista de onde aplicar vacina; `Requested`/`Result available` sem tradução até T-20; `CvDatagrid::actionMenu` e `CvPage::columns` não usados.
+- T-16: evidência do filtro por tenant não discrimina (banco só tem tenant 1); reset de offset não refletido em pageNavigation->setProperties; combo filtra active=1 (id inativo por URL fica vazio); cards das listas montados à mão em vez de CvCard::create.
+- T-17: validar `$action` contra padrão em AuthorizationRequest (opcional); link "Gerar PDF" do SaleForm perdeu target=_blank; StockBatchForm lê $_GET direto no construtor.
+- T-18: UPDATE de PayableRepository sem teste de SQL; docblock de PayableForm desatualizado; editar conta paga mostra mensagem crua em inglês.
+- T-19: itens desabilitados apontam para CvShellController (programa 105, só grupo 1); "Em breve"/"Abra pelo atendimento" fixos em pt no JS; units sem `current: true` se a unidade da sessão não pertencer ao tenant.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -89,5 +117,6 @@
 - Commits por onda:
   - Onda 1: BASE 9efef4e → HEAD e1e5ae6 (70211df, 646f016, a492cc2, ae079cf, 728a64a, cfcdf05, fb9dee2, 132d88f, d2989e4, a1da8e8, b325eb4, e1e5ae6)
   - Onda 2: BASE beb884c → HEAD b079655 (9e8ff1b, dcbd3a2, f3b1a5c, 745ef58, c6c946b, b079655)
-- Último status conhecido: onda 2 fechada, T-01 a T-13 [x]; DML de T-07 executado (programas 104/105).
-- Próxima onda recomendada: 3 (após o planejador incluir a correção de ServiceForm na spec)
+  - Onda 3: BASE f48ebe0 → HEAD 68206c7 (f300a8b, 209a3bf, c814ce1, 69b4fb7, 78e1b4b, 490b414, e68adc2, 5e4f840, 5db0f24, b9ea10c, d2d25ef, 6258d7e, c96fee2, 32130d9, dd4efaa, 09ded2c, 68206c7)
+- Último status conhecido: onda 3 fechada, T-01 a T-19 [x]; suíte 182/182, 40 itens de menu sem erro.
+- Próxima onda recomendada: 4 (T-20), depois T-21

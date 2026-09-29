@@ -8,7 +8,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 
 ## Tasks atribuídas
 - T-10: ProductList → Estoque e Vendas
-- T-17: Lote Estoque/vendas (formulários e PDV) no padrão
+- T-17: Lote Estoque/vendas (formulários e PDV) no padrão + correções de serviço da onda 2 (`ServiceForm` update/tenant, filtro Inativo de `ServiceList`, PATTERN0). Inclui correções da onda 2 (achado, reprodução e validação na seção da task; convenção PATTERN0 no topo de `tasks.md`). T-17 tem Teste RED: o primeiro commit leva só `src/tests/Unit/ServiceCatalogServiceTest.php` e `src/tests/Support/FakeServiceRepository.php`, com `Task: T-17 (RED)`; a implementação em `src/app/Core` vai nos commits seguintes com `Task: T-17`. `ServiceList.php` (feito por Levi em T-11) agora é seu nesta onda: mexa só na leitura (`listAll()`) e no filtro de status.
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 

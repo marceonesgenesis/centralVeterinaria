@@ -5,7 +5,8 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - SUITE = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`.
 - GATE = orquestrador roda `docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`; depois o validador usa o Playwright MCP em `http://127.0.0.1:8081` (sessão admin) e salva screenshots em `/var/www/html/centralvet/.playwright-mcp/f10-<Tela>.png`.
 - VARREDURA = no gate de cada onda, depois dos passos GATE das tasks, o validador percorre as telas da onda listadas em `plan.md § Critérios gerais de aceite` (item "Varredura Playwright no gate"), exercitando abrir/listar/filtrar/salvar/voltar e lendo console (`error`) e rede (≥ 400); bug em tela da task reprova a task (fix loop).
-- COMMITS = branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); todo commit da task lista só os caminhos dela e leva o trailer `Task: <ID>`; nas tasks com teste (T-04, T-05, T-06) o primeiro commit contém só o arquivo de teste falhando, com trailer `Task: <ID> (RED)`. O relatório registra o hash em "Commit RED" (ou `sem teste: <motivo>`) e os hashes da implementação em `## Evidência`.
+- PATTERN0 = correção do gate da onda 2: `TEntry::setNumericMask(0, …)` do framework (`src/lib/adianti/widget/form/TEntry.php:148`, não editável) grava no campo um `pattern` com `\d{1,0}`, regex inválida que o navegador reporta no console. Em cada arquivo da task, todo `setNumericMask(0, …)` que permanecer é seguido, no mesmo campo, de `$campo->setProperty('pattern', '[0-9]*');`. Verificação por arquivo: `f=<arquivo>; echo "$(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"` imprime dois números iguais; no gate, `browser_console_messages` da tela não traz linha com `pattern`.
+- COMMITS = branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); todo commit da task lista só os caminhos dela e leva o trailer `Task: <ID>`; nas tasks com teste (T-04, T-05, T-06, T-17) o primeiro commit contém só os arquivos do bloco Teste RED (teste e fixtures) falhando, com trailer `Task: <ID> (RED)`. O relatório registra o hash em "Commit RED" (ou `sem teste: <motivo>`) e os hashes da implementação em `## Evidência`.
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
 |---|---|---|---|---|---|---|---|
@@ -22,12 +23,12 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-11 | frontend | ServiceList com painel de detalhe | T-02, T-03 | sim | média | Levi | [x] |
 | T-12 | frontend | PrescriptionForm em 2 colunas | T-02, T-03, T-06 | sim | alta | Kratos | [x] |
 | T-13 | frontend | EncounterView com cabeçalho do paciente, wizard e plano clínico | T-02, T-03, T-06 | sim | alta | Yoda | [x] |
-| T-14 | frontend | Lote Recepção/cadastros no padrão | T-02 | sim | média | Thanos | [ ] |
-| T-15 | frontend | Lote Clínico no padrão | T-02, T-13 | sim | média | Yoda | [ ] |
-| T-16 | frontend | Lote Catálogos no padrão | T-02 | sim | média | Levi | [ ] |
-| T-17 | frontend | Lote Estoque/vendas (formulários e PDV) no padrão | T-02, T-10, T-11 | sim | média | Darwin | [ ] |
-| T-18 | frontend | Lote Financeiro no padrão, com abas financeiras | T-02, T-09 | sim | média | Tesla | [ ] |
-| T-19 | frontend | menu.xml reorganizado + sidebar final (desabilitados, rodapé fixo) | T-01, T-07, T-08, T-09 | sim | média | Athena | [ ] |
+| T-14 | frontend | Lote Recepção/cadastros no padrão | T-02 | sim | média | Thanos | [x] |
+| T-15 | frontend | Lote Clínico no padrão (+ PATTERN0) | T-02, T-13 | sim | média | Yoda | [x] |
+| T-16 | frontend | Lote Catálogos no padrão (+ PATTERN0) | T-02 | sim | média | Levi | [x] |
+| T-17 | frontend/backend | Lote Estoque/vendas (formulários e PDV) no padrão + correções de serviço da onda 2 (update/tenant em ServiceForm, filtro Inativo, PATTERN0) | T-02, T-10, T-11 | sim | alta | Darwin | [x] |
+| T-18 | frontend | Lote Financeiro no padrão, com abas financeiras (+ aba Receitas com `entry_type=income`, PATTERN0) | T-02, T-09 | sim | média | Tesla | [x] |
+| T-19 | frontend | menu.xml reorganizado + sidebar final (desabilitados, rodapé fixo) + unidades por tenant no CvShellController e CSS do seletor | T-01, T-07, T-08, T-09 | sim | média | Athena | [x] |
 | T-20 | frontend | Consolidação de chaves i18n pedidas no board | T-03, T-08, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-18, T-19 | não | simples | Platão | [ ] |
 | T-21 | qa | Validação visual lado a lado com os mocks + regressão + varredura Playwright de todas as telas do menu | T-20 | não | média | Spock | [ ] |
 
@@ -490,7 +491,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - `src/app/control/clinic/VaccinationCardView.php`
 
 **Interface**
-- Produz: formulários do lote em página cheia; `encounter_id`/`patient_id` só como contexto oculto vindo da URL; `professional_system_user_id` por `TDBCombo` de `SystemUser` (sem filtro de tenant, exceção documentada); após salvar, retorno ao `EncounterView` do `encounter_id` de contexto
+- Produz: formulários do lote em página cheia, com PATTERN0 aplicado; `encounter_id`/`patient_id` só como contexto oculto vindo da URL; `professional_system_user_id` por `TDBCombo` de `SystemUser` (sem filtro de tenant, exceção documentada); após salvar, retorno ao `EncounterView` do `encounter_id` de contexto
 - Consome: T-02 `CvPage::header`, T-02 `CvPage::columns`, T-02 `CvBadge::create`, T-02 `CvDatagrid::decorate`, T-02 `CvDatagrid::actionMenu`, T-02 `CvDatagrid::footer`, T-02 `CvForm::decorate`, T-02 `CvAvatar::placeholder`
 
 **Teste RED**
@@ -499,11 +500,13 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 **Critério de aceite**
 - `grep -c "adianti_right_panel"` = 0 nos 6 arquivos; nenhum `TEntry` para `encounter_id`, `patient_id` ou `professional_system_user_id` visível ao usuário.
 - A partir de um atendimento em andamento, Solicitar exame → salvar volta ao `EncounterView` e a aba Exames do plano clínico mostra o exame (contagem +1); `PendingExamResultList` mostra o exame com badge de status.
+- PATTERN0 (achado da onda 2): em `VaccinationForm.php` a contagem de `setNumericMask(0` é igual à de `setProperty('pattern', '[0-9]*')`, e `browser_console_messages` de `VaccinationForm` não mostra linha com `pattern`.
 
 **Validação**
 - LINT dos 6 arquivos (evidência: 6 `No syntax errors detected`)
 - `grep -c "adianti_right_panel" src/app/control/clinic/{ExamRequestForm,ExamResultForm,PendingExamResultList,ProcedureExecutionForm,VaccinationForm,VaccinationCardView}.php` (evidência: todas `:0`)
 - GATE → fluxo Solicitar exame a partir do atendimento (evidência: URL final `class=EncounterView&encounter_id=` e contagem "Exames (n+1)") + screenshots `f10-ExamRequestForm.png`, `f10-VaccinationCardView.png`
+- PATTERN0 → `f=src/app/control/clinic/VaccinationForm.php; echo "$(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"` (evidência: dois números iguais) + GATE → abrir `VaccinationForm` pela ação Vacina do atendimento e `browser_console_messages` (evidência: nenhuma linha com `pattern`)
 
 ### T-16 — Lote Catálogos no padrão
 
@@ -524,7 +527,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - `src/app/control/clinic/VaccineProtocolForm.php`
 
 **Interface**
-- Produz: listas/formulários do lote no padrão, formulários em página cheia; `ProcedureInputForm.procedure_catalog_item_id` por `TDBCombo` de `ProcedureCatalogItem` e `VaccineProtocolForm.vaccine_catalog_item_id` por `TDBCombo` de `VaccineCatalogItem`, ambos com `TFilter('tenant_id', '=', $tenant_id)` (fallback `-1`)
+- Produz: listas/formulários do lote no padrão, formulários em página cheia com PATTERN0 aplicado; `ProcedureInputForm.procedure_catalog_item_id` por `TDBCombo` de `ProcedureCatalogItem` e `VaccineProtocolForm.vaccine_catalog_item_id` por `TDBCombo` de `VaccineCatalogItem`, ambos com `TFilter('tenant_id', '=', $tenant_id)` (fallback `-1`)
 - Consome: T-02 `CvPage::header`, T-02 `CvPage::filterBar`, T-02 `CvBadge::create`, T-02 `CvDatagrid::decorate`, T-02 `CvDatagrid::actionMenu`, T-02 `CvDatagrid::footer`, T-02 `CvForm::decorate`
 
 **Teste RED**
@@ -533,41 +536,68 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 **Critério de aceite**
 - `grep -c "adianti_right_panel"` = 0 nos 8 arquivos; `grep -c "TFilter('tenant_id'"` ≥ 1 em `ProcedureInputForm.php` e `VaccineProtocolForm.php`.
 - Os combos de item de catálogo listam só itens do tenant da sessão (quantidade de opções = `SELECT COUNT(*) FROM procedure_catalog_item WHERE tenant_id = <tenant>` ativos).
+- PATTERN0 (achado da onda 2): em `ProcedureInputForm.php`, `ProcedureCatalogForm.php`, `VaccineProtocolForm.php` e `VaccineCatalogForm.php` a contagem de `setNumericMask(0` é igual à de `setProperty('pattern', '[0-9]*')`, e `browser_console_messages` desses 4 formulários não mostra linha com `pattern`.
 
 **Validação**
 - LINT dos 8 arquivos (evidência: 8 `No syntax errors detected`)
 - `grep -c "TFilter('tenant_id'" src/app/control/clinic/ProcedureInputForm.php src/app/control/clinic/VaccineProtocolForm.php` (evidência: ambos ≥ 1)
+- PATTERN0 → `for f in src/app/control/clinic/{ProcedureInputForm,ProcedureCatalogForm,VaccineProtocolForm,VaccineCatalogForm}.php; do echo "$f $(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"; done` (evidência: em cada linha os dois números iguais) + GATE → abrir os 4 formulários e `browser_console_messages` (evidência: nenhuma linha com `pattern`)
 - GATE → Review Focus: `browser_evaluate` contando `option` do combo em `ProcedureInputForm` e comparar com o SELECT somente-leitura por tenant (evidência: mesma quantidade) + screenshots `f10-ExamCatalogList.png`, `f10-ProcedureInputForm.png`
 
-### T-17 — Lote Estoque/vendas (formulários e PDV) no padrão
+### T-17 — Lote Estoque/vendas (formulários e PDV) no padrão + correções de serviço da onda 2
 
-**Camada:** frontend
+**Camada:** frontend/backend
 **Dependências:** T-02, T-10, T-11
 **Paralelizável:** sim
-**Complexidade:** média
+**Complexidade:** alta
 **Agente:** Darwin
+
+Achados do gate/revisão da onda 2 que esta task corrige (`notes.md § Decisões`, onda 2): (1) `ServiceForm::onSave` só chama `create()` — editar duplica o serviço ou dá erro de nome duplicado; `onEdit` herdado de `TStandardForm` carrega o `Service` por id sem filtro de tenant (bloqueante, segurança); (2) filtro "Inativo" de `ServiceList` sempre vazio porque a tela lê `listActive()`; (3) PATTERN0 em `ServiceForm` (`duration_minutes`; o relatório do gate o atribuiu a `price`, mas quem gera `\d{1,0}` é o `setNumericMask(0, …)`) e nos demais formulários do lote. Reprodução exigida antes da correção: editar "F10 varredura Banho" (id 2) e salvar reproduz o erro de nome duplicado ou uma linha nova em `service`.
 
 **Arquivos prováveis**
 - `src/app/control/clinic/ProductForm.php`
 - `src/app/control/clinic/StockBatchForm.php`
 - `src/app/control/clinic/ServiceForm.php`
 - `src/app/control/clinic/SaleForm.php`
+- `src/app/control/clinic/ServiceList.php`
+- `src/app/Core/Application/ServiceCatalogService.php`
+- `src/app/Core/Domain/Service.php`
+- `src/app/Core/Domain/Contract/ServiceRepositoryInterface.php`
+- `src/app/Core/Persistence/ServiceRepository.php`
+- `src/tests/Unit/ServiceCatalogServiceTest.php`
+- `src/tests/Support/FakeServiceRepository.php`
 
 **Interface**
-- Produz: `ProductForm`/`ServiceForm`/`StockBatchForm` em página cheia com `onEdit` por `id` e retorno à lista (`ProductList`/`ServiceList`) após salvar; `StockBatchForm.product_id` oculto quando vem na URL, senão `TDBUniqueSearch` de `Product` filtrado por tenant; `SaleForm` com cabeçalho, abas do grupo `stock` (Vendas ativa) e carrinho em `CvDatagrid`, preservando `SaleService::create()` e os widgets relacionais da fase 09
+- Produz: `ProductForm`/`ServiceForm`/`StockBatchForm` em página cheia com `onEdit` por `id` e retorno à lista (`ProductList`/`ServiceList`) após salvar; `StockBatchForm.product_id` oculto quando vem na URL, senão `TDBUniqueSearch` de `Product` filtrado por tenant; `SaleForm` com cabeçalho, abas do grupo `stock` (Vendas ativa) e carrinho em `CvDatagrid`, preservando `SaleService::create()` e os widgets relacionais da fase 09; PATTERN0 aplicado nos 4 formulários
+- Produz: `ServiceCatalogService::update(int $id, array $data): Service` (`$data` = `['name' => string, 'category' => ?string, 'duration_minutes' => int, 'price_cents' => int, 'active' => bool]`; mantém o `id` e nunca insere; serviço inexistente no tenant → `InvalidArgumentException('Service not found for this tenant')`; nome já usado por outro serviço do tenant → a mesma exceção de nome duplicado de `create()`)
+- Produz: `ServiceCatalogService::listAll(): array` → `list<Service>` ativos e inativos do tenant, ordenados por nome; `ServiceRepositoryInterface::listAll(): array` implementado em `ServiceRepository` (SQL escopado por `tenantQuery()`, `ORDER BY name ASC`) e em `FakeServiceRepository`
+- Produz: `Service::changeDetails(string $name, ?string $category, int $durationMinutes, int $priceCents): void` (mesmas validações de `Service::create()`; ativo/inativo pelos `activate()`/`deactivate()` existentes)
+- Produz: `ServiceForm::onEdit($param)` sobrescrito: carrega por `ServiceCatalogService::findById()` (escopado ao tenant) e preenche o formulário; id inexistente ou de outro tenant → `new TMessage('error', _t('Record not found'))` e formulário vazio; nenhum carregamento pelo ActiveRecord `Service` sem tenant. `ServiceForm::onSave` chama `update()` quando o campo `id` vem preenchido e `create()` quando vazio
+- Produz: `ServiceList` lendo `listAll()`: sem filtro de status mostra ativos e inativos; `status=inactive` só inativos; `status=active` só ativos
 - Consome: T-02 `CvPage::header`, T-02 `CvPage::columns`, T-02 `CvNav::tabs`, T-02 `CvDatagrid::decorate`, T-02 `CvForm::decorate`, T-02 `CvFormat::money`, T-10 `index.php?class=ProductForm&method=onEdit&id=<id>`, T-10 `index.php?class=StockBatchForm&product_id=<id>`, T-11 `index.php?class=ServiceForm&method=onEdit&id=<id>`
 
 **Teste RED**
-- sem teste: reestilização de controllers; `SaleServiceTest`/`StockServiceTest`/`ServiceCatalogServiceTest` existentes guardam as regras
+- `src/tests/Unit/ServiceCatalogServiceTest.php`, `src/tests/Support/FakeServiceRepository.php` — `testUpdateKeepsIdAndDoesNotDuplicate` (update de serviço existente altera nome/categoria/duração/preço/ativo, mantém o `id` e o repositório segue com 1 serviço), `testUpdateRejectsNameOfAnotherService` (nome de outro serviço do tenant lança exceção), `testUpdateRejectsServiceFromAnotherTenant` (serviço semeado no Fake com `tenantId` 2: `update()` lança `Service not found for this tenant` e `findById()` devolve null) e `testListAllIncludesInactiveServices` (serviço desativado aparece em `listAll()` e não em `listActive()`); falham antes da implementação porque `ServiceCatalogService::update` e `ServiceCatalogService::listAll` não existem (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
 
 **Critério de aceite**
-- `grep -c "adianti_right_panel"` = 0 nos 4 arquivos.
+- `grep -c "adianti_right_panel"` = 0 nos 4 formulários.
 - "…" → Editar em `ProductList` abre `ProductForm` em página cheia com os dados do produto; salvar volta a `ProductList`; "…" → Entrada de lote abre `StockBatchForm` com o produto fixo e, após receber 5 unidades, o card "Produtos em estoque"/estoque atual da linha aumenta em 5.
+- A suíte imprime `PASS  Unit\ServiceCatalogServiceTest::` para os 4 métodos novos e para os 4 existentes, `Failed: 0`; o commit `Task: T-17 (RED)` toca só os 2 arquivos do bloco Teste RED e vem antes dos commits da implementação.
+- Editar "F10 varredura Banho" (id 2) pela UI e salvar: `SELECT COUNT(*) FROM service WHERE tenant_id = 1` igual antes e depois, a linha id 2 com os valores novos e nenhuma mensagem de nome duplicado.
+- `index.php?class=ServiceForm&method=onEdit&id=<id fora do tenant>` mostra "Registro não encontrado" e o campo `name` vazio.
+- `index.php?class=ServiceList&status=inactive` lista o serviço desativado com badge Inativo e nenhuma linha com badge Ativo.
+- PATTERN0: nos 4 formulários a contagem de `setNumericMask(0` é igual à de `setProperty('pattern', '[0-9]*')`, e `browser_console_messages` de `ServiceForm`, `ProductForm`, `StockBatchForm` e `SaleForm` não mostra linha com `pattern`.
 
 **Validação**
-- LINT dos 4 arquivos (evidência: 4 `No syntax errors detected`)
+- LINT dos 9 arquivos PHP de `src/app` e dos 2 de `src/tests` (evidência: 11 `No syntax errors detected`)
 - `grep -c "adianti_right_panel" src/app/control/clinic/{ProductForm,StockBatchForm,ServiceForm,SaleForm}.php` (evidência: todas `:0`)
-- GATE → fluxo Entrada de lote de 5 unidades (evidência: estoque atual da linha +5 em `ProductList`) + screenshots `f10-ProductForm.png`, `f10-SaleForm.png`
+- SUITE (evidência: `PASS  Unit\ServiceCatalogServiceTest::testUpdateKeepsIdAndDoesNotDuplicate`, `…::testUpdateRejectsNameOfAnotherService`, `…::testUpdateRejectsServiceFromAnotherTenant`, `…::testListAllIncludesInactiveServices` e `Failed: 0`; a execução no commit RED mostrou `FAIL  Unit\ServiceCatalogServiceTest::testUpdateKeepsIdAndDoesNotDuplicate`, colada em `## RED` com o hash)
+- COMMITS → `git -C /var/www/html/centralvet log --reverse --format='%h %s | %b' f48ebe0..HEAD -- src/tests/Unit/ServiceCatalogServiceTest.php src/tests/Support/FakeServiceRepository.php src/app/Core/Application/ServiceCatalogService.php src/app/Core/Domain/Service.php src/app/control/clinic/ServiceForm.php` (evidência: o primeiro commit tem `Task: T-17 (RED)` e `git show --stat` dele lista só os 2 arquivos do Teste RED)
+- PATTERN0 → `for f in src/app/control/clinic/{ProductForm,StockBatchForm,ServiceForm,SaleForm}.php; do echo "$f $(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"; done` (evidência: em cada linha os dois números iguais)
+- GATE → editar sem duplicar: `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM service WHERE tenant_id = 1; SELECT id, name, duration_minutes, active FROM service WHERE id = 2;"'` antes; `browser_navigate` `index.php?class=ServiceList` → "…" da linha "F10 varredura Banho" → Editar → Duração `45` e Status Inativo → Salvar; o mesmo SELECT depois (evidência: contagem igual, id 2 com `duration_minutes` 45 e `active` 0, nenhuma mensagem "already exists"/duplicado)
+- GATE → filtro Inativo: `browser_navigate` `index.php?class=ServiceList&status=inactive` + `browser_evaluate` contando linhas da tabela e badges diferentes de "Inativo" (evidência: ≥ 1 linha, com "F10 varredura Banho", e `0` badges diferentes); em seguida reabrir o serviço id 2, Status Ativo, Salvar (evidência: `active` 1 no SELECT)
+- GATE → id de outro tenant negado: `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT id FROM service WHERE tenant_id <> 1 LIMIT 1;"'` — com resultado, usar esse id; vazio (hoje só existe o tenant 1), usar `999999`; `browser_navigate` `index.php?class=ServiceForm&method=onEdit&id=<id>` + `browser_evaluate` `document.querySelector('[name=name]').value` (evidência: mensagem "Registro não encontrado" visível e valor `''`); o outro tenant real fica coberto por `testUpdateRejectsServiceFromAnotherTenant`
+- GATE → `browser_console_messages` em `ServiceForm`, `ProductForm`, `StockBatchForm` e `SaleForm` (evidência: nenhuma linha com `pattern`) + fluxo Entrada de lote de 5 unidades (evidência: estoque atual da linha +5 em `ProductList`) + screenshots `f10-ProductForm.png`, `f10-SaleForm.png`
 
 ### T-18 — Lote Financeiro no padrão, com abas financeiras
 
@@ -587,10 +617,12 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - `src/app/control/clinic/CashSessionList.php`
 - `src/app/control/clinic/CashSessionForm.php`
 - `src/app/control/clinic/EncounterAccountForm.php`
+- `src/app/lib/widget/CvNav.php`
 
 **Interface**
-- Produz: `FinancialEntryList` aceitando `entry_type=revenue|expense` (aba Receitas/Despesas ativa conforme o parâmetro), listas financeiras com `CvNav::tabs('finance', …)` e badges (Receita/Despesa, Pago/Aberto/Parcial), formulários em página cheia; `EncounterAccountForm.authorized_by_system_user_id` por `TDBCombo` de `SystemUser`; nomes de `$action` de `EncounterAccountForm` (`onLoad`/`onSave`/`onApplyDiscount`/`onClose`) e `PaymentService::register()` preservados
-- Consome: T-02 `CvPage::header`, T-02 `CvPage::filterBar`, T-02 `CvNav::tabs`, T-02 `CvBadge::create`, T-02 `CvDatagrid::decorate`, T-02 `CvDatagrid::actionMenu`, T-02 `CvDatagrid::footer`, T-02 `CvForm::decorate`, T-02 `CvFormat::money`, T-02 `entry_type=revenue`, T-09 `class FinancialOverview extends TPage`
+- Produz: `CvNav::tabs('finance', …)` com a aba `revenues` → `index.php?class=FinancialEntryList&entry_type=income` (correção da onda 2: o schema usa `income`, valor de `FinancialEntry::TYPE_INCOME`; só essa linha de `CvNav.php` muda, demais grupos e chaves intactos)
+- Produz: `FinancialEntryList` aceitando `entry_type=income|expense` (aba Receitas/Despesas ativa conforme o parâmetro; outro valor lista tudo com a aba "Receitas" e "Despesas" inativas), listas financeiras com `CvNav::tabs('finance', …)` e badges (Receita/Despesa, Pago/Aberto/Parcial), formulários em página cheia; `EncounterAccountForm.authorized_by_system_user_id` por `TDBCombo` de `SystemUser`; nomes de `$action` de `EncounterAccountForm` (`onLoad`/`onSave`/`onApplyDiscount`/`onClose`) e `PaymentService::register()` preservados; PATTERN0 aplicado em `EncounterAccountForm`
+- Consome: T-02 `CvPage::header`, T-02 `CvPage::filterBar`, T-02 `CvNav::tabs`, T-02 `CvBadge::create`, T-02 `CvDatagrid::decorate`, T-02 `CvDatagrid::actionMenu`, T-02 `CvDatagrid::footer`, T-02 `CvForm::decorate`, T-02 `CvFormat::money`, T-09 `class FinancialOverview extends TPage`
 
 **Teste RED**
 - sem teste: reestilização de controllers; `PaymentServiceTest`/`CashSessionServiceTest`/`EncounterAccountServiceTest` existentes guardam as regras
@@ -598,11 +630,16 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 **Critério de aceite**
 - `grep -c "adianti_right_panel"` = 0 nos 9 arquivos; as 5 telas de lista mostram as abas financeiras com a aba correspondente ativa.
 - `index.php?class=FinancialEntryList&entry_type=expense` lista só linhas com badge Despesa; `PayableList` → "…" → Pagar conclui o pagamento e a linha passa a badge Pago.
+- Aba Receitas (achado da onda 2): `grep -rc "entry_type=revenue" src/app/lib/widget/CvNav.php src/app/control/clinic/` = 0 em todos; clicar em "Receitas" a partir de `FinancialOverview` leva a URL com `entry_type=income`, a aba Receitas fica ativa, a tabela não tem badge Despesa e o total "de N" do rodapé = `SELECT COUNT(*) FROM financial_entry WHERE tenant_id = 1 AND entry_type = 'income'` no mesmo período/unidade do filtro exibido (hoje há 1 lançamento `income`).
+- PATTERN0: em `EncounterAccountForm.php` a contagem de `setNumericMask(0` é igual à de `setProperty('pattern', '[0-9]*')` e `browser_console_messages` da tela não mostra linha com `pattern`.
 
 **Validação**
 - LINT dos 9 arquivos (evidência: 9 `No syntax errors detected`)
 - `grep -c "adianti_right_panel" src/app/control/clinic/{FinancialEntryList,FinancialEntryForm,PayableList,PayableForm,PendingReceivableList,PaymentForm,CashSessionList,CashSessionForm,EncounterAccountForm}.php` (evidência: todas `:0`)
 - GATE → `browser_navigate` `FinancialEntryList&entry_type=expense` e contar badges Receita (evidência: `0`) + screenshots `f10-FinancialEntryList.png`, `f10-PayableList.png`, `f10-EncounterAccountForm.png`
+- LINT `app/lib/widget/CvNav.php` + `grep -rc "entry_type=revenue" src/app/lib/widget/CvNav.php src/app/control/clinic/ | grep -v ':0$' | wc -l` (evidência: `No syntax errors detected` e `0`)
+- GATE → filtro de receitas: `browser_navigate` `index.php?class=FinancialOverview` → `browser_click` na aba "Receitas" + `browser_evaluate` com `location.search`, a aba ativa (`.cv-tabs .active`), a contagem de badges "Despesa" na tabela e o texto do rodapé (evidência: `entry_type=income`, aba "Receitas", `0` badges Despesa e N do rodapé igual ao `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM financial_entry WHERE tenant_id = 1 AND entry_type = 'income';"'` restrito ao período/unidade da tela)
+- PATTERN0 → `f=src/app/control/clinic/EncounterAccountForm.php; echo "$(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"` (evidência: dois números iguais) + GATE → abrir `EncounterAccountForm` pela ação Conta do atendimento e `browser_console_messages` (evidência: nenhuma linha com `pattern`)
 
 ### T-19 — menu.xml reorganizado + sidebar final
 
@@ -616,10 +653,13 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - `src/menu.xml`
 - `src/app/templates/adminbs5/custom.css`
 - `src/app/templates/adminbs5/js/cv-shell.js`
+- `src/app/control/clinic/CvShellController.php`
 
 **Interface**
 - Produz: menu de primeiro nível na ordem Dashboard (desabilitado), Agenda (`AgendaView`), Tutores (`TutorList`), Pacientes (`GlobalSearchController`), Atendimentos (`QueueEntryView`), Prontuário (desabilitado), Vacinação (`VaccinationCardView`), Exames (`PendingExamResultList`), Cirurgias (desabilitado), Prescrições (desabilitado, dica "abra pelo atendimento"), Estoque (`ProductList`), Vendas (`SaleForm`), Financeiro (`FinancialOverview`), Serviços (`ServiceList`), CRM / Comunicação (desabilitado), Relatórios (desabilitado); no rodapé da sidebar Configurações (submenu: catálogos clínicos, Administração e Logs do Adianti) e Ajuda (desabilitado); item desabilitado com classe `cv-menu-disabled` e rótulo "Em breve", sem navegação; grupo "Common pages" removido
-- Consome: T-01 `'has_master_menu' => '0'`, T-07 `FinancialOverview`, T-08 `CvShell.init()`, T-09 `class FinancialOverview extends TPage`
+- Produz (correção da onda 2, defesa em profundidade): `CvShellController::onContext` devolve em `units` só as unidades de `getSystemUserUnits()` cujo `system_unit.tenant_id` = `TSession::getValue('tenantid')` (JSON de T-08 inalterado); `CvShellController::onSwitchUnit` recusa, antes de `ApplicationAuthenticationService::setUnit()`, `unit_id` fora dessa lista com `TMessage('error', _t('Unauthorized access to that unit'))` e sessão inalterada; ambos pela mesma função privada `allowedUnitIds(): array`
+- Produz: regras `.cv-unit-switch__select` em `custom.css` (largura mínima 180px, altura/borda/raio/cor dos tokens da casca, foco com o anel da casca, sem o azul `#0d6efd`)
+- Consome: T-01 `'has_master_menu' => '0'`, T-07 `FinancialOverview`, T-08 `CvShell.init()`, T-08 `CvShellController::onContext`, T-09 `class FinancialOverview extends TPage`
 
 **Teste RED**
 - sem teste: configuração de menu e estilo; verificação visual e por clique no gate
@@ -627,10 +667,16 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 **Critério de aceite**
 - `menu.xml` é XML válido; a sidebar renderizada mostra os 16 itens na ordem acima com ícone + rótulo, Configurações e Ajuda colados ao rodapé da sidebar, o item da tela atual destacado, e nenhum item "Common page".
 - Clicar num item desabilitado não muda `location.href`; clicar em Financeiro abre `FinancialOverview`; Programas/Grupos/Unidades/Usuários só aparecem dentro de Configurações.
+- Unidades por tenant (achado da onda 2): `onContext` devolve em `units` exatamente as unidades de `SELECT su.id FROM system_user_unit suu JOIN system_unit su ON su.id = suu.system_unit_id WHERE suu.system_user_id = <admin> AND su.tenant_id = 1`, com um único `current: true`; `onSwitchUnit` com `unit_id` fora dessa lista mostra "Unauthorized access to that unit" (ou o equivalente em pt) e o `current` do `onContext` seguinte não muda; `grep -c "tenant_id" src/app/control/clinic/CvShellController.php` ≥ 1.
+- O select `.cv-unit-switch__select` renderizado tem `getComputedStyle(...).minWidth` = `180px` e `grep -c "#0d6efd" src/app/templates/adminbs5/custom.css` = 0.
 
 **Validação**
 - `python3 -c "import xml.dom.minidom as m;m.parse('/var/www/html/centralvet/src/menu.xml');print('xml valido')"` (evidência: `xml valido`)
 - GATE → screenshot `f10-Sidebar.png` + `browser_click` em "Cirurgias" e `browser_evaluate` `location.href` antes/depois (evidência: iguais) + `browser_click` em "Financeiro" (evidência: URL com `class=FinancialOverview`)
+- LINT `app/control/clinic/CvShellController.php` (evidência: `No syntax errors detected`)
+- GATE → unidades por tenant: `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT su.id, su.tenant_id FROM system_user_unit suu JOIN system_unit su ON su.id = suu.system_unit_id WHERE suu.system_user_id = 1;"'` + `browser_evaluate` com `fetch('engine.php?class=CvShellController&method=onContext&static=1').then(r=>r.json())` (evidência: ids de `units` = ids do SELECT com `tenant_id` 1, um único `current: true`)
+- GATE → troca recusada: `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT id FROM system_unit WHERE tenant_id <> 1 LIMIT 1;"'` — com resultado, usar esse id; vazio (hoje só existe o tenant 1), usar `999999`; `browser_navigate` `engine.php?class=CvShellController&method=onSwitchUnit&unit_id=<id>` e novo `onContext` (evidência: mensagem de acesso não autorizado e `current` inalterado)
+- GATE → `browser_navigate` `index.php?class=ServiceList` + `browser_evaluate` `getComputedStyle(document.querySelector('.cv-unit-switch__select')).minWidth` (evidência: `180px`) + screenshot `f10-Shell-unit.png`
 
 ### T-20 — Consolidação de chaves i18n pedidas no board
 

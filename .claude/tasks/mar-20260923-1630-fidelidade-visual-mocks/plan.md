@@ -9,7 +9,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 - Itens de menu e abas sem tela real (Dashboard clínico, Prontuário, Cirurgias, CRM/Comunicação, Relatórios, Ajuda; abas Movimentações/Categorias/Fornecedores/Relatórios/Pacotes/Preçários/Modelos) aparecem desabilitados (cinza, "em breve", sem abrir nada) — resposta do usuário.
 - Financeiro: tela nova `FinancialOverview` (aba "Visão geral"). Registro em `system_program`/`system_group_program` (e o de `CvShellController`, necessário ao seletor de unidade e ao cartão do usuário) vai redigido em T-07 e só é executado após aprovação do SQL pelo usuário na hora; últimos ids conhecidos 102/103 (fase 09) — T-07 confirma com `SELECT MAX(id)`.
 - "Prescrições" e "Pacientes" no menu: `PrescriptionForm` só existe no contexto do atendimento (a fase 09 removeu o item solto por ser beco sem saída) → item "Prescrições" desabilitado com dica "abra pelo atendimento"; `PatientList` exige `tutor_id` → item "Pacientes" abre `GlobalSearchController` (busca de paciente/tutor). "Atendimentos" → `QueueEntryView`; "Exames" → `PendingExamResultList`; "Vacinação" → `VaccinationCardView`.
-- Projeto em git desde 2026-09-29 (decisão do usuário): repositório único `/var/www/html/centralvet`, branch `main`, commit inicial `9efef4e` ("chore: estado inicial do projeto"). Trabalho na branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); um ou mais commits por task com trailer `Task: <ID>`, listando só os caminhos da task. Nas tasks com teste (T-04, T-05, T-06) o teste falhando é commitado antes da implementação com trailer `Task: <ID> (RED)`; as demais seguem `sem teste: <motivo>`. Evidência detalhada continua em `reports/`.
+- Projeto em git desde 2026-09-29 (decisão do usuário): repositório único `/var/www/html/centralvet`, branch `main`, commit inicial `9efef4e` ("chore: estado inicial do projeto"). Trabalho na branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); um ou mais commits por task com trailer `Task: <ID>`, listando só os caminhos da task. Nas tasks com teste (T-04, T-05, T-06, T-17) o teste falhando é commitado antes da implementação com trailer `Task: <ID> (RED)`; as demais seguem `sem teste: <motivo>`. Evidência detalhada continua em `reports/`.
 - A imagem do container copia `src/` (COPY). Suíte e lint rodam contra o código-fonte do host sem rebuild: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app …` (comprovado no planejamento: 155/155). Verificação visual exige `docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`, feita só pelo orquestrador no gate de cada onda; o navegador Playwright MCP (sessão admin logada) é estado global e só o validador o usa.
 - Métodos `EncounterView::onFinish`, `onAutosave`, `onStart` não mudam de nome (strings de auditoria fixas em `tests/Integration/EncounterTimelineIntegrationTest.php:69-86`).
 
@@ -23,6 +23,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 - (d) As demais telas de `src/app/control/clinic/` no padrão (b): formulários em página cheia (sem `adianti_right_panel`), campos relacionais por `TDBCombo`/`TDBUniqueSearch` com filtro de tenant onde hoje há `TEntry` de id, listas com badges, "…" e rodapé de paginação.
 - Vocabulário novo em `translations.json`.
 - DML de registro de `FinancialOverview` e `CvShellController` (aprovação na hora).
+- (e) Correções apontadas no gate/revisão da onda 2, na task da onda 3 dona de cada arquivo: `ServiceForm` atualiza quando há `id` e carrega por tenant, filtro "Inativo" de `ServiceList` e PATTERN0 (T-17); aba Receitas com `entry_type=income` (T-18); unidades por tenant em `CvShellController` e CSS de `.cv-unit-switch__select` (T-19); PATTERN0 nos formulários de T-15, T-16 e T-18.
 - Validação visual lado a lado com os 4 mocks + regressão da suíte.
 
 ### Excluído
@@ -31,7 +32,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 - Telas novas vazias ou falsas (Dashboard clínico, Prontuário, Cirurgias, CRM, Relatórios, Ajuda, Categorias, Fornecedores, Pacotes, Preçários).
 - Ações sem suporte no backend: Exportar, Importar, Duplicar/Excluir serviço, Pausar atendimento, Salvar como modelo, Gerar relatório.
 - Reestilização das telas administrativas nativas do Adianti (só mudam de lugar no menu) e da tela de login.
-- Mudança de regra de negócio em Application/Domain existentes.
+- Mudança de regra de negócio em Application/Domain existentes (as regras de `create()`/`listActive()` ficam como estão; `ServiceCatalogService::update()`/`listAll()` e `Service::changeDetails()` são casos de uso novos de T-17, pedidos pela correção da onda 2).
 
 ## Contexto técnico
 - Camadas envolvidas: frontend (layout/CSS/JS do template adminbs5, controllers Adianti em `app/control/clinic`, kit em `app/lib/widget`), backend (novas classes de leitura em `app/Core/Persistence` e `app/Core/Application`), database (DML de `system_program`, sem schema), infra (`docker/php/Dockerfile` para o `buildid`), qa (validação visual Playwright).
@@ -57,7 +58,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `docker/php/Dockerfile` | gerar `src/buildid` na imagem | modificar | T-01 |
 | `src/app/templates/adminbs5/cv-components.css` | estilos do kit | criar | T-02 |
 | `src/app/lib/widget/CvPage.php` | cabeçalho, colunas, abas, barra de filtro | criar | T-02 |
-| `src/app/lib/widget/CvNav.php` | abas de navegação por grupo (finance, stock, services, prescription) | criar | T-02 |
+| `src/app/lib/widget/CvNav.php` | abas de navegação por grupo (finance, stock, services, prescription) | criar/modificar | ⚠ T-02 (onda 1), T-18 (onda 3: aba Receitas → `entry_type=income`) |
 | `src/app/lib/widget/CvBadge.php` | badge de status por tom | criar | T-02 |
 | `src/app/lib/widget/CvKpiCard.php` | card de indicador com variação | criar | T-02 |
 | `src/app/lib/widget/CvCard.php` | card com título e link "Ver todos" | criar | T-02 |
@@ -77,11 +78,11 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/app/Core/Application/ClinicalSummaryService.php` | fachada de leitura clínica | criar | T-06 |
 | `src/tests/Integration/ClinicalSummaryIntegrationTest.php` | teste de integração | criar | T-06 |
 | `.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/sql/T-07-register-programs.sql` | rascunho do DML (executado após aprovação) | criar | T-07 |
-| `src/app/control/clinic/CvShellController.php` | contexto do usuário/unidades e troca de unidade | criar | T-08 |
+| `src/app/control/clinic/CvShellController.php` | contexto do usuário/unidades e troca de unidade | criar/modificar | ⚠ T-08 (onda 2), T-19 (onda 3: unidades por tenant) |
 | `src/app/templates/adminbs5/js/cv-shell.js` | papel no cartão, seletor de unidade, busca global, itens desabilitados | criar/modificar | ⚠ T-08 (onda 2), T-19 (onda 3) |
 | `src/app/control/clinic/FinancialOverview.php` | tela nova "Financeiro — Visão geral" | criar | T-09 |
 | `src/app/control/clinic/ProductList.php` | tela "Estoque e Vendas" | modificar | T-10 |
-| `src/app/control/clinic/ServiceList.php` | tabela + painel de detalhe | modificar | T-11 |
+| `src/app/control/clinic/ServiceList.php` | tabela + painel de detalhe | modificar | ⚠ T-11 (onda 2), T-17 (onda 3: filtro Inativo via `listAll()`) |
 | `src/app/control/clinic/PrescriptionForm.php` | prescrição em 2 colunas | modificar | T-12 |
 | `src/app/control/clinic/EncounterView.php` | atendimento com wizard | modificar | T-13 |
 | `src/app/control/clinic/TutorList.php` | padrão de lista | modificar | T-14 |
@@ -110,6 +111,12 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/app/control/clinic/StockBatchForm.php` | página cheia, produto relacional | modificar | T-17 |
 | `src/app/control/clinic/ServiceForm.php` | página cheia | modificar | T-17 |
 | `src/app/control/clinic/SaleForm.php` | PDV no padrão | modificar | T-17 |
+| `src/app/Core/Application/ServiceCatalogService.php` | casos de uso `update()` e `listAll()` do catálogo de serviços | modificar | T-17 |
+| `src/app/Core/Domain/Service.php` | `changeDetails()` com as validações de `create()` | modificar | T-17 |
+| `src/app/Core/Domain/Contract/ServiceRepositoryInterface.php` | `listAll()` | modificar | T-17 |
+| `src/app/Core/Persistence/ServiceRepository.php` | `listAll()` escopado por tenant | modificar | T-17 |
+| `src/tests/Unit/ServiceCatalogServiceTest.php` | testes de `update()`/`listAll()` (RED) | modificar | T-17 |
+| `src/tests/Support/FakeServiceRepository.php` | `listAll()` no Fake (fixture do RED) | modificar | T-17 |
 | `src/app/control/clinic/FinancialEntryList.php` | abas financeiras, filtro `entry_type` | modificar | T-18 |
 | `src/app/control/clinic/FinancialEntryForm.php` | página cheia | modificar | T-18 |
 | `src/app/control/clinic/PayableList.php` | abas financeiras, badges | modificar | T-18 |
@@ -122,7 +129,7 @@ Levar o Central Vet Pro do layout adminbs5 padrão (trilho duplo, "Shortcut", ro
 | `src/menu.xml` | menu reorganizado | modificar | T-19 |
 | banco `system_program`/`system_group_program` (mesmo banco da aplicação) | registrar 2 programas | DML | T-07 |
 
-Os 3 arquivos com ⚠ são serializados em ondas diferentes (escritor único por arquivo em cada onda).
+Os 6 arquivos com ⚠ são serializados em ondas diferentes (escritor único por arquivo em cada onda). Os arquivos acrescentados na revisão antes da onda 3 (correções da onda 2) não colidem entre T-14..T-19: cada um está em uma só task da onda.
 
 ## Decisões de arquitetura
 
@@ -159,7 +166,7 @@ Onda 5: T-21 (todas) validação visual lado a lado + regressão
 - Branch de trabalho: `feat/fidelidade-visual-mocks`
 - Branch base: `main`
 - Nota de branch: criada pelo orquestrador antes da onda 1 a partir de `main` @ `9efef4e` ("chore: estado inicial do projeto"); todos os agentes trabalham nela, sem trocar de branch.
-- Commits da onda: cada implementador commita os próprios caminhos (`git -C /var/www/html/centralvet add <caminhos>` + `git -C /var/www/html/centralvet commit -m "<assunto>" -m "Task: <ID>" -- <caminhos>`), um ou mais commits por task, todos com o trailer `Task: <ID>`. Tasks com teste (T-04, T-05, T-06): primeiro o commit só do arquivo de teste falhando com trailer `Task: <ID> (RED)`, depois os commits da implementação com `Task: <ID>`. Proibidos na árvore compartilhada: `git add -A`, `git add .`, `git commit -a`, `git checkout`, `git switch`, `git reset`, `git stash`, `git restore`, `git rebase`, `git push`. Commit que falhar por `index.lock` é repetido após alguns segundos, sem apagar o lock. Arquivos da pasta do plano (`reports/`, `board.md`, `notes.md`, `tasks.md`) não são commitados pelos implementadores: o fechador usa a skill `new-commit --auto` só se sobrou algo sem commit e sempre registra o estado das tasks num `chore(tasks): registra commits da onda N` (commits `chore(tasks)` só tocam `.claude/tasks/` e são isentos do trailer). O validador confere trailer, escopo e ordem RED por `git -C /var/www/html/centralvet log <BASE da onda>..HEAD`.
+- Commits da onda: cada implementador commita os próprios caminhos (`git -C /var/www/html/centralvet add <caminhos>` + `git -C /var/www/html/centralvet commit -m "<assunto>" -m "Task: <ID>" -- <caminhos>`), um ou mais commits por task, todos com o trailer `Task: <ID>`. Tasks com teste (T-04, T-05, T-06, T-17): primeiro o commit só do arquivo de teste falhando com trailer `Task: <ID> (RED)`, depois os commits da implementação com `Task: <ID>`. Proibidos na árvore compartilhada: `git add -A`, `git add .`, `git commit -a`, `git checkout`, `git switch`, `git reset`, `git stash`, `git restore`, `git rebase`, `git push`. Commit que falhar por `index.lock` é repetido após alguns segundos, sem apagar o lock. Arquivos da pasta do plano (`reports/`, `board.md`, `notes.md`, `tasks.md`) não são commitados pelos implementadores: o fechador usa a skill `new-commit --auto` só se sobrou algo sem commit e sempre registra o estado das tasks num `chore(tasks): registra commits da onda N` (commits `chore(tasks)` só tocam `.claude/tasks/` e são isentos do trailer). O validador confere trailer, escopo e ordem RED por `git -C /var/www/html/centralvet log <BASE da onda>..HEAD`.
 - Isolamento em ondas com edições paralelas: caminho exclusivo (cada agente só nos arquivos da própria task no checkout compartilhado da branch `feat/fidelidade-visual-mocks`, commitando por caminho listado; nenhum arquivo é tocado por duas tasks na mesma onda; rebuild do container e navegador Playwright são estado global — só o orquestrador reconstrói e só o validador usa o navegador, no gate de cada onda)
 - Gate de cada onda: orquestrador roda `docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`; validador confere os commits da onda (trailer, escopo, RED antes da implementação), roda o lint dos arquivos da onda, a suíte, os passos Playwright do bloco Validação de cada task e a varredura Playwright da onda (`§ Critérios gerais de aceite`, item "Varredura Playwright no gate").
 - DML (T-07): o agente redige o SQL em `sql/T-07-register-programs.sql` e para; o orquestrador mostra o SQL ao usuário e só executa após aprovação explícita (skill `sql-write-approval`).
@@ -213,10 +220,10 @@ Onda 5: T-21 (todas) validação visual lado a lado + regressão
 - Nenhuma tela de `app/control/clinic` chama `setTargetContainer('adianti_right_panel')` para formulário (`grep -c "adianti_right_panel" src/app/control/clinic/*Form.php` = 0 em todos).
 - Screenshot de Prescrições, Estoque e Vendas, Financeiro, Serviços e Atendimento, lado a lado com o mock, mostra a mesma estrutura (casca, cabeçalho, abas, cards, tabela, coluna direita) sem bloco de IA visível e sem dado inventado.
 - Nenhuma página renderizada mostra "Shortcut", "Unit A" como rodapé, nem os links Trace/DB/PHP/Framework/Sistema/Notícias/Manuais/Abrir chamado.
-- Commits (todo gate): `git -C /var/www/html/centralvet log --format='%h %s%n%b' <BASE da onda>..HEAD` mostra só commits com trailer `Task: <ID>` de tasks da onda (ou `chore(tasks)` restrito a `.claude/tasks/`); `git show --stat` de cada um lista só caminhos de "Arquivos prováveis" da task; em T-04/T-05/T-06 o commit `Task: <ID> (RED)` toca só o arquivo de teste e vem antes de todo commit `Task: <ID>` da implementação.
+- Commits (todo gate): `git -C /var/www/html/centralvet log --format='%h %s%n%b' <BASE da onda>..HEAD` mostra só commits com trailer `Task: <ID>` de tasks da onda (ou `chore(tasks)` restrito a `.claude/tasks/`); `git show --stat` de cada um lista só caminhos de "Arquivos prováveis" da task; em T-04/T-05/T-06/T-17 o commit `Task: <ID> (RED)` toca só os arquivos do bloco Teste RED e vem antes de todo commit `Task: <ID>` da implementação.
 - Varredura Playwright no gate (pedido do usuário, 2026-09-29): além dos passos de Validação das tasks, o validador percorre com o Playwright MCP (sessão admin, `http://127.0.0.1:8081`) cada tela tocada na onda, exercitando os fluxos principais que a tela oferece — abrir, listar (paginação), filtrar/buscar, abrir registro, salvar (registros de teste prefixados `F10 varredura`, só em telas clínicas) e voltar — e, após cada tela, lê `browser_console_messages` (nível `error`) e `browser_network_requests` (status ≥ 400 ou falha, exceto `favicon`); "Fatal error", "Warning:", "Exception" ou diálogo de erro do Adianti na tela também contam. Critério: a tabela `Tela | Fluxos exercitados | Console (errors) | Rede (≥400) | Erro na tela | Veredito | Task dona` do relatório do gate tem uma linha por tela da lista com `0` erros de console, `0` requisições ≥ 400 e nenhum erro na tela. Bug numa tela ou arquivo de task da onda reprova a task dona (fix loop, commits `Task: <ID>`); bug sem task dona na onda vira task de correção da onda (ID seguinte ao último do plano). Telas por onda:
   - Onda 1 (casca T-01, afeta todas as páginas): `ServiceList`, `AgendaView`, `TutorList`, `QueueEntryView`, `ProductList`, `FinancialEntryList`, `SystemUserList` — navegar entre elas pelo menu, abrir e fechar a sidebar pelo hambúrguer, abrir o dropdown do cartão do usuário.
   - Onda 2: busca global e seletor de unidade da topbar/cabeçalho (T-08) em `ServiceList` e `ProductList`; `FinancialOverview` (T-09, filtro de período); `ProductList` (T-10, busca/Categoria/Status, "…"); `ServiceList` (T-11, clique na linha, painel); `PrescriptionForm` (T-12, a partir do atendimento e sem parâmetros); `EncounterView` (T-13, etapas do wizard, ações inline, autosave).
-  - Onda 3: as 35 telas do Mapa de arquivos de T-14 a T-18 (listas e formulários, com salvar/voltar nos formulários) e a sidebar de T-19 (clicar cada item de primeiro nível e cada item de Configurações).
+  - Onda 3: as 36 telas do Mapa de arquivos de T-14 a T-18 (listas e formulários, com salvar/voltar nos formulários; inclui `ServiceList`, que entrou em T-17 com o filtro Inativo), a sidebar de T-19 (clicar cada item de primeiro nível e cada item de Configurações) e o seletor de unidade de T-19 (`onContext`/`onSwitchUnit`); os passos de correção da onda 2 estão no bloco Validação de T-17, T-18 e T-19.
   - Onda 4: as telas das tasks citadas nas linhas `i18n:` do board (confere que nenhum rótulo pedido segue em inglês).
   - Onda 5 (T-21): todas as telas alcançáveis pelo `menu.xml` final — inclusive as administrativas do Adianti dentro de Configurações (só abrir, listar, filtrar e voltar) — mais as contextuais (`EncounterView`, `PrescriptionForm`, formulários abertos pelas listas), mapeando também bugs pré-existentes; bugs encontrados abrem `### Onda 6 — correção (usuário)` com IDs a partir de T-22 (bug em `src/lib/adianti` ou arquivo de `framework_hashes.php` é mapeado como "framework — não editável" e vai para Pendências).
