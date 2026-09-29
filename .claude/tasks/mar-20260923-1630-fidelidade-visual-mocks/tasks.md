@@ -29,7 +29,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-17 | frontend/backend | Lote Estoque/vendas (formulários e PDV) no padrão + correções de serviço da onda 2 (update/tenant em ServiceForm, filtro Inativo, PATTERN0) | T-02, T-10, T-11 | sim | alta | Darwin | [x] |
 | T-18 | frontend | Lote Financeiro no padrão, com abas financeiras (+ aba Receitas com `entry_type=income`, PATTERN0) | T-02, T-09 | sim | média | Tesla | [x] |
 | T-19 | frontend | menu.xml reorganizado + sidebar final (desabilitados, rodapé fixo) + unidades por tenant no CvShellController e CSS do seletor | T-01, T-07, T-08, T-09 | sim | média | Athena | [x] |
-| T-20 | frontend | Consolidação de chaves i18n pedidas no board | T-03, T-08, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-18, T-19 | não | simples | Platão | [ ] |
+| T-20 | frontend | Consolidação de chaves i18n pedidas no board | T-03, T-08, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-18, T-19 | não | simples | Platão | [x] |
 | T-21 | qa | Validação visual lado a lado com os mocks + regressão + varredura Playwright de todas as telas do menu | T-20 | não | média | Spock | [ ] |
 
 ## Detalhamento

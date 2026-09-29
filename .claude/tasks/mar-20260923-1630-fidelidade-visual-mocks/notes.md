@@ -28,6 +28,8 @@
 - 2026-09-29 · T-15 · onda 3 — Os pontos "Aplicar vacina" e badge sempre "Solicitado" foram julgados pelo revisor (reviews/T-15.md).
 - 2026-09-29 · plano · onda 3 — Pergunta do planejador sobre fixture de tenant 2: seguiu-se sem fixture; o caso fica coberto pelos testes unitários.
 - 2026-09-29 · plano · onda 3 — Mocks ausentes no host; "Message not found" aceito até T-20.
+- 2026-09-29 · T-20 · onda 4 — `Route` mudou de "Rota" para "Via", conforme o mock (desvio do implementador, aceito pelo revisor).
+- 2026-09-29 · T-20 · onda 4 — Ruling "Message not found aceito até T-20" encerrado: 0 ocorrências no shell e em 21 telas após recarga.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -99,6 +101,7 @@
 - T-17: validar `$action` contra padrão em AuthorizationRequest (opcional); link "Gerar PDF" do SaleForm perdeu target=_blank; StockBatchForm lê $_GET direto no construtor.
 - T-18: UPDATE de PayableRepository sem teste de SQL; docblock de PayableForm desatualizado; editar conta paga mostra mensagem crua em inglês.
 - T-19: itens desabilitados apontam para CvShellController (programa 105, só grupo 1); "Em breve"/"Abra pelo atendimento" fixos em pt no JS; units sem `current: true` se a unidade da sessão não pertencer ao tenant.
+- T-20: chaves minúsculas novas (`patients`, `results`, `services`, `tutors`) convivem com as de maiúscula existentes (`Patients` etc.); normalização futura de caixa vai colidir.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -118,5 +121,6 @@
   - Onda 1: BASE 9efef4e → HEAD e1e5ae6 (70211df, 646f016, a492cc2, ae079cf, 728a64a, cfcdf05, fb9dee2, 132d88f, d2989e4, a1da8e8, b325eb4, e1e5ae6)
   - Onda 2: BASE beb884c → HEAD b079655 (9e8ff1b, dcbd3a2, f3b1a5c, 745ef58, c6c946b, b079655)
   - Onda 3: BASE f48ebe0 → HEAD 68206c7 (f300a8b, 209a3bf, c814ce1, 69b4fb7, 78e1b4b, 490b414, e68adc2, 5e4f840, 5db0f24, b9ea10c, d2d25ef, 6258d7e, c96fee2, 32130d9, dd4efaa, 09ded2c, 68206c7)
-- Último status conhecido: onda 3 fechada, T-01 a T-19 [x]; suíte 182/182, 40 itens de menu sem erro.
-- Próxima onda recomendada: 4 (T-20), depois T-21
+  - Onda 4: BASE 1b6087b → HEAD 06a40d4 (06a40d4)
+- Último status conhecido: onda 4 fechada, T-01 a T-20 [x]; suíte 182/182, 0 "Message not found" no shell e em 21 telas.
+- Próxima onda recomendada: 5 (T-21)
