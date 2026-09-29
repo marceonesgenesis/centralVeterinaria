@@ -2,290 +2,407 @@
 /**
  * ServiceList
  *
- * Listing screen for the service catalog (T-11). Unlike SystemUnitList
- * (which queries via TRecord/TRepository directly), this listing has no
- * data-access logic of its own: onReload() is overridden to source every
- * row from CentralVet\Application\ServiceCatalogService::listActive() —
- * the Persistence layer (CentralVet\Persistence\ServiceRepository) is
- * never touched from here.
+ * Tela "Serviços" (fase 10, T-11): tabela do catálogo à esquerda e painel de
+ * detalhe do serviço selecionado à direita, no padrão do kit Cv*.
  *
- * There is no Edit/Delete row action: ServiceCatalogService (T-06) only
- * exposes create() and listActive() for now, so offering edit/delete here
- * would force this controller to bypass the Application service and hit
- * Persistence/Domain directly, which is out of scope for this task.
+ * Toda linha vem de CentralVet\Application\ServiceCatalogService — a camada
+ * Persistence nunca é acessada daqui; o escopo por tenant acontece dentro do
+ * serviço/repositório.
  *
- * @version    1.0
+ * Parâmetros de URL:
+ *  - service_id: serviço exibido no painel direito (padrão: primeiro da página)
+ *  - search, category, status ('active'|'inactive'): filtros da barra
+ *  - offset, limit, page: paginação (TPageNavigation)
+ *
+ * Sem schema para descrição/preparo/ícone do serviço: o painel mostra só os
+ * campos existentes e a tabela usa um ícone neutro.
+ *
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
-class ServiceList extends TStandardList
+class ServiceList extends TPage
 {
-    protected $form;     // registration form
-    protected $datagrid; // listing
-    protected $pageNavigation;
+    private const LIMIT = 10;
 
-    /**
-     * Page constructor
-     */
+    protected $datagrid;
+    protected $pageNavigation;
+    protected $filterForm;
+    protected $category;
+    protected $footerBox;
+    protected $detailBox;
+    protected $loaded = false;
+
+    /** @var int|null serviço selecionado na renderização atual */
+    private $selectedId = null;
+
+    /** @var array<string, string> filtros ativos, repassados aos links */
+    private $filters = [];
+
+    /** @var array{offset: int, page: mixed} paginação atual, repassada aos links */
+    private $pagination = ['offset' => 0, 'page' => null];
+
     public function __construct()
     {
         parent::__construct();
 
-        // 'Service' is only used here as the session-key namespace for the
-        // filter form (see AdiantiStandardCollectionTrait::onSearch()); the
-        // actual listing never queries the `service` table through it.
-        parent::setActiveRecord('Service');
-        parent::setDefaultOrder('name', 'asc');
-        parent::addFilterField('name', 'like', 'name'); // filterField, operator, formField
-        parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
+        // barra de filtros (busca + categoria + status), no lugar da cortina
+        $this->filterForm = new TForm('form_ServiceList_filter');
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
+        $search = new TEntry('search');
+        $search->placeholder = _t('Search services');
+        $search->setSize('100%');
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_Service');
-        $this->form->setFormTitle(_t('Services'));
+        $this->category = new TCombo('category');
+        $this->category->setDefaultOption(_t('All categories'));
+        $this->category->setSize('100%');
 
-        // create the form fields
-        $name = new TEntry('name');
+        $status = new TCombo('status');
+        $status->setDefaultOption(_t('All statuses'));
+        $status->addItems(['active' => _t('Active'), 'inactive' => _t('Inactive')]);
+        $status->setSize('100%');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onReload']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
 
-        $name->setSize('100%');
+        $this->filterForm->add(CvPage::filterBar([$search, $this->category, $status, $find]));
+        $this->filterForm->setFields([$search, $this->category, $status, $find]);
 
-        // keep the form filled during navigation with session data
-        $this->form->setData( TSession::getValue('Service_filter_data') );
-
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
-        // creates a DataGrid
+        // tabela
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
-        // creates the datagrid columns
-        $column_id       = new TDataGridColumn('id', 'Id', 'center', 50);
-        $column_name     = new TDataGridColumn('name', _t('Name'), 'left');
+        $column_name     = new TDataGridColumn('name', _t('Service'), 'left');
         $column_category = new TDataGridColumn('category', _t('Category'), 'left');
-        $column_duration = new TDataGridColumn('duration_minutes', _t('Duration (min)'), 'center', 110);
-        $column_price    = new TDataGridColumn('price', _t('Price'), 'right', 110);
-        $column_status   = new TDataGridColumn('status_label', _t('Status'), 'center', 100);
+        $column_price    = new TDataGridColumn('price_cents', _t('Standard price'), 'right');
+        $column_duration = new TDataGridColumn('duration_minutes', _t('Duration'), 'left');
+        $column_status   = new TDataGridColumn('active', _t('Status'), 'left');
 
-        // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
+        $column_name->setTransformer(function ($value, $object, $row, $cell) {
+            $this->linkRow($object, $row, $cell);
+            return '<span class="cv-service-name"><i class="fas fa-stethoscope text-primary me-2" aria-hidden="true"></i>'
+                 . CvFormat::e((string) $value) . '</span>';
+        });
+        $column_category->setTransformer(function ($value, $object, $row, $cell) {
+            $this->linkRow($object, $row, $cell);
+            return ($value === null || $value === '') ? '—' : CvBadge::create((string) $value, 'info');
+        });
+        $column_price->setTransformer(function ($value, $object, $row, $cell) {
+            $this->linkRow($object, $row, $cell);
+            return CvFormat::e(CvFormat::money((int) $value));
+        });
+        $column_duration->setTransformer(function ($value, $object, $row, $cell) {
+            $this->linkRow($object, $row, $cell);
+            return CvFormat::e(self::formatDuration((int) $value));
+        });
+        $column_status->setTransformer(function ($value, $object, $row, $cell) {
+            $this->linkRow($object, $row, $cell);
+            return self::statusBadge((bool) $value);
+        });
+
         $this->datagrid->addColumn($column_name);
         $this->datagrid->addColumn($column_category);
-        $this->datagrid->addColumn($column_duration);
         $this->datagrid->addColumn($column_price);
+        $this->datagrid->addColumn($column_duration);
         $this->datagrid->addColumn($column_status);
 
-        // create the datagrid model
+        $action_edit = new TDataGridAction(['ServiceForm', 'onEdit'], ['id' => '{id}']);
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Edit'), 'action' => $action_edit, 'icon' => 'far:edit'],
+        ]));
+
         $this->datagrid->createModel();
 
-        // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
-        $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
+        $this->pageNavigation->setAction(new TAction([$this, 'onReload']));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
+        $this->footerBox = new TElement('div');
+        $this->detailBox = new TElement('div');
 
-        $btnf = TButton::create('find', [$this, 'onSearch'], '', 'fa:search');
-        $btnf->style = 'height: 37px; margin-right:4px;';
+        $main = new TElement('div');
+        $main->add($this->filterForm);
+        $main->add($this->datagrid);
+        $main->add($this->footerBox);
 
-        $form_search = new TForm('form_search_name');
-        $form_search->style = 'float:left;display:flex';
-        $form_search->add($name, true);
-        $form_search->add($btnf, true);
+        $header = CvPage::header(_t('Services'), null, [
+            ['label' => _t('New service'), 'href' => 'index.php?class=ServiceForm', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]);
 
-        $panel->addHeaderWidget($form_search);
-
-        $panel->addHeaderActionLink('', new TAction(['ServiceForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
-
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Services'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
-
-        // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
-        $container->add($panel);
+        $container->add($header);
+        $container->add(CvNav::tabs('services', 'services'));
+        $container->add(CvPage::columns($main, $this->detailBox));
 
-        parent::add($page_header);
         parent::add($container);
     }
 
     /**
-     * method onReload()
-     * Loads the datagrid exclusively from
-     * CentralVet\Application\ServiceCatalogService::listActive() — the
-     * tenant scoping happens inside that service/repository, never here.
+     * Carrega tabela, rodapé e painel de detalhe a partir de ServiceCatalogService.
      */
-    public function onReload($param = NULL)
+    public function onReload($param = null)
     {
-        if (!isset($this->datagrid))
-        {
-            return;
-        }
+        $param = is_array($param) ? $param : [];
 
         try
         {
-            // open a transaction with database
             TTransaction::open('permission');
 
-            $catalog = self::buildServiceCatalogService();
-
-            // every row this listing can ever show comes from this call
+            $catalog  = self::buildServiceCatalogService();
             $services = $catalog->listActive();
 
-            $name_filter = TSession::getValue('Service_filter_name');
-            $name_filter = !empty($name_filter) ? mb_strtolower((string) $name_filter) : null;
+            $this->filters = self::readFilters($param);
+
+            // categorias existentes no catálogo do tenant
+            $categories = [];
+            foreach ($services as $service)
+            {
+                $name = (string) $service->category();
+                if ($name !== '')
+                {
+                    $categories[$name] = $name;
+                }
+            }
+            ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
+            $this->category->addItems($categories);
 
             $rows = [];
             foreach ($services as $service)
             {
-                if ($name_filter !== null && mb_strpos(mb_strtolower($service->name()), $name_filter) === false)
+                if (self::matches($service, $this->filters))
                 {
-                    continue;
+                    $rows[] = $service;
                 }
-
-                $row = new stdClass;
-                $row->id                = $service->id();
-                $row->name              = $service->name();
-                $row->category          = $service->category();
-                $row->duration_minutes  = $service->durationMinutes();
-                $row->price             = number_format($service->priceCents() / 100, 2, ',', '.');
-                $row->status_label      = $service->isActive() ? _t('Active') : _t('Inactive');
-
-                $rows[] = $row;
             }
 
-            // total count for this tenant, as returned by listActive()
-            // (after the optional name filter, mirroring TStandardList's
-            // own filtered-count semantics)
-            $count = count($rows);
+            $total  = count($rows);
+            $limit  = self::LIMIT;
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+            if ($offset >= $total)
+            {
+                $offset = 0;
+            }
+            $page_rows = array_slice($rows, $offset, $limit);
 
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
-            $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
+            // serviço do painel: service_id informado ou o primeiro da página
+            $selected = null;
+            $requested = isset($param['service_id']) ? (int) $param['service_id'] : 0;
+            if ($requested > 0)
+            {
+                $selected = $catalog->findById($requested);
+            }
+            if ($selected === null && !empty($page_rows))
+            {
+                $selected = $page_rows[0];
+            }
+            $this->selectedId = $selected ? $selected->id() : null;
 
-            $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
+            $this->pagination = ['offset' => $offset, 'page' => $param['page'] ?? null];
 
             $this->datagrid->clear();
-            foreach ($page_rows as $row)
+            foreach ($page_rows as $service)
             {
+                $row = new stdClass;
+                $row->id               = $service->id();
+                $row->name             = $service->name();
+                $row->category         = $service->category();
+                $row->price_cents      = $service->priceCents();
+                $row->duration_minutes = $service->durationMinutes();
+                $row->active           = $service->isActive() ? 1 : 0;
                 $this->datagrid->addItem($row);
             }
 
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
+            $this->pageNavigation->setAction(new TAction([$this, 'onReload'], $this->filters));
+            $this->pageNavigation->setCount($total);
+            $this->pageNavigation->setProperties($param);
+            $this->pageNavigation->setLimit($limit);
 
-            // close the transaction
+            $from = $total > 0 ? $offset + 1 : 0;
+            $to   = $offset + count($page_rows);
+            $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $to, $total, _t('services')));
+
+            $this->detailBox->add($this->buildDetailPanel($selected));
+
+            $this->filterForm->setData((object) $this->filters);
+
             TTransaction::close();
             $this->loaded = true;
-
-            return $rows;
-        }
-        catch (Exception $e) // in case of exception
-        {
-            // shows the exception error message
-            new TMessage('error', $e->getMessage());
-            // undo all pending operations
-            TTransaction::rollback();
-        }
-    }
-
-    /**
-     *
-     */
-    public function onAfterSearch($datagrid, $options)
-    {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
-        }
-
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            $obj = new stdClass;
-            $obj->name = TSession::getValue(get_class($this).'_filter_data')->name;
-            TForm::sendData('form_search_name', $obj);
-        }
-    }
-
-    /**
-     *
-     */
-    public static function onChangeLimit($param)
-    {
-        TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
-        AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
         }
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
+            TTransaction::rollback();
         }
     }
 
+    public function show()
+    {
+        if (!$this->loaded && (!isset($_GET['method']) || $_GET['method'] !== 'onReload'))
+        {
+            $this->onReload(func_num_args() > 0 ? func_get_arg(0) : $_GET);
+        }
+
+        parent::show();
+    }
+
     /**
-     * Builds the Application service with its dependencies. Requires an
-     * already-open TTransaction('permission') connection.
+     * Torna a linha clicável (troca o painel) e marca a selecionada.
+     */
+    private function linkRow($object, $row, $cell): void
+    {
+        if (!is_object($object) || empty($object->id))
+        {
+            return;
+        }
+
+        $cell->{'href'}      = $this->selectUrl((int) $object->id);
+        $cell->{'generator'} = 'adianti';
+        $cell->{'style'}     = 'cursor: pointer';
+
+        // BootstrapDatagridWrapper descarta 'class' das linhas e reaplica 'className'
+        if ((int) $object->id === (int) $this->selectedId)
+        {
+            $row->{'className'} = 'table-active';
+            $row->{'aria-selected'} = 'true';
+        }
+    }
+
+    private function selectUrl(int $service_id): string
+    {
+        $query = array_merge(
+            ['class' => 'ServiceList', 'method' => 'onReload'],
+            $this->filters,
+            array_filter(['offset' => $this->pagination['offset'] ?: null, 'page' => $this->pagination['page']], fn ($v) => $v !== null && $v !== ''),
+            ['service_id' => $service_id]
+        );
+
+        return 'index.php?' . http_build_query($query);
+    }
+
+    private function buildDetailPanel($service): TElement
+    {
+        if ($service === null)
+        {
+            return CvCard::create(_t('Service'), TElement::tag('p', CvFormat::e(_t('No services found')), ['class' => 'text-muted mb-0']));
+        }
+
+        $id = (int) $service->id();
+
+        $content = new TElement('div');
+        $content->add(CvPage::tabs([
+            'data'     => ['label' => _t('Data'),     'href' => $this->selectUrl($id)],
+            'prices'   => ['label' => _t('Prices'),   'href' => null],
+            'links'    => ['label' => _t('Links'),    'href' => null],
+            'history'  => ['label' => _t('History'),  'href' => null],
+        ], 'data'));
+
+        $category = (string) $service->category();
+
+        $list = new TElement('dl');
+        $list->{'class'} = 'row mb-3 mt-3';
+        $fields = [
+            [_t('Category'),           $category === '' ? '—' : CvBadge::create($category, 'info')],
+            [_t('Standard price'),     CvFormat::e(CvFormat::money($service->priceCents()))],
+            [_t('Estimated duration'), CvFormat::e(self::formatDuration($service->durationMinutes()))],
+            [_t('Status'),             self::statusBadge($service->isActive())],
+        ];
+        foreach ($fields as [$label, $value])
+        {
+            $list->add(TElement::tag('dt', CvFormat::e($label), ['class' => 'col-5 text-muted fw-normal']));
+            $list->add(TElement::tag('dd', $value, ['class' => 'col-7']));
+        }
+        $content->add($list);
+
+        $edit = new TElement('a');
+        $edit->{'class'}     = 'btn btn-primary';
+        $edit->{'href'}      = 'index.php?class=ServiceForm&method=onEdit&id=' . $id;
+        $edit->{'generator'} = 'adianti';
+        $edit->add(new TImage('far:edit'));
+        $edit->add(TElement::tag('span', CvFormat::e(_t('Edit')), ['class' => 'ms-1']));
+        $content->add($edit);
+
+        $panel = CvCard::create($service->name(), $content);
+        $panel->{'data-service-id'} = (string) $id;
+
+        return $panel;
+    }
+
+    /**
+     * 30 → "30 min"; 90 → "1h 30min"; 60 → "1h".
+     */
+    private static function formatDuration(int $minutes): string
+    {
+        if ($minutes < 60)
+        {
+            return $minutes . ' min';
+        }
+
+        $hours = intdiv($minutes, 60);
+        $rest  = $minutes % 60;
+
+        return $rest === 0 ? $hours . 'h' : $hours . 'h ' . $rest . 'min';
+    }
+
+    private static function statusBadge(bool $active): TElement
+    {
+        return $active ? CvBadge::create(_t('Active'), 'success') : CvBadge::create(_t('Inactive'), 'neutral');
+    }
+
+    /**
+     * @return array<string, string> só filtros preenchidos e válidos
+     */
+    private static function readFilters(array $param): array
+    {
+        $filters = [];
+
+        $search = trim((string) ($param['search'] ?? ''));
+        if ($search !== '')
+        {
+            $filters['search'] = $search;
+        }
+
+        $category = trim((string) ($param['category'] ?? ''));
+        if ($category !== '')
+        {
+            $filters['category'] = $category;
+        }
+
+        $status = (string) ($param['status'] ?? '');
+        if (in_array($status, ['active', 'inactive'], true))
+        {
+            $filters['status'] = $status;
+        }
+
+        return $filters;
+    }
+
+    private static function matches($service, array $filters): bool
+    {
+        if (isset($filters['search']) && mb_stripos($service->name(), $filters['search']) === false)
+        {
+            return false;
+        }
+
+        if (isset($filters['category']) && (string) $service->category() !== $filters['category'])
+        {
+            return false;
+        }
+
+        if (isset($filters['status']) && $service->isActive() !== ($filters['status'] === 'active'))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Monta o serviço de aplicação. Exige TTransaction('permission') aberta.
      */
     private static function buildServiceCatalogService()
     {
@@ -298,11 +415,8 @@ class ServiceList extends TStandardList
     }
 
     /**
-     * Resolves the tenant context of the authenticated session (T-03).
-     * Falls back to the tenant_user membership table for legacy sessions
-     * created before this task, since TSession does not carry 'tenantid'
-     * yet (LoginForm.php / ApplicationAuthenticationService::loadSessionVars()
-     * are out of scope for this task).
+     * Resolve o tenant da sessão autenticada; sessões legadas sem 'tenantid'
+     * caem no vínculo tenant_user.
      */
     private static function resolveTenantContext()
     {
@@ -321,11 +435,9 @@ class ServiceList extends TStandardList
                 throw $e;
             }
 
-            TTransaction::open('permission');
             $stmt = TTransaction::get()->prepare('SELECT tenant_id FROM tenant_user WHERE system_user_id = :userid ORDER BY id ASC LIMIT 1');
             $stmt->execute(['userid' => (int) $userid]);
             $tenant_id = $stmt->fetchColumn();
-            TTransaction::close();
 
             if (empty($tenant_id))
             {
