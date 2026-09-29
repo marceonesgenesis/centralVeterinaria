@@ -41,7 +41,7 @@ class PayableForm extends TStandardForm
         $this->form->enableClientValidation();
 
         // create the form fields
-        $id = new TEntry('id');
+        $id = new THidden('id');
         $description_text = new TEntry('description_text');
         $category = new TEntry('category');
         $amount = new TEntry('amount');
@@ -55,9 +55,11 @@ class PayableForm extends TStandardForm
         // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
         $this->form->addFields( [new TLabel(_t('Description'))], [$description_text] );
         $this->form->addFields( [new TLabel(_t('Category'))], [$category], [new TLabel(_t('Amount'))], [$amount] );
-        $this->form->addFields( [new TLabel(_t('Due date'))], [$due_date], [new TLabel('Id')], [$id] );
+        $this->form->addFields( [new TLabel(_t('Due date'))], [$due_date] );
 
-        $id->setEditable(FALSE);
+        // id só para o fluxo editar/salvar, fora do layout visível
+        $hidden_row = $this->form->addFields( [$id] );
+        $hidden_row->style = 'display: none';
         $amount->setNumericMask(2, ',', '.');
 
         $description_text->addValidation( _t('Description'), new TRequiredValidator );

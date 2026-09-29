@@ -56,7 +56,7 @@ class FinancialEntryForm extends TStandardForm
         $this->form->enableClientValidation();
 
         // create the form fields
-        $id = new TEntry('id');
+        $id = new THidden('id');
         $entry_type = new TCombo('entry_type');
         $entry_type->addItems([
             \CentralVet\Domain\FinancialEntry::TYPE_INCOME  => _t('Income'),
@@ -69,9 +69,11 @@ class FinancialEntryForm extends TStandardForm
 
         // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
         $this->form->addFields( [new TLabel(_t('Type'))], [$entry_type], [new TLabel(_t('Category'))], [$category] );
-        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount], [new TLabel('Id')], [$id] );
+        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount] );
 
-        $id->setEditable(FALSE);
+        // id só para o fluxo editar/salvar, fora do layout visível
+        $hidden_row = $this->form->addFields( [$id] );
+        $hidden_row->style = 'display: none';
         $amount->setNumericMask(2, ',', '.');
 
         $entry_type->addValidation( _t('Type'), new TRequiredValidator );
