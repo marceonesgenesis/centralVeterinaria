@@ -13,7 +13,7 @@ use InvalidArgumentException;
  * table does not exist yet (migration T-01 not applied), so
  * StockServiceTest/SaleServiceTest exercise their services against this
  * instead of a real database. Tenant-scoped like the real
- * ProductRepository (ADR 0002): findById()/findActive()/findByName() only
+ * ProductRepository (ADR 0002): findById()/findActive()/findByName()/findByCode() only
  * ever return a product whose tenantId() matches this instance's own
  * $tenantId.
  */
@@ -59,6 +59,17 @@ final class FakeProductRepository implements ProductRepositoryInterface
     {
         foreach ($this->products as $product) {
             if ($product->tenantId() === $this->tenantId && $product->name() === $name) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
+    public function findByCode(string $code): ?object
+    {
+        foreach ($this->products as $product) {
+            if ($product->tenantId() === $this->tenantId && $product->code() === $code) {
                 return $product;
             }
         }

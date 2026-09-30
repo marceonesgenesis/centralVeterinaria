@@ -49,7 +49,7 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         $patientA = $this->createPatient($this->tenantA, $tutorA, 'F10 Rex');
 
         $racao = $this->createProduct($this->tenantA, 'F10 Racao', 'Alimentos', 5);
-        $vermifugo = $this->createProduct($this->tenantA, 'F10 Vermifugo', 'Farmacia', 2);
+        $vermifugo = $this->createProduct($this->tenantA, 'F10 Vermifugo', 'Farmacia', 2, 1990, 'R2-T');
         $this->createProduct($this->tenantA, 'F10 Coleira', 'Acessorios', 1);
         $productB = $this->createProduct($this->tenantB, 'F10 Produto B', 'Alimentos', 1);
 
@@ -123,6 +123,10 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(5.0, $byName['F10 Racao']['minimum_stock_quantity']);
         Assert::same('Alimentos', $byName['F10 Racao']['category']);
         Assert::same('normal', $byName['F10 Vermifugo']['status']);
+        Assert::same(1990, $byName['F10 Vermifugo']['sale_price_cents']);
+        Assert::same('R2-T', $byName['F10 Vermifugo']['code']);
+        Assert::null($byName['F10 Racao']['sale_price_cents'], 'Product without sale price yields null');
+        Assert::null($byName['F10 Racao']['code'], 'Product without code yields null');
         Assert::same('out', $byName['F10 Coleira']['status']);
         Assert::same(0.0, $byName['F10 Coleira']['stock_quantity']);
 
@@ -245,11 +249,17 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         return (int) $this->pdo->lastInsertId();
     }
 
-    private function createProduct(int $tenantId, string $name, string $category, int $minimum): int
-    {
+    private function createProduct(
+        int $tenantId,
+        string $name,
+        string $category,
+        int $minimum,
+        ?int $salePriceCents = null,
+        ?string $code = null,
+    ): int {
         $statement = $this->pdo->prepare(
-            'INSERT INTO product (tenant_id, name, category, unit_of_measure, unit_cost_cents, minimum_stock_quantity)
-             VALUES (:tenant_id, :name, :category, :unit, :cost, :minimum)',
+            'INSERT INTO product (tenant_id, name, category, unit_of_measure, unit_cost_cents, minimum_stock_quantity, sale_price_cents, code)
+             VALUES (:tenant_id, :name, :category, :unit, :cost, :minimum, :sale_price, :code)',
         );
         $statement->execute([
             'tenant_id' => $tenantId,
@@ -258,6 +268,8 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
             'unit' => 'un',
             'cost' => 100,
             'minimum' => $minimum,
+            'sale_price' => $salePriceCents,
+            'code' => $code,
         ]);
 
         return (int) $this->pdo->lastInsertId();
