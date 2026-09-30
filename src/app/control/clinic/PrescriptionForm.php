@@ -136,8 +136,9 @@ class PrescriptionForm extends TPage
                 if ($this->savedPrescriptionId !== null)
                 {
                     $pdfLink = new TElement('a');
-                    $pdfLink->href = 'index.php?class=PrescriptionForm&method=onGeneratePdf&prescription_id=' . $this->savedPrescriptionId;
+                    $pdfLink->href = 'engine.php?class=PrescriptionForm&method=onGeneratePdf&static=1&prescription_id=' . $this->savedPrescriptionId;
                     $pdfLink->target = '_blank';
+                    $pdfLink->rel = 'noopener';
                     $pdfLink->class = 'btn btn-sm btn-outline-secondary';
                     $pdfLink->style = 'margin-bottom: var(--cv-space-3)';
                     $pdfLink->add(new TImage('fa:file-pdf'));

@@ -186,7 +186,7 @@ class SaleForm extends TPage
         {
             // widget pronto (sem generator="adianti"): o PDF abre em nova aba
             $pdfLink = new TElement('a');
-            $pdfLink->{'href'}   = CvFormat::e('index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=' . $this->savedSaleId);
+            $pdfLink->{'href'}   = CvFormat::e('engine.php?class=SaleForm&method=onGenerateReceiptPdf&static=1&sale_id=' . $this->savedSaleId);
             $pdfLink->{'target'} = '_blank';
             $pdfLink->{'rel'}    = 'noopener';
             $pdfLink->{'class'}  = 'btn btn-outline-secondary';
