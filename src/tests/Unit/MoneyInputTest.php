@@ -75,6 +75,14 @@ final class MoneyInputTest
     public function testLeadingZerosDoNotCountTowardsTheDigitLimit(): void
     {
         Assert::same(50, MoneyInput::toCents('00000000000000,50'));
+        // T-54: zeros à esquerda saem antes do teto de MAX_INTEGER_DIGITS.
+        Assert::same(1234, MoneyInput::toCents('0000000000000012,34'));
+        Assert::same(50, MoneyInput::toCents('0,50'));
+        Assert::same(0, MoneyInput::toCents('0'));
+        Assert::same(0, MoneyInput::toCents('0000000000000000'));
+        // 14 dígitos significativos continuam acima do teto.
+        self::assertInvalidAmount('99999999999999,00', false);
+        self::assertInvalidAmount('0099999999999999,00', false);
     }
 
     private static function assertInvalidAmount(string $raw, bool $allowNegative, ?int $maxCents = null): void
