@@ -8,6 +8,7 @@ use CentralVet\Application\FinancialEntryService;
 use CentralVet\Application\PaymentService;
 use CentralVet\Domain\CashSession;
 use CentralVet\Domain\Exception\OverpaymentException;
+use CentralVet\Domain\FinancialEntry;
 use CentralVet\Domain\Payment;
 use CentralVet\Domain\Receivable;
 use CentralVet\Tenancy\TenantContext;
@@ -18,6 +19,7 @@ use CentralVet\Tests\Support\FakeFinancialEntryRepository;
 use CentralVet\Tests\Support\FakePaymentRepository;
 use CentralVet\Tests\Support\FakeReceivableRepository;
 use DateTimeImmutable;
+use InvalidArgumentException;
 
 /**
  * Unit tests for PaymentService::register() (T-06), against fakes of every
@@ -172,5 +174,69 @@ final class PaymentServiceTest
         Assert::true(in_array($openReceivableId, $openIds, true), 'Open receivable must be listed');
         Assert::true(in_array($partiallyPaidReceivable->id(), $openIds, true), 'Partially paid receivable must be listed');
         Assert::true(!in_array($paidReceivable->id(), $openIds, true), 'Fully paid receivable must not be listed');
+    }
+
+    /**
+     * T-14: register() with 'pix' writes one income financial_entry whose
+     * payment_method is 'pix', while category keeps the method as before
+     * (the donut and the labels read category and must not change).
+     */
+    public function testRegisterRecordsPaymentMethodOnFinancialEntryKeepingCategory(): void
+    {
+        [$service, $receivableId, $cashSessionId, , , $financialEntries] = $this->buildService();
+
+        $service->register($receivableId, $cashSessionId, Payment::METHOD_PIX, 2500, 1, self::ACTION);
+
+        $entries = $financialEntries->listBySystemUnitAndPeriod(self::UNIT_ID, '2000-01-01', '2999-12-31');
+        Assert::count(1, $entries);
+        Assert::same(FinancialEntry::TYPE_INCOME, $entries[0]->entryType());
+        Assert::same('pix', $entries[0]->paymentMethod());
+        Assert::same('pix', $entries[0]->category());
+    }
+
+    /**
+     * T-14: FinancialEntry::record() rejects a payment method outside the
+     * Payment::METHOD_* list with the exact message.
+     */
+    public function testFinancialEntryRecordRejectsUnknownPaymentMethod(): void
+    {
+        $message = null;
+
+        try {
+            FinancialEntry::record(
+                tenantId: self::TENANT_ID,
+                systemUnitId: self::UNIT_ID,
+                entryType: FinancialEntry::TYPE_EXPENSE,
+                category: 'supplies',
+                amountCents: 100,
+                referenceType: null,
+                referenceId: null,
+                occurredAt: new DateTimeImmutable(),
+                systemUserId: 1,
+                paymentMethod: 'cheque',
+            );
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('payment_method must be one of: cash, debit_card, credit_card, pix, bank_transfer', $message);
+    }
+
+    /** T-14: payment_method is optional; omitted, it stays null. */
+    public function testFinancialEntryRecordWithoutPaymentMethodKeepsNull(): void
+    {
+        $entry = FinancialEntry::record(
+            tenantId: self::TENANT_ID,
+            systemUnitId: self::UNIT_ID,
+            entryType: FinancialEntry::TYPE_EXPENSE,
+            category: 'supplies',
+            amountCents: 100,
+            referenceType: null,
+            referenceId: null,
+            occurredAt: new DateTimeImmutable(),
+            systemUserId: 1,
+        );
+
+        Assert::null($entry->paymentMethod());
     }
 }
