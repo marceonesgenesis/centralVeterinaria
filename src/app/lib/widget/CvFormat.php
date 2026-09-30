@@ -49,11 +49,11 @@ class CvFormat
     public static function paymentMethod(string $value): string
     {
         $labels = [
-            'cash'          => 'Cash',
-            'debit_card'    => 'Debit card',
-            'credit_card'   => 'Credit card',
-            'pix'           => 'Pix',
-            'bank_transfer' => 'Bank transfer',
+            \CentralVet\Domain\Payment::METHOD_CASH          => 'Cash',
+            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD    => 'Debit card',
+            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD   => 'Credit card',
+            \CentralVet\Domain\Payment::METHOD_PIX           => 'Pix',
+            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => 'Bank transfer',
         ];
 
         return isset($labels[$value]) ? _t($labels[$value]) : $value;

@@ -273,11 +273,11 @@ class PaymentForm extends TPage
 
         $payment_method = new TCombo('payment_method');
         $payment_method->addItems([
-            \CentralVet\Domain\Payment::METHOD_CASH => _t('Cash'),
-            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD => _t('Debit card'),
-            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD => _t('Credit card'),
-            \CentralVet\Domain\Payment::METHOD_PIX => _t('Pix'),
-            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => _t('Bank transfer'),
+            \CentralVet\Domain\Payment::METHOD_CASH => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CASH),
+            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_DEBIT_CARD),
+            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CREDIT_CARD),
+            \CentralVet\Domain\Payment::METHOD_PIX => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_PIX),
+            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_BANK_TRANSFER),
         ]);
         $payment_method->setSize('100%');
         $payment_method->addValidation(_t('Payment method'), new TRequiredValidator);
