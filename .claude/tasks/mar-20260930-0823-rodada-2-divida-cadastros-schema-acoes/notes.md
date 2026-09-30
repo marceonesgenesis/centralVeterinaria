@@ -22,9 +22,17 @@
 - 2026-09-30 · T-03 · onda 1 — Revisor aceitou as duas escolhas: id excluído, de outro tenant ou de outro paciente devolve null; no empate de started_at conta como anterior o id menor.
 - 2026-09-30 · T-07 · onda 1 — Falhas de RedisQueue durante a onda vieram de concorrência entre execuções paralelas da suíte, não de regressão: o gate deu 232/232.
 - 2026-09-30 · onda 1 — O orquestrador rebuildou o container (app/worker/nginx) antes do gate de navegador.
+- 2026-09-30 · T-01 · entre as ondas 1 e 2 — Com aprovação SQL do usuário, o orquestrador aplicou a 0007 (MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679) e o sql/T-01-programs.sql (programas 106–108; CvShellController nos grupos 2 e 3). Ver Bloqueios (resolvido).
+- 2026-09-30 · onda 2 — Ambiente: o orquestrador rebuildou app/worker, subiu o profile minio e criou o bucket `centralvet-local`. O login admin do Playwright foi feito pelo orquestrador; nenhuma credencial registrada.
+- 2026-09-30 · T-12 · onda 2 — Achado HIGH (XSS armazenado via Content-Type da foto) corrigido na task por relay (4d719ca): whitelist JPEG/PNG/WEBP com getimagesize, Content-Type só da whitelist, nosniff, CSP sandbox, SVG recusado. Gate confirmou; revisor marcou conformidade "desvio" sem bloqueante (reviews/T-12.md).
+- 2026-09-30 · T-15 · onda 2 — Ruling plano-mandou: a autorização por unidade fica em T-15, não em T-22. Fix loop rodada 1: serviço e repositório filtram por TenantContext::unitId(); conta de outra unidade = não encontrada. T-20 e T-22 precisam de contexto com unidade.
+- 2026-09-30 · T-10 e demais · onda 2 — "Message not found" de chaves novas (copy, Import, Duplicate etc.) fica para T-23; não reprova.
+- 2026-09-30 · T-17 · onda 2 — Gate de navegador do menu da fila não rodado: fila vazia e sem caminho pela UI para criar entrada. Evidência é o render do datagrid; a verificação pela UI vai para a QA de T-24. appointment_id=0 no encaixe aceito.
+- 2026-09-30 · onda 2 — A varredura Playwright da validação cruzada foi considerada coberta pelos gates/complementos (console 0 error, rede sem 4xx/5xx). Os 403 de onSwitchUnit da sessão antiga não se repetiram.
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
+- Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
 
 ## Descobertas
 - Não há CLAUDE.md no projeto. As regras estão em `src/app/Core/README.md`, `docs/runbooks/*.md` e `src/app/database/migrations/README.md`.
@@ -40,6 +48,14 @@
 - [T-09] A conexão do banco da clínica no TTransaction é 'permission', não 'centralvet'.
 - [T-01] Migration 0007 redigida (b532c63) e não aplicada; DML em `sql/T-01-programs.sql`: BankAccountList=106, BankAccountForm=107, ServiceImportForm=108 (grupo 1) e CvShellController(105) para os grupos 2 e 3.
 - [T-07] `PatientService::update` monta `new Patient(...)` com argumentos nomeados; T-12 deve repassar alergia e foto ali, senão o UPDATE as zera. Edição via `onEdit&key=<id>&tutor_id=<tutor>`, com onSave desviando para `saveExisting`.
+- [T-10] ServiceList ganhou onDuplicate, onAskDelete (static, TQuestion) e onDelete; ServiceImportForm::onImport lê tmp/<csv_file>; a cópia sai com "Message not found: copy" até T-23.
+- [T-11] Product::salePriceCents()/code(), ProductRepositoryInterface::findByCode e ProductService::create/update(..., ?int $salePriceCents, ?string $code); StockSalesOverviewReader::productStocks() devolve também 'code' e 'sale_price_cents' (T-21 consome).
+- [T-12] PatientService::attachPhoto/photo e constantes PHOTO_CONTENT_TYPES/PHOTO_MAX_BYTES; foto servida por PatientForm::onPhoto (static=1&key=<id>); T-18 pode reusar o src.
+- [T-13] Prescription::validUntil(); PrescriptionService::create aceita 'valid_until'; PrescriptionTemplate/Service/Repository prontos (saveFromItems/listAll/findById).
+- [T-14] FinancialEntry::paymentMethod() e ?string $paymentMethod por último em record/reconstitute/FinancialEntryService::record; T-20 pode ler nos recentes.
+- [T-15] BankAccountService: create/update/listByUnit/findById/totalBalanceCents(unit) → ?int; restrito à unidade corrente (serviço e repositório).
+- [T-16] EncounterService::pause/resume(int $id, string $action, ?DateTimeImmutable $now = null); Encounter::isPaused()/pausedAt()/pausedSeconds(); finish() de pausado soma o trecho.
+- [T-17] QueueEntryView: linha tem patient_id e appointment_id (0 no encaixe); menu com Editar paciente e Editar agendamento (só se appointment_id ≠ 0).
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -64,6 +80,17 @@
 - Validador (onda 1): PatientForm com key=999999 mantém os radios de espécie e sexo editáveis, mas sem botão Salvar.
 - Validador (onda 1): T-05 sem contagem numérica de `<option>` da BASE; a comparação foi contra o banco.
 - `sql/T-01-programs.sql` estava sem commit; entra no chore(tasks) desta onda.
+- T-10: Duplicar grava via GET sem confirmação; `getMessage()` cru do Core em inglês em onDuplicate/onDelete/onImport; `catch (DomainException)` amplo em onDelete; fallback de tenant_user copiado pela terceira vez em ServiceImportForm.
+- T-11: sem teste de integração de INSERT/findByCode do ProductRepository; asserção vazia em testUpdateRejectsProductOfAnotherTenant (ProductServiceTest:98); Fake findByCode sensível a caixa e o banco não; shapes de @return de StockSalesOverviewService sem code/sale_price_cents.
+- T-12: header `X-Content-Type-Options: nosniff, nosniff` duplicado (nginx + PHP, cosmético); UPDATE do repositório grava sempre as colunas da foto (um save() com Patient sem foto apagaria); correção de segurança sem teste automatizado de uploadedPhoto/onPhoto; foto antiga fica órfã no storage ao trocar; Cache-Control 300s pode mostrar foto antiga; style inline na pré-visualização.
+- T-13: modelo aceita campo de item vazio e não valida tamanhos (varchar) — vira PDOException; checagem de duplicado não atômica; sem teste de integração de prescription.valid_until; listAll com N+1; mensagem de duplicado usa o nome já com trim.
+- T-14: lista de formas de pagamento repetida em FinancialEntry::PAYMENT_METHODS e FinancialEntryForm (Payment::METHODS é private); sem teste de integração de payment_method no FinancialEntryRepository; gate usou receita Pix R$ 12,34, não a despesa do critério.
+- T-15: sugestão de revisão sobre `(int)` silencioso em balance_cents tratada no fix loop; sem pendência aberta.
+- T-16: paused_at/paused_seconds sem teste contra o banco; accumulatePause descarta em silêncio $now anterior a pausedAt, sem teste do clamp.
+- T-17: render do menu por linha vem só do relatório (script não versionado); comentário em QueueEntryView.php:92 diz appointment_id nulo, mas o valor é 0.
+- Validador (onda 2): o agendamento de teste 3 (paciente 2772, serviço 3) não aparece na grade da Agenda de 30/09 e não pode ser removido pela UI; enquanto existir, o serviço 3 não pode ser excluído. Investigar na QA (T-24) se é bug da AgendaView.
+- Validador (onda 2): PatientForm key=999999 mantém os radios editáveis (onda 1, mantido).
+- Validador (onda 2): gate de navegador do menu da fila (T-17) não rodado; verificar na QA de T-24.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -76,6 +103,7 @@
 
 ## Dados de teste
 - Registros "R2 varredura" criados pelo validador pela UI na onda 1: tutor id 3141 (T-06), paciente id 2772 (T-07) e agendamento id 2, remarcado para 2026-10-01 11:00 (T-08).
+- Registros da onda 2: serviços 3 (R2 varredura Serviço, inativo), 5 e 6 (importados); agendamento 3; financial_entry 5947 (Pix) e 5948; payment 113 (recebível 42 "Tutor Teste Levi", agora com R$ 1,00 pago); produto 946 (code R2-001, sale_price 1990); paciente 2772 com alergia Dipirona e foto no minio tenant/1/patient/2772/photo-r2-foto.png.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -84,5 +112,6 @@
 - BASE da onda 1: d6dce7a
 - Commits por onda:
   - Onda 1: BASE d6dce7a → HEAD c664c3f (b532c63, 7ad33ce, 180a03a, e521126, bc695d6, 7f449dc, f492567, fa0c143, 02e1c5f, 5681449, efaed8c, 4f197c9, 3c40dc4, 169233e, c664c3f)
-- Último status conhecido: onda 1 concluída (T-01 a T-09 [x]); migration 0007 e DML redigidos, NÃO aplicados.
-- Próxima onda recomendada: onda 2, só depois de aplicar a 0007 e o DML (aprovação SQL do usuário) e conferir com o `.verify.sql`.
+  - Onda 2: BASE b16bbbd → HEAD 181aac2 (348aead, 5388404, d36ea5c, 4d446a1, 1a1099d, 4d719ca, 8ce4e81, b2a31ff, 777018f, 46494e5, edaf460, 4003ce7, 5d6b1f1, 181aac2, e419b9c, e79489f, 160526b)
+- Último status conhecido: onda 2 concluída (T-10 a T-17 [x]); migration 0007 e DML aplicados.
+- Próxima onda recomendada: onda 3 (T-18 a T-22), conforme dependências em tasks.md.

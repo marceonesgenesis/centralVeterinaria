@@ -11,14 +11,14 @@
 | T-07 | backend | Editar paciente: PatientService::update + PatientForm | — | sim | média | Naruto | [x] |
 | T-08 | backend | Editar agendamento: AppointmentService::reschedule + AppointmentForm | — | sim | alta | Kratos | [x] |
 | T-09 | backend | ServiceCatalogService: create com active, duplicate, delete, importCsv | — | sim | alta | Platão | [x] |
-| T-10 | frontend | ServiceList Importar/Duplicar/Excluir, ServiceImportForm, ServiceForm em um write | T-01, T-09 | sim | média | Levi | [ ] |
-| T-11 | backend | Produto: preço de venda e código (Core + ProductForm) e testes de outro tenant | T-01 | sim | alta | Darwin | [ ] |
-| T-12 | backend | Paciente: alergia e foto (Core + PatientForm + onPhoto) | T-01, T-07 | sim | alta | Tesla | [ ] |
-| T-13 | backend | Prescrição: validade e modelos (Core) | T-01 | sim | alta | Platão | [ ] |
-| T-14 | backend | Forma de pagamento no lançamento (Core + FinancialEntryForm/List) | T-01 | sim | média | Arquimedes | [ ] |
-| T-15 | backend | Conta bancária com saldo (Core) | T-01 | sim | alta | Athena | [ ] |
-| T-16 | backend | Pausa de atendimento (Core) | T-01 | sim | média | Yoda | [ ] |
-| T-17 | frontend | Fila: Editar paciente e Editar agendamento | T-07, T-08 | sim | simples | Aang | [ ] |
+| T-10 | frontend | ServiceList Importar/Duplicar/Excluir, ServiceImportForm, ServiceForm em um write | T-01, T-09 | sim | média | Levi | [x] |
+| T-11 | backend | Produto: preço de venda e código (Core + ProductForm) e testes de outro tenant | T-01 | sim | alta | Darwin | [x] |
+| T-12 | backend | Paciente: alergia e foto (Core + PatientForm + onPhoto) | T-01, T-07 | sim | alta | Tesla | [x] |
+| T-13 | backend | Prescrição: validade e modelos (Core) | T-01 | sim | alta | Platão | [x] |
+| T-14 | backend | Forma de pagamento no lançamento (Core + FinancialEntryForm/List) | T-01 | sim | média | Arquimedes | [x] |
+| T-15 | backend | Conta bancária com saldo (Core) | T-01 | sim | alta | Athena | [x] |
+| T-16 | backend | Pausa de atendimento (Core) | T-01 | sim | média | Yoda | [x] |
+| T-17 | frontend | Fila: Editar paciente e Editar agendamento | T-07, T-08 | sim | simples | Aang | [x] |
 | T-18 | frontend | EncounterView: Pausar/Retomar, alergia/foto, onInlineAction, vazio após Finalizar | T-03, T-12, T-16 | sim | alta | Yoda | [ ] |
 | T-19 | frontend | PrescriptionForm: validade, Salvar como modelo, Aplicar modelo, estilos, onEdit | T-13 | sim | alta | Kratos | [ ] |
 | T-20 | frontend | FinancialOverview: saldo bancário, Exportar CSV, recentes no período, "vs. período anterior" | T-04, T-14, T-15 | sim | alta | Tesla | [ ] |
