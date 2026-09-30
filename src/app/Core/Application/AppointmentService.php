@@ -14,6 +14,7 @@ use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\SchedulingConflictException;
 use CentralVet\Domain\Service;
 use CentralVet\Tenancy\TenantContext;
+use CentralVet\Presentation\DateTimeInput;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -94,7 +95,7 @@ final class AppointmentService
         $systemUnitId = (int) $data['system_unit_id'];
         $scheduledAt = $data['scheduled_at'] instanceof DateTimeImmutable
             ? $data['scheduled_at']
-            : new DateTimeImmutable((string) $data['scheduled_at']);
+            : DateTimeInput::parse((string) $data['scheduled_at']);
 
         // Tenant-scoped lookups (ADR 0002): findById() returns null both when
         // the referenced row does not exist and when it belongs to another
@@ -197,7 +198,7 @@ final class AppointmentService
         $professionalId = (int) $data['professional_system_user_id'];
         $scheduledAt = $data['scheduled_at'] instanceof DateTimeImmutable
             ? $data['scheduled_at']
-            : new DateTimeImmutable((string) $data['scheduled_at']);
+            : DateTimeInput::parse((string) $data['scheduled_at']);
 
         $service = $this->services->findById($serviceId);
 

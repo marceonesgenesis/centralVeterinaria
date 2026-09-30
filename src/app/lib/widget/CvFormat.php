@@ -69,12 +69,24 @@ class CvFormat
 
     /**
      * Mensagem de erro para a tela, já segura para TMessage (HTML).
+     * PDOException ou SQLSTATE[ em $e ou em qualquer getPrevious() vira o
+     * texto genérico traduzido (regra antes das demais, T-53).
      * CrossTenantReferenceException vira texto traduzido e sem o id (a
      * mensagem original fica só no error_log do controller); as demais
      * seguem a regra de userMessage().
      */
     public static function userError(\Throwable $e): string
     {
+        // Falha de banco/driver (PDOException ou SQLSTATE em qualquer elo da
+        // cadeia): texto genérico, sem detalhe de SQL na tela (T-53).
+        for ($current = $e; $current !== null; $current = $current->getPrevious())
+        {
+            if ($current instanceof \PDOException || str_contains($current->getMessage(), 'SQLSTATE['))
+            {
+                return self::e(_t('Could not complete the operation. Please try again'));
+            }
+        }
+
         if ($e instanceof \CentralVet\Domain\Exception\CrossTenantReferenceException)
         {
             return _t('The selected record does not belong to this clinic');

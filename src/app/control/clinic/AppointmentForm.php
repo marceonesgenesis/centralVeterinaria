@@ -76,6 +76,10 @@ class AppointmentForm extends TPage
         // the only precedent (SystemUserForm.php's frontpage_id search).
         $professional_system_user_id = new TDBUniqueSearch('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
         $scheduled_at = new TDateTime('scheduled_at');
+        // d/m/Y na tela, Y-m-d H:i no post: sem máscara, "01/10/2026" digitado
+        // chegava cru ao serviço e virava 10/jan (T-53).
+        $scheduled_at->setMask('dd/mm/yyyy hh:ii');
+        $scheduled_at->setDatabaseMask('yyyy-mm-dd hh:ii');
 
         // add the fields (pares rótulo/campo em 2 colunas)
         $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
