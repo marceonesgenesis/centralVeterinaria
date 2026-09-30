@@ -283,6 +283,22 @@ class AgendaView extends TPage
         $table->add($thead);
 
         $tbody = new TElement('tbody');
+        $agenda_slots = self::agendaSlots();
+
+        // agrupa por linha da grade: horário fora do slot exato cai no slot
+        // anterior (14:21 → 14:00); fora da grade, no primeiro/último slot
+        $appointments_by_cell = [];
+
+        foreach ($professionals as $professional)
+        {
+            $appointments = $appointments_by_professional[$professional->id] ?? [];
+            usort($appointments, static fn ($a, $b) => $a->scheduledAt <=> $b->scheduledAt);
+
+            foreach ($appointments as $appointment)
+            {
+                $appointments_by_cell[$agenda_slots->slotFor($appointment->scheduledAt)][$professional->id][] = $appointment;
+            }
+        }
 
         foreach ($this->buildTimeSlots() as $slot)
         {
@@ -295,14 +311,10 @@ class AgendaView extends TPage
             foreach ($professionals as $professional)
             {
                 $cell = new TElement('td');
-                $appointments = $appointments_by_professional[$professional->id] ?? [];
 
-                foreach ($appointments as $appointment)
+                foreach ($appointments_by_cell[$slot][$professional->id] ?? [] as $appointment)
                 {
-                    if ($appointment->scheduledAt->format('H:i') === $slot)
-                    {
-                        $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names));
-                    }
+                    $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names));
                 }
 
                 $row->add($cell);
@@ -316,17 +328,15 @@ class AgendaView extends TPage
         return $table;
     }
 
+    private static function agendaSlots(): \CentralVet\Application\AgendaSlots
+    {
+        return new \CentralVet\Application\AgendaSlots(self::SLOT_START_MINUTES, self::SLOT_END_MINUTES, self::SLOT_STEP_MINUTES);
+    }
+
     /** @return string[] list of "H:i" slots between SLOT_START_MINUTES and SLOT_END_MINUTES */
     private function buildTimeSlots(): array
     {
-        $slots = [];
-
-        for ($minutes = self::SLOT_START_MINUTES; $minutes < self::SLOT_END_MINUTES; $minutes += self::SLOT_STEP_MINUTES)
-        {
-            $slots[] = sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
-        }
-
-        return $slots;
+        return self::agendaSlots()->slots();
     }
 
     /**
@@ -356,6 +366,9 @@ class AgendaView extends TPage
             : _t('Service') . ' #' . $service_id . ' (' . _t('not found') . ')';
 
         $block->add($badge);
+
+        // horário exato, já que a linha da grade é o slot arredondado
+        $block->add(TElement::tag('span', $appointment->scheduledAt->format('H:i'), ['class' => 'agenda-block-time']));
 
         // abre o agendamento em página cheia (AppointmentForm, modo leitura)
         $edit_link = TElement::tag('a', CvFormat::e($patient_label . ' - ' . $service_label), [
