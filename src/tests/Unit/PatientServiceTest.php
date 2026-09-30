@@ -443,15 +443,21 @@ final class PatientServiceTest
         };
         $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
 
-        // The failure goes to error_log; keep it out of the suite output.
-        $previousLog = ini_set('error_log', '/dev/null');
+        // The failure goes to error_log: capture it in a temp file (also keeps
+        // it out of the suite output) and assert key and message are logged.
+        $logFile = tempnam(sys_get_temp_dir(), 'cv-discard-photo-');
+        $previousLog = ini_set('error_log', $logFile);
         try {
             $service->discardPhoto('tenant/1/patient/1/photo-aaaaaaaaaaaa-foto.png');
+            $logged = (string) file_get_contents($logFile);
         } finally {
             ini_set('error_log', $previousLog === false ? '' : $previousLog);
+            @unlink($logFile);
         }
 
         Assert::same(1, $storage->deleteCalls);
+        Assert::stringContains('tenant/1/patient/1/photo-aaaaaaaaaaaa-foto.png', $logged, 'error_log must name the object key');
+        Assert::stringContains('storage down', $logged, 'error_log must carry the storage failure message');
     }
 
     public function testAttachPhotoRemovesNewObjectWhenSaveFails(): void
