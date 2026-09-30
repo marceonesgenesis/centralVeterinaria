@@ -19,6 +19,7 @@ use InvalidArgumentException;
 /**
  * PayableService::update() (fase 10, T-18 Correção 2): editar uma conta a
  * pagar atualiza o registro existente do tenant em vez de criar outro.
+ * PayableService::listByStatus() (T-28): filtro Em aberto/Pagas/Todas.
  */
 final class PayableServiceTest
 {
@@ -86,5 +87,31 @@ final class PayableServiceTest
         [$denied, $payables] = $this->buildService(false, self::openPayable());
         Assert::throws(AuthorizationDenied::class, fn () => $denied->update(1, 'X', 'Y', 100, null, self::ACTION));
         Assert::same('Luz', $payables->findById(1)->descriptionText());
+    }
+
+    /** @return list<int> */
+    private static function ids(array $payables): array
+    {
+        return array_map(static fn (Payable $p): int => (int) $p->id(), $payables);
+    }
+
+    public function testListByStatusFiltersOpenPaidAndAll(): void
+    {
+        $paid = self::openPayable();
+        $paid->markPaid(new \DateTimeImmutable());
+        [$service] = $this->buildService(true, self::openPayable(), $paid);
+
+        Assert::same([2], self::ids($service->listByStatus(self::UNIT_ID, Payable::STATUS_PAID)), 'paid returns only the paid payable');
+        Assert::same([1], self::ids($service->listByStatus(self::UNIT_ID, Payable::STATUS_OPEN)));
+        Assert::same([1, 2], self::ids($service->listByStatus(self::UNIT_ID, null)), 'null returns every status');
+        Assert::same([], $service->listByStatus(self::UNIT_ID, Payable::STATUS_CANCELLED));
+        Assert::same([1], self::ids($service->listOpen(self::UNIT_ID)), 'listOpen() keeps returning only open payables');
+    }
+
+    public function testListByStatusRejectsUnknownStatus(): void
+    {
+        [$service] = $this->buildService(true, self::openPayable());
+
+        Assert::throws(InvalidArgumentException::class, fn () => $service->listByStatus(self::UNIT_ID, 'xyz'));
     }
 }

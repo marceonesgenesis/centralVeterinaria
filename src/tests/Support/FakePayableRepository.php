@@ -11,7 +11,8 @@ use InvalidArgumentException;
 /**
  * In-memory double for PayableRepositoryInterface (fase 10, T-18).
  * Tenant-scoped like the real PayableRepository (ADR 0002): findById()/
- * listOpenBySystemUnit() only return payables of this instance's $tenantId.
+ * listOpenBySystemUnit()/listBySystemUnitAndStatus() only return payables
+ * of this instance's $tenantId.
  */
 final class FakePayableRepository implements PayableRepositoryInterface
 {
@@ -52,6 +53,17 @@ final class FakePayableRepository implements PayableRepositoryInterface
             fn (Payable $p): bool => $p->tenantId() === $this->tenantId
                 && $p->systemUnitId() === $systemUnitId
                 && $p->status() === Payable::STATUS_OPEN,
+        ));
+    }
+
+    /** @return list<Payable> */
+    public function listBySystemUnitAndStatus(int $systemUnitId, ?string $status): array
+    {
+        return array_values(array_filter(
+            $this->payables,
+            fn (Payable $p): bool => $p->tenantId() === $this->tenantId
+                && $p->systemUnitId() === $systemUnitId
+                && ($status === null || $p->status() === $status),
         ));
     }
 
