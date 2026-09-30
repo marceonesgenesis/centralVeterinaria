@@ -45,7 +45,7 @@ final class StockSalesOverviewReader extends AbstractTenantRepository
     }
 
     /**
-     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float}>
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int}>
      */
     public function productStocks(?string $search = null, ?string $category = null): array
     {
@@ -55,7 +55,7 @@ final class StockSalesOverviewReader extends AbstractTenantRepository
             $query = $query->andEquals('category', $category, 'p');
         }
 
-        $sql = 'SELECT p.id, p.name, p.category, p.unit_of_measure, p.minimum_stock_quantity, '
+        $sql = 'SELECT p.id, p.name, p.code, p.category, p.unit_of_measure, p.minimum_stock_quantity, p.sale_price_cents, '
             . 'COALESCE(SUM(b.quantity), 0) AS stock_quantity '
             . 'FROM product p '
             . 'LEFT JOIN stock_batch b ON b.product_id = p.id AND b.tenant_id = p.tenant_id '
@@ -67,7 +67,7 @@ final class StockSalesOverviewReader extends AbstractTenantRepository
             $parameters[':search_name'] = '%' . addcslashes(trim($search), '%_\\') . '%';
         }
 
-        $sql .= ' GROUP BY p.id, p.name, p.category, p.unit_of_measure, p.minimum_stock_quantity ORDER BY p.name ASC, p.id ASC';
+        $sql .= ' GROUP BY p.id, p.name, p.code, p.category, p.unit_of_measure, p.minimum_stock_quantity, p.sale_price_cents ORDER BY p.name ASC, p.id ASC';
 
         $statement = $this->connection->prepare($sql);
         $statement->execute($parameters);
@@ -82,6 +82,8 @@ final class StockSalesOverviewReader extends AbstractTenantRepository
                 'unit' => (string) $row['unit_of_measure'],
                 'stock_quantity' => (float) $row['stock_quantity'],
                 'minimum_stock_quantity' => (float) $row['minimum_stock_quantity'],
+                'code' => $row['code'] !== null ? (string) $row['code'] : null,
+                'sale_price_cents' => $row['sale_price_cents'] !== null ? (int) $row['sale_price_cents'] : null,
             ];
         }
 

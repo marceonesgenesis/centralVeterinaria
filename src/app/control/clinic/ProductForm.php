@@ -7,7 +7,8 @@
  * (index.php?class=ProductForm&method=onEdit&id=<id>).
  *
  * Criação e edição delegadas a CentralVet\Application\ProductService
- * (create()/update(), T-34). Leitura para edição via ProductService::findById()
+ * (create()/update(), T-34), com preço de venda (em centavos) e código
+ * (rodada 2, T-11). Leitura para edição via ProductService::findById()
  * (repositório escopado ao tenant), nunca pelo ActiveRecord Product. Depois de
  * salvar volta para ProductList.
  *
@@ -34,6 +35,8 @@ class ProductForm extends TPage
         // create the form fields
         $id = new THidden('id');
         $name = new TEntry('name');
+        $code = new TEntry('code');
+        $sale_price = new TEntry('sale_price');
         $category = new TEntry('category');
         $unit_of_measure = new TEntry('unit_of_measure');
         $unit_cost = new TEntry('unit_cost');
@@ -49,8 +52,12 @@ class ProductForm extends TPage
             [new TLabel(_t('Category'))], [$category]
         );
         $this->form->addFields(
-            [new TLabel(_t('Unit of measure'))], [$unit_of_measure],
-            [new TLabel(_t('Unit cost'))], [$unit_cost]
+            [new TLabel(_t('Code'))], [$code],
+            [new TLabel(_t('Unit of measure'))], [$unit_of_measure]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Unit cost'))], [$unit_cost],
+            [new TLabel(_t('Sale price'))], [$sale_price]
         );
         $this->form->addFields(
             [new TLabel(_t('Minimum stock quantity'))], [$minimum_stock_quantity],
@@ -58,6 +65,8 @@ class ProductForm extends TPage
         );
 
         $unit_cost->setNumericMask(2, ',', '.');
+        $sale_price->setNumericMask(2, ',', '.');
+        $code->setMaxLength(60);
         $minimum_stock_quantity->setNumericMask(0, '', '');
         $minimum_stock_quantity->setProperty('pattern', '[0-9]*');
         $active->setValue(1);
@@ -131,6 +140,8 @@ class ProductForm extends TPage
             $data->category = $product->category();
             $data->unit_of_measure = $product->unitOfMeasure();
             $data->unit_cost = number_format($product->unitCostCents() / 100, 2, ',', '.');
+            $data->sale_price = $product->salePriceCents() !== null ? number_format($product->salePriceCents() / 100, 2, ',', '.') : '';
+            $data->code = $product->code();
             $data->minimum_stock_quantity = $product->minimumStockQuantity();
             $data->active = $product->isActive() ? 1 : 0;
 
@@ -181,7 +192,9 @@ class ProductForm extends TPage
                     (string) $data->unit_of_measure,
                     self::toCents($data->unit_cost),
                     (int) $data->minimum_stock_quantity,
-                    $active
+                    $active,
+                    self::toNullableCents($data->sale_price ?? null),
+                    self::nullableString($data->code ?? null)
                 );
             }
             else
@@ -192,7 +205,9 @@ class ProductForm extends TPage
                     $data->category ?: null,
                     (string) $data->unit_of_measure,
                     self::toCents($data->unit_cost),
-                    (int) $data->minimum_stock_quantity
+                    (int) $data->minimum_stock_quantity,
+                    self::toNullableCents($data->sale_price ?? null),
+                    self::nullableString($data->code ?? null)
                 );
 
                 if (!$active)
@@ -250,6 +265,31 @@ class ProductForm extends TPage
         $normalized = str_replace(',', '.', $normalized);
 
         return (int) round(((float) $normalized) * 100);
+    }
+
+    /**
+     * Sale price is optional: blank field → null (no price informed),
+     * otherwise the same "1.234,56" → cents conversion as toCents().
+     */
+    private static function toNullableCents($amount)
+    {
+        if ($amount === null || trim((string) $amount) === '')
+        {
+            return null;
+        }
+
+        return self::toCents($amount);
+    }
+
+    /** Blank text field → null (Product::create() trims and nulls it too). */
+    private static function nullableString($value)
+    {
+        if ($value === null || trim((string) $value) === '')
+        {
+            return null;
+        }
+
+        return (string) $value;
     }
 
     /**
