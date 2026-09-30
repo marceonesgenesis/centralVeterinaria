@@ -52,8 +52,8 @@
 | T-48 | backend | Onda 9: MoneyInput compartilhado e BankAccountForm com teto | — | sim | média | Athena | [x] |
 | T-49 | backend | Onda 9: testes mais fortes de T-28, T-36 e T-38 | — | sim | simples | Arquimedes | [x] |
 | T-50 | frontend | Onda 10: MoneyInput nos 9 formulários com toCents | T-48 | sim | média | Darwin | [x] |
-| T-51 | frontend | Onda 10: mensagens de agendamento em pt e i18n da onda 10 | — | sim | simples | Platão | [ ] |
-| T-52 | backend | Onda 10: anexos do atendimento registrados em stored_object e listados | — | sim | alta | Sherlock | [ ] |
+| T-51 | frontend | Onda 10: mensagens de agendamento em pt e i18n da onda 10 | — | sim | simples | Platão | [x] |
+| T-52 | backend | Onda 10: anexos do atendimento registrados em stored_object e listados | — | sim | alta | Sherlock | [x] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.

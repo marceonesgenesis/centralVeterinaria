@@ -90,10 +90,20 @@
 - 2026-09-30 · T-49 · onda 9 — Incidente: o plano mandava provar o RED com sabotagem, e o implementador a aplicou no checkout compartilhado enquanto outros rodavam a suíte. A revisão de segurança automática detectou `// SABOTAGEM T-49`. O orquestrador parou a task, confirmou que nada foi commitado e mandou refazer a prova numa worktree isolada. Lição: mutação de prova só em worktree isolada, nunca no checkout compartilhado.
 - 2026-09-30 · onda 9 — Descobertas que viraram tasks da onda 10: T-51 (conflito de horário em inglês, AppointmentForm.php:225 cru, e as chaves de T-45) e T-52 (anexos não gravam em stored_object, a lista fica vazia).
 - 2026-09-30 · onda 9 — Validação cruzada final: LINT 20/20, SUITE 352/352, grep SABOTAGEM vazio (reviews/cruzada-onda-9.md).
+- 2026-09-30 · entre ondas 9 e 10 — Com aprovação SQL do usuário: backup var/backups/centralvet-20260930T203813Z.sql.gz (gzip -t ok); migration 0008 aplicada com MIGRATION_DB_USER, checksum 0929db346e0bd5c9d0ab680152de7cf544b22be9cc7da9f5e27d324d4efa8ad6; verify: queue_entry_appointment_uq criado, FK mantida, 0 grupos duplicados, queue_entry_rows=1 (dedupe afetou 0 linhas).
+- 2026-09-30 · T-41 · onda 10 — A violação da UNIQUE vira "Este agendamento já está na fila"; corrida Promise.all resultou em COUNT=1.
+- 2026-09-30 · T-50 · onda 10 — Fix loop 1: a máscara numérica trocava "abc" por 0,00 no cliente. Opção (a): sem máscara e sem filtro, com inputmode=decimal, maxlength e placeholder; o filtro oninput foi rejeitado porque fazia o campo vazio gravar 0.
+- 2026-09-30 · T-50 · onda 10 — Fix loop 2: PaymentForm, EncounterAccountForm e CashSessionForm perdiam o valor depois do erro; agora usam setData sem reload. O computador reiniciou no meio; um implementador novo revisou o diff não commitado, completou o CashSessionForm e commitou em f6f4538.
+- 2026-09-30 · T-50 · onda 10 — CashSessionForm onOpen com "abc" não foi testado no navegador (exigiria fechar um caixa real); vale a leitura do código.
+- 2026-09-30 · T-51 · onda 10 — Gravou as 4 chaves: conflito de horário, as 2 de T-45 e "Attachment not found" de T-52; fecha o bloqueio da onda 9.
+- 2026-09-30 · T-52 · onda 10 — Causa confirmada: nenhum código gravava em stored_object. Fix loop 1: chave única `<hex12>-<nome>` por anexo; o rollback apaga só o objeto novo.
+- 2026-09-30 · onda 10 — A sessão do navegador caiu de novo depois da suíte no gate (na onda 9 não caiu); causa desconhecida, não é o Redis de sessão (T-42). Pendência.
+- 2026-09-30 · onda 10 — Validação cruzada final: LINT 26/26, SUITE 365/365, i18n sem dup/missing, índice UNIQUE presente (reviews/cruzada-onda-10.md).
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
+- Resolvido (entre as ondas 9 e 10): 0008 (T-40) aplicada com aprovação SQL do usuário; backup var/backups/centralvet-20260930T203813Z.sql.gz, checksum 0929db346e0bd5c9d0ab680152de7cf544b22be9cc7da9f5e27d324d4efa8ad6; queue_entry_appointment_uq criado, 0 grupos duplicados, queue_entry_rows=1.
 
 ## Descobertas
 - Não há CLAUDE.md no projeto. As regras estão em `src/app/Core/README.md`, `docs/runbooks/*.md` e `src/app/database/migrations/README.md`.
@@ -138,6 +148,11 @@
 - Onda 9: PatientService::discardPhoto(string) público; PatientForm apaga a foto anterior só depois de TTransaction::close().
 - Onda 9: tests/run.php usa TEST_REDIS_DATABASE (padrão 15) e recusa o DB da aplicação; fila, cache e prefixos dos 4 testes Redis são únicos por instância.
 - Onda 9: registros R2 alterados ou criados: service 7 excluído por engano pelo validador; service 9 renomeado para "R2 <b>x</b>"; appointments 5 e 6; bank_account 553 "Itaú & Cia"; foto do paciente 2772 trocada; MinIO encounter/4304/r2-anexo.pdf e r2-anexo2.pdf sem linha em stored_object.
+- Onda 10: queue_entry: listAppointmentIdsInQueue(array) no Repository/Fake; save traduz 23000 de queue_entry_appointment_uq em DomainException; AgendaView mostra o badge `In queue` no lugar do Check-in.
+- Onda 10: MoneyInput nos 9 formulários sem máscara nem filtro (inputmode=decimal, maxlength 16, placeholder 'ex.: 12,34'); PaymentForm, EncounterAccountForm e CashSessionForm mantêm o valor após erro (setData).
+- Onda 10: stored_object: StoredObjectRepository (record/listByObjectKeyFragment/findByPublicId); anexo com chave `tenant/<t>/encounter/<id>/<12 hex>-<nome>`; download por EncounterView::onDownloadDocument (404 sem corpo fora do atendimento).
+- Onda 10: UserMessage::PATTERNS com 13 padrões (conflito de horário em pt); AppointmentForm com todos os catches em CvFormat::userError; translations.json +4 chaves.
+- Onda 10: registros R2 criados: queue_entry 30 (agendamento 5) e a do agendamento 4; financial_entry 13835 e 14014; agendamento 38 (data errada); stored_object 705, 722, 723; exam_catalog_item 1608; procedure_catalog_item 1608; service 3 e product 946 editados e restaurados.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -222,6 +237,18 @@
 - T-49: decorador anônimo de EncounterAccountRepositoryInterface no teste; storedProduct() é método só de teste no Fake.
 - Onda 9: migration 0008 aguarda aprovação SQL do usuário (entre as ondas 9 e 10); T-41 depende dela.
 - Onda 9: a queda de sessão do navegador da onda 8 segue sem causa conhecida.
+- Onda 9 (resolvida na onda 10): 0008 aplicada; chaves de T-45/T-52 gravadas por T-51.
+- T-41: teste de listAppointmentIdsInQueue([]) só confere o retorno vazio, não a ausência de consulta (QueueEntryRepositoryIntegrationTest.php:96).
+- T-41: Fake devolve ids na ordem das entradas e o repositório ordena por appointment_id (FakeQueueEntryRepository.php:75-89).
+- T-41: o badge "Na fila" aparece para qualquer status (inclusive cancelado/finalizado) quando há queue_entry (AgendaView.php:416-421).
+- T-50: comentário duplicado e linhas em branco espúrias no unit_cost (ProductForm.php:67-75); FQCN \CentralVet\Presentation\MoneyInput repetido 12 vezes (um `use` resolveria); placeholder 'ex.: 12,34' fora do i18n.
+- T-50: CashSessionForm onOpen com "abc" sem teste no navegador.
+- T-51: catch-all de onSave e onReschedule ainda mostra texto cru (escapado) de exceção fora do catálogo, inclusive PDOException (AppointmentForm.php:255-259, 303-308).
+- T-51/AppointmentForm: "01/10/2026" foi gravado como 10/01/2026 (agendamento R2 id 38); possível bug de formato de data, a investigar.
+- T-52: chave `Attachment not found` gravada em translations.json sem uso no código (órfã).
+- T-52: ExamResultForm fora do stored_object (EncounterView não lista esses anexos); objeto órfão se TTransaction::close() falhar; falta filename*=UTF-8'' no Content-Disposition.
+- FinancialEntryForm: salvar com id existente criou um registro novo em vez de editar (observado no gate de T-50).
+- Onda 10: queda da sessão do navegador depois da suíte no gate, causa desconhecida.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -259,5 +286,6 @@
   - Onda 7: BASE 7bf89d9 → HEAD 25565fb (761e485, 4641d50, c3cb77b, 984138a, 4e2bb3c, 25565fb)
   - Onda 8: BASE cbd7ad1 → HEAD 5ce5d1f (0b05a04, 5732895, 1ec7bbd, 529567f, 0a8bc71, 507bba8, d613598, 4ca0940, 0c4c5f0, 97c6997, fb4aaac, e641320, 56dddb8, 5963715, c2a0629, 8593c4b, 2f93b0e, 28df8c4, 549b131, eb217f6, 3d96eff, 5ce5d1f)
   - Onda 9: BASE c03e1b2 → HEAD bbda807 (bbda807, 17b0770, 16307b5, 73600c2, cc00614, 7ec6808, 32f1bb2, 884b0c5, cb1e945, 72a0020, 08a26f4, e197d51, b2a403d, 4cbc575)
-- Último status conhecido: onda 9 (T-40, T-42..T-49 [x]) concluída; validação cruzada LINT 20/20, SUITE 352/352. A 0008 (T-40) está redigida e não aplicada.
-- Próxima onda recomendada: 10 (T-41, T-50, T-51, T-52), depois de o usuário aprovar e o orquestrador aplicar a 0008.
+  - Onda 10: BASE 87a40c6 → HEAD f6f4538 (f6f4538, b32af91, fd3b889, 0833a40, 8a4e93a, 6fa5958, d9defc8, f2ff511, 6021755, a64fc14, 281e9d4, fc7151f)
+- Último status conhecido: onda 10 (T-41, T-50, T-51, T-52 [x]) concluída; validação cruzada LINT 26/26, SUITE 365/365. A 0008 (T-40) está aplicada.
+- Próxima onda recomendada: nenhuma; revisão final.
