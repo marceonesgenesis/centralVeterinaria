@@ -788,6 +788,10 @@
     "pt": "Duração (minutos)"
   },
   {
+    "en": "e.g. 12,34",
+    "pt": "ex.: 12,34"
+  },
+  {
     "en": "e.g. 4,5",
     "pt": "ex.: 4,5"
   },
@@ -998,6 +1002,10 @@
   {
     "en": "Financial entries",
     "pt": "Lançamentos financeiros"
+  },
+  {
+    "en": "Financial entries cannot be edited. Register a new entry to correct it",
+    "pt": "Lançamentos não podem ser editados. Registre um novo lançamento para corrigir"
   },
   {
     "en": "Financial entry",
