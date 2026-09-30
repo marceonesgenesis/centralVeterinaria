@@ -84,8 +84,14 @@ class ServiceList extends TPage
 
         $column_name->setTransformer(function ($value, $object, $row, $cell) {
             $this->linkRow($object, $row, $cell);
+            // link focável: Tab chega à linha e Enter abre o painel (o clique
+            // na célula continua valendo; o handler do Adianti para no <a>)
+            $link = is_object($object) && !empty($object->id)
+                ? '<a class="cv-row-link text-reset" href="' . CvFormat::e($this->selectUrl((int) $object->id)) . '" generator="adianti">'
+                  . CvFormat::e((string) $value) . '</a>'
+                : CvFormat::e((string) $value);
             return '<span class="cv-service-name"><i class="fas fa-stethoscope text-primary me-2" aria-hidden="true"></i>'
-                 . CvFormat::e((string) $value) . '</span>';
+                 . $link . '</span>';
         });
         $column_category->setTransformer(function ($value, $object, $row, $cell) {
             $this->linkRow($object, $row, $cell);
