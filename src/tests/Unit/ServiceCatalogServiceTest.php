@@ -323,6 +323,46 @@ final class ServiceCatalogServiceTest
         ], $result['skipped']);
     }
 
+    public function testImportCsvSkipsRowsBeyondColumnLimits(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Valido;;30;10\n"
+            . str_repeat('n', 191) . ";;30;10\n"
+            . "Categoria longa;" . str_repeat('c', 61) . ";30;10\n"
+            . "Duracao enorme;;4294967296;10\n"
+            . "Preco enorme;;30;42949672,96\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([
+            ['line' => 3, 'reason' => 'name too long'],
+            ['line' => 4, 'reason' => 'category too long'],
+            ['line' => 5, 'reason' => 'invalid duration_minutes'],
+            ['line' => 6, 'reason' => 'invalid price'],
+        ], $result['skipped']);
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testImportCsvAcceptsValuesAtColumnLimits(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $name = str_repeat('á', 190);
+        $csv = "name;category;duration_minutes;price\n"
+            . $name . ";" . str_repeat('ç', 60) . ";4294967295;42949672,95\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([], $result['skipped']);
+        Assert::same(4294967295, $repository->findByName($name)?->priceCents());
+    }
+
     public function testImportCsvRejectsInvalidHeader(): void
     {
         $repository = new FakeServiceRepository(1);
