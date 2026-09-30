@@ -88,14 +88,14 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
                     anamnesis_text, temperature_c, heart_rate_bpm, respiratory_rate_mpm,
                     weight_kg, mucous_membranes, capillary_refill_seconds,
                     physical_exam_text, diagnosis_text, clinical_plan_text,
-                    ai_summary_text, ai_summary_accepted_at
+                    ai_summary_text, ai_summary_accepted_at, paused_at, paused_seconds
                 ) VALUES (
                     :tenant_id, :system_unit_id, :patient_id, :appointment_id,
                     :professional_system_user_id, :status, :started_at, :finished_at,
                     :anamnesis_text, :temperature_c, :heart_rate_bpm, :respiratory_rate_mpm,
                     :weight_kg, :mucous_membranes, :capillary_refill_seconds,
                     :physical_exam_text, :diagnosis_text, :clinical_plan_text,
-                    :ai_summary_text, :ai_summary_accepted_at
+                    :ai_summary_text, :ai_summary_accepted_at, :paused_at, :paused_seconds
                 )
                 SQL
             );
@@ -118,7 +118,8 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
                 capillary_refill_seconds = :capillary_refill_seconds,
                 physical_exam_text = :physical_exam_text, diagnosis_text = :diagnosis_text,
                 clinical_plan_text = :clinical_plan_text, ai_summary_text = :ai_summary_text,
-                ai_summary_accepted_at = :ai_summary_accepted_at
+                ai_summary_accepted_at = :ai_summary_accepted_at,
+                paused_at = :paused_at, paused_seconds = :paused_seconds
             WHERE {$query->whereSql()}
             SQL
         );
@@ -176,6 +177,8 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
             ':clinical_plan_text' => $entity->clinicalPlanText(),
             ':ai_summary_text' => $entity->aiSummaryText(),
             ':ai_summary_accepted_at' => self::formatDateTime($entity->aiSummaryAcceptedAt()),
+            ':paused_at' => self::formatDateTime($entity->pausedAt()),
+            ':paused_seconds' => $entity->pausedSeconds(),
         ];
 
         if (!$includeInsertOnly) {
