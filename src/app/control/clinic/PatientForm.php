@@ -185,7 +185,6 @@ class PatientForm extends TStandardForm
             $preview->{'class'} = 'cv-patient-photo';
             $preview->{'src'}   = 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $this->viewPatient->id;
             $preview->{'alt'}   = _t('Photo');
-            $preview->{'style'} = 'max-width:160px;max-height:160px;border-radius:8px;display:block;margin-top:8px';
             $photo_cell[] = $preview;
         }
         $this->form->addFields( [new TLabel(_t('Photo'))], $photo_cell );
@@ -224,6 +223,13 @@ class PatientForm extends TStandardForm
                 {
                     $field->setEditable(FALSE);
                 }
+                // setEditable(FALSE) só põe readonly/onclick nos campos; os
+                // radios (TRadioGroup) seguiam clicáveis. Sem Salvar nada é
+                // postado, então todos os campos ficam disabled de fato (T-32).
+                $lock_fields = TScript::create(
+                    "document.querySelectorAll('form[name=\"form_Patient\"] input, form[name=\"form_Patient\"] textarea, form[name=\"form_Patient\"] select').forEach(function (el) { el.disabled = true; });",
+                    FALSE
+                );
             }
 
             $actions = [$back];
@@ -242,6 +248,10 @@ class PatientForm extends TStandardForm
         $container->style = 'width: 100%';
         $container->add($header);
         $container->add($this->form);
+        if (isset($lock_fields))
+        {
+            $container->add($lock_fields);
+        }
 
         parent::add($container);
     }
@@ -393,7 +403,7 @@ class PatientForm extends TStandardForm
                 // edição: os dados digitados ficam no formulário
                 $this->form->setData($data);
             }
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -456,7 +466,7 @@ class PatientForm extends TStandardForm
             $this->form->setData($data);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
-        catch (InvalidArgumentException $e) // validation, domain (sex/weight), not found
+        catch (InvalidArgumentException $e) // validation and domain (sex/weight); the "Record not found" above is a plain Exception
         {
             TTransaction::rollback();
             $this->form->setData($data);
@@ -466,7 +476,7 @@ class PatientForm extends TStandardForm
         {
             TTransaction::rollback();
             $this->form->setData($data);
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -476,10 +486,10 @@ class PatientForm extends TStandardForm
         return $e->getMessage() === \CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE;
     }
 
-    /** Screen text for an InvalidArgumentException: the weight one is translated, the others go as is. */
+    /** Screen text for an InvalidArgumentException: the weight one keeps its own key (T-27), the others go through CvFormat::userError (T-32). */
     private static function errorMessage(InvalidArgumentException $e)
     {
-        return self::isInvalidWeight($e) ? _t(\CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE) : $e->getMessage();
+        return self::isInvalidWeight($e) ? _t(\CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE) : CvFormat::userError($e);
     }
 
     /**
@@ -545,7 +555,7 @@ class PatientForm extends TStandardForm
         }
         header('Content-Length: ' . strlen($photo['contents']));
         header('Cache-Control: private, max-age=300');
-        header('X-Content-Type-Options: nosniff');
+        // X-Content-Type-Options: nosniff vem só do nginx (add_header ... always), T-32
         header('Content-Security-Policy: sandbox');
         echo $photo['contents'];
         exit;

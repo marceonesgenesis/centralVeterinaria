@@ -84,12 +84,12 @@ final class PatientService
             tutorId: $tutorId,
             name: (string) $data['name'],
             species: (string) $data['species'],
-            breed: isset($data['breed']) ? (string) $data['breed'] : null,
-            sex: isset($data['sex']) ? (string) $data['sex'] : null,
-            birthDate: isset($data['birth_date']) ? (string) $data['birth_date'] : null,
+            breed: self::optional($data, 'breed'),
+            sex: self::optional($data, 'sex'),
+            birthDate: self::optional($data, 'birth_date'),
             weightKg: self::parseWeightKg($data['weight_kg'] ?? null),
-            color: isset($data['color']) ? (string) $data['color'] : null,
-            notes: isset($data['notes']) ? (string) $data['notes'] : null,
+            color: self::optional($data, 'color'),
+            notes: self::optional($data, 'notes'),
             allergies: self::optional($data, 'allergies'),
         );
 
@@ -169,9 +169,11 @@ final class PatientService
 
     /**
      * Stores the patient's photo in object storage under
-     * `tenant/<tenantId>/patient/<patientId>/photo-<sanitized name>` (same
-     * key scheme as EncounterDocumentService::attach) and then records the
-     * key and content type on the patient (rodada 2, T-12).
+     * `tenant/<tenantId>/patient/<patientId>/photo-<12 hex>-<sanitized name>`
+     * (a new key per upload) and then records the key and content type on
+     * the patient (rodada 2, T-12). After the row is saved the previous
+     * photo object is deleted; if the save fails the new object is deleted
+     * and the exception rethrown (T-32).
      *
      * @throws \LogicException when no storage was injected
      * @throws \InvalidArgumentException when the patient is missing (or of
@@ -198,12 +200,17 @@ final class PatientService
             throw new \InvalidArgumentException('Photo must be at most 2 MB');
         }
 
+        // A fresh random segment per upload: re-sending the same file name
+        // must not reuse the key, or the browser cache (onPhoto sends
+        // Cache-Control max-age) keeps showing the previous photo (T-32).
         $key = sprintf(
-            'tenant/%d/patient/%d/photo-%s',
+            'tenant/%d/patient/%d/photo-%s-%s',
             $this->context->tenantId(),
             $patientId,
+            bin2hex(random_bytes(6)),
             self::sanitizeFileName($fileName),
         );
+        $previousKey = $current->photoObjectKey;
 
         $this->storage->put($key, $contents, $contentType);
 
@@ -226,10 +233,32 @@ final class PatientService
             photoContentType: $contentType,
         );
 
-        /** @var Patient $saved */
-        $saved = $this->patients->save($patient);
+        try {
+            /** @var Patient $saved */
+            $saved = $this->patients->save($patient);
+        } catch (\Throwable $e) {
+            // The row still points at the previous photo: drop the object we
+            // just wrote so it does not stay orphaned in the bucket.
+            $this->deleteQuietly($key);
+
+            throw $e;
+        }
+
+        if ($previousKey !== null && $previousKey !== $key) {
+            $this->deleteQuietly($previousKey);
+        }
 
         return $saved;
+    }
+
+    /** Best-effort storage delete: a failure is logged, never thrown. */
+    private function deleteQuietly(string $key): void
+    {
+        try {
+            $this->storage?->delete($key);
+        } catch (\Throwable $e) {
+            error_log(sprintf('PatientService: could not delete photo object "%s": %s', $key, $e->getMessage()));
+        }
     }
 
     /**
