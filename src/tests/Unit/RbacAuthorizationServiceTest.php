@@ -131,9 +131,9 @@ final class RbacAuthorizationServiceTest
     public function testAssertAllowedThrowsAuthorizationDeniedWhenDenied(): void
     {
         $context = TenantContext::authenticated(101, 1);
-        $service = new RbacAuthorizationService(new FakePermissionProvider(['x' => false]), new SpyAuditLogWriter());
+        $service = new RbacAuthorizationService(new FakePermissionProvider(['test::x' => false]), new SpyAuditLogWriter());
 
-        $decision = $service->decide(new AuthorizationRequest($context, 'x'));
+        $decision = $service->decide(new AuthorizationRequest($context, 'test::x'));
 
         Assert::throws(AuthorizationDenied::class, static fn () => $decision->assertAllowed());
     }
@@ -142,9 +142,9 @@ final class RbacAuthorizationServiceTest
     {
         $context = TenantContext::authenticated(101, 1);
         $audit = new SpyAuditLogWriter();
-        $service = new RbacAuthorizationService(new FakePermissionProvider(['x' => true]), $audit);
+        $service = new RbacAuthorizationService(new FakePermissionProvider(['test::x' => true]), $audit);
 
-        $service->decide(new AuthorizationRequest($context, 'x', metadata: ['password' => 'super-secret', 'screen' => 'login']));
+        $service->decide(new AuthorizationRequest($context, 'test::x', metadata: ['password' => 'super-secret', 'screen' => 'login']));
 
         Assert::same('*****', $audit->events[0]->metadata['password']);
         Assert::same('login', $audit->events[0]->metadata['screen']);
@@ -154,9 +154,9 @@ final class RbacAuthorizationServiceTest
     {
         $context = TenantContext::authenticated(101, 1);
         $audit = new SpyAuditLogWriter();
-        $service = new RbacAuthorizationService(new FakePermissionProvider(['x' => false]), $audit);
+        $service = new RbacAuthorizationService(new FakePermissionProvider(['test::x' => false]), $audit);
 
-        $service->decide(new AuthorizationRequest($context, 'x'));
+        $service->decide(new AuthorizationRequest($context, 'test::x'));
 
         Assert::count(1, $audit->events);
         Assert::same('denied:permission', $audit->events[0]->metadata['reason']);

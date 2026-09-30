@@ -18,6 +18,12 @@ use CentralVet\Tenancy\TenantContext;
  */
 final class AuthorizationRequest
 {
+    /**
+     * Accepted action formats: `Class::method` (optionally namespaced) or a
+     * dotted permission key such as `patient.view`. Anything else fails early.
+     */
+    public const ACTION_PATTERN = '/\A(?:[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*::[A-Za-z_][A-Za-z0-9_]*|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)\z/';
+
     /** @param array<string, scalar|null> $metadata */
     public function __construct(
         private readonly TenantContext $context,
@@ -31,6 +37,9 @@ final class AuthorizationRequest
         private readonly ?string $ipAddress = null,
         private readonly ?string $userAgent = null,
     ) {
+        if (preg_match(self::ACTION_PATTERN, $action) !== 1) {
+            throw new \InvalidArgumentException("Invalid authorization action format: '{$action}'");
+        }
     }
 
     public function context(): TenantContext
