@@ -360,7 +360,60 @@ final class ServiceCatalogServiceTest
 
         Assert::same(1, $result['created']);
         Assert::same([], $result['skipped']);
-        Assert::same(4294967295, $repository->findByName($name)?->priceCents());
+        $imported = $repository->findByName($name);
+        Assert::notNull($imported);
+        Assert::same(4294967295, $imported->priceCents());
+        Assert::same(4294967295, $imported->durationMinutes());
+        Assert::same(str_repeat('ç', 60), $imported->category());
+        Assert::same(190, mb_strlen($imported->name()));
+    }
+
+    public function testDuplicateKeepsNameWithinMaxLength(): void
+    {
+        $original = Service::create(1, str_repeat('a', 190), null, 30, 1000);
+        $repository = new FakeServiceRepository(1, $original);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $first = $service->duplicate((int) $original->id(), 'cópia');
+        $second = $service->duplicate((int) $original->id(), 'cópia');
+
+        Assert::true(mb_strlen($first->name()) <= ServiceCatalogService::MAX_NAME_LENGTH);
+        Assert::true(str_ends_with($first->name(), '(cópia)'));
+        Assert::true(mb_strlen($second->name()) <= ServiceCatalogService::MAX_NAME_LENGTH);
+        Assert::true(str_ends_with($second->name(), '(cópia 2)'));
+    }
+
+    public function testImportCsvReportsLineRejectedByCreate(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $repository->failNextSaveWith(new InvalidArgumentException('x'));
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Banho;;30;10\n"
+            . "Tosa;;30;10\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([['line' => 2, 'reason' => 'x']], $result['skipped']);
+        Assert::notNull($repository->findByName('Tosa'));
+    }
+
+    public function testImportCsvIgnoresBlankLineBetweenValidRows(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Banho;;30;10\n"
+            . "   \n"
+            . "Tosa;;30;10\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(2, $result['created']);
+        Assert::same([], $result['skipped']);
     }
 
     public function testImportCsvRejectsInvalidHeader(): void
