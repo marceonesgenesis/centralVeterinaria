@@ -53,10 +53,34 @@ final class MoneyInputTest
         }
     }
 
-    private static function assertInvalidAmount(string $raw, bool $allowNegative): void
+    public function testMaxCentsAcceptsValuesUpToTheCeiling(): void
+    {
+        Assert::same(4294967295, MoneyInput::MAX_UNSIGNED_INT_CENTS);
+        Assert::same(4294967295, MoneyInput::toCents('42.949.672,95', false, MoneyInput::MAX_UNSIGNED_INT_CENTS));
+        Assert::same(4294967295, MoneyInput::toCents('42949672.95', false, MoneyInput::MAX_UNSIGNED_INT_CENTS));
+        Assert::same(0, MoneyInput::toCents('', false, MoneyInput::MAX_UNSIGNED_INT_CENTS));
+        Assert::same(-10000, MoneyInput::toCents('-100,00', true, 10000));
+        // sem teto: continua valendo só o limite de 13 dígitos.
+        Assert::same(5000000000, MoneyInput::toCents('50.000.000,00'));
+    }
+
+    public function testMaxCentsRejectsValuesAboveTheCeiling(): void
+    {
+        self::assertInvalidAmount('42.949.672,96', false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
+        self::assertInvalidAmount('50.000.000,00', false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
+        self::assertInvalidAmount('42949673', false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
+        self::assertInvalidAmount('-100,01', true, 10000);
+    }
+
+    public function testLeadingZerosDoNotCountTowardsTheDigitLimit(): void
+    {
+        Assert::same(50, MoneyInput::toCents('00000000000000,50'));
+    }
+
+    private static function assertInvalidAmount(string $raw, bool $allowNegative, ?int $maxCents = null): void
     {
         try {
-            $result = MoneyInput::toCents($raw, $allowNegative);
+            $result = MoneyInput::toCents($raw, $allowNegative, $maxCents);
         } catch (\InvalidArgumentException $e) {
             Assert::same('Invalid amount', $e->getMessage(), "toCents('{$raw}') message");
             return;
