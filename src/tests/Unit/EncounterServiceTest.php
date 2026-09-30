@@ -177,6 +177,24 @@ final class EncounterServiceTest
         Assert::null($resumed->pausedAt());
     }
 
+    /**
+     * Rodada 2, T-37: clamp documented — a $now earlier than pausedAt (clock
+     * skew, a stale request) adds 0 seconds instead of a negative stretch,
+     * and still clears the pause.
+     */
+    public function testResumeWithNowBeforePausedAtAddsZeroSeconds(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+        $pausedAt = new DateTimeImmutable('2026-09-30 10:00:00');
+
+        $service->pause($id, self::ACTION, $pausedAt);
+        $resumed = $service->resume($id, self::ACTION, $pausedAt->modify('-5 minutes'));
+
+        Assert::same(0, $resumed->pausedSeconds(), 'A negative interval is clamped to 0');
+        Assert::false($resumed->isPaused());
+        Assert::null($resumed->pausedAt());
+    }
+
     public function testPauseTwiceThrowsInvalidStatusTransition(): void
     {
         [$service, $id] = $this->startedEncounter();

@@ -272,6 +272,69 @@ final class ClinicalSummaryIntegrationTest extends MysqlIntegrationTestCase
         Assert::null($service->lastEncounter($this->patientId, $this->previousEncounterId), 'Nothing precedes the first encounter');
     }
 
+    /**
+     * Rodada 2, T-37 (ruling T-03): an excluded id that belongs to another
+     * tenant is treated as unknown, so there is no "previous" encounter.
+     */
+    public function testLastEncounterWithExcludedIdOfAnotherTenantReturnsNull(): void
+    {
+        $foreignEncounterId = $this->insert('encounter', [
+            'tenant_id' => $this->foreignTenantId,
+            'system_unit_id' => $this->systemUnitId,
+            'patient_id' => $this->foreignPatientId,
+            'professional_system_user_id' => $this->userId,
+            'status' => 'finished',
+            'started_at' => '2026-09-25 10:00:00.000000',
+            'finished_at' => '2026-09-25 10:30:00.000000',
+        ]);
+
+        Assert::null(
+            $this->service($this->tenantId)->lastEncounter($this->patientId, $foreignEncounterId),
+            'An excluded encounter id of another tenant must yield null',
+        );
+        Assert::same(
+            $this->currentEncounterId,
+            $this->service($this->tenantId)->lastEncounter($this->patientId)['id'],
+            'Without exclusion the tenant still sees its own latest encounter',
+        );
+    }
+
+    /**
+     * Rodada 2, T-37 (ruling T-03): on a started_at tie the lower id counts
+     * as the earlier one — (started_at, id) order.
+     */
+    public function testLastEncounterStartedAtTieTreatsLowerIdAsPrevious(): void
+    {
+        $tieStartedAt = '2026-09-20 10:00:00.000000';
+        $twinEncounterId = $this->insert('encounter', [
+            'tenant_id' => $this->tenantId,
+            'system_unit_id' => $this->systemUnitId,
+            'patient_id' => $this->patientId,
+            'professional_system_user_id' => $this->userId,
+            'status' => 'in_progress',
+            'started_at' => $tieStartedAt,
+        ]);
+        Assert::true($twinEncounterId > $this->currentEncounterId, 'Fixture: the twin has the higher id');
+
+        $service = $this->service($this->tenantId);
+
+        Assert::same(
+            $this->currentEncounterId,
+            $service->lastEncounter($this->patientId, $twinEncounterId)['id'],
+            'Excluding the higher id of the tie returns the lower id as previous',
+        );
+        Assert::same(
+            $this->previousEncounterId,
+            $service->lastEncounter($this->patientId, $this->currentEncounterId)['id'],
+            'Excluding the lower id of the tie skips the higher one and returns the earlier encounter',
+        );
+        Assert::same(
+            $twinEncounterId,
+            $service->lastEncounter($this->patientId)['id'],
+            'Without exclusion the tie is broken by the higher id',
+        );
+    }
+
     public function testPrescriptionHistoryIsMostRecentFirst(): void
     {
         $history = $this->service($this->tenantId)->prescriptionHistory($this->patientId);

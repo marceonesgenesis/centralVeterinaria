@@ -154,6 +154,43 @@ final class FinancialOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::same([], $empty, 'A period without entries yields an empty list');
     }
 
+    /**
+     * Rodada 2, T-37: from == to is a one-day period — 2031-05-02 00:00 and
+     * 23:59:59 are inside; the day before and the day after are out.
+     */
+    public function testRecentEntriesSingleDayPeriodReturnsOnlyThatDay(): void
+    {
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 101, '2031-05-01 23:59:59');
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 102, '2031-05-02 00:00:00');
+        $this->entry($this->tenantA, $this->unit1, 'expense', 'Aluguel', 103, '2031-05-02 23:59:59');
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 104, '2031-05-03 00:00:00');
+
+        $day = new DateTimeImmutable('2031-05-02');
+        $entries = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, $day, $day);
+
+        Assert::same(
+            [103, 5000, 10000, 102],
+            array_column($entries, 'amount_cents'),
+            'Only entries of 2031-05-02 (unit 1, tenant A), newest first',
+        );
+        foreach ($entries as $entry) {
+            Assert::true(str_starts_with($entry['occurred_at'], '2031-05-02 '), 'Every entry must be of the requested day');
+        }
+    }
+
+    /**
+     * Rodada 2, T-37: with only one bound, recentEntries() filters that side
+     * alone — from-only keeps [from 00:00, ∞), to-only keeps (−∞, to + 1 day).
+     */
+    public function testRecentEntriesWithASingleBound(): void
+    {
+        $fromOnly = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, new DateTimeImmutable('2031-05-15 14:00'));
+        Assert::same([4444, 5000], array_column($fromOnly, 'amount_cents'), 'from-only starts at 00:00 of the from day');
+
+        $toOnly = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, null, new DateTimeImmutable('2031-04-20 08:00'));
+        Assert::same([3000, 2000], array_column($toOnly, 'amount_cents'), 'to-only includes the whole to day');
+    }
+
     public function testOpenCashBalanceIsNullWithoutOpenSession(): void
     {
         $this->cashSession($this->tenantB, $this->unit1, 50000, 'open');

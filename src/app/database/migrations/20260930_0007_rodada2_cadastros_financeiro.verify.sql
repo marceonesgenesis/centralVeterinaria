@@ -8,7 +8,7 @@ FROM schema_migrations
 WHERE version = '20260930_0007_rodada2_cadastros_financeiro';
 
 -- 9 new columns (expected: 9 rows)
-SELECT table_name, column_name, is_nullable, column_type, column_default
+SELECT table_name, ordinal_position, column_name, is_nullable, column_type, column_default
 FROM information_schema.columns
 WHERE table_schema = DATABASE()
   AND (
@@ -27,7 +27,7 @@ WHERE table_schema = DATABASE()
   AND table_name IN ('prescription_template', 'prescription_template_item', 'bank_account')
 ORDER BY table_name;
 
-SELECT table_name, column_name, is_nullable, column_type
+SELECT table_name, ordinal_position, column_name, is_nullable, column_type
 FROM information_schema.columns
 WHERE table_schema = DATABASE()
   AND table_name IN ('prescription_template', 'prescription_template_item', 'bank_account')
