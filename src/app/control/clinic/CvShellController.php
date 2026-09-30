@@ -128,10 +128,22 @@ class CvShellController extends TPage
 
             self::sendJson(['switched' => true]);
         }
-        catch (Exception $e)
+        catch (\Throwable $e)
         {
-            error_log('CvShellController::onSwitchUnit: ' . $e->getMessage());
-            self::sendJson(['error' => _t('Unauthorized access to that unit')], 403);
+            // Recusas conhecidas (token, unidade fora do usuário) já saíram com 403;
+            // aqui só chega falha de servidor: desfaz a transação aberta e responde 500.
+            if (TTransaction::get())
+            {
+                try
+                {
+                    TTransaction::rollback();
+                }
+                catch (\Throwable $ignored)
+                {
+                }
+            }
+            error_log('CvShellController::onSwitchUnit: ' . get_class($e) . ': ' . $e->getMessage());
+            self::sendJson(['error' => _t('Could not switch unit')], 500);
         }
     }
 

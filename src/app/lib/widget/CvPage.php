@@ -9,7 +9,10 @@ class CvPage
      *
      * Cada ação pode ser um widget pronto (TButton, TActionLink, TElement...) ou um array
      * ['label' => string, 'action' => TAction|null, 'href' => string|null, 'icon' => string|null,
-     *  'class' => string|null (padrão 'btn btn-default'), 'title' => string|null].
+     *  'class' => string|null (padrão 'btn btn-default'), 'title' => string|null,
+ *  'target' => string|null].
+ * Com 'target' (ex.: '_blank', para downloads), o link sai com target e rel="noopener"
+ * e sem generator="adianti"; sem a chave, o link segue pelo roteador do Adianti.
      * Voltar = ação com 'icon' => 'fa:arrow-left'.
      */
     public static function header(string $title, ?string $subtitle = null, array $actions = [], bool $unitSwitch = true): TElement
@@ -39,6 +42,7 @@ class CvPage
             $slot = new TElement('div');
             $slot->{'class'} = 'cv-unit-switch';
             $slot->{'data-cv-unit-switch'} = '';
+            $slot->{'data-cv-label'} = CvFormat::e(_t('Unit'));
             $side->add($slot);
         }
 
@@ -149,7 +153,16 @@ class CvPage
         $link = new TElement('a');
         $link->{'class'} = CvFormat::e($spec['class'] ?? 'btn btn-default');
         $link->{'href'} = CvFormat::e($href ?? '#');
-        $link->{'generator'} = 'adianti';
+        $target = isset($spec['target']) ? (string) $spec['target'] : '';
+        if ($target !== '')
+        {
+            $link->{'target'} = CvFormat::e($target);
+            $link->{'rel'} = 'noopener';
+        }
+        else
+        {
+            $link->{'generator'} = 'adianti';
+        }
 
         // nome acessível de ação só com ícone: title informado ou, no voltar, "Voltar"
         $title = !empty($spec['title']) ? (string) $spec['title'] : ($label === '' && $icon === 'fa:arrow-left' ? _t('Back') : '');

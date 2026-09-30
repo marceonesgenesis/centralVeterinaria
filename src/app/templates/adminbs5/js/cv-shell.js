@@ -135,7 +135,7 @@ var CvShell = (function () {
         var current = currentUnitId(context);
         var select = document.createElement('select');
         select.className = 'form-select form-select-sm cv-unit-switch__select';
-        var unitLabel = labelsOf(context).unit || '';
+        var unitLabel = labelsOf(context).unit || slot.getAttribute('data-cv-label') || '';
         select.setAttribute('aria-label', unitLabel);
         select.title = unitLabel;
 
@@ -143,6 +143,8 @@ var CvShell = (function () {
             var placeholder = document.createElement('option');
             placeholder.value = '';
             placeholder.textContent = '—';
+            placeholder.selected = true;
+            placeholder.disabled = true;
             select.appendChild(placeholder);
         }
 
@@ -156,7 +158,7 @@ var CvShell = (function () {
             select.appendChild(option);
         });
 
-        if (context.units.length < 2 && current) {
+        if (context.units.length < 2) {
             select.disabled = true;
         }
 
