@@ -155,6 +155,39 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::count(1, $this->serviceFor($this->tenantA)->recentSales(1));
     }
 
+    public function testNonPositiveLimitsReturnEmptyLists(): void
+    {
+        $service = $this->serviceFor($this->tenantA);
+
+        Assert::same([], $service->recentSales(0), 'recentSales(0) must return no row');
+        Assert::same([], $service->recentSales(-3), 'recentSales(-3) must return no row');
+        Assert::same([], $service->lowStock(0), 'lowStock(0) must return no row');
+        Assert::same([], $service->lowStock(-1), 'lowStock(-1) must return no row');
+    }
+
+    public function testOverviewMatchesSummaryProductsAndLowStock(): void
+    {
+        $service = $this->serviceFor($this->tenantA);
+        $month = new DateTimeImmutable('2031-05-15');
+
+        $overview = $service->overview($month);
+        Assert::same(['summary', 'products', 'low_stock'], array_keys($overview));
+        Assert::same($service->summary($month), $overview['summary']);
+        Assert::same($service->products(), $overview['products']);
+        Assert::same($service->lowStock(), $overview['low_stock']);
+
+        $filtered = $service->overview($month, 'colei', null, null, 1);
+        Assert::same($service->products('colei'), $filtered['products'], 'products honours the search filter');
+        Assert::same($service->summary($month), $filtered['summary'], 'summary ignores the list filters');
+        Assert::same($service->lowStock(1), $filtered['low_stock'], 'low_stock ignores the list filters');
+
+        $byStatus = $service->overview($month, null, 'Alimentos', 'low');
+        Assert::same($service->products(null, 'Alimentos', 'low'), $byStatus['products']);
+        Assert::same(['F10 Coleira', 'F10 Racao'], array_column($byStatus['low_stock'], 'name'));
+
+        Assert::same([], $service->overview($month, null, null, null, 0)['low_stock']);
+    }
+
     public function testCategoriesAreDistinctAndSorted(): void
     {
         Assert::same(['Acessorios', 'Alimentos', 'Farmacia'], $this->serviceFor($this->tenantA)->categories());

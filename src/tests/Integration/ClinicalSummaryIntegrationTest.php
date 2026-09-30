@@ -245,6 +245,33 @@ final class ClinicalSummaryIntegrationTest extends MysqlIntegrationTestCase
         Assert::null($this->service($this->foreignTenantId)->lastEncounter($this->patientId));
     }
 
+    public function testLastEncounterIgnoresEncountersAfterTheExcludedOne(): void
+    {
+        $laterEncounterId = $this->insert('encounter', [
+            'tenant_id' => $this->tenantId,
+            'system_unit_id' => $this->systemUnitId,
+            'patient_id' => $this->patientId,
+            'professional_system_user_id' => $this->userId,
+            'status' => 'finished',
+            'started_at' => '2026-09-21 08:00:00.000000',
+            'finished_at' => '2026-09-21 08:30:00.000000',
+        ]);
+
+        $service = $this->service($this->tenantId);
+
+        $previous = $service->lastEncounter($this->patientId, $this->currentEncounterId);
+        Assert::notNull($previous);
+        Assert::same(
+            $this->previousEncounterId,
+            $previous['id'],
+            'With exclusion, an encounter started after the excluded one must never be returned',
+        );
+
+        Assert::same($laterEncounterId, $service->lastEncounter($this->patientId)['id'], 'Without exclusion the latest wins');
+        Assert::same($this->currentEncounterId, $service->lastEncounter($this->patientId, $laterEncounterId)['id']);
+        Assert::null($service->lastEncounter($this->patientId, $this->previousEncounterId), 'Nothing precedes the first encounter');
+    }
+
     public function testPrescriptionHistoryIsMostRecentFirst(): void
     {
         $history = $this->service($this->tenantId)->prescriptionHistory($this->patientId);
