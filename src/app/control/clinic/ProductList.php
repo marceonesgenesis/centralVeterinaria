@@ -9,9 +9,13 @@
  * in StockSalesOverviewReader, never here.
  *
  * Filters travel as request parameters (GET or POST): search, category,
- * status (normal|low|out).
+ * status (StockSalesOverviewService::STATUS_* or 'attention' = low + out).
  *
- * No sale price / product code column: the schema has neither (plan ruling).
+ * One screen load runs a single StockSalesOverviewService::overview() call
+ * (summary, product table and low-stock column from one reader scan).
+ * The table shows the product code and sale price (T-11, '—' when empty).
+ * "Generate report" opens ProductList::onReport (static, dompdf) in a new
+ * tab with the current filters (Rodada 2, T-21).
  *
  * @version    2.0
  * @package    control
@@ -20,7 +24,14 @@
 class ProductList extends TPage
 {
     private const LIMIT = 10;
-    private const STATUSES = ['normal', 'low', 'out', 'attention'];
+    private const LOW_STOCK_LIMIT = 5;
+    private const ATTENTION = 'attention';
+    private const STATUSES = [
+        \CentralVet\Application\StockSalesOverviewService::STATUS_NORMAL,
+        \CentralVet\Application\StockSalesOverviewService::STATUS_LOW,
+        \CentralVet\Application\StockSalesOverviewService::STATUS_OUT,
+        self::ATTENTION,
+    ];
 
     protected $datagrid;
     protected $pageNavigation;
@@ -31,6 +42,8 @@ class ProductList extends TPage
 
     private array $filters = ['search' => null, 'category' => null, 'status' => null];
     private ?\CentralVet\Application\StockSalesOverviewService $service = null;
+    private ?array $overview = null;
+    private ?array $overviewFilters = null;
 
     public function __construct($param = null)
     {
@@ -47,10 +60,11 @@ class ProductList extends TPage
         {
             TTransaction::open('permission');
             $service    = $this->service();
-            $summary    = $service->summary(new DateTimeImmutable('now'));
+            $overview   = $this->overview();
+            $summary    = $overview['summary'];
+            $low        = $overview['low_stock'];
             $categories = $service->categories();
-            $recent     = $service->recentSales(5);
-            $low        = $service->lowStock(5);
+            $recent     = $service->recentSales(self::LOW_STOCK_LIMIT);
             TTransaction::close();
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
@@ -69,6 +83,7 @@ class ProductList extends TPage
         $page->{'class'} = 'cv-page';
 
         $page->add(CvPage::header(_t('Stock and sales'), null, [
+            ['label' => _t('Generate report'), 'href' => self::reportHref($this->filters), 'icon' => 'fa:file-pdf', 'class' => 'btn btn-outline-secondary', 'target' => '_blank'],
             ['label' => _t('New product'), 'href' => 'index.php?class=ProductForm', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
         ]));
 
@@ -85,7 +100,9 @@ class ProductList extends TPage
     }
 
     /**
-     * Loads the product table (filters + pagination) from StockSalesOverviewService::products().
+     * Loads the product table (filters + pagination) from the products of
+     * StockSalesOverviewService::overview() — reused from the constructor
+     * when the filters are the same, so one load scans the stock once.
      */
     public function onReload($param = null)
     {
@@ -95,13 +112,7 @@ class ProductList extends TPage
         try
         {
             TTransaction::open('permission');
-            // 'attention' is a filter, not a row status: low + out (same set as the low-stock card).
-            $attention = $this->filters['status'] === 'attention';
-            $rows = $this->service()->products($this->filters['search'], $this->filters['category'], $attention ? null : $this->filters['status']);
-            if ($attention)
-            {
-                $rows = array_values(array_filter($rows, static fn (array $row): bool => in_array($row['status'], ['low', 'out'], true)));
-            }
+            $rows = self::attentionFilter($this->overview()['products'], $this->filters['status']);
             TTransaction::close();
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
@@ -140,6 +151,8 @@ class ProductList extends TPage
             $row->stock_quantity         = $product['stock_quantity'];
             $row->minimum_stock_quantity = $product['minimum_stock_quantity'];
             $row->status                 = $product['status'];
+            $row->code                   = $product['code'] ?? null;
+            $row->sale_price_cents       = $product['sale_price_cents'] ?? null;
             $this->datagrid->addItem($row);
         }
 
@@ -205,9 +218,11 @@ class ProductList extends TPage
         $this->datagrid->disableDefaultClick(); // row click would hijack the checkbox
 
         $column_name     = new TDataGridColumn('name', _t('Product'), 'left');
+        $column_code     = new TDataGridColumn('code', _t('Code'), 'left');
         $column_category = new TDataGridColumn('category', _t('Category'), 'left');
         $column_stock    = new TDataGridColumn('stock_quantity', _t('Current stock'), 'right');
         $column_minimum  = new TDataGridColumn('minimum_stock_quantity', _t('Minimum stock'), 'right');
+        $column_price    = new TDataGridColumn('sale_price_cents', _t('Sale price'), 'right');
         $column_status   = new TDataGridColumn('status', _t('Status'), 'center');
 
         $column_name->setTransformer(function ($value, $object) {
@@ -226,15 +241,19 @@ class ProductList extends TPage
             return $cell;
         });
 
+        $column_code->setTransformer(fn ($value) => CvFormat::e(self::code($value)));
         $column_category->setTransformer(fn ($value) => CvFormat::e((string) $value));
+        $column_price->setTransformer(fn ($value) => CvFormat::e(self::price($value)));
         $column_stock->setTransformer(fn ($value, $object) => CvFormat::e(self::quantity((float) $value, $object->unit ?? null)));
         $column_minimum->setTransformer(fn ($value, $object) => CvFormat::e(self::quantity((float) $value, $object->unit ?? null)));
         $column_status->setTransformer(fn ($value) => self::statusBadge((string) $value));
 
         $this->datagrid->addColumn($column_name);
+        $this->datagrid->addColumn($column_code);
         $this->datagrid->addColumn($column_category);
         $this->datagrid->addColumn($column_stock);
         $this->datagrid->addColumn($column_minimum);
+        $this->datagrid->addColumn($column_price);
         $this->datagrid->addColumn($column_status);
 
         $action_edit = new TDataGridAction(['ProductForm', 'onEdit'], ['id' => '{id}']);
@@ -354,16 +373,20 @@ class ProductList extends TPage
     private static function statusLabels(): array
     {
         return [
-            'normal' => _t('Normal'),
-            'low'    => _t('Low stock'),
-            'out'    => _t('Out of stock'),
-            'attention' => _t('Low or out of stock'),
+            \CentralVet\Application\StockSalesOverviewService::STATUS_NORMAL => _t('Normal'),
+            \CentralVet\Application\StockSalesOverviewService::STATUS_LOW    => _t('Low stock'),
+            \CentralVet\Application\StockSalesOverviewService::STATUS_OUT    => _t('Out of stock'),
+            self::ATTENTION => _t('Low or out of stock'),
         ];
     }
 
     private static function statusBadge(string $status): TElement
     {
-        $tones = ['normal' => 'success', 'low' => 'warning', 'out' => 'danger'];
+        $tones = [
+            \CentralVet\Application\StockSalesOverviewService::STATUS_NORMAL => 'success',
+            \CentralVet\Application\StockSalesOverviewService::STATUS_LOW    => 'warning',
+            \CentralVet\Application\StockSalesOverviewService::STATUS_OUT    => 'danger',
+        ];
         $labels = self::statusLabels();
 
         return CvBadge::create($labels[$status] ?? $status, $tones[$status] ?? 'neutral');
@@ -400,17 +423,208 @@ class ProductList extends TPage
     }
 
     /**
+     * Generates the stock report PDF (dompdf, same pattern as
+     * SaleForm::onGenerateReceiptPdf) for the filters in $param — the same
+     * rows the table shows for those filters. Static: no page is built.
+     */
+    public static function onReport($param)
+    {
+        $filters = self::readFilters(is_array($param) ? $param : []);
+
+        try
+        {
+            TTransaction::open('permission');
+            $context = self::resolveTenantContext();
+            $service = self::buildService($context);
+            $overview = $service->overview(
+                new DateTimeImmutable('now'),
+                $filters['search'],
+                $filters['category'],
+                $filters['status'] === self::ATTENTION ? null : $filters['status'],
+                self::LOW_STOCK_LIMIT
+            );
+            $rows = self::attentionFilter($overview['products'], $filters['status']);
+
+            // unit cost is a product attribute the overview does not carry
+            $costs = [];
+            $products = new \CentralVet\Application\ProductService(new \CentralVet\Persistence\ProductRepository($context, TTransaction::get()), $context);
+            foreach ($products->listActive($context->tenantId()) as $product)
+            {
+                $costs[(int) $product->id()] = $product->unitCostCents();
+            }
+            TTransaction::close();
+
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->loadHtml(self::renderReportHtml($rows, $costs, $filters));
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="estoque-' . date('Y-m-d') . '.pdf"');
+            echo $dompdf->output();
+            exit;
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param array<int, int> $costs unit cost in cents by product id
+     * @param array{search: ?string, category: ?string, status: ?string} $filters
+     */
+    private static function renderReportHtml(array $rows, array $costs, array $filters): string
+    {
+        $labels = self::statusLabels();
+
+        $applied = [];
+        if ($filters['search'] !== null)
+        {
+            $applied[] = _t('Search') . ': ' . $filters['search'];
+        }
+        if ($filters['category'] !== null)
+        {
+            $applied[] = _t('Category') . ': ' . $filters['category'];
+        }
+        if ($filters['status'] !== null)
+        {
+            $applied[] = _t('Status') . ': ' . ($labels[$filters['status']] ?? $filters['status']);
+        }
+
+        $body = '';
+        foreach ($rows as $row)
+        {
+            $id = (int) $row['id'];
+            $body .= '<tr>'
+                . '<td>' . CvFormat::e((string) $row['name']) . '</td>'
+                . '<td>' . CvFormat::e(self::code($row['code'] ?? null)) . '</td>'
+                . '<td>' . CvFormat::e((string) $row['category']) . '</td>'
+                . '<td style="text-align:right">' . CvFormat::e(self::quantity((float) $row['stock_quantity'], $row['unit'] ?? null)) . '</td>'
+                . '<td style="text-align:right">' . CvFormat::e(self::quantity((float) $row['minimum_stock_quantity'], $row['unit'] ?? null)) . '</td>'
+                . '<td>' . CvFormat::e($labels[$row['status']] ?? (string) $row['status']) . '</td>'
+                . '<td style="text-align:right">' . CvFormat::e(self::price($costs[$id] ?? null)) . '</td>'
+                . '<td style="text-align:right">' . CvFormat::e(self::price($row['sale_price_cents'] ?? null)) . '</td>'
+                . '</tr>';
+        }
+        if ($body === '')
+        {
+            $body = '<tr><td colspan="8">' . CvFormat::e(_t('No products found')) . '</td></tr>';
+        }
+
+        return '<html><head><meta charset="utf-8"><style>'
+            . 'body{font-family:DejaVu Sans,sans-serif;font-size:10px}th{text-align:left;background:#eee}'
+            . '</style></head><body>'
+            . '<h3>' . CvFormat::e(_t('Stock report')) . '</h3>'
+            . '<p>' . CvFormat::e(_t('Date')) . ': ' . CvFormat::e(date('d/m/Y H:i')) . '</p>'
+            . '<p>' . CvFormat::e(_t('Filters')) . ': ' . CvFormat::e($applied ? implode(' · ', $applied) : '—') . '</p>'
+            . '<table border="1" cellpadding="4" cellspacing="0" width="100%">'
+            . '<thead><tr>'
+            . '<th>' . CvFormat::e(_t('Product')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Code')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Category')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Current stock')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Minimum stock')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Status')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Unit cost')) . '</th>'
+            . '<th>' . CvFormat::e(_t('Sale price')) . '</th>'
+            . '</tr></thead><tbody>' . $body . '</tbody></table>'
+            . '</body></html>';
+    }
+
+    /**
+     * Report link with the current filters (opened in a new tab).
+     */
+    private static function reportHref(array $filters): string
+    {
+        $query = http_build_query(array_filter($filters, static fn ($value) => $value !== null));
+
+        return 'engine.php?class=ProductList&method=onReport&static=1' . ($query !== '' ? '&' . $query : '');
+    }
+
+    /**
+     * 'attention' is a filter, not a row status: low + out (same set as the
+     * low-stock card). Other statuses were already applied by overview().
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    private static function attentionFilter(array $rows, ?string $status): array
+    {
+        if ($status !== self::ATTENTION)
+        {
+            return $rows;
+        }
+
+        $wanted = [
+            \CentralVet\Application\StockSalesOverviewService::STATUS_LOW,
+            \CentralVet\Application\StockSalesOverviewService::STATUS_OUT,
+        ];
+
+        return array_values(array_filter($rows, static fn (array $row): bool => in_array($row['status'], $wanted, true)));
+    }
+
+    private static function code($value): string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value !== '' ? $value : '—';
+    }
+
+    private static function price($cents): string
+    {
+        return $cents !== null && $cents !== '' ? CvFormat::money((int) $cents) : '—';
+    }
+
+    /**
+     * Single overview() call per load, cached for the current filters.
+     * Requires an already-open TTransaction('permission').
+     */
+    private function overview(): array
+    {
+        if ($this->overview === null || $this->overviewFilters !== $this->filters)
+        {
+            $this->overview = $this->service()->overview(
+                new DateTimeImmutable('now'),
+                $this->filters['search'],
+                $this->filters['category'],
+                $this->filters['status'] === self::ATTENTION ? null : $this->filters['status'],
+                self::LOW_STOCK_LIMIT
+            );
+            $this->overviewFilters = $this->filters;
+        }
+
+        return $this->overview;
+    }
+
+    /**
      * Requires an already-open TTransaction('permission').
      */
     private function service(): \CentralVet\Application\StockSalesOverviewService
     {
         if ($this->service === null)
         {
-            $reader = new \CentralVet\Persistence\StockSalesOverviewReader(self::resolveTenantContext(), TTransaction::get());
-            $this->service = new \CentralVet\Application\StockSalesOverviewService($reader);
+            $this->service = self::buildService(self::resolveTenantContext());
         }
 
         return $this->service;
+    }
+
+    /**
+     * Requires an already-open TTransaction('permission').
+     */
+    private static function buildService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\StockSalesOverviewService
+    {
+        return new \CentralVet\Application\StockSalesOverviewService(
+            new \CentralVet\Persistence\StockSalesOverviewReader($context, TTransaction::get())
+        );
     }
 
     /**
