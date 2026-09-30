@@ -96,6 +96,68 @@ final class PrescriptionTemplateServiceTest
         }
     }
 
+    public function testSaveFromItemsRejectsBlankItemField(): void
+    {
+        $service = $this->service(new FakePrescriptionTemplateRepository(1));
+
+        foreach (PrescriptionTemplate::ITEM_FIELDS as $field) {
+            $items = self::twoItems();
+            $items[1][$field] = '  ';
+
+            self::assertThrowsMessage(
+                "items[].{$field} is required",
+                static fn () => $service->saveFromItems('Otite', null, $items, 1),
+            );
+        }
+
+        Assert::count(0, $service->listAll());
+    }
+
+    public function testSaveFromItemsRejectsValuesLongerThanTheirColumns(): void
+    {
+        $service = $this->service(new FakePrescriptionTemplateRepository(1));
+        $limits = [
+            'medication_name' => 190,
+            'dose' => 40,
+            'dose_unit' => 20,
+            'route' => 40,
+            'frequency' => 60,
+            'duration' => 60,
+        ];
+
+        foreach ($limits as $field => $max) {
+            $items = self::twoItems();
+            $items[0][$field] = str_repeat('á', $max + 1);
+
+            self::assertThrowsMessage(
+                "{$field} must have at most {$max} characters",
+                static fn () => $service->saveFromItems('Otite', null, $items, 1),
+            );
+
+            // Exactly at the limit (multibyte) is accepted.
+            $items[0][$field] = str_repeat('á', $max);
+            PrescriptionTemplate::create(1, 'Otite', null, $items, 1);
+        }
+
+        self::assertThrowsMessage(
+            'name must have at most 190 characters',
+            static fn () => $service->saveFromItems(str_repeat('n', 191), null, self::twoItems(), 1),
+        );
+        Assert::count(0, $service->listAll());
+    }
+
+    public function testSaveFromItemsRejectsDoseOf41Characters(): void
+    {
+        $service = $this->service(new FakePrescriptionTemplateRepository(1));
+        $items = self::twoItems();
+        $items[0]['dose'] = str_repeat('1', 41);
+
+        self::assertThrowsMessage(
+            'dose must have at most 40 characters',
+            static fn () => $service->saveFromItems('Otite', null, $items, 1),
+        );
+    }
+
     private function service(FakePrescriptionTemplateRepository $repository): PrescriptionTemplateService
     {
         return new PrescriptionTemplateService($repository, TenantContext::authenticated(1, 1, 1));

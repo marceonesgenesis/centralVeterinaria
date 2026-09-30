@@ -97,6 +97,55 @@ final class PrescriptionTemplateRepositoryIntegrationTest extends MysqlIntegrati
         Assert::same(0, (int) $count->fetchColumn());
     }
 
+    public function testSaveOfDuplicateNameInSameTenantThrowsServiceMessage(): void
+    {
+        $repository = $this->repositoryFor($this->tenantA);
+        $repository->save(PrescriptionTemplate::create($this->tenantA, 'Otite', null, self::twoItems(), $this->userId));
+
+        // Bypasses PrescriptionTemplateService's findByName() check: the
+        // unique key is what keeps two concurrent saves from both landing.
+        $duplicate = PrescriptionTemplate::create($this->tenantA, 'Otite', 'Outra', self::twoItems(), $this->userId);
+
+        try {
+            $repository->save($duplicate);
+        } catch (\InvalidArgumentException $e) {
+            Assert::same('A template named "Otite" already exists for this tenant', $e->getMessage());
+            Assert::null($duplicate->id(), 'A rejected template must not get an id');
+            Assert::count(1, $repository->listAll());
+
+            // Same name in another tenant is still allowed.
+            $this->repositoryFor($this->tenantB)->save(
+                PrescriptionTemplate::create($this->tenantB, 'Otite', null, self::twoItems(), $this->userId),
+            );
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidArgumentException for a duplicate template name');
+    }
+
+    public function testListAllReturnsTheItemsOfEachTemplate(): void
+    {
+        $repository = $this->repositoryFor($this->tenantA);
+        $one = [self::twoItems()[0]];
+        $two = self::twoItems();
+        $three = [...self::twoItems(), array_merge(self::twoItems()[0], ['medication_name' => 'Cefalexina'])];
+
+        $repository->save(PrescriptionTemplate::create($this->tenantA, 'A', null, $one, $this->userId));
+        $repository->save(PrescriptionTemplate::create($this->tenantA, 'B', null, $two, $this->userId));
+        $repository->save(PrescriptionTemplate::create($this->tenantA, 'C', null, $three, $this->userId));
+        $this->repositoryFor($this->tenantB)->save(
+            PrescriptionTemplate::create($this->tenantB, 'A', null, $three, $this->userId),
+        );
+
+        $templates = $repository->listAll();
+
+        Assert::same(['A', 'B', 'C'], array_map(static fn (PrescriptionTemplate $t): string => $t->name(), $templates));
+        Assert::same($one, $templates[0]->items());
+        Assert::same($two, $templates[1]->items());
+        Assert::same($three, $templates[2]->items());
+    }
+
     private function repositoryFor(int $tenantId): PrescriptionTemplateRepository
     {
         return new PrescriptionTemplateRepository(TenantContext::authenticated($tenantId, $this->userId), $this->pdo);

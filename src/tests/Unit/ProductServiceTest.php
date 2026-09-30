@@ -95,7 +95,8 @@ final class ProductServiceTest
             static fn () => $service->update(30, 'Invadido', null, 'un', 1, 0, true),
         );
         Assert::null($repository->findByCode('T2-1'), 'Code of another tenant must not be visible');
-        Assert::same('Outro', $foreign->name(), 'Tenant 2 product must stay untouched');
+        Assert::same([], $repository->findActive(), 'Rejected update must not store a product for tenant 1');
+        Assert::null($repository->findByName('Invadido'), 'Rejected update must not persist the new name');
     }
 
     public function testCreateStoresSalePriceAndCode(): void
@@ -117,6 +118,17 @@ final class ProductServiceTest
         self::assertThrowsMessage(
             'A product with code "SKU-1" already exists for this tenant',
             static fn () => $service->create(self::TENANT_ID, 'D', null, 'un', 1000, 0, salePriceCents: null, code: 'SKU-1'),
+        );
+    }
+
+    public function testCreateRejectsCodeDifferingOnlyInCase(): void
+    {
+        [$service] = $this->fixture();
+        $service->create(self::TENANT_ID, 'C', null, 'un', 1000, 0, salePriceCents: 1990, code: 'SKU-1');
+
+        self::assertThrowsMessage(
+            'A product with code "sku-1" already exists for this tenant',
+            static fn () => $service->create(self::TENANT_ID, 'D', null, 'un', 1000, 0, salePriceCents: null, code: 'sku-1'),
         );
     }
 
