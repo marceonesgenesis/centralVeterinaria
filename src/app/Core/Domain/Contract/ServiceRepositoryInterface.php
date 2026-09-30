@@ -34,4 +34,10 @@ interface ServiceRepositoryInterface extends TenantRepositoryInterface
      * @return list<TEntity>
      */
     public function listAll(): array;
+
+    /**
+     * Whether any appointment of the current tenant references the service
+     * (appointment_service_fk is RESTRICT, so such a service cannot be deleted).
+     */
+    public function hasAppointments(int $serviceId): bool;
 }
