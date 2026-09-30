@@ -119,7 +119,8 @@ class BankAccountForm extends TPage
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -173,16 +174,32 @@ class BankAccountForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
     /**
-     * "1.234,56" / "-50,00" → centavos inteiros (sinal preservado).
+     * "1.234,56" / "-50,00" / "1234,5" → centavos inteiros (sinal
+     * preservado). Vazio → 0; qualquer outra entrada (texto, ponto decimal,
+     * mais de 2 casas) lança \InvalidArgumentException('Invalid amount'),
+     * traduzida por CvFormat::userError (catálogo de T-28).
      */
     private static function toCents($amount): int
     {
-        $normalized = str_replace('.', '', trim((string) $amount));
+        $amount = trim((string) $amount);
+
+        if ($amount === '')
+        {
+            return 0;
+        }
+
+        if (!preg_match('/^-?\d{1,3}(\.\d{3})*(,\d{1,2})?$/', $amount) && !preg_match('/^-?\d+(,\d{1,2})?$/', $amount))
+        {
+            throw new \InvalidArgumentException('Invalid amount');
+        }
+
+        $normalized = str_replace('.', '', $amount);
         $normalized = str_replace(',', '.', $normalized);
 
         return (int) round(((float) $normalized) * 100);

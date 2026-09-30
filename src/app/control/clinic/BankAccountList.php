@@ -34,6 +34,8 @@ class BankAccountList extends TPage
         $column_updated_at = new TDataGridColumn('balance_updated_at', _t('Updated at'), 'left', 150);
         $column_active     = new TDataGridColumn('active', _t('Status'), 'left', 110);
 
+        // O TDataGrid passa ao transformer o valor cru (o htmlspecialchars
+        // dele só vale para coluna sem transformer): este e() é o único escape.
         $column_bank->setTransformer(function ($value) {
             return $value !== null && $value !== '' ? CvFormat::e((string) $value) : '—';
         });
@@ -124,7 +126,8 @@ class BankAccountList extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
