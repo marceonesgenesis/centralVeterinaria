@@ -103,7 +103,13 @@ class ServiceImportForm extends TPage
                 $items = '';
                 foreach ($result['skipped'] as $skipped)
                 {
-                    $items .= '<li>' . CvFormat::e(_t('Line ^1', (string) (int) $skipped['line']) . ': ' . _t((string) $skipped['reason'])) . '</li>';
+                    // Motivo vindo de create() (catálogo UserMessage) → texto pt já escapado;
+                    // os motivos fixos do importCsv são chaves diretas de _t().
+                    $reason = (string) $skipped['reason'];
+                    $reasonText = \CentralVet\Presentation\UserMessage::resolve($reason) !== null
+                        ? CvFormat::userMessage($reason)
+                        : CvFormat::e(_t($reason));
+                    $items .= '<li>' . CvFormat::e(_t('Line ^1', (string) (int) $skipped['line'])) . ': ' . $reasonText . '</li>';
                 }
                 $message .= '<br>' . CvFormat::e(_t('Skipped lines')) . ':<ul class="mb-0">' . $items . '</ul>';
             }

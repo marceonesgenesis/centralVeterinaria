@@ -1,5 +1,13 @@
 [
   {
+    "en": "%s days",
+    "pt": "%s dias"
+  },
+  {
+    "en": "A bank account named \"^1\" already exists for this unit",
+    "pt": "Já existe uma conta bancária chamada \"^1\" nesta unidade"
+  },
+  {
     "en": "A new seed is required in the application.ini for security reasons",
     "pt": "É necessária uma nova seed no application.ini por motivos de segurança"
   },
@@ -12,8 +20,28 @@
     "pt": "É necessário informar um produto para receber um lote de estoque"
   },
   {
+    "en": "A product named \"^1\" already exists",
+    "pt": "Já existe um produto chamado \"^1\""
+  },
+  {
+    "en": "A product with code \"^1\" already exists",
+    "pt": "Já existe um produto com o código \"^1\""
+  },
+  {
+    "en": "A service named \"^1\" already exists",
+    "pt": "Já existe um serviço chamado \"^1\""
+  },
+  {
+    "en": "A template named \"^1\" already exists",
+    "pt": "Já existe um modelo chamado \"^1\""
+  },
+  {
     "en": "A tutor must be informed to register a patient",
     "pt": "É necessário informar um tutor para cadastrar um paciente"
+  },
+  {
+    "en": "A tutor with this document already exists in this tenant",
+    "pt": "Já existe um tutor com este documento"
   },
   {
     "en": "A vaccine catalog item is required",
@@ -216,6 +244,10 @@
     "pt": "Agendamento"
   },
   {
+    "en": "Appointment ^1 cannot be rescheduled from status ^2",
+    "pt": "O agendamento ^1 não pode ser remarcado no status ^2"
+  },
+  {
     "en": "Appointment scheduled successfully",
     "pt": "Agendamento realizado com sucesso"
   },
@@ -268,12 +300,20 @@
     "pt": "Saldo devedor"
   },
   {
+    "en": "balance_cents must be an integer",
+    "pt": "O saldo deve ser um valor numérico"
+  },
+  {
     "en": "Bank",
     "pt": "Banco"
   },
   {
     "en": "Bank account",
     "pt": "Conta bancária"
+  },
+  {
+    "en": "Bank account not found",
+    "pt": "Conta bancária não encontrada"
   },
   {
     "en": "Bank accounts",
@@ -286,6 +326,10 @@
   {
     "en": "Bank transfer",
     "pt": "Transferência bancária"
+  },
+  {
+    "en": "bank_name must have at most 120 characters",
+    "pt": "O nome do banco deve ter no máximo 120 caracteres"
   },
   {
     "en": "Batch",
@@ -376,8 +420,16 @@
     "pt": "Log de alterações"
   },
   {
+    "en": "Check in this appointment?",
+    "pt": "Fazer check-in deste agendamento?"
+  },
+  {
     "en": "Check the owner of the log file. He must be the same as the web user (usually www-data, www, etc)",
     "pt": "Verifique o proprietário do arquivo de log. Ele deve ser o mesmo do usuário web (geralmente www-data, www, etc)"
+  },
+  {
+    "en": "Check-in",
+    "pt": "Check-in"
   },
   {
     "en": "Choose a CSV file to import",
@@ -704,6 +756,10 @@
     "pt": "Duplicar"
   },
   {
+    "en": "Duplicate this service?",
+    "pt": "Duplicar este serviço?"
+  },
+  {
     "en": "duplicated name",
     "pt": "nome repetido"
   },
@@ -754,6 +810,18 @@
   {
     "en": "Encounter",
     "pt": "Atendimento"
+  },
+  {
+    "en": "Encounter ^1 is already paused",
+    "pt": "O atendimento ^1 já está pausado"
+  },
+  {
+    "en": "Encounter ^1 is finished and cannot be paused",
+    "pt": "O atendimento ^1 está finalizado e não pode ser pausado"
+  },
+  {
+    "en": "Encounter ^1 is not paused",
+    "pt": "O atendimento ^1 não está pausado"
   },
   {
     "en": "Encounter account",
@@ -984,6 +1052,10 @@
     "pt": "Nome completo"
   },
   {
+    "en": "full_name is required",
+    "pt": "Informe o nome completo"
+  },
+  {
     "en": "Function",
     "pt": "Função"
   },
@@ -1140,6 +1212,10 @@
     "pt": "Ação inválida"
   },
   {
+    "en": "Invalid amount",
+    "pt": "Valor inválido"
+  },
+  {
     "en": "Invalid captcha",
     "pt": "Captcha inválido"
   },
@@ -1198,6 +1274,10 @@
   {
     "en": "Items",
     "pt": "Itens"
+  },
+  {
+    "en": "items must be a non-empty list",
+    "pt": "Informe ao menos um item"
   },
   {
     "en": "Items sold",
@@ -1362,6 +1442,10 @@
   {
     "en": "name is required",
     "pt": "nome obrigatório"
+  },
+  {
+    "en": "name must have at most 120 characters",
+    "pt": "O nome deve ter no máximo 120 caracteres"
   },
   {
     "en": "name too long",
@@ -1564,6 +1648,10 @@
     "pt": "Só contas em aberto podem ser editadas"
   },
   {
+    "en": "Only scheduled or confirmed appointments can be checked in",
+    "pt": "Só agendamentos marcados ou confirmados podem fazer check-in"
+  },
+  {
     "en": "Open",
     "pt": "Abrir"
   },
@@ -1590,6 +1678,10 @@
   {
     "en": "Open receivables",
     "pt": "Contas a receber em aberto"
+  },
+  {
+    "en": "Open the prescription from the encounter",
+    "pt": "Abra a prescrição pelo atendimento"
   },
   {
     "en": "Open ticket",
@@ -1668,6 +1760,18 @@
     "pt": "Paciente"
   },
   {
+    "en": "Patient checked in",
+    "pt": "Paciente incluído na fila"
+  },
+  {
+    "en": "Patient sex must be one of M, F, U",
+    "pt": "O sexo do paciente deve ser M, F ou U"
+  },
+  {
+    "en": "Patient weight_kg cannot be negative",
+    "pt": "O peso do paciente não pode ser negativo"
+  },
+  {
     "en": "Patients",
     "pt": "Pacientes"
   },
@@ -1734,6 +1838,10 @@
   {
     "en": "Phone",
     "pt": "Telefone"
+  },
+  {
+    "en": "phone is required",
+    "pt": "Informe o telefone"
   },
   {
     "en": "Photo",
@@ -2288,10 +2396,6 @@
     "pt": "Selecionar linha"
   },
   {
-    "en": "Selected tutor was not found for your account",
-    "pt": "O tutor selecionado não foi encontrado para sua conta"
-  },
-  {
     "en": "Send",
     "pt": "Enviar"
   },
@@ -2326,6 +2430,10 @@
   {
     "en": "Service id",
     "pt": "Id do serviço"
+  },
+  {
+    "en": "Service not found for this tenant",
+    "pt": "Serviço não encontrado"
   },
   {
     "en": "Services",
@@ -2584,8 +2692,16 @@
     "pt": "Não há sessão de caixa aberta para esta unidade. Abra uma sessão de caixa antes de registrar um pagamento."
   },
   {
+    "en": "This appointment is already in the queue",
+    "pt": "Este agendamento já está na fila"
+  },
+  {
     "en": "This configuration is usually recommended for production, not development purposes",
     "pt": "Esta configuração geralmente é recomendada para produção, não para fins de desenvolvimento"
+  },
+  {
+    "en": "This entry cannot advance right now: ^1",
+    "pt": "Esta entrada não pode avançar agora: ^1"
   },
   {
     "en": "This folder already exists",
@@ -2786,6 +2902,14 @@
   {
     "en": "Valid until",
     "pt": "Válida até"
+  },
+  {
+    "en": "valid_until cannot be in the past",
+    "pt": "A validade não pode estar no passado"
+  },
+  {
+    "en": "valid_until must be a Y-m-d date",
+    "pt": "Validade inválida"
   },
   {
     "en": "Vendor",

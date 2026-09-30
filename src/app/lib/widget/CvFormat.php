@@ -68,9 +68,10 @@ class CvFormat
     }
 
     /**
-     * Mensagem de erro para a tela. CrossTenantReferenceException vira texto
-     * traduzido e sem o id (a mensagem original, em inglês e com o id, fica
-     * só no error_log do controller); as demais exceções mantêm getMessage().
+     * Mensagem de erro para a tela, já segura para TMessage (HTML).
+     * CrossTenantReferenceException vira texto traduzido e sem o id (a
+     * mensagem original fica só no error_log do controller); as demais
+     * seguem a regra de userMessage().
      */
     public static function userError(\Throwable $e): string
     {
@@ -79,6 +80,23 @@ class CvFormat
             return _t('The selected record does not belong to this clinic');
         }
 
-        return $e->getMessage();
+        return self::userMessage($e->getMessage());
+    }
+
+    /**
+     * Mensagem de domínio → texto seguro para TMessage: quando o catálogo
+     * UserMessage a reconhece, a chave traduzida com os parâmetros escapados;
+     * senão, a própria mensagem escapada.
+     */
+    public static function userMessage(string $message): string
+    {
+        $resolved = \CentralVet\Presentation\UserMessage::resolve($message);
+
+        if ($resolved === null)
+        {
+            return self::e($message);
+        }
+
+        return _t($resolved['key'], ...array_map([self::class, 'e'], $resolved['params']));
     }
 }

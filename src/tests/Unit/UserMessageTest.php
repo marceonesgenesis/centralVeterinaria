@@ -37,7 +37,8 @@ final class UserMessageTest
     public function testPatternWithoutCaptureDropsTheId(): void
     {
         Assert::same(['key' => 'Bank account not found', 'params' => []], UserMessage::resolve('Bank account 12 not found for this tenant'));
-        Assert::same(['key' => 'This appointment is already in the queue', 'params' => []], UserMessage::resolve('Appointment 7 is already in the queue'));
+        // A regex do contrato captura o id, mas a chave não usa ^1: o id não aparece no texto.
+        Assert::same(['key' => 'This appointment is already in the queue', 'params' => ['7']], UserMessage::resolve('Appointment 7 is already in the queue'));
     }
 
     public function testPatternWithTwoCaptures(): void
