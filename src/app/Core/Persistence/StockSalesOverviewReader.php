@@ -115,13 +115,16 @@ final class StockSalesOverviewReader extends AbstractTenantRepository
     }
 
     /**
-     * Most recent completed sales, newest first.
+     * Most recent completed sales, newest first. A limit <= 0 returns [].
      *
      * @return list<array{id: int, sold_at: string, total_cents: int, items_label: string, patient_name: ?string}>
      */
     public function recentSales(int $limit): array
     {
-        $limit = max(1, $limit);
+        if ($limit <= 0) {
+            return [];
+        }
+
         $query = $this->tenantQuery('s')->andEquals('status', 'completed', 's');
 
         $statement = $this->connection->prepare(

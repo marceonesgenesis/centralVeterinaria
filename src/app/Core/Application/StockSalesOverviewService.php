@@ -29,11 +29,83 @@ final class StockSalesOverviewService
      */
     public function summary(DateTimeImmutable $month): array
     {
+        return $this->summarize($this->products(), $month);
+    }
+
+    /**
+     * Summary, product table and low-stock column of one screen load.
+     * summary and low_stock always cover the unfiltered product set;
+     * products honours $search/$category/$status. The reader's
+     * productStocks() runs once unfiltered and, only when $search or
+     * $category is given, once more with those filters.
+     *
+     * @return array{summary: array{products_in_stock: int, low_stock: int, out_of_stock: int, sales_month_cents: int, sales_prev_month_cents: int, items_sold_month: int, items_sold_prev_month: int}, products: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>, low_stock: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>}
+     */
+    public function overview(
+        DateTimeImmutable $month,
+        ?string $search = null,
+        ?string $category = null,
+        ?string $status = null,
+        int $lowStockLimit = 5,
+    ): array {
+        $all = $this->withStatus($this->reader->productStocks());
+        $hasReaderFilter = ($search !== null && trim($search) !== '') || ($category !== null && $category !== '');
+        $listed = $hasReaderFilter ? $this->withStatus($this->reader->productStocks($search, $category)) : $all;
+
+        return [
+            'summary' => $this->summarize($all, $month),
+            'products' => self::filterByStatus($listed, $status),
+            'low_stock' => self::lowestFirst($all, $lowStockLimit),
+        ];
+    }
+
+    /**
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     */
+    public function products(?string $search = null, ?string $category = null, ?string $status = null): array
+    {
+        return self::filterByStatus($this->withStatus($this->reader->productStocks($search, $category)), $status);
+    }
+
+    /**
+     * @return list<array{id: int, sold_at: string, total_cents: int, items_label: string, patient_name: ?string}>
+     */
+    public function recentSales(int $limit = 5): array
+    {
+        if ($limit <= 0) {
+            return [];
+        }
+
+        return $this->reader->recentSales($limit);
+    }
+
+    /**
+     * Products with status low/out, lowest stock first. A limit <= 0 returns [].
+     *
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     */
+    public function lowStock(int $limit = 5): array
+    {
+        return self::lowestFirst($this->products(), $limit);
+    }
+
+    /** @return list<string> */
+    public function categories(): array
+    {
+        return $this->reader->categories();
+    }
+
+    /**
+     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}> $products
+     * @return array{products_in_stock: int, low_stock: int, out_of_stock: int, sales_month_cents: int, sales_prev_month_cents: int, items_sold_month: int, items_sold_prev_month: int}
+     */
+    private function summarize(array $products, DateTimeImmutable $month): array
+    {
         $inStock = 0;
         $low = 0;
         $out = 0;
 
-        foreach ($this->products() as $product) {
+        foreach ($products as $product) {
             if ($product['status'] === self::STATUS_OUT) {
                 $out++;
                 continue;
@@ -65,42 +137,46 @@ final class StockSalesOverviewService
     }
 
     /**
+     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float}> $rows
      * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
      */
-    public function products(?string $search = null, ?string $category = null, ?string $status = null): array
+    private function withStatus(array $rows): array
     {
-        $products = [];
-
-        foreach ($this->reader->productStocks($search, $category) as $row) {
-            $row['status'] = self::statusOf($row['stock_quantity'], $row['minimum_stock_quantity']);
-
-            if ($status !== null && $status !== '' && $row['status'] !== $status) {
-                continue;
-            }
-
-            $products[] = $row;
+        foreach ($rows as $index => $row) {
+            $rows[$index]['status'] = self::statusOf($row['stock_quantity'], $row['minimum_stock_quantity']);
         }
 
-        return $products;
+        return $rows;
     }
 
     /**
-     * @return list<array{id: int, sold_at: string, total_cents: int, items_label: string, patient_name: ?string}>
+     * @param list<array{status: string}> $products
+     * @return list<array{status: string}>
      */
-    public function recentSales(int $limit = 5): array
+    private static function filterByStatus(array $products, ?string $status): array
     {
-        return $this->reader->recentSales($limit);
+        if ($status === null || $status === '') {
+            return $products;
+        }
+
+        return array_values(array_filter(
+            $products,
+            static fn (array $product): bool => $product['status'] === $status,
+        ));
     }
 
     /**
-     * Products with status low/out, lowest stock first.
-     *
-     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     * @param list<array{name: string, stock_quantity: float, status: string}> $products
+     * @return list<array{name: string, stock_quantity: float, status: string}>
      */
-    public function lowStock(int $limit = 5): array
+    private static function lowestFirst(array $products, int $limit): array
     {
+        if ($limit <= 0) {
+            return [];
+        }
+
         $rows = array_values(array_filter(
-            $this->products(),
+            $products,
             static fn (array $product): bool => $product['status'] !== self::STATUS_NORMAL,
         ));
 
@@ -109,13 +185,7 @@ final class StockSalesOverviewService
             static fn (array $a, array $b): int => [$a['stock_quantity'], $a['name']] <=> [$b['stock_quantity'], $b['name']],
         );
 
-        return array_slice($rows, 0, max(0, $limit));
-    }
-
-    /** @return list<string> */
-    public function categories(): array
-    {
-        return $this->reader->categories();
+        return array_slice($rows, 0, $limit);
     }
 
     private static function statusOf(float $stock, float $minimum): string
