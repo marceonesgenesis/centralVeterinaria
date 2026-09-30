@@ -139,7 +139,10 @@ var CvShell = (function () {
         select.setAttribute('aria-label', unitLabel);
         select.title = unitLabel;
 
-        if (!current) {
+        // unidade única sem current: ela fica selecionada (o select segue disabled), sem placeholder
+        var single = context.units.length === 1;
+
+        if (!current && !single) {
             var placeholder = document.createElement('option');
             placeholder.value = '';
             placeholder.textContent = '—';
@@ -152,7 +155,7 @@ var CvShell = (function () {
             var option = document.createElement('option');
             option.value = String(unit.id);
             option.textContent = unit.name;
-            if (unit.current) {
+            if (unit.current || single) {
                 option.selected = true;
             }
             select.appendChild(option);
