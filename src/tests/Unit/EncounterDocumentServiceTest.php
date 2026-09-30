@@ -8,6 +8,8 @@ use CentralVet\Application\EncounterDocumentService;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeStorage;
+use CentralVet\Tests\Support\FakeStoredObjectRepository;
+use RuntimeException;
 
 /**
  * Unit tests for EncounterDocumentService (T-08), against FakeStorage — an
@@ -53,10 +55,9 @@ final class EncounterDocumentServiceTest
     }
 
     /**
-     * list() has no `stored_object` index/repository to read from in this
-     * plan (see EncounterDocumentService's own class docblock) — it is a
-     * documented gap, not a bug, so this pins the current, honest behaviour
-     * rather than pretending it lists what attach() just stored.
+     * Without a StoredObjectRepositoryInterface (callers with 2 arguments,
+     * e.g. ExamResultForm) there is still no index to read from, so list()
+     * keeps returning [] — the documented gap only for that wiring.
      */
     public function testListReturnsEmptyArrayPerDocumentedGap(): void
     {
@@ -66,5 +67,71 @@ final class EncounterDocumentServiceTest
         $service->attach(42, 'laudo.pdf', 'conteudo', 'application/pdf');
 
         Assert::count(0, $service->list(42));
+    }
+
+    public function testAttachRecordsStoredObjectAndListIsScopedToEncounter(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $metadata = $service->attach(10, 'r2.pdf', '%PDF-bytes', 'application/pdf');
+        Assert::true($storage->exists($metadata->objectKey));
+
+        $rows = $objects->allRows();
+        Assert::count(1, $rows);
+        Assert::same(7, $rows[0]['tenant_id']);
+        Assert::same(5, $rows[0]['system_unit_id']);
+        Assert::same(3, $rows[0]['created_by']);
+        Assert::same($metadata->objectKey, $rows[0]['object_key']);
+
+        $listed = $service->list(10);
+        Assert::count(1, $listed);
+        Assert::same('r2.pdf', $listed[0]['original_name']);
+        Assert::same('application/pdf', $listed[0]['content_type']);
+        Assert::same(strlen('%PDF-bytes'), $listed[0]['size_bytes']);
+
+        Assert::same([], $service->list(11));
+        Assert::same([], $service->list(1), 'encounter 1 must not match encounter 10 by prefix');
+    }
+
+    public function testDownloadReturnsBytesOnlyForTheSameEncounter(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $service->attach(10, 'r2 laudo.pdf', '%PDF-bytes', 'application/pdf');
+        $publicId = $service->list(10)[0]['public_id'];
+
+        $download = $service->download(10, $publicId);
+        Assert::notNull($download);
+        Assert::same('%PDF-bytes', $download['contents']);
+        Assert::same('application/pdf', $download['content_type']);
+        Assert::same('r2 laudo.pdf', $download['original_name']);
+
+        Assert::null($service->download(11, $publicId), 'another encounter cannot download it');
+        Assert::null($service->download(10, '00000000-0000-4000-8000-999999999999'), 'unknown public_id');
+    }
+
+    public function testRecordFailureDeletesTheStoredObjectAndRethrows(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $objects->failNextRecordWith(new RuntimeException('insert failed'));
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $thrown = null;
+
+        try {
+            $service->attach(10, 'r2.pdf', 'bytes', 'application/pdf');
+        } catch (RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        Assert::notNull($thrown, 'record() failure must be rethrown');
+        Assert::same('insert failed', $thrown->getMessage());
+        Assert::false($storage->exists('tenant/7/encounter/10/r2.pdf'), 'the object just written must be deleted');
+        Assert::count(0, $objects->allRows());
     }
 }
