@@ -878,17 +878,22 @@ class EncounterView extends TPage
     }
 
     /**
-     * Prescription/exam status as a translated CvBadge; unknown statuses stay
-     * neutral with the raw value.
+     * Prescription/exam status as a translated CvBadge; an empty status shows
+     * a neutral "—" and unknown statuses stay neutral with the raw value.
      */
     private static function planStatusBadge(string $status): TElement
     {
         $map = [
-            'draft' => ['Draft', 'neutral'],
-            'issued' => ['Issued', 'success'],
-            'requested' => ['Requested', 'info'],
-            'result_available' => ['Result available', 'success'],
+            \CentralVet\Domain\Prescription::STATUS_DRAFT => ['Draft', 'neutral'],
+            \CentralVet\Domain\Prescription::STATUS_ISSUED => ['Issued', 'success'],
+            \CentralVet\Domain\ExamRequest::STATUS_REQUESTED => ['Requested', 'info'],
+            \CentralVet\Domain\ExamRequest::STATUS_RESULT_AVAILABLE => ['Result available', 'success'],
         ];
+
+        if ($status === '')
+        {
+            return CvBadge::create('—', 'neutral');
+        }
 
         if (isset($map[$status]))
         {
@@ -919,9 +924,9 @@ class EncounterView extends TPage
             $text = new TElement('div');
             $text->add(TElement::tag('div', CvFormat::e((string) $item['title']), ['style' => 'font-weight:600']));
 
-            if (!empty($item['detail']) && $detailIsStatus)
+            if ($detailIsStatus)
             {
-                $text->add(TElement::tag('div', self::planStatusBadge((string) $item['detail']), ['style' => 'margin-top:2px']));
+                $text->add(TElement::tag('div', self::planStatusBadge((string) ($item['detail'] ?? '')), ['style' => 'margin-top:2px']));
             }
             elseif (!empty($item['detail']))
             {
@@ -1475,15 +1480,15 @@ class EncounterView extends TPage
     }
 
     /**
-     * Procedimento (T-09: the only inline "kind" still routed here —
-     * Prescricao/Exame/Vacina now navigate straight to their own dedicated
-     * screen from inlineActionsPanel() instead of calling this action):
-     * casca de UI. Records a single audit_log event
-     * (CentralVet\Audit\AuditEvent + PdoAuditLogWriter, used directly here
-     * — no dedicated Application service exists for this action in this
-     * phase, and the task explicitly allows this choice) and reloads the
-     * page so the new event shows up in the timeline. Never writes to any
-     * table of its own.
+     * Records an inline clinical-plan action in the audit log. `kind` is one
+     * of the keys of PLAN_ACTIONS (prescription, exam, procedure, vaccine,
+     * account); the plan buttons themselves navigate client-side to the
+     * target screen of PLAN_ACTIONS (planActions()), so this action only
+     * writes a single audit_log event with action
+     * `EncounterView::onInlineAction:<kind>` (entity `encounter`, afterData
+     * ['kind' => <kind>]) through CentralVet\Audit\PdoAuditLogWriter and
+     * reloads the page so the event shows up in the timeline. Never writes
+     * to any table of its own.
      */
     public function onInlineAction($param)
     {

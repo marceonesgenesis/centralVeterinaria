@@ -106,9 +106,8 @@ class PendingExamResultList extends TStandardList
             return CvFormat::e((string) $value);
         });
         $column_status->setTransformer(function ($value) {
-            return $value === \CentralVet\Domain\ExamRequest::STATUS_RESULT_AVAILABLE
-                ? CvBadge::create(_t('Result available'), 'success')
-                : CvBadge::create(_t('Requested'), 'warning');
+            // listPending() only returns requested exams
+            return CvBadge::create(_t('Requested'), 'warning');
         });
 
         $this->datagrid->addColumn($column_patient);
