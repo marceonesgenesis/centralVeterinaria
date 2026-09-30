@@ -230,7 +230,7 @@ class GlobalSearchController extends TPage
             $this->pageNavigation->hide();
         }
 
-        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('results')));
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, mb_strtolower(_t('Results'))));
     }
 
     /**

@@ -207,7 +207,7 @@ class TutorList extends TPage
 
         $from = $total > 0 ? $offset + 1 : 0;
         $this->footerBox->clearChildren();
-        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('tutors')));
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, mb_strtolower(_t('Tutors'))));
     }
 
     /**

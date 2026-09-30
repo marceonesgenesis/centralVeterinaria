@@ -235,7 +235,7 @@ class PatientList extends TPage
 
         $from = $total > 0 ? $offset + 1 : 0;
         $this->footerBox->clearChildren();
-        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('patients')));
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, mb_strtolower(_t('Patients'))));
     }
 
     /**

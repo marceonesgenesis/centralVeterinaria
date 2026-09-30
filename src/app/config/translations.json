@@ -136,6 +136,10 @@
     "pt": "Resumo de IA"
   },
   {
+    "en": "All (filter)",
+    "pt": "Todas"
+  },
+  {
     "en": "All categories",
     "pt": "Todas as categorias"
   },
@@ -460,6 +464,10 @@
     "pt": "Não foi possível carregar o catálogo de procedimentos"
   },
   {
+    "en": "Could not load the user context",
+    "pt": "Não foi possível carregar o contexto do usuário"
+  },
+  {
     "en": "Count",
     "pt": "Contagem"
   },
@@ -518,10 +526,6 @@
   {
     "en": "Date/time",
     "pt": "Data/hora"
-  },
-  {
-    "en": "Date/Time",
-    "pt": "Data/Hora"
   },
   {
     "en": "Date/time and service id are required to schedule a follow-up",
@@ -1064,6 +1068,10 @@
     "pt": "Ação em linha inválida"
   },
   {
+    "en": "Invalid or expired request. Reload the page",
+    "pt": "Requisição inválida ou expirada. Recarregue a página"
+  },
+  {
     "en": "Invalid prescription",
     "pt": "Prescrição inválida"
   },
@@ -1134,6 +1142,10 @@
   {
     "en": "Lot",
     "pt": "Lote"
+  },
+  {
+    "en": "Low or out of stock",
+    "pt": "Estoque baixo ou zerado"
   },
   {
     "en": "Low stock",
@@ -1428,8 +1440,16 @@
     "pt": "Uma vez por hora"
   },
   {
+    "en": "Only open payables can be edited",
+    "pt": "Só contas em aberto podem ser editadas"
+  },
+  {
     "en": "Open",
     "pt": "Abrir"
+  },
+  {
+    "en": "Open (filter)",
+    "pt": "Em aberto"
   },
   {
     "en": "Open (status)",
@@ -1500,6 +1520,10 @@
     "pt": "Pago"
   },
   {
+    "en": "Paid (filter)",
+    "pt": "Pagas"
+  },
+  {
     "en": "Partially paid",
     "pt": "Parcialmente paga"
   },
@@ -1526,10 +1550,6 @@
   {
     "en": "Patients",
     "pt": "Pacientes"
-  },
-  {
-    "en": "patients",
-    "pt": "pacientes"
   },
   {
     "en": "Pay",
@@ -1968,10 +1988,6 @@
     "pt": "Resultados"
   },
   {
-    "en": "results",
-    "pt": "resultados"
-  },
-  {
     "en": "Revenue by category",
     "pt": "Receitas por categoria"
   },
@@ -2162,10 +2178,6 @@
   {
     "en": "Services",
     "pt": "Serviços"
-  },
-  {
-    "en": "services",
-    "pt": "serviços"
   },
   {
     "en": "Session",
@@ -2474,10 +2486,6 @@
   {
     "en": "Tutors",
     "pt": "Tutores"
-  },
-  {
-    "en": "tutors",
-    "pt": "tutores"
   },
   {
     "en": "Two factor authentication",

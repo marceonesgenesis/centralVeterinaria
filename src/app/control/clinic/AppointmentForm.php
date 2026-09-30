@@ -77,12 +77,12 @@ class AppointmentForm extends TPage
 
         // add the fields (pares rótulo/campo em 2 colunas)
         $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
-        $this->form->addFields( [new TLabel(_t('Professional'))], [$professional_system_user_id], [new TLabel(_t('Date/Time'))], [$scheduled_at] );
+        $this->form->addFields( [new TLabel(_t('Professional'))], [$professional_system_user_id], [new TLabel(_t('Date/time'))], [$scheduled_at] );
 
         $patient_id->addValidation( _t('Patient'), new TRequiredValidator );
         $service_id->addValidation( _t('Service'), new TRequiredValidator );
         $professional_system_user_id->addValidation( _t('Professional'), new TRequiredValidator );
-        $scheduled_at->addValidation( _t('Date/Time'), new TRequiredValidator );
+        $scheduled_at->addValidation( _t('Date/time'), new TRequiredValidator );
 
         $back_date = isset($param['scheduled_at']) ? substr((string) $param['scheduled_at'], 0, 10) : date('Y-m-d');
         $back = ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['AgendaView', 'onReload'], ['date' => $back_date])];

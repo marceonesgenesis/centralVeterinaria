@@ -230,7 +230,7 @@ class ServiceList extends TPage
 
             $from = $total > 0 ? $offset + 1 : 0;
             $to   = $offset + count($page_rows);
-            $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $to, $total, _t('services')));
+            $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $to, $total, mb_strtolower(_t('Services'))));
 
             $this->detailBox->add($this->buildDetailPanel($selected));
 
