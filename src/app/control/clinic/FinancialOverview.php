@@ -163,7 +163,7 @@ class FinancialOverview extends TPage
         header('Content-Type: text/csv; charset=UTF-8');
         header('Content-Disposition: attachment; filename="' . $file_name . '"');
         header('Cache-Control: private, no-store');
-        header('X-Content-Type-Options: nosniff');
+        // nosniff vem só do nginx (fastcgi_hide_header + add_header), T-46
 
         $out = fopen('php://output', 'w');
         fwrite($out, "\xEF\xBB\xBF");
