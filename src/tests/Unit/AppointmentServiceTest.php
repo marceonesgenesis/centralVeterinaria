@@ -9,6 +9,7 @@ use CentralVet\Application\PatientService;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Appointment;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\SchedulingConflictException;
 use CentralVet\Domain\Patient;
 use CentralVet\Domain\Service;
@@ -20,6 +21,7 @@ use CentralVet\Tests\Support\FakePatientRepository;
 use CentralVet\Tests\Support\FakeServiceRepository;
 use CentralVet\Tests\Support\FakeTutorRepository;
 use DateTimeImmutable;
+use InvalidArgumentException;
 
 /**
  * Unit tests for AppointmentService (T-07), against fake repositories
@@ -273,6 +275,115 @@ final class AppointmentServiceTest
         $service = $this->makeAppointmentService();
 
         Assert::null($service->findById(999));
+    }
+
+    /**
+     * reschedule() (rodada 2, T-08) moves an appointment to a free slot:
+     * scheduledAt changes, while id, patientId, systemUnitId and status stay.
+     */
+    public function testRescheduleMovesToFreeSlotKeepingIdAndPatient(): void
+    {
+        $service = $this->makeAppointmentService();
+        $original = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        $moved = $service->reschedule($original->id, [
+            'service_id' => 1,
+            'professional_system_user_id' => 10,
+            'scheduled_at' => '2026-09-22 14:00:00',
+        ], self::ACTION);
+
+        Assert::same($original->id, $moved->id);
+        Assert::same($original->patientId, $moved->patientId);
+        Assert::same($original->systemUnitId, $moved->systemUnitId);
+        Assert::same($original->status, $moved->status);
+        Assert::same('2026-09-22 14:00', $moved->scheduledAt->format('Y-m-d H:i'));
+        Assert::same('2026-09-22 14:00', $service->findById($original->id)->scheduledAt->format('Y-m-d H:i'));
+    }
+
+    public function testRescheduleRejectsSlotOfAnotherActiveAppointment(): void
+    {
+        $service = $this->makeAppointmentService();
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+        $this->scheduleAt($service, '2026-09-22 10:00:00');
+
+        Assert::throws(
+            SchedulingConflictException::class,
+            static fn () => $service->reschedule($a->id, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 10:00:00',
+            ], self::ACTION),
+        );
+
+        Assert::same('2026-09-22 09:00', $service->findById($a->id)->scheduledAt->format('Y-m-d H:i'));
+    }
+
+    public function testRescheduleToSameSlotIgnoresItself(): void
+    {
+        $service = $this->makeAppointmentService();
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        $same = $service->reschedule($a->id, [
+            'service_id' => 1,
+            'professional_system_user_id' => 10,
+            'scheduled_at' => new DateTimeImmutable('2026-09-22 09:00:00'),
+        ], self::ACTION);
+
+        Assert::same($a->id, $same->id);
+    }
+
+    public function testRescheduleRejectsCancelledAppointment(): void
+    {
+        $cancelled = new Appointment(
+            id: 7,
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            serviceId: 1,
+            professionalSystemUserId: 10,
+            scheduledAt: new DateTimeImmutable('2026-09-22 09:00:00'),
+            status: Appointment::STATUS_CANCELLED,
+        );
+        $service = $this->makeAppointmentService([$cancelled]);
+
+        Assert::throws(
+            InvalidStatusTransitionException::class,
+            static fn () => $service->reschedule(7, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 11:00:00',
+            ], self::ACTION),
+        );
+    }
+
+    public function testRescheduleRejectsUnknownAppointment(): void
+    {
+        $service = $this->makeAppointmentService();
+
+        try {
+            $service->reschedule(999, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 11:00:00',
+            ], self::ACTION);
+        } catch (InvalidArgumentException $e) {
+            Assert::same('Appointment 999 not found for this tenant', $e->getMessage());
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidArgumentException was not thrown');
+    }
+
+    private function scheduleAt(AppointmentService $service, string $scheduledAt): Appointment
+    {
+        return $service->schedule([
+            'patient_id' => 1,
+            'service_id' => 1,
+            'professional_system_user_id' => 10,
+            'scheduled_at' => $scheduledAt,
+            'system_unit_id' => 1,
+        ], self::ACTION);
     }
 
     /**
