@@ -10,6 +10,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-07: Editar paciente: PatientService::update + PatientForm
 - T-27: Correção (code-review): peso do paciente com vírgula decimal e recusa de texto (onda 7)
 - T-32: Onda 8: PatientForm/PatientService: foto (órfã, cache, nosniff), normalização e não encontrado
+- T-42: Onda 9: Redis dos testes isolado das sessões e RedisQueueIntegrationTest determinístico
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23; em T-27, você). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-42 (onda 9): confirme a causa (reprodução em `## RED`) antes de editar. Pode rodar `docker compose exec -T redis redis-cli -n 0 --scan …` e `DBSIZE` (leitura); nunca `FLUSHDB`/`FLUSHALL`/`DEL` no DB 0. As SUITEs paralelas da Validação são suas; avise no board antes de rodá-las.
 - T-32 (onda 8): pode editar `docker/nginx/default.conf` (só `fastcgi_hide_header`); não rode `nginx -s reload`/`restart` (é do orquestrador no gate). Não edite `translations.json` (T-28) nem `cv-components.css` (T-31).
 - T-27 (onda 7): você é o escritor único de `src/app/config/translations.json` na onda. Grave a chave de peso e as 3 chaves fixadas na Interface de T-26. Nesta task você pode editar `PatientService.php`, `PatientForm.php` e `translations.json` (a restrição de T-07 sobre `Patient.php`, `PatientRepository.php` e os Fakes continua). Commits `Task: T-27 (RED)` (só `PatientServiceTest.php`) e depois `Task: T-27`.
 - Restrição específica: não altere `Patient.php`, `PatientRepository.php` nem os Fakes (são de T-12, onda 2).

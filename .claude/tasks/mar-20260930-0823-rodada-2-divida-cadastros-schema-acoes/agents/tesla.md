@@ -10,6 +10,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-12: Paciente: alergia e foto (Core + PatientForm + onPhoto)
 - T-20: FinancialOverview: saldo bancário, Exportar CSV, recentes no período, "vs. período anterior"
 - T-35: Onda 8: FinancialOverview, ProductList e formas de pagamento
+- T-47: Onda 9: foto anterior apagada só depois do commit e teste do discardPhoto
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-47 (onda 9): pode editar `PatientService.php`, `PatientServiceTest.php` e `PatientForm.php`.
 - T-35 (onda 8): pode tornar `FinancialEntry::PAYMENT_METHODS` pública (`src/app/Core/Domain/FinancialEntry.php`); não mude os valores.
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`.
 - Storage: `CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context)` (precedente `EncounterView.php:1734`). Se o storage local não responder, é falha de ambiente: relate em Pendências, sem contornar.

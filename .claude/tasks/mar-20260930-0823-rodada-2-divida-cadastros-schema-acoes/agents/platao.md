@@ -11,6 +11,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-13: Prescrição: validade e modelos (Core)
 - T-23: i18n do board e mensagem de CrossTenantReferenceException nos 14 controllers
 - T-28: Onda 8: catálogo de mensagens de domínio em pt, `CvFormat::userError` testado e i18n da onda
+- T-51: Onda 10: mensagens de agendamento em pt e i18n da onda 10
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -37,6 +38,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-51 (onda 10): você é o escritor único de `translations.json` na onda. Grave as chaves `i18n:` do board de T-41, T-45, T-50 e T-52 e releia o board antes do commit final (as outras tasks da onda registram lá).
 - T-28 (onda 8, BASE `cbd7ad1`): você é o escritor único de `translations.json` na onda. Grave exatamente as chaves listadas na Interface de T-28; linha `i18n:` do board fora da lista vira pendência. Crie `src/app/Core/Presentation/` (namespace `CentralVet\Presentation`).
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`. (vale para T-13 e T-23).
 - Em T-23 você é o escritor único de `translations.json`: leia todas as linhas `i18n:` de `board.md` e, antes de editar os controllers, localize os `catch` com `grep -n "CrossTenantReferenceException"`.

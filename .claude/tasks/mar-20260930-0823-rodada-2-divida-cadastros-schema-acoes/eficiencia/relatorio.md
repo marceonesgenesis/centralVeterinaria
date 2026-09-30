@@ -1,6 +1,6 @@
 # Eficiência — mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes
 
-- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T16:01:07-03:00 · última onda medida 7
+- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T16:53:20-03:00 · última onda medida 8
 - Sessões: 72051bcd-769a-4db4-bb19-021f9565544c (encontrada)
 - Base: sem base (nenhum plano da versão anterior no acervo)
 
@@ -8,16 +8,16 @@
 
 | Indicador | Este plano | Base |
 |---|---|---|
-| Tokens retidos por onda (mediana) | 33.948 | sem base |
-| Contexto máximo | 333.752 | sem base |
+| Tokens retidos por onda (mediana) | 33.034 | sem base |
+| Contexto máximo | 442.488 | sem base |
 | Compactações | 0 | sem base |
-| Correções por implementador | 0,15 | sem base |
+| Correções por implementador | 0,18 | sem base |
 | Retornos acima do limite (%) | 12 | sem base |
-| Validador acima da meta (%) | 50 | sem base |
+| Validador acima da meta (%) | 48 | sem base |
 | Aprovadas de primeira (%) | 92 | sem base |
 | Precisão do mapa de arquivos (%) | 100 | sem base |
-| Rodadas de fix loop | 4 | sem base |
-| Tasks de correção pós-Fase 5 (%) | 11 | sem base |
+| Rodadas de fix loop | 6 | sem base |
+| Tasks de correção pós-Fase 5 (%) | 38 | sem base |
 
 ## Tasks
 
@@ -50,6 +50,18 @@
 | T-25 | 6 | correcao | média | [x] | ok | 0 | 0 | 0/1 | 0 | 1 | — |
 | T-26 | 7 | correcao | média | [x] | ok | 0 | 0 | 0/3 | 0 | 1 | — |
 | T-27 | 7 | correcao | média | [x] | ok | 1 | 1 | 0/3 | 0 | 3 | — |
+| T-28 | 8 | correcao | alta | [ ] | ok | 0 | 0 | 0/3 | 0 | 2 | — |
+| T-29 | 8 | correcao | alta | [ ] | ok | 0 | 0 | 0/2 | 0 | 0 | — |
+| T-30 | 8 | correcao | média | [ ] | sem teste | 0 | 0 | 1/3 | 0 | 2 | — |
+| T-31 | 8 | correcao | alta | [ ] | sem teste | 0 | 0 | 0/3 | 0 | 2 | — |
+| T-32 | 8 | correcao | alta | [ ] | ok | 0 | 1 | 1/5 | 0 | 1 | src/app/control/clinic/EncounterView.php |
+| T-33 | 8 | correcao | média | [ ] | ok | 0 | 0 | 0/3 | 0 | 0 | — |
+| T-34 | 8 | correcao | simples | [ ] | sem teste | 0 | 1 | 0/4 | 0 | 2 | — |
+| T-35 | 8 | correcao | simples | [ ] | sem teste | 0 | 0 | 0/2 | 0 | 1 | — |
+| T-36 | 8 | correcao | média | [ ] | ok | 0 | 0 | 1/2 | 0 | 1 | — |
+| T-37 | 8 | correcao | média | [ ] | sem teste | 0 | 0 | 0/2 | 0 | 2 | — |
+| T-38 | 8 | correcao | média | [ ] | ok | 0 | 0 | 0/4 | 0 | 2 | — |
+| T-39 | 8 | correcao | simples | [ ] | sem teste | 0 | 0 | 0/0 | 0 | 0 | — |
 
 ## Causas
 
@@ -75,3 +87,12 @@
 - T-25: Gate e revisão aprovaram de primeira; desvio só de evidência por render CLI em vez de Playwright.
 - T-26: Reproducao no banco feita por leitura de codigo e information_schema, sem php -r gravando, como a task permite.
 - T-27: A mascara numerica setNumericMask da Interface transformava "4,5" em 0,45 (dose clinica); campo passou a digitacao livre com filtro.
+- T-28: Teste de params esperava [] mas a regex do contrato captura o id; ajustado para [7] na implementação
+- T-30: Reprovada por falta de evidência de console nos 3 fluxos do PrescriptionForm; complemento 3 provou
+- T-31: Reload com encounter_id também no retorno e foto em 96px, coerentes com a Interface
+- T-32: Pré-visualização mostrava a foto antiga por cache; URL passou a levar &v= do sha1 da chave
+- T-34: Máscara transformava abc em 0,00 e salvava sem aviso; digitação livre e valor inválido recusado em pt
+- T-35: Link Contas bancárias nos dois estados do KPI por exigência do GATE, mudando o contrato de T-20
+- T-36: Suíte global com 2 falhas alheias (UserMessageTest, RedisQueue); plan.md:119 ainda citava a guarda antiga
+- T-37: Teste extra de um só limite de período e verify.sql com ORDER BY de coluna não selecionada
+- T-38: Fake de produto corrigido na implementação e validação só em create(), reconstitute() intacto

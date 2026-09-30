@@ -41,6 +41,19 @@
 | T-37 | backend | Onda 8: testes de integração faltantes e verify da 0007 | — | sim | média | Sherlock | [x] |
 | T-38 | backend | Onda 8: modelos de prescrição (varchar, duplicado, N+1) e testes de produto | — | sim | média | Darwin | [x] |
 | T-39 | frontend | Onda 8: CvPage (docblock, target restrito) e seletor de unidade única | — | sim | simples | Thanos | [x] |
+| T-40 | database | Onda 9: migration 0008 — UNIQUE em queue_entry.appointment_id com dedupe prévio | — | sim | média | Jaspion | [x] |
+| T-41 | backend | Onda 10: check-in traduz a violação de UNIQUE; Agenda troca Check-in por "Na fila" | T-40 | sim | média | Aang | [x] |
+| T-42 | qa | Onda 9: Redis dos testes isolado das sessões e RedisQueueIntegrationTest determinístico | — | sim | média | Naruto | [x] |
+| T-43 | frontend | Onda 9: ServiceList com o nome nas confirmações e i18n da onda 9 | — | sim | simples | Levi | [x] |
+| T-44 | frontend | Onda 9: PrescriptionForm com userError nos catches restantes | — | sim | simples | Kratos | [x] |
+| T-45 | frontend | Onda 9: EncounterView com userError nos catches restantes e gate de anexo/retorno/IA | — | sim | média | Yoda | [x] |
+| T-46 | frontend | Onda 9: FinancialOverview sem nosniff pelo PHP | — | sim | simples | Thanos | [x] |
+| T-47 | backend | Onda 9: foto anterior apagada só depois do commit e teste do discardPhoto | — | sim | média | Tesla | [x] |
+| T-48 | backend | Onda 9: MoneyInput compartilhado e BankAccountForm com teto | — | sim | média | Athena | [x] |
+| T-49 | backend | Onda 9: testes mais fortes de T-28, T-36 e T-38 | — | sim | simples | Arquimedes | [x] |
+| T-50 | frontend | Onda 10: MoneyInput nos 9 formulários com toCents | T-48 | sim | média | Darwin | [x] |
+| T-51 | frontend | Onda 10: mensagens de agendamento em pt e i18n da onda 10 | — | sim | simples | Platão | [ ] |
+| T-52 | backend | Onda 10: anexos do atendimento registrados em stored_object e listados | — | sim | alta | Sherlock | [ ] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
@@ -1601,6 +1614,503 @@ Pendências de T-04: o docblock de `CvPage::header` está desalinhado e `target`
 - LINT de `CvPage.php` (evidência: `No syntax errors detected`)
 - `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'chdir("/var/www/html/src"); require "init.php"; echo CvPage::header("t", null, [["label"=>"x","href"=>"engine.php?a=1","target"=>"_top"]]);'` (evidência: sem `target=` e com `generator="adianti"`)
 - GATE → as 2 telas (evidência: `aria-label` e console 0 `error`)
+
+### T-40 — Onda 9: migration 0008 — UNIQUE em queue_entry.appointment_id com dedupe prévio
+
+**Camada:** database
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Jaspion
+
+Pendência T-29: o check-in faz check-then-act (`findByAppointment` e depois `save`), sem UNIQUE, e duas requisições simultâneas gravam duas entradas. Hoje há 1 duplicata, envolvendo `queue_entry` id 1. `queue_entry.appointment_id` é `NULL` no encaixe (FK `queue_entry_appointment_fk` para `appointment`); o `0` visto na fila é só da linha do grid. No MySQL, UNIQUE aceita vários `NULL`. O agente só redige os arquivos: o orquestrador aplica depois da aprovação SQL do usuário, entre as ondas 9 e 10, pelo runbook: `make backup` + `gzip -t`, SHA-256, `MIGRATION_DB_USER` e `.verify.sql`. Antes de aplicar, o orquestrador anota em `notes.md § Bloqueios` a saída de `SELECT id, appointment_id, status, checked_in_at FROM queue_entry WHERE appointment_id IN (SELECT appointment_id FROM queue_entry WHERE appointment_id IS NOT NULL GROUP BY appointment_id HAVING COUNT(*) > 1)` e o `COUNT(*)` de `queue_entry`.
+
+**Arquivos prováveis**
+- `src/app/database/migrations/20260930_0008_queue_entry_appointment_unique.sql`
+- `src/app/database/migrations/20260930_0008_queue_entry_appointment_unique.verify.sql`
+
+**Interface**
+- Produz: `20260930_0008_queue_entry_appointment_unique` (version em `schema_migrations`), no formato da 0007 (cabeçalho `PREPARED ONLY`, `Target` = após 0007, `Effects`, `Risk`, `Rollback` e `INSERT INTO schema_migrations` com placeholder de checksum). Efeitos, nesta ordem: (1) dedupe sem apagar linha: em cada `appointment_id` não nulo com mais de uma entrada, a de **menor id** (o primeiro check-in) fica, e as demais recebem `appointment_id = NULL` (viram encaixe). A consulta é `UPDATE queue_entry q JOIN (SELECT appointment_id, MIN(id) AS keep_id FROM queue_entry WHERE appointment_id IS NOT NULL GROUP BY appointment_id HAVING COUNT(*) > 1) d ON q.appointment_id = d.appointment_id AND q.id <> d.keep_id SET q.appointment_id = NULL`; (2) `ALTER TABLE queue_entry ADD UNIQUE KEY queue_entry_appointment_uq (appointment_id)`. O índice `queue_entry_appointment_idx` e a FK ficam.
+- Produz: `Rollback` no cabeçalho. A opção preferida é restaurar o backup pré-migration. A alternativa é uma migration 0009 com `ALTER TABLE queue_entry DROP INDEX queue_entry_appointment_uq` e o `UPDATE` que restaura os `appointment_id` anotados em `notes.md § Bloqueios`; ela não é redigida agora.
+- Consome: nada
+
+**Teste RED**
+- sem teste: migration pura (DDL + DML de dedupe); a prova é o `.verify.sql` rodado pelo orquestrador após a aplicação aprovada
+
+**Critério de aceite**
+- `grep -c "PREPARED ONLY"` = 1 e `grep -c "queue_entry_appointment_uq"` ≥ 1 no `.sql`; `grep -ciE "\b(delete|drop|truncate)\b"` = 0 fora das linhas de comentário do `Rollback`.
+- `.verify.sql` só com SELECT (`grep -ciE "\b(insert|update|delete|alter|create|drop|truncate|replace)\b"` = 0), e traz:
+  - `SELECT` de `information_schema.statistics` com `index_name = 'queue_entry_appointment_uq'` e `non_unique = 0`;
+  - `SELECT COUNT(*) FROM (SELECT appointment_id FROM queue_entry WHERE appointment_id IS NOT NULL GROUP BY appointment_id HAVING COUNT(*) > 1) x`, que deve dar 0;
+  - `SELECT COUNT(*) FROM queue_entry`, para comparar com a contagem anterior;
+  - `SELECT COUNT(*) FROM queue_entry WHERE appointment_id IS NULL`;
+  - a linha de `schema_migrations`.
+
+**Validação**
+- `grep -c "PREPARED ONLY" /var/www/html/centralvet/src/app/database/migrations/20260930_0008_queue_entry_appointment_unique.sql` (evidência: `1`)
+- `grep -ciE "\b(insert|update|delete|alter|create|drop|truncate|replace)\b" /var/www/html/centralvet/src/app/database/migrations/20260930_0008_queue_entry_appointment_unique.verify.sql` (evidência: `0`)
+- Após a aplicação aprovada (orquestrador):
+  - `.verify.sql` mostra o índice com `non_unique = 0` e 0 grupos duplicados;
+  - `COUNT(*) FROM queue_entry` igual ao anotado antes (nenhuma linha perdida);
+  - `COUNT(*) ... IS NULL` = anterior + número de linhas desvinculadas;
+  - a linha de menor id de cada grupo anotado mantém o `appointment_id`.
+
+### T-41 — Onda 10: check-in traduz a violação de UNIQUE e a Agenda esconde o Check-in de quem já está na fila
+
+**Camada:** backend
+**Dependências:** T-40
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Aang
+
+Consome o índice da 0008, aplicado entre as ondas 9 e 10. Pendência T-29: depois do check-in o link Check-in continua no bloco (`AgendaView.php:383`), e um clique novo só leva a "já está na fila". Na corrida, o segundo INSERT agora bate na unique e precisa virar a mesma mensagem pt de "Este agendamento já está na fila" (catálogo de T-28, `Appointment ^1 is already in the queue`).
+
+**Arquivos prováveis**
+- `src/app/Core/Persistence/QueueEntryRepository.php`
+- `src/app/Core/Domain/Contract/QueueEntryRepositoryInterface.php`
+- `src/tests/Support/FakeQueueEntryRepository.php`
+- `src/app/Core/Application/QueueEntryService.php`
+- `src/tests/Unit/QueueEntryServiceTest.php`
+- `src/tests/Integration/QueueEntryRepositoryIntegrationTest.php`
+- `src/app/control/clinic/AgendaView.php`
+
+**Interface**
+- Produz: `QueueEntryRepository::save` captura `\PDOException` com SQLSTATE `23000` cuja mensagem cita `queue_entry_appointment_uq` e lança `\DomainException("Appointment {$appointmentId} is already in the queue")`, a mesma mensagem de `QueueEntryService::checkIn` (T-29). Os demais `PDOException` são relançados.
+- Produz: `QueueEntryRepositoryInterface::listAppointmentIdsInQueue(array $appointmentIds): array` → `list<int>` dos ids que já têm entrada, com uma consulta `IN (...)` tenant-aware; lista vazia → `[]` sem consulta. Implementado no repositório e no Fake. `QueueEntryService::appointmentIdsInQueue(array $appointmentIds): array` delega a ele.
+- Produz: `AgendaView` chama `appointmentIdsInQueue` uma vez por carga com os ids do dia. No bloco de agendamento que já está na fila, o link Check-in dá lugar ao badge `CvBadge::create(_t('In queue'), 'info')`. A chave `In queue` → "Na fila" é gravada por T-43 na onda 9, e antes disso o gate aceita a chave.
+- Consome: T-40 `20260930_0008_queue_entry_appointment_unique`
+
+**Teste RED**
+- `src/tests/Integration/QueueEntryRepositoryIntegrationTest.php`, `src/tests/Unit/QueueEntryServiceTest.php`, `src/tests/Support/FakeQueueEntryRepository.php` — a integração, em transação com rollback, grava uma entrada com `appointment_id` de um agendamento semeado e força outra com o mesmo `appointment_id` direto pelo repositório; a segunda lança `DomainException` com a mensagem exata `Appointment <id> is already in the queue`, e `COUNT(*)` dessa `appointment_id` fica 1. Na unidade, `appointmentIdsInQueue([7, 8])` com o 7 na fila devolve `[7]`. Falha antes da correção porque o `save` relança `PDOException` e o método não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Integration\QueueEntryRepositoryIntegrationTest::` e `PASS  Unit\QueueEntryServiceTest::` em todos os métodos, `Failed: 0`.
+- GATE:
+  - `AgendaView` com um agendamento `R2 varredura` que já está na fila mostra o badge "Na fila" (ou `In queue`), sem link Check-in;
+  - um agendamento `agendado` fora da fila mostra o Check-in, e depois do check-in o bloco passa a mostrar o badge;
+  - duas requisições simultâneas de `onCheckIn` para o mesmo agendamento (`browser_evaluate` com `Promise.all` de 2 `fetch`) deixam `SELECT COUNT(*) FROM queue_entry WHERE appointment_id=<id>` = 1, e a resposta da segunda contém "Este agendamento já está na fila";
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 5 PHP de Core/Support/controller (evidência: 5 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- GATE → os 3 fluxos do critério (evidência: badge no snapshot, `COUNT(*)` = 1 depois da corrida, texto da segunda resposta, console 0 `error`)
+- Review Focus: corrida de 2 check-ins do mesmo agendamento (evidência: `COUNT(*)` = 1 e mensagem pt na segunda)
+
+### T-42 — Onda 9: Redis dos testes isolado das sessões e RedisQueueIntegrationTest determinístico
+
+**Camada:** qa
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Naruto
+
+Pendências da onda 8:
+- a suíte limpa as sessões do navegador (o login do Playwright cai depois de cada SUITE);
+- `RedisQueueIntegrationTest` falha sob suítes paralelas (`testPushPopAckRoundTrip`, reports/T-37.md § Pendências).
+Causa provável, a confirmar antes de corrigir: `tests/run.php:41-42` só força `REDIS_DATABASE=15` quando a variável não existe, mas o `docker-compose.yml` injeta `REDIS_DATABASE=0` no container `app`. Assim a suíte roda no mesmo DB das sessões (`SessionHandlerFactory`, prefixo `SESSION_PREFIX`, padrão `centralvet:session:`). Além disso, a fila fixa `t11-queue` (`RedisQueueIntegrationTest.php:19`) é compartilhada entre execuções paralelas. Reprodução exigida em `## RED`:
+- `docker compose exec -T redis redis-cli -n 0 --scan --pattern 'centralvet:session:*' | wc -l` antes e depois de uma SUITE, com uma sessão aberta;
+- `printenv REDIS_DATABASE` dentro do `docker compose run`;
+- o teste ou a chamada exata que apaga as chaves (grep por `del`, `flushdb`, `forget`, `destroy` e `scan` em `tests/`).
+Se a causa for outra, o implementador para e devolve `precisa de contexto` com a evidência, antes de editar.
+
+**Arquivos prováveis**
+- `src/tests/run.php`
+- `src/tests/Support/RedisIntegrationTestCase.php`
+- `src/tests/Integration/RedisQueueIntegrationTest.php`
+- `src/tests/Integration/SessionRedisIntegrationTest.php`
+- `docs/runbooks/tests.md`
+
+**Interface**
+- Produz: `tests/run.php` sempre define `REDIS_DATABASE` para o processo como `getenv('TEST_REDIS_DATABASE') ?: '15'`, ignorando o valor herdado. Se o DB resultante for igual ao `REDIS_DATABASE` herdado (o da aplicação), a suíte aborta antes de rodar, com `Refusing to run: test Redis database equals the application database (<n>)` e exit 1. O `SESSION_PREFIX` dos testes de sessão ganha o sufixo `test:<uniqid>:`.
+- Produz: `RedisQueueIntegrationTest` usa um nome de fila único por instância (`'t11-queue-' . bin2hex(random_bytes(4))`, em propriedade e não em constante) e limpa só as próprias chaves no `tearDown`. Nenhum teste chama `FLUSHDB`/`FLUSHALL` nem `SCAN` + `DEL` fora do prefixo `testing` do próprio teste.
+- Produz: `docs/runbooks/tests.md` explica `TEST_REDIS_DATABASE`, a recusa e o motivo (sessões no DB da aplicação).
+- Consome: nada
+
+**Teste RED**
+- sem teste: é a infraestrutura do runner de testes, sem comportamento de produção. A prova é a reprodução da causa em `## RED` e a contagem de chaves de sessão e as execuções paralelas da Validação
+
+**Critério de aceite**
+- Com uma sessão admin aberta no navegador, `redis-cli -n 0 --scan --pattern 'centralvet:session:*' | wc -l` fica igual antes e depois de uma SUITE, e o navegador continua logado depois da SUITE (a próxima navegação não cai no login).
+- 3 rodadas de 2 SUITEs em paralelo (2 `docker compose run` em background) terminam todas com `Failed: 0`, e `PASS  Integration\RedisQueueIntegrationTest::` nas 6 saídas.
+- `TEST_REDIS_DATABASE=0 docker compose run ... php tests/run.php` sai com código 1 e a mensagem `Refusing to run`.
+
+**Validação**
+- LINT dos 4 PHP de `tests/` (evidência: 4 `No syntax errors detected`)
+- `docker compose exec -T redis redis-cli -n 0 --scan --pattern 'centralvet:session:*' | wc -l` antes e depois de uma SUITE (evidência: iguais) + navegação do validador depois da SUITE (evidência: página interna, sem tela de login)
+- 3 × (`docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php > /tmp/claude-1000/sA.txt & … > /tmp/claude-1000/sB.txt & wait`) (evidência: `Failed: 0` nas 6 saídas)
+- `docker compose run --rm --no-deps -T -e TEST_REDIS_DATABASE=0 -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php; echo $?` (evidência: `Refusing to run` e `1`)
+
+### T-43 — Onda 9: ServiceList com o nome do serviço nas confirmações e i18n da onda 9
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Levi
+
+Pendência T-33: a confirmação de Excluir mostra "Deseja realmente excluir ?", sem o nome (`ServiceList.php:310`, string padrão do Adianti), e a de Duplicar também não traz o nome (`:270`). Escritor único de `translations.json` na onda 9: grava as chaves desta task e a de T-41 (`In queue`).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/ServiceList.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `onAskDelete` usa `TQuestion(_t('Delete the service "^1"?', CvFormat::e($service->name())), $action)` e a confirmação de Duplicar usa `_t('Duplicate the service "^1"?', CvFormat::e($service->name()))`. O serviço é carregado por `findById` no tenant; id inexistente → `TMessage('error', _t('Record not found'))`, sem pergunta.
+- Produz: em `translations.json`: `Delete the service "^1"?` → `Excluir o serviço "^1"?`; `Duplicate the service "^1"?` → `Duplicar o serviço "^1"?`; `In queue` → `Na fila` (de T-41); sem a chave `Duplicate this service?`, que fica órfã; sem duplicata exata nem por `casefold()`.
+- Consome: nada
+
+**Teste RED**
+- sem teste: controller Adianti e dicionário JSON fora de `tests/run.php`; a prova é o gate e o script de duplicatas
+
+**Critério de aceite**
+- `grep -c "Do you really want to delete" src/app/control/clinic/ServiceList.php` = 0; `grep -rn "Duplicate this service?" src/app --include=*.php` vazio.
+- Script python: `dup=0 dupcase=0` e as 3 chaves presentes.
+- GATE:
+  - Excluir "R2 varredura Serviço (cópia)" pergunta `Excluir o serviço "R2 varredura Serviço (cópia)"?`, e cancelar deixa `COUNT(*)` igual;
+  - Duplicar pergunta `Duplicar o serviço "R2 varredura Serviço"?`;
+  - um serviço renomeado para `R2 <b>x</b>` aparece com as tags literais na pergunta;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `ServiceList.php` (evidência: `No syntax errors detected`)
+- `python3 -c "import json;…"` sobre `translations.json` (evidência: `dup=0 dupcase=0 missing=0`)
+- GATE → as 3 confirmações (evidência: texto do diálogo no snapshot, `innerHTML` com `&lt;b&gt;`, `COUNT(*)` igual ao cancelar, console 0 `error`)
+
+### T-44 — Onda 9: PrescriptionForm com mensagens de domínio em pt nos demais catches
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Kratos
+
+Pendência T-30: o catch-all de `onSaveTemplate` mostra `$e->getMessage()` cru, e o nome de modelo repetido aparece em inglês e sem escape (`PrescriptionForm.php:980`). O mesmo acontece em `onAskTemplateName` (:760), `onAddItem` (:926), `onApplyTemplate` (:1026) e `onGeneratePdf` (:1084). Os catches de `AuthorizationDenied`/`MissingTenantContext` com `_t` próprio ficam como estão, porque são seguros e traduzidos. A evidência de `COUNT(*)` da guarda de `onSave` no navegador entra no gate.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/PrescriptionForm.php`
+
+**Interface**
+- Produz: os 5 catch-all citados passam a `error_log(<classe>: <mensagem>)` + `TMessage('error', CvFormat::userError($e))`. Nenhum `TMessage` de `PrescriptionForm` recebe `$e->getMessage()` direto.
+- Consome: nada
+
+**Teste RED**
+- sem teste: controller Adianti fora de `tests/run.php`; a tradução e o escape estão cobertos por `CvFormatUserErrorTest` (T-28/T-49)
+
+**Critério de aceite**
+- `grep -n "TMessage('error', \$e->getMessage())" src/app/control/clinic/PrescriptionForm.php` vazio.
+- GATE (atendimento `R2 varredura` em andamento):
+  - Salvar como modelo com o nome de um modelo existente ("R2 varredura Modelo") mostra `Já existe um modelo chamado "R2 varredura Modelo"`;
+  - `PrescriptionForm` sem parâmetros → Salvar com 1 item deixa `SELECT COUNT(*) FROM prescription` igual antes e depois;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `PrescriptionForm.php` (evidência: `No syntax errors detected`)
+- `grep -c "getMessage()" /var/www/html/centralvet/src/app/control/clinic/PrescriptionForm.php` (evidência: só nas linhas de `error_log`, listadas no relatório)
+- GATE → os 2 fluxos do critério (evidência: texto do diálogo, `COUNT(*)` antes e depois, console 0 `error`)
+
+### T-45 — Onda 9: EncounterView com userError nos catches restantes e gate de anexo, retorno e resumo de IA
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Yoda
+
+Pendência T-31: os catches genéricos de `onAcceptAiSummary` (:1604), `onScheduleFollowUp` (`SchedulingConflictException` e `Exception`, :1770, :1786) e `onAttachDocument` (:1831) mostram `$e->getMessage()` cru, sem `error_log`. O gate de anexar documento, retorno e aceitar resumo de IA não foi exercitado.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/EncounterView.php`
+
+**Interface**
+- Produz: os 4 catches citados passam a `error_log` + `TMessage('error', CvFormat::userError($e))`. Nenhum `TMessage` de `EncounterView` recebe `$e->getMessage()` direto.
+- Consome: nada
+
+**Teste RED**
+- sem teste: controller Adianti fora de `tests/run.php`; a prova é grep e o gate
+
+**Critério de aceite**
+- `grep -n "TMessage('error', \$e->getMessage())" src/app/control/clinic/EncounterView.php` vazio; SUITE com `PASS  Integration\EncounterTimelineIntegrationTest::`.
+- GATE (atendimento `R2 varredura` em andamento do paciente 2772):
+  - anexar um PNG pequeno recarrega o próprio atendimento, e o texto "Informe um encounter_id" não aparece;
+  - agendar retorno num horário livre recarrega o atendimento, e `SELECT COUNT(*) FROM appointment` fica +1;
+  - agendar retorno num horário ocupado mostra a mensagem de conflito em pt;
+  - "aceitar resumo de IA", se o bloco estiver visível (IA oculta por premissa da fase 10), recarrega o atendimento; se o bloco não existir na tela, fica `[não aplicável]` com o motivo;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `EncounterView.php` (evidência: `No syntax errors detected`) + SUITE (evidência: `PASS  Integration\EncounterTimelineIntegrationTest::`, `Failed: 0`)
+- GATE → os fluxos do critério (evidência: snapshot depois de cada ação, `COUNT(*)` de `appointment`, texto da mensagem de conflito, console 0 `error`)
+
+### T-46 — Onda 9: FinancialOverview sem nosniff pelo PHP
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Thanos
+
+Pendência T-32: `FinancialOverview.php:166` ainda envia `X-Content-Type-Options: nosniff` pelo PHP, o que contraria a decisão da onda 8 (fonte única no nginx, `fastcgi_hide_header`).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/FinancialOverview.php`
+
+**Interface**
+- Produz: `onExport` não chama mais `header('X-Content-Type-Options: ...')`. `Content-Type` e `Content-Disposition` não mudam.
+- Consome: nada
+
+**Teste RED**
+- sem teste: header HTTP de controller Adianti; a prova é grep e o header lido no gate
+
+**Critério de aceite**
+- `grep -rn "X-Content-Type-Options" src/app/control` vazio.
+- GATE: `fetch` de `FinancialOverview&method=onExport&static=1&from=…&to=…` mostra `x-content-type-options: nosniff` uma vez (vindo do nginx) e `content-type: text/csv`; console 0 `error`.
+
+**Validação**
+- LINT de `FinancialOverview.php` (evidência: `No syntax errors detected`)
+- `grep -rn "X-Content-Type-Options" /var/www/html/centralvet/src/app/control` (evidência: vazio)
+- GATE → `fetch` do export (evidência: `headers.get('x-content-type-options')` = `nosniff`, sem vírgula)
+
+### T-47 — Onda 9: foto anterior apagada só depois do commit e teste do deleteQuietly
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Tesla
+
+Pendências T-32:
+- a foto anterior é apagada do storage dentro da transação, antes de `TTransaction::close()`. Se o commit falhar, o banco volta para a chave antiga, que já não existe no storage (`PatientService.php:247-249`, `PatientForm.php:443-446`);
+- `deleteQuietly` não tem teste (`PatientService.php:255-262`);
+- 3 itens do GATE sem evidência: inputs com `key=999999`, sexo `X` em pt e console.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/PatientService.php`
+- `src/tests/Unit/PatientServiceTest.php`
+- `src/app/control/clinic/PatientForm.php`
+
+**Interface**
+- Produz: `PatientService::attachPhoto(...)` (assinatura mantida) não apaga mais a chave anterior e passa a guardá-la, lida por `PatientService::previousPhotoKey(): ?string` (a do último `attachPhoto`, ou `null`). Se o `save()` lançar, a chave **nova** é apagada, como hoje.
+- Produz: `PatientService::discardPhoto(string $objectKey): void` (público, com a lógica do `deleteQuietly` atual). Falha do storage → `error_log`, sem exceção.
+- Produz: `PatientForm::onSave` chama `discardPhoto($service->previousPhotoKey())` só **depois** de `TTransaction::close()` bem-sucedido, e só quando a chave anterior não é nula e é diferente da nova.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/PatientServiceTest.php` — cobre três casos e falha antes da correção porque hoje a antiga some dentro de `attachPhoto` e os métodos não existem (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`): dois `attachPhoto` seguidos deixam a chave antiga **ainda** no `FakeStorage`, e `previousPhotoKey()` a devolve; `discardPhoto(<antiga>)` a remove; `discardPhoto` com um storage cujo `delete` lança (classe anônima) não propaga exceção.
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\PatientServiceTest::` em todos os métodos, `Failed: 0`.
+- GATE:
+  - trocar a foto do paciente 2772 faz a nova aparecer, e a chave antiga some do bucket (se o cliente do storage estiver disponível; senão vale o RED);
+  - `PatientForm&method=onEdit&key=999999` → `document.querySelectorAll('form[name="form_Patient"] input:not([disabled]):not([type=hidden])').length` = 0;
+  - `sex` adulterado para `X` mostra "O sexo do paciente deve ser M, F ou U";
+  - console 0 `error` nas 3 telas.
+
+**Validação**
+- LINT de `PatientService.php` e `PatientForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\PatientServiceTest::`, `Failed: 0`)
+- GATE → os 3 fluxos do critério (evidência: `SELECT photo_object_key` antes e depois, contagem de inputs, texto em pt, console 0 `error`)
+
+### T-48 — Onda 9: parser de moeda compartilhado (MoneyInput) e BankAccountForm com teto
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Athena
+
+Pendências T-34:
+- entrada dentro da regex, mas fora do alcance de int, é gravada como lixo (`BankAccountForm.php:215`; `99999999999999999999` → `1864712049423024128`);
+- "abc" digitado some sem diálogo visível;
+- as outras 9 cópias de `toCents` convertem texto em 0 (a migração delas é T-50, na onda 10).
+Gate de T-34 sem evidência: nome duplicado com `<b>R2</b>` e "Itaú & Cia".
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/MoneyInput.php`
+- `src/tests/Unit/MoneyInputTest.php`
+- `src/app/control/clinic/BankAccountForm.php`
+
+**Interface**
+- Produz: `CentralVet\Presentation\MoneyInput::toCents(string $raw, bool $allowNegative = false): int` (final, estático, sem Adianti): aparado vazio → 0; com vírgula → formato BR `^-?\d{1,3}(\.\d{3})*(,\d{1,2})?$` ou `^-?\d+(,\d{1,2})?$`; sem vírgula → `^-?\d+(\.\d{1,2})?$` (ponto decimal, do `replaceOnPost` das máscaras) ou `^-?\d{1,3}(\.\d{3})+$` (milhar BR sem centavos: `1.234` → 123400); parte inteira com mais de 13 dígitos, sinal negativo com `$allowNegative = false` ou qualquer outro texto → `\InvalidArgumentException('Invalid amount')`; a conversão é por string (sem `float`): `1234,5` → 123450, `0,01` → 1, `-50,00` → -5000.
+- Produz: `BankAccountForm` usa `MoneyInput::toCents($raw, true)` no lugar do `toCents` privado, que sai. O `oninput` do campo de saldo deixa de apagar texto não numérico: o valor digitado chega ao servidor, e o `onSave` responde `TMessage('error', CvFormat::userError($e))` ("Valor inválido"), mantendo os dados do formulário.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/MoneyInputTest.php` — tabela de casos: `''` → 0, `'1.234,56'` → 123456, `'1234,5'` → 123450, `'1234.56'` → 123456, `'1.234'` → 123400, `'0,01'` → 1, `'-50,00'` com `allowNegative` → -5000; e lançam `Invalid amount`: `'-50,00'` sem `allowNegative`, `'abc'`, `'12,345'`, `'99999999999999,00'` (14 dígitos) e `'1,2,3'`. Falha antes da implementação porque a classe não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\MoneyInputTest::` em todos os métodos, `Failed: 0`.
+- `grep -c "function toCents" src/app/control/clinic/BankAccountForm.php` = 0.
+- GATE:
+  - saldo `99999999999999999999` (forçado por `browser_evaluate`) mostra "Valor inválido", e `SELECT MAX(balance_cents) FROM bank_account` fica igual;
+  - "abc" digitado mostra aviso visível;
+  - nova conta com o nome de outra da unidade mostra a mensagem em pt, e `<b>R2</b>` aparece literal (`innerHTML` com `&lt;b&gt;`);
+  - banco "Itaú & Cia" aparece como "Itaú & Cia" na lista;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `MoneyInput.php` e `BankAccountForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\MoneyInputTest::`, `Failed: 0`)
+- GATE → os 4 fluxos do critério (evidência: textos e `innerHTML` no snapshot, `SELECT MAX(balance_cents)` igual, console 0 `error`)
+- Review Focus: `99999999999999999999` no saldo → recusado, sem gravar valor truncado (evidência: `SELECT MAX(balance_cents)` igual)
+
+### T-49 — Onda 9: testes mais fortes de T-28, T-36 e T-38
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Arquimedes
+
+Sugestões dos revisores:
+- T-28: `testCatalogMessageGoesThroughTranslationKey` passa sem a implementação, porque o `_t` de teste é identidade (`CvFormatUserErrorTest.php:57-64`);
+- T-36: o teste de negação por política não verifica que nada foi persistido, e a política anônima duplica `FakeAuthorizationPolicy` (`EncounterAccountServiceTest.php:260-279`);
+- T-38: as asserções de outro tenant passam mesmo com sobrescrita, porque o Fake só vê o tenant 1 (`ProductServiceTest.php:98-99`), e o comentário do Fake cita `utf8mb4_unicode_ci`, mas a tabela usa `utf8mb4_0900_ai_ci` (`FakeProductRepository.php:72`).
+
+**Arquivos prováveis**
+- `src/tests/Unit/CvFormatUserErrorTest.php`
+- `src/tests/Unit/EncounterAccountServiceTest.php`
+- `src/tests/Support/FakeAuthorizationPolicy.php`
+- `src/tests/Unit/ProductServiceTest.php`
+- `src/tests/Support/FakeProductRepository.php`
+
+**Interface**
+- Produz: o `_t` de teste de `CvFormatUserErrorTest` devolve `'[t]' . <chave com ^n substituídos>`, e o teste do catálogo assere o prefixo `[t]`. Se o `_t` global já existir (Adianti carregado), o teste é marcado `SkippedTestException` com o motivo.
+- Produz: `FakeAuthorizationPolicy::setAllowed(bool $allowed): void`, com `$allowed` mutável e o construtor mantido. O teste de negação usa o Fake compartilhado e confere que a conta ficou sem desconto (`discountCents() === 0`) e que o repositório não recebeu `save`.
+- Produz: `FakeProductRepository` guarda os produtos de todos os tenants e filtra por `$tenantId` nas leituras, com o construtor e as assinaturas mantidos. `ProductServiceTest` semeia um produto do tenant 2 no mesmo armazenamento e assere que ele segue com nome e custo originais depois do `update` recusado. O comentário cita `utf8mb4_0900_ai_ci` e que `mb_strtolower` não iguala acentos.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/CvFormatUserErrorTest.php`, `src/tests/Unit/ProductServiceTest.php`, `src/tests/Support/FakeProductRepository.php`, `src/tests/Support/FakeAuthorizationPolicy.php` — os testes reforçados rodam contra uma versão sabotada, anotada no relatório: um `userError` que devolve `getMessage()` e um `update` que sobrescreve o produto do tenant 2. Falham nessa versão e passam no HEAD; o commit RED leva só os testes e os Fakes (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS` em todos os métodos de `Unit\CvFormatUserErrorTest`, `Unit\EncounterAccountServiceTest` e `Unit\ProductServiceTest`, e nos demais usuários de `FakeAuthorizationPolicy`/`FakeProductRepository` (`StockServiceTest`, `SaleServiceTest`), `Failed: 0`.
+- `## RED` do relatório mostra a falha dos testes reforçados contra a versão sabotada (diff da sabotagem colado, não commitado).
+
+**Validação**
+- LINT dos 5 PHP (evidência: 5 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+
+### T-50 — Onda 10: MoneyInput nos 9 formulários com toCents
+
+**Camada:** frontend
+**Dependências:** T-48
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Darwin
+
+Pendência T-34: as outras 9 cópias de `toCents` convertem texto em 0 em silêncio. Estão em `ServiceForm`, `ProductForm`, `FinancialEntryForm`, `PaymentForm`, `ProcedureCatalogForm`, `ExamCatalogForm`, `CashSessionForm`, `PayableForm` e `EncounterAccountForm` (`grep -rln "function toCents" src/app/control`).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/ServiceForm.php`
+- `src/app/control/clinic/ProductForm.php`
+- `src/app/control/clinic/FinancialEntryForm.php`
+- `src/app/control/clinic/PaymentForm.php`
+- `src/app/control/clinic/ProcedureCatalogForm.php`
+- `src/app/control/clinic/ExamCatalogForm.php`
+- `src/app/control/clinic/CashSessionForm.php`
+- `src/app/control/clinic/PayableForm.php`
+- `src/app/control/clinic/EncounterAccountForm.php`
+
+**Interface**
+- Produz: cada um dos 9 formulários chama `MoneyInput::toCents($raw)`, com `allowNegative` `false` em todos, e o `toCents` privado sai. `InvalidArgumentException('Invalid amount')` chega ao usuário por `TMessage('error', CvFormat::userError($e))` ("Valor inválido"), e o formulário mantém os dados. Antes de trocar, o implementador confere no relatório o formato que cada máscara posta (`setNumericMask` com ou sem `replaceOnPost`) contra os formatos aceitos por `MoneyInput`.
+- Consome: T-48 `CentralVet\Presentation\MoneyInput::toCents(string $raw, bool $allowNegative = false): int`
+
+**Teste RED**
+- sem teste: controllers Adianti fora de `tests/run.php`; o parser está coberto pelo RED de T-48 e cada tela pelo gate
+
+**Critério de aceite**
+- `grep -rln "function toCents" src/app/control` vazio.
+- GATE:
+  - salvar com valor válido ("12,34") em `ServiceForm`, `ProductForm`, `FinancialEntryForm`, `ExamCatalogForm`, `ProcedureCatalogForm` e `PayableForm` (registros `R2 varredura`) grava `1234` na coluna de centavos;
+  - valor "abc" forçado em `ServiceForm` e `FinancialEntryForm` mostra "Valor inválido", e `COUNT(*)` fica igual;
+  - `PaymentForm`, `CashSessionForm` e `EncounterAccountForm` só abrem e conferem o formato do campo (sem gravar), porque a gravação altera caixa e conta;
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 9 PHP (evidência: 9 `No syntax errors detected`)
+- `grep -rln "function toCents" /var/www/html/centralvet/src/app/control` (evidência: vazio)
+- GATE → os fluxos do critério (evidência: `SELECT <coluna>_cents` dos registros salvos = 1234, mensagem "Valor inválido", `COUNT(*)` igual, console 0 `error`)
+
+### T-51 — Onda 10: mensagens de agendamento em pt e i18n da onda 10
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Platão
+
+Achado do gate da onda 9 (`reviews/T-45.md § Complemento`, `reports/T-45.md`): o conflito de retorno e de agendamento mostra a `SchedulingConflictException` em inglês. A mensagem é `Requested slot <Y-m-d H:i>-<H:i> conflicts with an existing appointment for professional_system_user_id <n>` (`AppointmentService.php:314-316`). `AppointmentForm.php:225` faz `new TMessage('error', $e->getMessage())` sem `error_log`. Escritor único de `translations.json` na onda 10.
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/UserMessage.php`
+- `src/tests/Unit/UserMessageTest.php`
+- `src/app/control/clinic/AppointmentForm.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `UserMessage::PATTERNS` ganha `/^Requested slot .+ conflicts with an existing appointment for professional_system_user_id \d+$/` → `Requested slot conflicts with an existing appointment`, sem parâmetros. As entradas existentes não mudam.
+- Produz: o catch de `SchedulingConflictException` de `AppointmentForm` (:225) passa a `TTransaction::rollback()` + `error_log(__METHOD__ . ': ' . $e->getMessage())` + `TMessage('error', CvFormat::userError($e))`. Nenhum `TMessage` de `AppointmentForm` recebe `$e->getMessage()` direto.
+- Produz: `translations.json`, sem duplicata exata nem por `casefold()`, com: `Requested slot conflicts with an existing appointment` → `O horário solicitado conflita com um agendamento existente`; `Attachment not found` → `Anexo não encontrado` (de T-52); cada chave das linhas `- [T-45] i18n:`, `- [T-41] i18n:`, `- [T-50] i18n:` e `- [T-52] i18n:` do board, com o `pt` pedido (inclui a chave de data e hora inválidas que T-45 registrar, com pt `Data e hora inválidas`).
+  T-41, T-50 e T-52 não editam o JSON: registram a chave no board antes de terminar. T-51 fecha por último na onda e relê o board antes do commit final.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/UserMessageTest.php` — `resolve('Requested slot 2026-09-30 14:00-14:30 conflicts with an existing appointment for professional_system_user_id 1')` devolve key `Requested slot conflicts with an existing appointment` e params `[]`; falha antes da correção porque hoje devolve `null` (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\UserMessageTest::` em todos os métodos, `Failed: 0`.
+- `grep -n "TMessage('error', \$e->getMessage())" src/app/control/clinic/AppointmentForm.php` vazio.
+- Script python: `dup=0 dupcase=0`, a chave de conflito e as chaves `i18n:` de T-41/T-45/T-50/T-52 do board presentes.
+- GATE:
+  - `AppointmentForm` → agendar num horário ocupado do mesmo profissional mostra "O horário solicitado conflita com um agendamento existente";
+  - no `EncounterView` (T-45), agendar retorno num horário ocupado mostra o mesmo texto;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `UserMessage.php` e `AppointmentForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\UserMessageTest::`, `Failed: 0`)
+- `python3 -c "import json;…"` sobre `translations.json` (evidência: `dup=0 dupcase=0 missing=0`)
+- GATE → os 2 fluxos do critério (evidência: texto do diálogo no snapshot, `SELECT COUNT(*) FROM appointment` igual, console 0 `error`)
+
+### T-52 — Onda 10: anexos do atendimento registrados em stored_object e listados
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Sherlock
+
+Achado do gate da onda 9 (`reviews/T-45.md § Complemento`, `reports/T-45.md`): anexar no `EncounterView` grava o objeto no MinIO (`…/encounter/4304/r2-anexo.pdf`), mas `SELECT COUNT(*) FROM stored_object` = 0 e a lista mostra "Nenhum anexo ainda". É a mesma pendência antiga de `EncounterDocumentService::list()` vazio. A causa provável está no docblock de `EncounterDocumentService.php:28-36`: `list()` devolve `[]` por desenho, porque nenhum repositório grava ou lê `stored_object`, e `attach()` só chama `StorageInterface::put()`. A tabela `stored_object` já existe (migration 0001: `public_id`, `tenant_id`, `system_unit_id`, `storage_provider`, `bucket`, `object_key`, `version_id`, `original_name`, `content_type`, `size_bytes`, `sha256`, `status`, `created_by`, `deleted_at`, índice `stored_object_locator_idx (tenant_id, bucket, object_key(255))`). Assim, nenhum schema novo é necessário: a ligação com o atendimento é o prefixo lógico `tenant/<t>/encounter/<id>/` dentro de `object_key`. Reprodução exigida em `## RED`: a confirmação dessa causa (grep de `stored_object` em `src/app/Core` e `SELECT COUNT(*) FROM stored_object`). Se a causa for outra, ou se a correção exigir coluna ou tabela nova, o implementador para antes de editar e devolve `precisa de contexto` com a evidência; schema novo fica fora do escopo.
+
+**Arquivos prováveis**
+- `src/app/Core/Domain/Contract/StoredObjectRepositoryInterface.php`
+- `src/app/Core/Persistence/StoredObjectRepository.php`
+- `src/tests/Support/FakeStoredObjectRepository.php`
+- `src/app/Core/Application/EncounterDocumentService.php`
+- `src/tests/Unit/EncounterDocumentServiceTest.php`
+- `src/tests/Integration/StoredObjectRepositoryIntegrationTest.php`
+- `src/app/control/clinic/EncounterView.php`
+
+**Interface**
+- Produz: `StoredObjectRepositoryInterface` com: `record(StoredObjectMetadata $metadata, string $originalName, ?int $systemUnitId, int $createdBy): array`: grava uma linha em `stored_object` com `public_id` UUID v4, `tenant_id` do contexto, `status = 'available'` e os campos de `$metadata->toStoredObjectRow()`, e devolve a linha; `listByObjectKeyFragment(string $fragment): array`: devolve `list<array{public_id: string, original_name: string, content_type: string, size_bytes: int, created_at: string, object_key: string}>` do tenant com `object_key LIKE CONCAT('%', :fragment, '%')`, `status = 'available'` e `deleted_at IS NULL`, ordenada por `created_at DESC, id DESC`; `findByPublicId(string $publicId): ?array`, com escopo de tenant.
+  `StoredObjectRepository` (PDO + `TenantQuery`) e `FakeStoredObjectRepository` (em memória, por tenant) implementam a interface.
+- Produz: `EncounterDocumentService::__construct(StorageInterface $storage, TenantContext $tenant, ?StoredObjectRepositoryInterface $objects = null)`. Os chamadores com 2 argumentos, como `ExamResultForm`, continuam válidos, e sem `$objects` o comportamento de hoje fica. Com `$objects`: `attach(int $encounterId, string $fileName, string $contents, string $contentType): object` faz `put()` e depois `record($metadata, $fileName, $tenant->unitId(), $tenant->userId())`, e devolve o metadata como hoje; se o `record` lançar, faz `delete()` do objeto recém-gravado e relança; `list(int $encounterId): array` devolve `listByObjectKeyFragment(sprintf('tenant/%d/encounter/%d/', $tenantId, $encounterId))`; `download(int $encounterId, string $publicId): ?array` → `array{contents: string, content_type: string, original_name: string}` via `findByPublicId` + `$storage->get(<object_key>)`, só quando o `object_key` contém o fragmento do mesmo atendimento; senão `null`.
+  O docblock de "Known limitation" é atualizado.
+- Produz: `EncounterView`: `makeEncounterDocumentService` passa `new StoredObjectRepository($context, TTransaction::get())`; `onAttachDocument` roda `attach` dentro de `TTransaction::open('permission')`/`close()` (rollback no catch); a lista mostra, por anexo, `original_name`, tamanho (KB) e data `d/m/Y H:i`, com link `engine.php?class=EncounterView&method=onDownloadDocument&static=1&encounter_id=<id>&public_id=<uuid>` (`target="_blank"`); `EncounterView::onDownloadDocument($param)` (static) responde os bytes com `Content-Type` do registro e `Content-Disposition: attachment; filename="<nome saneado>"`, ou 404 sem corpo quando `download()` é `null`; chave nova `Attachment not found` no board (gravada por T-51).
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/EncounterDocumentServiceTest.php`, `src/tests/Support/FakeStoredObjectRepository.php`, `src/tests/Integration/StoredObjectRepositoryIntegrationTest.php` — falha antes da correção porque a interface não existe e `list()` devolve `[]` (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`): com `FakeStorage` e `FakeStoredObjectRepository`, `attach(10, 'r2.pdf', …)` seguido de `list(10)` devolve 1 item com `original_name = 'r2.pdf'`, e `list(11)` devolve `[]`; `download(10, <public_id>)` devolve os bytes; `download(11, <public_id do 10>)` devolve `null`; `record` que lança deixa o `FakeStorage` sem o objeto; `testListReturnsEmptyArrayPerDocumentedGap` passa a cobrir só o caso sem `$objects`; na integração (transação com rollback), `record` + `listByObjectKeyFragment` devolve a linha, e com outro tenant no contexto devolve `[]`.
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\EncounterDocumentServiceTest::` e `PASS  Integration\StoredObjectRepositoryIntegrationTest::` em todos os métodos, `Failed: 0`.
+- GATE (atendimento `R2 varredura` em andamento, ex.: 4304):
+  - anexar `r2-anexo-2.pdf` faz `SELECT COUNT(*) FROM stored_object WHERE object_key LIKE '%/encounter/4304/%'` ficar +1;
+  - a lista mostra "r2-anexo-2.pdf" com tamanho e data, e o link baixa o arquivo (rede 200, `content-disposition: attachment`);
+  - `onDownloadDocument` com `public_id` de outro atendimento devolve 404;
+  - o anexo antigo `r2-anexo.pdf`, gravado só no MinIO antes da correção, não aparece, porque não tem registro;
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 6 PHP (evidência: 6 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- GATE → os fluxos do critério (evidência: `SELECT COUNT(*)` antes e depois, snapshot da lista, `browser_network_requests` do download 200 e do 404, console 0 `error`)
+- Review Focus: `onDownloadDocument` de um anexo do atendimento A pedido com `encounter_id` de B → 404, sem bytes (evidência: status da requisição)
 
 ## Legenda
 

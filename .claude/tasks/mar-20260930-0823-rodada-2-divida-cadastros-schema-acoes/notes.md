@@ -73,6 +73,24 @@
 - 2026-09-30 · onda 8 — RedisQueueIntegrationTest é flaky sob suítes paralelas e passa sozinho. Rodar tests/run.php derruba a sessão do navegador (provável limpeza do Redis); o orquestrador refez o login admin e rebuildou o container. Nenhuma credencial registrada.
 - 2026-09-30 · onda 8 — Validação cruzada final: LINT 46/46, SUITE 345/345, translations.json dup=0/dupcase=0/missing=0 (reviews/cruzada-onda-8.md).
 
+- 2026-09-30 · plano (revisão) · onda 9 — O usuário pediu as pendências restantes: `### Onda 9 — correção (usuário)` (T-40, T-42..T-49, BASE `c03e1b2`) e `### Onda 10 — correção (usuário)` (T-41, T-50).
+  - Migration 0008 (T-40): UNIQUE `queue_entry_appointment_uq`, com dedupe não destrutivo. Em cada grupo duplicado, a linha de menor id (o primeiro check-in) fica, e as demais recebem `appointment_id = NULL`. O orquestrador aplica entre as ondas 9 e 10, com aprovação SQL, e anota antes, em § Bloqueios, as linhas do grupo e o `COUNT(*)`.
+  - T-41 (onda 10) traduz a violação da unique para `Appointment <id> is already in the queue` (catálogo de T-28 → "Este agendamento já está na fila") e troca o link Check-in pelo badge "Na fila".
+  - Redis dos testes (T-42): a causa provável é `docker-compose.yml` injetar `REDIS_DATABASE=0`, que `tests/run.php:41` respeita. T-42 confirma a causa antes de corrigir.
+  - `MoneyInput` (T-48) vira o parser único de moeda; T-50 migra as 9 cópias de `toCents`.
+- 2026-09-30 · T-35 · onda 8 — O link "Contas bancárias" do KPI aparece nos dois estados (com e sem conta), um desvio do contrato de T-20 aceito como decisão (sugestão do revisor de T-35).
+
+- 2026-09-30 · plano (revisão) · onda 10 — O usuário acrescentou T-51 (Platão) e T-52 (Sherlock) à onda 10, a partir do gate da onda 9 (`reviews/T-45.md § Complemento`). T-51 põe no catálogo o conflito de agendamento ("O horário solicitado conflita com um agendamento existente"), limpa o catch de `AppointmentForm:225` e é o escritor único de `translations.json` na onda (chaves de T-41, T-45, T-50 e T-52 pelo board). T-52 registra o anexo em `stored_object`, que já existe desde a 0001, e liga o anexo ao atendimento pelo fragmento `tenant/<t>/encounter/<id>/` em `object_key`, sem schema novo. Também lista e baixa o anexo. O objeto `r2-anexo.pdf`, gravado antes da correção, fica só no MinIO, sem registro.
+- 2026-09-30 · onda 9 — Pedido do usuário: corrigir as pendências restantes. Dedupe da 0008: fica a entrada de menor id. T-50 mantido.
+- 2026-09-30 · T-40 · onda 9 — A migration 0008 está redigida e NÃO aplicada. A aplicação exige aprovação SQL do usuário e acontece entre as ondas 9 e 10, bloqueando T-41.
+- 2026-09-30 · T-42 · onda 9 — Os testes RedisCache e TenantIsolation, fora dos prováveis, ficam aceitos: tinham chaves fixas e davam flaky em paralelo. A hipótese do SessionRegistry foi refutada. O navegador continuou logado depois da suíte; a queda de sessão da onda 8 segue sem causa, mas não é a suíte. Prefixo `cvtest:session:test:<uniqid>:`. `getenv('TEST_REDIS_DATABASE')` com checagem `false`/'' (e não `?:`) para que `0` seja recusado.
+- 2026-09-30 · T-45 · onda 9 — Fix loop 1: data malformada no retorno mostrava SQLSTATE[22007] cru; corrigido em 16307b5. As chaves "Invalid date and time" e "Could not complete the operation. Please try again" estão no board e ficam para T-51 (onda 10, dona de translations.json). A validação cruzada as marcou como missing; isso não bloqueia a onda 9 e bloqueia o fechamento da onda 10 se T-51 não gravá-las. O resumo de IA não foi rodado no navegador: exigiria finalizar o atendimento de teste.
+- 2026-09-30 · T-46 · onda 9 — O grep só acha um comentário em PatientForm.php:563, que não envia header. Critério cumprido.
+- 2026-09-30 · T-48 · onda 9 — plano-mandou: o teto fixo de 13 dígitos não cabia em int unsigned. Fix loop: `toCents(string $raw, bool $allowNegative = false, ?int $maxCents = null)` e `MAX_UNSIGNED_INT_CENTS`, contrato para T-50.
+- 2026-09-30 · T-49 · onda 9 — Incidente: o plano mandava provar o RED com sabotagem, e o implementador a aplicou no checkout compartilhado enquanto outros rodavam a suíte. A revisão de segurança automática detectou `// SABOTAGEM T-49`. O orquestrador parou a task, confirmou que nada foi commitado e mandou refazer a prova numa worktree isolada. Lição: mutação de prova só em worktree isolada, nunca no checkout compartilhado.
+- 2026-09-30 · onda 9 — Descobertas que viraram tasks da onda 10: T-51 (conflito de horário em inglês, AppointmentForm.php:225 cru, e as chaves de T-45) e T-52 (anexos não gravam em stored_object, a lista fica vazia).
+- 2026-09-30 · onda 9 — Validação cruzada final: LINT 20/20, SUITE 352/352, grep SABOTAGEM vazio (reviews/cruzada-onda-9.md).
+
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
@@ -115,6 +133,11 @@
 - [T-36] EncounterAccountService::applyDiscount autoriza (RBAC) antes de isActiveMember.
 - [T-38] PrescriptionTemplate::create valida item vazio e tamanhos; listAll numa consulta.
 - Onda 8: registros R2 criados: queue_entry 1 (agendamento 3); bank_account 102 (`<b>R2</b> varredura`) e 330 (saldo 0); conta 101 com saldo -5000; encounter 4304 aberto; modelos "R2 modelo T30" e "R2 modelo T30 c3"; service 13 (criado e excluído); foto do paciente 2772 trocada duas vezes no MinIO.
+- Onda 9: migration 0008 (T-40) redigida e não aplicada; banco local com queue_entry de 1 linha e 0 grupos duplicados, então o dedupe afetará 0 linhas.
+- Onda 9: MoneyInput::toCents(string $raw, bool $allowNegative = false, ?int $maxCents = null) e MAX_UNSIGNED_INT_CENTS (4294967295) são o contrato de T-50; converter com (string) antes, porque null gera TypeError.
+- Onda 9: PatientService::discardPhoto(string) público; PatientForm apaga a foto anterior só depois de TTransaction::close().
+- Onda 9: tests/run.php usa TEST_REDIS_DATABASE (padrão 15) e recusa o DB da aplicação; fila, cache e prefixos dos 4 testes Redis são únicos por instância.
+- Onda 9: registros R2 alterados ou criados: service 7 excluído por engano pelo validador; service 9 renomeado para "R2 <b>x</b>"; appointments 5 e 6; bank_account 553 "Itaú & Cia"; foto do paciente 2772 trocada; MinIO encounter/4304/r2-anexo.pdf e r2-anexo2.pdf sem linha em stored_object.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -190,6 +213,15 @@
 - T-36: teste de negação por política não verifica que nada foi persistido; política anônima duplica FakeAuthorizationPolicy.
 - T-37: PASS e contagens antes/depois só no relatório (suíte grava, não reproduzível pelo revisor).
 - T-38: asserções de outro tenant passam mesmo com sobrescrita (Fake só vê o tenant 1); comentário do Fake cita collation errada; sem teste de consulta única em listAll; save() do modelo sem transação (anterior).
+- T-40: a premissa do plano (1 duplicata) não bate com o banco (0 grupos); registrar em § Bloqueios a contagem pré-aplicação (COUNT(*)=1, grupos vazio); queue_entry_appointment_idx fica redundante com a UNIQUE; o UPDATE de dedupe altera updated_at.
+- T-42: run.php não valida o intervalo de TEST_REDIS_DATABASE (99 ou -1 roda no DB 0 sem recusar).
+- T-44: GATE de navegador do diálogo de modelo duplicado sem evidência no relatório.
+- T-45: catches usam self::screenError (grep literal por CvFormat::userError não os acha); parseFollowUpScheduledAt e screenError sem teste automatizado; as chaves 'Invalid date and time' e 'Could not complete the operation. Please try again' dependem de T-51; resumo de IA não rodado no navegador.
+- T-47: se TTransaction::close() lançar após attachPhoto, o objeto novo fica órfão no bucket; testDiscardPhotoSwallowsStorageFailure não assere o error_log; ordem de discardPreviousPhoto sem teste automatizado.
+- T-48: zeros à esquerda contam para o teto de 13 caracteres; a Interface de T-50 em tasks.md ainda não cita MAX_UNSIGNED_INT_CENTS, $maxCents nem o (string) (levar o ruling para T-50); evidência do gate incompleta (nome `<b>R2</b>`, SELECT MAX(balance_cents), console).
+- T-49: decorador anônimo de EncounterAccountRepositoryInterface no teste; storedProduct() é método só de teste no Fake.
+- Onda 9: migration 0008 aguarda aprovação SQL do usuário (entre as ondas 9 e 10); T-41 depende dela.
+- Onda 9: a queda de sessão do navegador da onda 8 segue sem causa conhecida.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -209,6 +241,8 @@
 - Registros da onda 7: serviço 11 "R2 varredura Import 1"; serviço 12 (nome de 190 caracteres); paciente 2772 com weight_kg 4.50.
 - Onda 8: `docker/nginx/default.conf` (T-32) só vale depois de `docker compose restart nginx` pelo orquestrador no gate; se o `nginx -t` falhar, o gate da onda para antes do navegador.
 - Onda 8: com 12 agentes no checkout compartilhado, o `index.lock` pode ser disputado. O agente repete o commit depois de alguns segundos, sem apagar o lock.
+- Ondas 9–10: a SUITE hoje derruba o login do navegador (sessões no DB 0). Até T-42 fechar, o orquestrador refaz o login admin depois de cada SUITE de gate.
+- Ondas 9–10: a 0008 altera `queue_entry`. Se o `.verify.sql` não mostrar `non_unique = 0` e 0 grupos duplicados, a onda 10 não abre (T-41 depende do índice).
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -224,5 +258,6 @@
   - Onda 6: BASE 5b31c1d → HEAD 2ae4334 (f63fe25, 2ae4334)
   - Onda 7: BASE 7bf89d9 → HEAD 25565fb (761e485, 4641d50, c3cb77b, 984138a, 4e2bb3c, 25565fb)
   - Onda 8: BASE cbd7ad1 → HEAD 5ce5d1f (0b05a04, 5732895, 1ec7bbd, 529567f, 0a8bc71, 507bba8, d613598, 4ca0940, 0c4c5f0, 97c6997, fb4aaac, e641320, 56dddb8, 5963715, c2a0629, 8593c4b, 2f93b0e, 28df8c4, 549b131, eb217f6, 3d96eff, 5ce5d1f)
-- Último status conhecido: onda 8 (T-28 a T-39 [x]) concluída; validação cruzada LINT 46/46, SUITE 345/345.
-- Próxima onda recomendada: nenhuma.
+  - Onda 9: BASE c03e1b2 → HEAD bbda807 (bbda807, 17b0770, 16307b5, 73600c2, cc00614, 7ec6808, 32f1bb2, 884b0c5, cb1e945, 72a0020, 08a26f4, e197d51, b2a403d, 4cbc575)
+- Último status conhecido: onda 9 (T-40, T-42..T-49 [x]) concluída; validação cruzada LINT 20/20, SUITE 352/352. A 0008 (T-40) está redigida e não aplicada.
+- Próxima onda recomendada: 10 (T-41, T-50, T-51, T-52), depois de o usuário aprovar e o orquestrador aplicar a 0008.

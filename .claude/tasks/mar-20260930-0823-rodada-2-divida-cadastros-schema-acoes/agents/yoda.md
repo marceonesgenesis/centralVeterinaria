@@ -10,6 +10,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-16: Pausa de atendimento (Core)
 - T-18: EncounterView: Pausar/Retomar, alergia/foto, onInlineAction, vazio após Finalizar
 - T-31: Onda 8: EncounterView com encounter_id nos retornos, foto/alergia por CSS e mensagens de pausa
+- T-45: Onda 9: EncounterView com userError nos catches restantes e gate de anexo/retorno/IA
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-45 (onda 9): só `EncounterView.php`; não edite `cv-components.css`.
 - T-31 (onda 8): você é o único a editar `cv-components.css` na onda. A regra `.cv-patient-photo` vale também para `PatientForm` (T-32).
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`.
 - Restrição específica: não renomeie `onStart`/`onAutosave`/`onFinish`; mantenha `new TButton(); ->setAction(); ->setFormName('form_EncounterView_' . id)` (nunca `TButton::create()` com `TAction` pronta); o autosave de 20 s continua com etapa oculta.

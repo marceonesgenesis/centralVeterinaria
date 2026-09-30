@@ -8,6 +8,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 
 ## Tasks atribuídas
 - T-01: Migration 0007 (+ verify) e DML de programas/grupos
+- T-40: Onda 9: migration 0008 — UNIQUE em queue_entry.appointment_id com dedupe prévio
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -34,6 +35,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-40 (onda 9, BASE `c03e1b2`): só redija a 0008 e o `.verify.sql` (SELECT). Não execute nenhum dos dois. SELECT para inspecionar os duplicados é permitido (anote a saída no relatório).
 - Restrição específica: não execute nenhum SQL que escreva, nem os arquivos que você redige. Pode rodar SELECT para descobrir `MAX(id)` de `system_program` e as colunas de `system_group_program` (`SHOW COLUMNS`). O arquivo `.verify.sql` só contém SELECT. `sql/T-01-programs.sql` fica na pasta do plano e não é commitado por você (o fechador registra); a migration e o verify são commitados com `Task: T-01`.
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.

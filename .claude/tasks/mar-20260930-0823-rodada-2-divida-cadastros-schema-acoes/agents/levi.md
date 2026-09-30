@@ -11,6 +11,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-10: ServiceList Importar/Duplicar/Excluir, ServiceImportForm, ServiceForm em um write
 - T-26: Correção (code-review): importCsv valida tamanhos e limites por linha (onda 7)
 - T-33: Onda 8: ServiceList (Duplicar com confirmação, mensagens) e limites/testes de ServiceCatalogService
+- T-43: Onda 9: ServiceList com o nome nas confirmações e i18n da onda 9
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -37,6 +38,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-43 (onda 9): você é o escritor único de `translations.json` na onda (inclui `In queue` → `Na fila`, para T-41).
 - T-33 (onda 8): não edite `ServiceImportForm.php` (é de T-28) nem `translations.json`.
 - T-26 (onda 7): não edite `translations.json` (escritor único na onda: T-27, Naruto). As 3 chaves estão fixadas na Interface de T-26. Commits `Task: T-26 (RED)` (só `ServiceCatalogServiceTest.php`) e depois `Task: T-26`.
 - T-10 exige o programa `ServiceImportForm` registrado pelo DML de T-01 (onda 2).

@@ -10,6 +10,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-15: Conta bancária com saldo (Core)
 - T-22: BankAccountList/BankAccountForm e aba no CvNav
 - T-34: Onda 8: BankAccountForm/List: escape, mensagens e valor não numérico
+- T-48: Onda 9: MoneyInput compartilhado e BankAccountForm com teto
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-48 (onda 9): `MoneyInput` vai em `src/app/Core/Presentation/` (namespace `CentralVet\Presentation`); não troque os `toCents` dos outros formulários (é de T-50, onda 10).
 - T-34 (onda 8): não edite `BankAccountService.php`: a tradução vem do catálogo de T-28, e a chave `Invalid amount` é gravada por T-28.
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`.
 - T-22 exige os programas `BankAccountList`/`BankAccountForm` registrados pelo DML de T-01.

@@ -10,6 +10,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-02: AuthorizationRequest escapa `$action`; docblock de applyDiscount
 - T-14: Forma de pagamento no lançamento (Core + FinancialEntryForm/List)
 - T-36: Onda 8: AuthorizationRequest UTF-8, TutorService, testes de reschedule e ordem da guarda de desconto
+- T-49: Onda 9: testes mais fortes de T-28, T-36 e T-38
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-49 (onda 9): a sabotagem do RED é local e temporária (cole o diff no relatório, não o commite, e reverta com um editor, nunca com `git checkout`/`restore`).
 - T-36 (onda 8): não edite `AppointmentService.php` nem `AppointmentForm.php` (a correção de T-08 na tela é de T-29); só testes de `reschedule()`.
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`. (vale para T-14; T-02 é da onda 1).
 
