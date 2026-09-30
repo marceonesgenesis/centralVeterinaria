@@ -375,6 +375,106 @@ final class AppointmentServiceTest
         Assert::true(false, 'Expected InvalidArgumentException was not thrown');
     }
 
+    /**
+     * T-36: a service_id of another tenant is not found by the tenant-scoped
+     * repository, and reschedule() refuses it without moving the slot.
+     */
+    public function testRescheduleRejectsServiceOfAnotherTenant(): void
+    {
+        $foreignService = Service::create(2, 'Consulta tenant dois', null, 30, 15000);
+        $service = $this->makeAppointmentService([], true, $foreignService);
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        try {
+            $service->reschedule($a->id, [
+                'service_id' => 2,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 14:00:00',
+            ], self::ACTION);
+        } catch (CrossTenantReferenceException $e) {
+            Assert::same('service_id 2 was not found for the authenticated tenant', $e->getMessage());
+            Assert::same('2026-09-22 09:00', $service->findById($a->id)->scheduledAt->format('Y-m-d H:i'));
+
+            return;
+        }
+
+        Assert::true(false, 'Expected CrossTenantReferenceException was not thrown');
+    }
+
+    public function testRescheduleThrowsAuthorizationDeniedWhenPolicyDenies(): void
+    {
+        $seed = new Appointment(
+            id: 7,
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            serviceId: 1,
+            professionalSystemUserId: 10,
+            scheduledAt: new DateTimeImmutable('2026-09-22 09:00:00'),
+            status: Appointment::STATUS_SCHEDULED,
+        );
+        $service = $this->makeAppointmentService([$seed], false);
+
+        Assert::throws(
+            AuthorizationDenied::class,
+            static fn () => $service->reschedule(7, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 14:00:00',
+            ], self::ACTION),
+        );
+
+        Assert::same('2026-09-22 09:00', $service->findById(7)->scheduledAt->format('Y-m-d H:i'));
+    }
+
+    public function testRescheduleRequiresScheduledAt(): void
+    {
+        $service = $this->makeAppointmentService();
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        try {
+            $service->reschedule($a->id, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+            ], self::ACTION);
+        } catch (InvalidArgumentException $e) {
+            Assert::same('scheduled_at is required', $e->getMessage());
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidArgumentException was not thrown');
+    }
+
+    public function testRescheduleOfCancelledAppointmentHasExactMessage(): void
+    {
+        $cancelled = new Appointment(
+            id: 7,
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            serviceId: 1,
+            professionalSystemUserId: 10,
+            scheduledAt: new DateTimeImmutable('2026-09-22 09:00:00'),
+            status: Appointment::STATUS_CANCELLED,
+        );
+        $service = $this->makeAppointmentService([$cancelled]);
+
+        try {
+            $service->reschedule(7, [
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 11:00:00',
+            ], self::ACTION);
+        } catch (InvalidStatusTransitionException $e) {
+            Assert::same('Appointment 7 cannot be rescheduled from status cancelado', $e->getMessage());
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidStatusTransitionException was not thrown');
+    }
+
     private function scheduleAt(AppointmentService $service, string $scheduledAt): Appointment
     {
         return $service->schedule([
@@ -389,12 +489,15 @@ final class AppointmentServiceTest
     /**
      * @param list<Appointment> $seedAppointments
      */
-    private function makeAppointmentService(array $seedAppointments = []): AppointmentService
-    {
+    private function makeAppointmentService(
+        array $seedAppointments = [],
+        bool $allowed = true,
+        Service ...$extraServices,
+    ): AppointmentService {
         $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
         $patients = new FakePatientRepository(1, $ownPatient);
         $tutors = new FakeTutorRepository(1);
-        $services = new FakeServiceRepository(1, Service::create(1, 'Consulta', null, 30, 15000));
+        $services = new FakeServiceRepository(1, Service::create(1, 'Consulta', null, 30, 15000), ...$extraServices);
         $appointments = new FakeAppointmentRepository(1, ...$seedAppointments);
 
         $patientService = new PatientService($patients, $tutors, TenantContext::authenticated(1, 1, 1));
@@ -404,7 +507,7 @@ final class AppointmentServiceTest
             $services,
             $patientService,
             TenantContext::authenticated(1, 1, 1),
-            new FakeAuthorizationPolicy(allowed: true),
+            new FakeAuthorizationPolicy(allowed: $allowed),
         );
     }
 }

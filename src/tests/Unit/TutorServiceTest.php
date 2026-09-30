@@ -196,6 +196,57 @@ final class TutorServiceTest
         ]));
     }
 
+    public function testUpdateTurnsEmptyAddressIntoNull(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $updated = $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'address' => '',
+        ]);
+
+        Assert::same(null, $updated->address);
+        Assert::same(null, $service->findById($a->id)->address);
+    }
+
+    public function testUpdateAcceptsTheTutorsOwnDocument(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $updated = $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'document' => $a->document,
+        ]);
+
+        Assert::same($a->id, $updated->id);
+        Assert::same('11122233344', $updated->document);
+    }
+
+    public function testCreateTrimsAndNullsOptionalFieldsLikeUpdate(): void
+    {
+        $repository = new FakeTutorRepository(1);
+        $service = new TutorService($repository);
+
+        $tutor = $service->create([
+            'tenant_id' => 1,
+            'full_name' => '  Novo Tutor ',
+            'phone' => ' 85911112222 ',
+            'document' => '',
+            'email' => '',
+            'address' => '',
+        ]);
+
+        Assert::same('Novo Tutor', $tutor->fullName);
+        Assert::same('85911112222', $tutor->phone);
+        Assert::same(null, $tutor->document);
+        Assert::same(null, $tutor->email);
+        Assert::same(null, $tutor->address);
+    }
+
     /** @return array{0: FakeTutorRepository, 1: Tutor, 2: Tutor} */
     private function seedTwoTutors(): array
     {

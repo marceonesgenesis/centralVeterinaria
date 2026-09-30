@@ -64,4 +64,23 @@ final class AuthorizationRequestTest
         Assert::same('Invalid authorization action format: "bad\\naction"', $message);
         Assert::false(str_contains((string) $message, "\n"), 'Message must not contain a raw line break');
     }
+
+    /**
+     * T-36: invalid UTF-8 in the action must not make json_encode() return
+     * false (which left the message ending in ": "); the bad byte is
+     * replaced by U+FFFD.
+     */
+    public function testMalformedActionWithInvalidUtf8KeepsTheActionInTheMessage(): void
+    {
+        $context = TenantContext::authenticated(101, 1, 5);
+        $message = null;
+
+        try {
+            new AuthorizationRequest(context: $context, action: "a\xB1b");
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same("Invalid authorization action format: \"a\u{FFFD}b\"", $message);
+    }
 }

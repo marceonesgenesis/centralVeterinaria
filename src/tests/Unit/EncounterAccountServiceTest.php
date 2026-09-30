@@ -6,6 +6,10 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterAccountService;
 use CentralVet\Application\ProcedureCatalogService;
+use CentralVet\Authorization\AuthorizationDecision;
+use CentralVet\Authorization\AuthorizationRequest;
+use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
+use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccountItem;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
@@ -59,7 +63,10 @@ final class EncounterAccountServiceTest
      *
      * @return array{0: EncounterAccountService, 1: int, 2: FakeEncounterAccountItemRepository, 3: FakeProcedureExecutionRepository, 4: FakeProcedureCatalogRepository, 5: FakeProcedureCatalogItemInputRepository}
      */
-    private function buildService(?FakeTenantUserDirectory $tenantUsers = null): array
+    private function buildService(
+        ?FakeTenantUserDirectory $tenantUsers = null,
+        ?AuthorizationPolicyInterface $policy = null,
+    ): array
     {
         $context = TenantContext::authenticated(self::TENANT_ID, 1, self::UNIT_ID);
 
@@ -106,7 +113,7 @@ final class EncounterAccountServiceTest
             $examRequests,
             $procedureCatalog,
             $examCatalog,
-            new FakeAuthorizationPolicy(allowed: true),
+            $policy ?? new FakeAuthorizationPolicy(allowed: true),
             $context,
             $tenantUsers ?? FakeTenantUserDirectory::allowingAll(),
         );
@@ -243,6 +250,32 @@ final class EncounterAccountServiceTest
     public function testApplyDiscountWithInactiveAuthorizerThrowsAndPersistsNothing(): void
     {
         $this->assertDiscountRefusedFor(new FakeTenantUserDirectory([]), 10);
+    }
+
+    /**
+     * T-36: RBAC runs before the authorizer lookup, so a user without the
+     * discount permission cannot probe which authorizer ids are active: the
+     * answer is AuthorizationDenied even for a nonexistent authorizer.
+     */
+    public function testApplyDiscountDeniedByPolicyThrowsAuthorizationDeniedEvenForUnknownAuthorizer(): void
+    {
+        $policy = new class implements AuthorizationPolicyInterface {
+            public bool $allowed = true;
+
+            public function decide(AuthorizationRequest $request): AuthorizationDecision
+            {
+                return new AuthorizationDecision($this->allowed, $this->allowed ? 'granted' : 'denied', 'test-correlation-id');
+            }
+        };
+        [$service, $encounterId] = $this->buildService(new FakeTenantUserDirectory([]), $policy);
+
+        $account = $service->openOrGet($encounterId, self::ACTION);
+        $policy->allowed = false;
+
+        Assert::throws(
+            AuthorizationDenied::class,
+            fn () => $service->applyDiscount($account->id(), 0, 999, self::ACTION),
+        );
     }
 
     private function assertDiscountRefusedFor(FakeTenantUserDirectory $tenantUsers, int $authorizerId): void
