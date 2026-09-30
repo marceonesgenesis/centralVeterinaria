@@ -360,7 +360,8 @@ class PatientForm extends TStandardForm
             // (missing or belongs to another tenant) — treated message,
             // never an uncaught exception / HTTP 500.
             TTransaction::rollback();
-            new TMessage('error', _t('Selected tutor was not found for your account'));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {

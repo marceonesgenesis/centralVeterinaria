@@ -810,7 +810,8 @@ class PrescriptionForm extends TPage
             // inexistente recusado por PrescriptionService::create() vira
             // mensagem tratada na tela, nunca uma exceção não tratada.
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {

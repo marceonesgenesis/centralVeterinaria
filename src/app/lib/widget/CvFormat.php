@@ -66,4 +66,19 @@ class CvFormat
     {
         return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
+
+    /**
+     * Mensagem de erro para a tela. CrossTenantReferenceException vira texto
+     * traduzido e sem o id (a mensagem original, em inglês e com o id, fica
+     * só no error_log do controller); as demais exceções mantêm getMessage().
+     */
+    public static function userError(\Throwable $e): string
+    {
+        if ($e instanceof \CentralVet\Domain\Exception\CrossTenantReferenceException)
+        {
+            return _t('The selected record does not belong to this clinic');
+        }
+
+        return $e->getMessage();
+    }
 }
