@@ -85,10 +85,10 @@ final class FinancialEntryRepository extends AbstractTenantRepository implements
                 <<<'SQL'
                 INSERT INTO financial_entry (
                     tenant_id, system_unit_id, entry_type, category, amount_cents,
-                    reference_type, reference_id, occurred_at, system_user_id
+                    reference_type, reference_id, occurred_at, system_user_id, payment_method
                 ) VALUES (
                     :tenant_id, :system_unit_id, :entry_type, :category, :amount_cents,
-                    :reference_type, :reference_id, :occurred_at, :system_user_id
+                    :reference_type, :reference_id, :occurred_at, :system_user_id, :payment_method
                 )
                 SQL
             );
@@ -102,6 +102,7 @@ final class FinancialEntryRepository extends AbstractTenantRepository implements
                 ':reference_id' => $entity->referenceId(),
                 ':occurred_at' => $entity->occurredAt()->format('Y-m-d H:i:s.u'),
                 ':system_user_id' => $entity->systemUserId(),
+                ':payment_method' => $entity->paymentMethod(),
             ]);
 
             $entity->assignId((int) $this->connection->lastInsertId());
@@ -161,6 +162,7 @@ final class FinancialEntryRepository extends AbstractTenantRepository implements
             occurredAt: new DateTimeImmutable((string) $row['occurred_at']),
             systemUserId: (int) $row['system_user_id'],
             createdAt: $row['created_at'] !== null ? new DateTimeImmutable((string) $row['created_at']) : null,
+            paymentMethod: isset($row['payment_method']) ? (string) $row['payment_method'] : null,
         );
     }
 }

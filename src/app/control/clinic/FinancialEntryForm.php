@@ -65,11 +65,26 @@ class FinancialEntryForm extends TStandardForm
         $category = new TEntry('category');
         $amount = new TEntry('amount');
 
+        // forma de pagamento opcional (T-14): rótulos de CvFormat::paymentMethod()
+        $payment_method = new TCombo('payment_method');
+        $payment_items = [];
+        foreach ([
+            \CentralVet\Domain\Payment::METHOD_CASH,
+            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD,
+            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD,
+            \CentralVet\Domain\Payment::METHOD_PIX,
+            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER,
+        ] as $method)
+        {
+            $payment_items[$method] = CvFormat::paymentMethod($method);
+        }
+        $payment_method->addItems($payment_items);
+
         CvForm::decorate($this->form, 2);
 
         // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
         $this->form->addFields( [new TLabel(_t('Type'))], [$entry_type], [new TLabel(_t('Category'))], [$category] );
-        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount] );
+        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount], [new TLabel(_t('Payment method'))], [$payment_method] );
 
         // id só para o fluxo editar/salvar, fora do layout visível
         $hidden_row = $this->form->addFields( [$id] );
@@ -171,6 +186,7 @@ class FinancialEntryForm extends TStandardForm
                 null,
                 $tenant_context->userId(),
                 __CLASS__ . '::' . __FUNCTION__,
+                self::paymentMethodOrNull($data->payment_method ?? null),
             );
 
             $data->id = $entry->id();
@@ -225,6 +241,17 @@ class FinancialEntryForm extends TStandardForm
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Forma de pagamento opcional (T-14): vazio vira null; valor fora da
+     * lista é repassado como veio para FinancialEntry::record() recusar.
+     */
+    private static function paymentMethodOrNull($value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     /**

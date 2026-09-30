@@ -33,6 +33,15 @@ final class FinancialEntry
 
     private const TYPES = [self::TYPE_INCOME, self::TYPE_EXPENSE];
 
+    /** Same list as Payment::METHODS (T-14); null means "not informed". */
+    private const PAYMENT_METHODS = [
+        Payment::METHOD_CASH,
+        Payment::METHOD_DEBIT_CARD,
+        Payment::METHOD_CREDIT_CARD,
+        Payment::METHOD_PIX,
+        Payment::METHOD_BANK_TRANSFER,
+    ];
+
     private function __construct(
         private ?int $id,
         private readonly int $tenantId,
@@ -45,6 +54,7 @@ final class FinancialEntry
         private readonly DateTimeImmutable $occurredAt,
         private readonly int $systemUserId,
         private readonly ?DateTimeImmutable $createdAt = null,
+        private readonly ?string $paymentMethod = null,
     ) {
     }
 
@@ -58,6 +68,7 @@ final class FinancialEntry
         ?int $referenceId,
         DateTimeImmutable $occurredAt,
         int $systemUserId,
+        ?string $paymentMethod = null,
     ): self {
         if ($tenantId <= 0) {
             throw new InvalidArgumentException('Tenant id must be positive');
@@ -89,6 +100,12 @@ final class FinancialEntry
             throw new InvalidArgumentException('system_user_id must be positive');
         }
 
+        if ($paymentMethod !== null && !in_array($paymentMethod, self::PAYMENT_METHODS, true)) {
+            throw new InvalidArgumentException(
+                'payment_method must be one of: ' . implode(', ', self::PAYMENT_METHODS)
+            );
+        }
+
         return new self(
             id: null,
             tenantId: $tenantId,
@@ -100,6 +117,7 @@ final class FinancialEntry
             referenceId: $referenceId,
             occurredAt: $occurredAt,
             systemUserId: $systemUserId,
+            paymentMethod: $paymentMethod,
         );
     }
 
@@ -119,6 +137,7 @@ final class FinancialEntry
         DateTimeImmutable $occurredAt,
         int $systemUserId,
         ?DateTimeImmutable $createdAt,
+        ?string $paymentMethod = null,
     ): self {
         return new self(
             $id,
@@ -132,6 +151,7 @@ final class FinancialEntry
             $occurredAt,
             $systemUserId,
             $createdAt,
+            $paymentMethod,
         );
     }
 
@@ -202,5 +222,15 @@ final class FinancialEntry
     public function createdAt(): ?DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /**
+     * How the money moved (one of Payment::METHOD_*), or null when not
+     * informed (manual entries may omit it; payable entries leave it null).
+     * Independent of category(), which keeps its own meaning.
+     */
+    public function paymentMethod(): ?string
+    {
+        return $this->paymentMethod;
     }
 }
