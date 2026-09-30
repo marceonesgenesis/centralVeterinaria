@@ -51,3 +51,29 @@ EOF
 - [T-12] i18n: Photo must be at most 2 MB → A foto deve ter no máximo 2 MB
 - [T-12] Ambiente: o serviço minio (profile `minio` do docker-compose) não está no ar; S3CompatibleStorage falha com "Could not resolve host: minio". O GATE de foto de T-12 (e T-18) precisa de `docker compose --profile minio up -d` pelo orquestrador.
 - [T-15] Correção rodada 1 (substitui a nota anterior sobre autorização): BankAccountService agora opera só na unidade corrente (TenantContext::requireUnitId()). create() ignora/aceita system_unit_id só se igual à unidade corrente (outra → InvalidArgumentException "Bank account must belong to the current unit {id}"); findById/update de conta de outra unidade = não encontrada ("Bank account {id} not found for this tenant"); listByUnit(outra) lança a mesma exceção de unidade; totalBalanceCents(outra) → null. balance_cents é obrigatório e inteiro (senão "balance_cents must be an integer"). BankAccountRepository filtra por system_unit_id quando o contexto tem unidade. Contexto sem unidade → MissingTenantContext. T-22/T-20 devem passar TenantContext com unidade.
+- [T-22] i18n: Bank accounts → Contas bancárias
+- [T-22] i18n: Bank account → Conta bancária
+- [T-22] i18n: Bank → Banco
+- [T-22] i18n: Balance → Saldo
+- [T-22] i18n: Total of active accounts → Total das contas ativas
+- [T-22] BankAccountList/BankAccountForm prontos (TPage, sem TRecord): aba 'bank_accounts' em CvNav::group('finance') depois de cashflow; rodapé "Total of active accounts: <CvFormat::money>" (negativo com class text-danger); Form com campos name/bank_name/balance (moeda, negativo)/active e onEdit&key=<id>.
+- [T-20] i18n: vs. previous period → vs. período anterior
+- [T-20] i18n: Bank balance → Saldo bancário
+- [T-20] i18n: No bank account → Nenhuma conta bancária
+- [T-20] i18n: Bank accounts → Contas bancárias
+- [T-20] CvKpiCard::create(..., ?float $deltaPercent = null, ?string $deltaLabel = null) pronto (null = _t('vs. previous month')); FinancialOverviewService::recentEntries($unit, $limit = 5, ?from, ?to) com limites inclusivos de totals(); FinancialOverviewReader::recentEntries devolve também 'payment_method'. Exportar: engine.php?class=FinancialOverview&method=onExport&static=1&from=Y-m-d&to=Y-m-d (403 sem tenant, 500 em falha, sem corpo).
+- [T-18] i18n: Pause → Pausar
+- [T-18] i18n: Resume → Retomar
+- [T-18] i18n: Paused → Pausado
+- [T-18] i18n: Invalid action → Ação inválida
+- [T-18] EncounterView: onPause/onResume novos (programa EncounterView; métodos em system_program? não — a permissão é por classe, e a negação explícita em `methods` bloqueia). Finalizar/Pausar/Retomar e onReload usam `encounter_id` (onReload/onFinish/onInlineAction aceitam `id` como fallback); autosave/anexo/retorno seguem com `id`. Alerta de alergia com estilo inline (sem CSS novo); T-23 edita o mesmo arquivo depois.
+- [T-21] i18n: Generate report → Gerar relatório
+- [T-21] i18n: Stock report → Relatório de estoque
+- [T-21] i18n: No products found → Nenhum produto encontrado
+- [T-21] ProductList: carga com um overview() (cacheado por filtros), colunas Code/Sale price, ação Gerar relatório → engine.php?class=ProductList&method=onReport&static=1&<filtros> (target _blank); PDF estoque-<Y-m-d>.pdf. Custo no PDF vem de ProductService::listActive (unitCostCents), pois overview() não traz custo.
+- [T-19] i18n: Valid until → Válida até
+- [T-19] i18n: Save as template → Salvar como modelo
+- [T-19] i18n: Template saved → Modelo salvo
+- [T-19] i18n: Apply template → Aplicar modelo
+- [T-19] i18n: Template → Modelo
+- [T-19] PrescriptionForm: onEdit removido; novos onAskTemplateName (TInputDialog), onSaveTemplate (static), onApplyTemplate; campos valid_until (TDate dd/mm/yyyy) e template_id (TCombo). Orientação/validade em edição persistem em TSession 'prescription_form_draft_header_<encounter>'. cv-components.css ganhou bloco .cv-rx-* no fim do arquivo. Os critérios "Modelo salvo"/"Válida até" do GATE dependem de T-23 gravar as chaves acima.

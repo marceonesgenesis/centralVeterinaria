@@ -29,6 +29,12 @@
 - 2026-09-30 · T-10 e demais · onda 2 — "Message not found" de chaves novas (copy, Import, Duplicate etc.) fica para T-23; não reprova.
 - 2026-09-30 · T-17 · onda 2 — Gate de navegador do menu da fila não rodado: fila vazia e sem caminho pela UI para criar entrada. Evidência é o render do datagrid; a verificação pela UI vai para a QA de T-24. appointment_id=0 no encaixe aceito.
 - 2026-09-30 · onda 2 — A varredura Playwright da validação cruzada foi considerada coberta pelos gates/complementos (console 0 error, rede sem 4xx/5xx). Os 403 de onSwitchUnit da sessão antiga não se repetiram.
+- 2026-09-30 · T-18/T-19 · onda 3 — O gate de navegador de Pausar/Retomar/Finalizar, do alerta de alergia/foto e dos modelos de prescrição (salvar, aplicar, valid_until, PDF "Válida até") ficou `não rodado`: não há atendimento em andamento nem caminho pela UI para abrir um. Passa para a QA de T-24, que precisa de um atendimento de teste (criá-lo por SQL exige aprovação do usuário).
+- 2026-09-30 · T-19 · onda 3 — Um modelo recém-salvo só entra no combo depois de recarregar a tela. O revisor aceitou.
+- 2026-09-30 · T-21 · onda 3 — O custo no PDF vem de ProductService::listActive (desvio aceito). A contagem de linhas dentro do PDF ficou `não rodado`; o onReport responde 200 application/pdf.
+- 2026-09-30 · T-22 · onda 3 — A edição do saldo para −50,00 pela UI ficou `não rodado` (classificador negou); a conversão foi provada no relatório.
+- 2026-09-30 · onda 3 — "Message not found" de chaves novas fica para T-23; as chaves estão no board.
+- 2026-09-30 · onda 3 — O orquestrador rebuildou o container e refez o login admin do Playwright, que caiu com o rebuild. Nenhuma credencial registrada.
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
@@ -56,6 +62,11 @@
 - [T-15] BankAccountService: create/update/listByUnit/findById/totalBalanceCents(unit) → ?int; restrito à unidade corrente (serviço e repositório).
 - [T-16] EncounterService::pause/resume(int $id, string $action, ?DateTimeImmutable $now = null); Encounter::isPaused()/pausedAt()/pausedSeconds(); finish() de pausado soma o trecho.
 - [T-17] QueueEntryView: linha tem patient_id e appointment_id (0 no encaixe); menu com Editar paciente e Editar agendamento (só se appointment_id ≠ 0).
+- [T-18] EncounterView: onPause/onResume novos; Finalizar/Pausar/Retomar/onReload usam `encounter_id` (onReload/onFinish/onInlineAction aceitam `id` como fallback); autosave, anexo, retorno e resumo de IA seguem com `id`. Alerta de alergia e foto com estilo inline.
+- [T-19] PrescriptionForm: onEdit removido; onAskTemplateName, onSaveTemplate (static), onApplyTemplate; campos valid_until e template_id; rascunho de cabeçalho em TSession; bloco .cv-rx-* em cv-components.css.
+- [T-20] CvKpiCard ganhou deltaPercent/deltaLabel; FinancialOverviewService::recentEntries($unit, $limit, ?from, ?to); Exportar em onExport (static, CSV com csvSafe).
+- [T-21] ProductList: um overview() por carga (cacheado por filtros), colunas Code/Sale price, onReport (PDF estoque-<data>.pdf).
+- [T-22] BankAccountList/BankAccountForm (TPage) e aba 'bank_accounts' no CvNav; rodapé com total das contas ativas.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -91,6 +102,14 @@
 - Validador (onda 2): o agendamento de teste 3 (paciente 2772, serviço 3) não aparece na grade da Agenda de 30/09 e não pode ser removido pela UI; enquanto existir, o serviço 3 não pode ser excluído. Investigar na QA (T-24) se é bug da AgendaView.
 - Validador (onda 2): PatientForm key=999999 mantém os radios editáveis (onda 1, mantido).
 - Validador (onda 2): gate de navegador do menu da fila (T-17) não rodado; verificar na QA de T-24.
+- T-18: alerta de alergia e foto com `style` inline (classes sem regra CSS); foto decidida por `photoObjectKey !== null` (string vazia geraria <img> quebrado); autosave/anexar/retorno/resumo de IA ainda passam `id` e o construtor renderiza o vazio antes do método.
+- T-19: onSaveTemplate poderia recarregar o combo com TCombo::reload; onRemoveItem (GET) restaura o rascunho de cabeçalho antigo; gate de navegador (COUNT=2, valid_until, PDF "Válida até") não rodado, vai para T-24.
+- T-20: onExport engole Throwable sem error_log; link "Bank accounts" do KPI depende de $card->get(1); recentEntries com um só limite sem teste.
+- T-21: LOW_STOCK_LIMIT também limita recentSales (separar RECENT_SALES_LIMIT); contar `<tr>` de renderReportHtml via CLI no gate da onda 4.
+- T-22: mensagens do serviço em inglês por `getMessage()` sem `_t()`; toCents converte entrada não numérica em 0 em silêncio.
+- Validador (onda 3): o agendamento 3 (hoje, paciente 2772, serviço 3) não aparece na Agenda nem na Fila; bug provável da AgendaView ou da fila, investigar na T-24.
+- Validador (onda 3): a varredura completa de todas as telas ficou parcial.
+- Validador (onda 3): gate de navegador de Pausar/Retomar/Finalizar, alergia/foto e modelos de prescrição não rodado (sem atendimento em andamento); T-24 precisa de atendimento de teste.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -104,6 +123,7 @@
 ## Dados de teste
 - Registros "R2 varredura" criados pelo validador pela UI na onda 1: tutor id 3141 (T-06), paciente id 2772 (T-07) e agendamento id 2, remarcado para 2026-10-01 11:00 (T-08).
 - Registros da onda 2: serviços 3 (R2 varredura Serviço, inativo), 5 e 6 (importados); agendamento 3; financial_entry 5947 (Pix) e 5948; payment 113 (recebível 42 "Tutor Teste Levi", agora com R$ 1,00 pago); produto 946 (code R2-001, sale_price 1990); paciente 2772 com alergia Dipirona e foto no minio tenant/1/patient/2772/photo-r2-foto.png.
+- Registros da onda 3: bank_account 101 "R2 varredura Conta", saldo 100000.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -113,5 +133,6 @@
 - Commits por onda:
   - Onda 1: BASE d6dce7a → HEAD c664c3f (b532c63, 7ad33ce, 180a03a, e521126, bc695d6, 7f449dc, f492567, fa0c143, 02e1c5f, 5681449, efaed8c, 4f197c9, 3c40dc4, 169233e, c664c3f)
   - Onda 2: BASE b16bbbd → HEAD 181aac2 (348aead, 5388404, d36ea5c, 4d446a1, 1a1099d, 4d719ca, 8ce4e81, b2a31ff, 777018f, 46494e5, edaf460, 4003ce7, 5d6b1f1, 181aac2, e419b9c, e79489f, 160526b)
-- Último status conhecido: onda 2 concluída (T-10 a T-17 [x]); migration 0007 e DML aplicados.
-- Próxima onda recomendada: onda 3 (T-18 a T-22), conforme dependências em tasks.md.
+  - Onda 3: BASE 37797c6 → HEAD 1927ef6 (6c04826, 0e25755, 22947f6, 052e9c2, ab837e6, 1927ef6)
+- Último status conhecido: onda 3 concluída (T-18 a T-22 [x]); migration 0007 e DML aplicados.
+- Próxima onda recomendada: onda 4 (T-23), depois onda 5 (T-24).
