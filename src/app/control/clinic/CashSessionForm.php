@@ -232,7 +232,7 @@ class CashSessionForm extends TPage
 
             $service->open(
                 $tenant_context->requireUnitId(),
-                self::toCents($data->opening_balance),
+                \CentralVet\Presentation\MoneyInput::toCents((string) $data->opening_balance, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $tenant_context->userId(),
                 'CashSessionForm::onOpen'
             );
@@ -264,7 +264,7 @@ class CashSessionForm extends TPage
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         // always redraw from the real DB state: still one open session (the
@@ -301,7 +301,7 @@ class CashSessionForm extends TPage
 
             $service->close(
                 (int) $open_session->id,
-                self::toCents($data->closing_balance),
+                \CentralVet\Presentation\MoneyInput::toCents((string) $data->closing_balance, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $tenant_context->userId(),
                 'CashSessionForm::onClose'
             );
@@ -328,7 +328,7 @@ class CashSessionForm extends TPage
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         // always redraw from the real DB state: back to the "no open
@@ -358,19 +358,6 @@ class CashSessionForm extends TPage
         $objects = $repository->load($criteria, FALSE);
 
         return $objects[0] ?? null;
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching CashSessionService::open()/close()'s *_cents input
-     * (same conversion as ServiceForm::toCents()).
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

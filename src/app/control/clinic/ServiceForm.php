@@ -171,7 +171,7 @@ class ServiceForm extends TPage
                 'name'              => (string) $data->name,
                 'category'          => $data->category,
                 'duration_minutes'  => (int) $data->duration_minutes,
-                'price_cents'       => self::toCents($data->price),
+                'price_cents'       => \CentralVet\Presentation\MoneyInput::toCents((string) $data->price, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
             ];
 
             if (!empty($data->id))
@@ -200,20 +200,8 @@ class ServiceForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ServiceCatalogService::create()'s price_cents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

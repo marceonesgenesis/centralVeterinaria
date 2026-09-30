@@ -429,7 +429,7 @@ class EncounterAccountForm extends TPage
         {
             $accountId = isset($param['account_id']) ? (int) $param['account_id'] : 0;
             $descriptionText = isset($param['description_text']) ? (string) $param['description_text'] : '';
-            $amountCents = self::toCents($param['amount_cents'] ?? null);
+            $amountCents = \CentralVet\Presentation\MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
 
             if ($accountId <= 0)
             {
@@ -467,7 +467,7 @@ class EncounterAccountForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
@@ -492,7 +492,7 @@ class EncounterAccountForm extends TPage
         try
         {
             $accountId = isset($param['account_id']) ? (int) $param['account_id'] : 0;
-            $discountCents = self::toCents($param['discount_cents'] ?? null);
+            $discountCents = \CentralVet\Presentation\MoneyInput::toCents((string) ($param['discount_cents'] ?? null), false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
             $authorizedBySystemUserId = isset($param['authorized_by_system_user_id']) && $param['authorized_by_system_user_id'] !== ''
                 ? (int) $param['authorized_by_system_user_id']
                 : 0;
@@ -548,7 +548,7 @@ class EncounterAccountForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
@@ -628,32 +628,13 @@ class EncounterAccountForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
-    }
-
-    /**
-     * Converts a "1.234,56"/"1234.56"-style amount typed in a TEntry with a
-     * numeric mask into integer cents, matching ServiceForm::toCents()'s
-     * convention (SaleForm/PrescriptionForm siblings use the same rounding
-     * approach for money fields).
-     */
-    private static function toCents($value): int
-    {
-        if ($value === null || $value === '')
-        {
-            return 0;
-        }
-
-        $normalized = str_replace('.', '', (string) $value);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     private static function formatCents(int $cents): string

@@ -190,7 +190,7 @@ class ProductForm extends TPage
                     (string) $data->name,
                     $data->category ?: null,
                     (string) $data->unit_of_measure,
-                    self::toCents($data->unit_cost),
+                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->unit_cost, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     (int) $data->minimum_stock_quantity,
                     $active,
                     self::toNullableCents($data->sale_price ?? null),
@@ -204,7 +204,7 @@ class ProductForm extends TPage
                     (string) $data->name,
                     $data->category ?: null,
                     (string) $data->unit_of_measure,
-                    self::toCents($data->unit_cost),
+                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->unit_cost, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     (int) $data->minimum_stock_quantity,
                     self::toNullableCents($data->sale_price ?? null),
                     self::nullableString($data->code ?? null)
@@ -251,26 +251,14 @@ class ProductForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
     /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ProductService::create()'s unit_cost_cents input
-     * (same convention as ServiceForm::toCents()).
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
-    }
-
-    /**
      * Sale price is optional: blank field → null (no price informed),
-     * otherwise the same "1.234,56" → cents conversion as toCents().
+     * otherwise MoneyInput::toCents() with the int unsigned ceiling of
+     * product.sale_price_cents (invalid text → 'Invalid amount').
      */
     private static function toNullableCents($amount)
     {
@@ -279,7 +267,7 @@ class ProductForm extends TPage
             return null;
         }
 
-        return self::toCents($amount);
+        return \CentralVet\Presentation\MoneyInput::toCents((string) $amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
     }
 
     /** Blank text field → null (Product::create() trims and nulls it too). */

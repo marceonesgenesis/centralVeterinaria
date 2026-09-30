@@ -125,7 +125,7 @@ class PayableForm extends TStandardForm
                     (int) $data->id,
                     (string) $data->description_text,
                     (string) $data->category,
-                    self::toCents($data->amount),
+                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     !empty($data->due_date) ? (string) $data->due_date : null,
                     __CLASS__ . '::' . __FUNCTION__,
                 )
@@ -133,7 +133,7 @@ class PayableForm extends TStandardForm
                     $tenant_context->requireUnitId(),
                     (string) $data->description_text,
                     (string) $data->category,
-                    self::toCents($data->amount),
+                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     !empty($data->due_date) ? (string) $data->due_date : null,
                     $tenant_context->userId(),
                     __CLASS__ . '::' . __FUNCTION__,
@@ -182,7 +182,7 @@ class PayableForm extends TStandardForm
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
@@ -246,18 +246,6 @@ class PayableForm extends TStandardForm
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching PayableService::create()'s amount_cents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

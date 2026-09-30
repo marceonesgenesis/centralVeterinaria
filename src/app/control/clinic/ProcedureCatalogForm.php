@@ -112,7 +112,7 @@ class ProcedureCatalogForm extends TStandardForm
 
             $item = $catalog->create(
                 $data->name,
-                self::toCents($data->price),
+                \CentralVet\Presentation\MoneyInput::toCents((string) $data->price, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $duration_minutes,
                 $preparation_text
             );
@@ -150,23 +150,11 @@ class ProcedureCatalogForm extends TStandardForm
             $this->form->setData($data ?? null);
 
             // shows the exception error message
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
 
             // undo all pending operations
             TTransaction::rollback();
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ProcedureCatalogService::create()'s priceCents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

@@ -175,7 +175,7 @@ class FinancialEntryForm extends TStandardForm
                 $tenant_context->requireUnitId(),
                 (string) $data->entry_type,
                 (string) $data->category,
-                self::toCents($data->amount),
+                \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 null,
                 null,
                 $tenant_context->userId(),
@@ -227,7 +227,7 @@ class FinancialEntryForm extends TStandardForm
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
@@ -246,18 +246,6 @@ class FinancialEntryForm extends TStandardForm
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching FinancialEntryService::record()'s amount_cents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

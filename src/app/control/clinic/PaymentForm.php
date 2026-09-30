@@ -316,7 +316,7 @@ class PaymentForm extends TPage
         {
             $receivableId = isset($param['receivable_id']) ? (int) $param['receivable_id'] : 0;
             $paymentMethod = isset($param['payment_method']) ? (string) $param['payment_method'] : '';
-            $amountCents = self::toCents($param['amount_cents'] ?? null);
+            $amountCents = \CentralVet\Presentation\MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
 
             if ($receivableId <= 0)
             {
@@ -383,31 +383,13 @@ class PaymentForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
-    }
-
-    /**
-     * Converts a "1.234,56"/"1234.56"-style amount typed in a TEntry with a
-     * numeric mask into integer cents, matching EncounterAccountForm::
-     * toCents()/ServiceForm::toCents()'s convention.
-     */
-    private static function toCents($value): int
-    {
-        if ($value === null || $value === '')
-        {
-            return 0;
-        }
-
-        $normalized = str_replace('.', '', (string) $value);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**
