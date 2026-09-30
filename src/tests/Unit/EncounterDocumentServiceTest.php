@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterDocumentService;
+use CentralVet\Storage\StorageInterface;
+use CentralVet\Storage\StoredObjectMetadata;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeStorage;
@@ -116,7 +118,7 @@ final class EncounterDocumentServiceTest
 
     public function testRecordFailureDeletesTheStoredObjectAndRethrows(): void
     {
-        $storage = new FakeStorage();
+        $storage = self::recordingStorage(new FakeStorage());
         $objects = new FakeStoredObjectRepository(7);
         $objects->failNextRecordWith(new RuntimeException('insert failed'));
         $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
@@ -131,7 +133,112 @@ final class EncounterDocumentServiceTest
 
         Assert::notNull($thrown, 'record() failure must be rethrown');
         Assert::same('insert failed', $thrown->getMessage());
-        Assert::false($storage->exists('tenant/7/encounter/10/r2.pdf'), 'the object just written must be deleted');
+        Assert::count(1, $storage->putKeys);
+        Assert::false($storage->exists($storage->putKeys[0]), 'the object just written must be deleted');
         Assert::count(0, $objects->allRows());
+    }
+
+    /**
+     * Re-attaching a file with the same name to the same encounter keeps
+     * both objects: each attachment gets its own key (unique segment), each
+     * download returns its own bytes and the original name.
+     */
+    public function testReattachingSameNameKeepsDistinctObjectsAndBytes(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $first = $service->attach(10, 'laudo.pdf', 'PRIMEIRO', 'application/pdf');
+        $second = $service->attach(10, 'laudo.pdf', 'SEGUNDO-MAIOR', 'application/pdf');
+
+        Assert::true($first->objectKey !== $second->objectKey, 'same name must not reuse the storage key');
+        foreach ([$first, $second] as $metadata) {
+            Assert::true(
+                preg_match('#^tenant/7/encounter/10/[0-9a-f]{12}-laudo\.pdf$#D', $metadata->objectKey) === 1,
+                'key keeps the encounter prefix plus a unique segment: ' . $metadata->objectKey,
+            );
+        }
+        Assert::same('PRIMEIRO', $storage->get($first->objectKey));
+        Assert::same('SEGUNDO-MAIOR', $storage->get($second->objectKey));
+
+        $listed = $service->list(10);
+        Assert::count(2, $listed);
+        $bytesByKey = [];
+        foreach ($listed as $row) {
+            $download = $service->download(10, $row['public_id']);
+            Assert::notNull($download);
+            Assert::same('laudo.pdf', $download['original_name']);
+            Assert::same($row['size_bytes'], strlen($download['contents']));
+            $bytesByKey[$row['object_key']] = $download['contents'];
+        }
+        Assert::same('PRIMEIRO', $bytesByKey[$first->objectKey] ?? null);
+        Assert::same('SEGUNDO-MAIOR', $bytesByKey[$second->objectKey] ?? null);
+    }
+
+    /** A failed re-attach only removes its own new object, never the one already recorded. */
+    public function testFailedReattachKeepsThePreviousObject(): void
+    {
+        $storage = self::recordingStorage(new FakeStorage());
+        $objects = new FakeStoredObjectRepository(7);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $first = $service->attach(10, 'laudo.pdf', 'PRIMEIRO', 'application/pdf');
+        $objects->failNextRecordWith(new RuntimeException('insert failed'));
+
+        try {
+            $service->attach(10, 'laudo.pdf', 'SEGUNDO', 'application/pdf');
+            Assert::true(false, 'record() failure must be rethrown');
+        } catch (RuntimeException $e) {
+            Assert::same('insert failed', $e->getMessage());
+        }
+
+        Assert::count(2, $storage->putKeys);
+        Assert::true($storage->exists($first->objectKey), 'the previous object must survive');
+        Assert::false($storage->exists($storage->putKeys[1]), 'only the new object is rolled back');
+
+        $listed = $service->list(10);
+        Assert::count(1, $listed);
+        Assert::same('PRIMEIRO', $service->download(10, $listed[0]['public_id'])['contents'] ?? null);
+    }
+
+    /** StorageInterface decorator that remembers every key passed to put(). */
+    private static function recordingStorage(FakeStorage $inner): StorageInterface
+    {
+        return new class ($inner) implements StorageInterface {
+            /** @var list<string> */
+            public array $putKeys = [];
+
+            public function __construct(private readonly FakeStorage $inner)
+            {
+            }
+
+            public function put(string $key, string $contents, string $contentType = 'application/octet-stream'): StoredObjectMetadata
+            {
+                $this->putKeys[] = $key;
+
+                return $this->inner->put($key, $contents, $contentType);
+            }
+
+            public function get(string $key): string
+            {
+                return $this->inner->get($key);
+            }
+
+            public function exists(string $key): bool
+            {
+                return $this->inner->exists($key);
+            }
+
+            public function delete(string $key): void
+            {
+                $this->inner->delete($key);
+            }
+
+            public function presignedUrl(string $key, int $ttlSeconds = 300): string
+            {
+                return $this->inner->presignedUrl($key, $ttlSeconds);
+            }
+        };
     }
 }
