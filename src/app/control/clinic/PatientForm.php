@@ -183,7 +183,9 @@ class PatientForm extends TStandardForm
             // pré-visualização servida por onPhoto (bytes do storage, tenant da sessão)
             $preview = new TElement('img');
             $preview->{'class'} = 'cv-patient-photo';
-            $preview->{'src'}   = 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $this->viewPatient->id;
+            // &v= muda a cada troca de foto: o cache privado (max-age) é por URL (T-32)
+            $preview->{'src'}   = 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $this->viewPatient->id
+                                . '&v=' . \CentralVet\Application\PatientService::photoVersion($this->viewPatient);
             $preview->{'alt'}   = _t('Photo');
             $photo_cell[] = $preview;
         }
@@ -554,6 +556,7 @@ class PatientForm extends TStandardForm
             header('Content-Disposition: attachment; filename="' . $file_name . '"');
         }
         header('Content-Length: ' . strlen($photo['contents']));
+        // cache privado por URL; a pré-visualização versiona a URL com &v= (T-32)
         header('Cache-Control: private, max-age=300');
         // X-Content-Type-Options: nosniff vem só do nginx (add_header ... always), T-32
         header('Content-Security-Policy: sandbox');

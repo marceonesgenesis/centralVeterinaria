@@ -201,8 +201,9 @@ final class PatientService
         }
 
         // A fresh random segment per upload: re-sending the same file name
-        // must not reuse the key, or the browser cache (onPhoto sends
-        // Cache-Control max-age) keeps showing the previous photo (T-32).
+        // must not reuse the key, so the previous object can be deleted and
+        // photoVersion() changes. The browser cache is keyed by URL, not by
+        // this key: the preview URL carries &v=photoVersion() (T-32).
         $key = sprintf(
             'tenant/%d/patient/%d/photo-%s-%s',
             $this->context->tenantId(),
@@ -249,6 +250,17 @@ final class PatientService
         }
 
         return $saved;
+    }
+
+    /**
+     * Short version tag of the patient's current photo (12 hex chars of the
+     * sha1 of photo_object_key), or null without a photo. Presentation adds
+     * it as `&v=` to the onPhoto URL, so replacing the photo yields a new URL
+     * and the private max-age cache never serves the previous one (T-32).
+     */
+    public static function photoVersion(Patient $patient): ?string
+    {
+        return $patient->photoObjectKey === null ? null : substr(sha1($patient->photoObjectKey), 0, 12);
     }
 
     /** Best-effort storage delete: a failure is logged, never thrown. */
