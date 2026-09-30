@@ -1205,8 +1205,25 @@ class EncounterView extends TPage
 
             foreach ($data['documents'] as $document)
             {
-                $label = is_object($document) && isset($document->key) ? basename((string) $document->key) : (string) json_encode($document);
-                $list->add(TElement::tag('li', CvFormat::e($label), []));
+                $item = new TElement('li');
+                $link = new TElement('a');
+                $link->href = 'engine.php?' . http_build_query([
+                    'class' => 'EncounterView',
+                    'method' => 'onDownloadDocument',
+                    'static' => 1,
+                    'encounter_id' => $encounter->id(),
+                    'public_id' => (string) $document['public_id'],
+                ]);
+                $link->target = '_blank';
+                $link->rel = 'noopener';
+                $link->add(CvFormat::e((string) $document['original_name']));
+                $item->add($link);
+
+                $createdAt = strtotime((string) $document['created_at']);
+                $details = number_format(((int) $document['size_bytes']) / 1024, 1, ',', '.') . ' KB'
+                    . ($createdAt !== false ? ' · ' . date('d/m/Y H:i', $createdAt) : '');
+                $item->add(TElement::tag('span', CvFormat::e(' ' . $details), ['class' => 'text-muted']));
+                $list->add($item);
             }
 
             $body->add($list);
@@ -1888,10 +1905,12 @@ class EncounterView extends TPage
                 ? ((string) (mime_content_type($sourcePath) ?: 'application/octet-stream'))
                 : 'application/octet-stream';
 
+            TTransaction::open('permission');
             $context = self::resolveTenantContext();
 
             $documents = self::makeEncounterDocumentService($context);
             $documents->attach($id, $fileName, (string) $contents, $contentType);
+            TTransaction::close();
 
             @unlink($sourcePath);
 
@@ -1899,9 +1918,70 @@ class EncounterView extends TPage
         }
         catch (Exception $e)
         {
+            TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', self::screenError($e));
         }
+    }
+
+    /**
+     * Streams one attachment of the encounter (T-52): bytes of
+     * EncounterDocumentService::download() as a download, or 404 without a
+     * body when the public_id is unknown for the tenant or belongs to
+     * another encounter.
+     */
+    public static function onDownloadDocument($param)
+    {
+        $id = self::encounterIdParam($param);
+        $publicId = isset($param['public_id']) ? (string) $param['public_id'] : '';
+        $document = null;
+
+        try
+        {
+            if ($id > 0 && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $publicId) === 1)
+            {
+                TTransaction::open('permission');
+                $context = self::resolveTenantContext();
+                $document = self::makeEncounterDocumentService($context)->download($id, $publicId);
+                TTransaction::close();
+            }
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $document = null;
+        }
+
+        while (ob_get_level() > 0)
+        {
+            ob_end_clean();
+        }
+
+        if ($document === null)
+        {
+            http_response_code(404);
+            exit;
+        }
+
+        $fileName = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $document['original_name']);
+        $fileName = trim($fileName, '.') === '' ? 'attachment' : $fileName;
+
+        header('Content-Type: ' . self::headerValue($document['content_type'], 'application/octet-stream'));
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('Content-Length: ' . strlen($document['contents']));
+        header('Cache-Control: private, no-store');
+        header('Content-Security-Policy: sandbox');
+        echo $document['contents'];
+        exit;
+    }
+
+    /** Header value without control characters (no header injection). */
+    private static function headerValue(string $value, string $fallback): string
+    {
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/', '', $value));
+
+        return $clean === '' ? $fallback : $clean;
     }
 
     private static function paramInt(string $name, $param): ?int
@@ -1979,14 +2059,16 @@ class EncounterView extends TPage
     /**
      * Wires EncounterDocumentService (T-05) against the real S3-compatible
      * storage adapter (Fase 0), same CentralVet\Storage\S3CompatibleStorage::fromEnvironment()
-     * factory the storage layer already exposes for this purpose. Needs no
-     * PDO connection — StorageInterface never touches MySQL.
+     * factory the storage layer already exposes for this purpose, plus the
+     * `stored_object` index (T-52) on the open TTransaction connection — so
+     * callers must have TTransaction::open('permission') first.
      */
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
             \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
             $context,
+            new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
         );
     }
 
