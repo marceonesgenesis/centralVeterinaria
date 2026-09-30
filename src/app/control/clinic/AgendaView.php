@@ -368,7 +368,7 @@ class AgendaView extends TPage
         $block->add($badge);
 
         // horário exato, já que a linha da grade é o slot arredondado
-        $block->add(TElement::tag('span', $appointment->scheduledAt->format('H:i'), ['class' => 'agenda-block-time']));
+        $block->add(TElement::tag('span', $appointment->scheduledAt->format('H:i'), ['class' => 'agenda-block-time ms-1']));
 
         // abre o agendamento em página cheia (AppointmentForm, modo leitura)
         $edit_link = TElement::tag('a', CvFormat::e($patient_label . ' - ' . $service_label), [
@@ -379,7 +379,127 @@ class AgendaView extends TPage
         ]);
         $block->add($edit_link);
 
+        // check-in na fila (T-29): só agendado/confirmado; confirma antes
+        if (in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
+        {
+            $block->add(TElement::tag('a', CvFormat::e(_t('Check-in')), [
+                'href' => 'index.php?class=AgendaView&method=onAskCheckIn&static=1&appointment_id=' . (int) $appointment->id
+                        . '&date=' . $appointment->scheduledAt->format('Y-m-d'),
+                'generator' => 'adianti',
+                'class' => 'agenda-block-checkin ms-1',
+            ]));
+        }
+
         return $block;
+    }
+
+    /**
+     * Confirmação do check-in (T-29): TQuestion que, confirmada, chama
+     * onCheckIn() com o agendamento e a data da grade.
+     */
+    public static function onAskCheckIn($param = null)
+    {
+        $action = new TAction([__CLASS__, 'onCheckIn']);
+        $action->setParameter('appointment_id', (int) ($param['appointment_id'] ?? 0));
+        $action->setParameter('date', self::validDate($param['date'] ?? null));
+
+        new TQuestion(_t('Check in this appointment?'), $action);
+    }
+
+    /**
+     * Põe o paciente do agendamento na fila por QueueEntryService::checkIn()
+     * (T-29). Só agendado/confirmado; um agendamento já na fila é recusado
+     * pelo serviço (DomainException). Sempre recarrega a Agenda na mesma
+     * data, no sucesso e na recusa.
+     */
+    public function onCheckIn($param)
+    {
+        $appointment_id = (int) ($param['appointment_id'] ?? 0);
+        $date = self::validDate($param['date'] ?? null);
+        $checked_in = false;
+
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $appointment = $appointment_id > 0 ? self::buildAppointmentService($context)->findById($appointment_id) : null;
+
+            if ($appointment === null)
+            {
+                TTransaction::close();
+                new TMessage('error', _t('Record not found'));
+            }
+            elseif (!in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
+            {
+                TTransaction::close();
+                new TMessage('error', _t('Only scheduled or confirmed appointments can be checked in'));
+            }
+            else
+            {
+                self::buildQueueEntryService($context)->checkIn([
+                    'patient_id' => $appointment->patientId,
+                    'professional_system_user_id' => $appointment->professionalSystemUserId,
+                    'system_unit_id' => $appointment->systemUnitId,
+                    'appointment_id' => $appointment->id,
+                ], __CLASS__ . '::onCheckIn');
+
+                TTransaction::close();
+                $checked_in = true;
+            }
+        }
+        catch (DomainException | \CentralVet\Domain\Exception\CrossTenantReferenceException | \CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+
+        $this->onReload(['date' => $date]);
+
+        if ($checked_in)
+        {
+            TToast::show('success', _t('Patient checked in'));
+        }
+    }
+
+    /** 'Y-m-d' válido ou a data de hoje. */
+    private static function validDate($value): string
+    {
+        $value = is_string($value) ? $value : '';
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return ($parsed !== false && $parsed->format('Y-m-d') === $value) ? $value : date('Y-m-d');
+    }
+
+    /**
+     * QueueEntryService (T-08) na transação 'permission' já aberta, com o
+     * mesmo wiring de QueueEntryView::makeQueueEntryService().
+     */
+    private static function buildQueueEntryService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\QueueEntryService
+    {
+        $connection = TTransaction::get();
+
+        $queue_entries = new \CentralVet\Persistence\QueueEntryRepository($context, $connection);
+        $patients = new \CentralVet\Application\PatientService(
+            new \CentralVet\Persistence\PatientRepository($context, $connection),
+            new \CentralVet\Persistence\TutorRepository($context, $connection),
+            $context,
+        );
+
+        $authorization = new \CentralVet\Authorization\RbacAuthorizationService(
+            new \CentralVet\Authorization\AdiantiProgramPermissionProvider(new \CentralVet\Tenancy\AdiantiSessionContextSource()),
+            new \CentralVet\Audit\PdoAuditLogWriter($connection),
+        );
+
+        return new \CentralVet\Application\QueueEntryService($queue_entries, $patients, $context, $authorization);
     }
 
     /**

@@ -140,6 +140,9 @@ class AppointmentForm extends TPage
 
                 if ($appointment === null)
                 {
+                    // key inexistente ou de outro tenant: só leitura, sem Salvar
+                    $this->form->setEditable(FALSE);
+                    $this->form->delActions();
                     new TMessage('error', _t('Record not found'));
                     return;
                 }

@@ -89,7 +89,7 @@ class QueueEntryView extends TPage
         $action = new TDataGridAction(array($this, 'onAdvance'), array('id' => '{id}', 'register_state' => 'false'));
         // atalhos para os cadastros da linha: "Avançar status" continua o
         // primeiro item; "Editar agendamento" só aparece quando a entrada
-        // veio de um agendamento (encaixe tem appointment_id nulo)
+        // veio de um agendamento (no encaixe a linha traz appointment_id = 0)
         $action_patient = new TDataGridAction(['PatientForm', 'onEdit'], ['key' => '{patient_id}', 'register_state' => 'false']);
         $action_appointment = new TDataGridAction(['AppointmentForm', 'onEdit'], ['key' => '{appointment_id}', 'register_state' => 'false']);
         $action_appointment->setDisplayCondition(function ($object) {
