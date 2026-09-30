@@ -215,7 +215,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         return null;
@@ -406,7 +407,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             return null;
         }
     }
@@ -1454,12 +1456,14 @@ class EncounterView extends TPage
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1603,7 +1607,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1713,7 +1718,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1769,7 +1775,8 @@ class EncounterView extends TPage
         catch (\CentralVet\Domain\Exception\SchedulingConflictException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
@@ -1785,7 +1792,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1830,7 +1838,8 @@ class EncounterView extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
