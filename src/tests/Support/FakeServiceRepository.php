@@ -21,6 +21,8 @@ final class FakeServiceRepository implements ServiceRepositoryInterface
     /** @var array<int, Service> */
     private array $services = [];
     private int $nextId = 1;
+    /** @var array<int, true> service ids flagged by markHasAppointments() */
+    private array $withAppointments = [];
 
     public function __construct(private readonly int $tenantId, Service ...$seed)
     {
@@ -81,6 +83,17 @@ final class FakeServiceRepository implements ServiceRepositoryInterface
     public function storedCount(): int
     {
         return count($this->services);
+    }
+
+    /** Flags a service as referenced by an appointment, so hasAppointments() returns true for it. */
+    public function markHasAppointments(int $serviceId): void
+    {
+        $this->withAppointments[$serviceId] = true;
+    }
+
+    public function hasAppointments(int $serviceId): bool
+    {
+        return isset($this->withAppointments[$serviceId]);
     }
 
     public function save(object $entity): object
