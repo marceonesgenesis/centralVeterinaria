@@ -25,6 +25,7 @@ class ProductList extends TPage
 {
     private const LIMIT = 10;
     private const LOW_STOCK_LIMIT = 5;
+    private const RECENT_SALES_LIMIT = 5;
     private const ATTENTION = 'attention';
     private const STATUSES = [
         \CentralVet\Application\StockSalesOverviewService::STATUS_NORMAL,
@@ -64,7 +65,7 @@ class ProductList extends TPage
             $summary    = $overview['summary'];
             $low        = $overview['low_stock'];
             $categories = $service->categories();
-            $recent     = $service->recentSales(self::LOW_STOCK_LIMIT);
+            $recent     = $service->recentSales(self::RECENT_SALES_LIMIT);
             TTransaction::close();
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)

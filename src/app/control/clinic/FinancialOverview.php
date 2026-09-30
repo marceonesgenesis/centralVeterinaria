@@ -144,6 +144,7 @@ class FinancialOverview extends TPage
         catch (Throwable $e)
         {
             TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e) . ': ' . $e->getMessage());
         }
 
         while (ob_get_level() > 0)
@@ -309,21 +310,16 @@ class FinancialOverview extends TPage
             $row->add(CvKpiCard::create('fa:cash-register', 'warning', CvFormat::money($cash), _t('Open cash balance')));
         }
 
-        if ($bank === null)
-        {
-            $card = CvKpiCard::create('fa:university', 'neutral', '—', _t('No bank account'));
-            // corpo do card (filho 1: ícone, corpo): link para cadastrar a conta
-            $card->get(1)->add(TElement::tag('a', CvFormat::e(_t('Bank accounts')), [
-                'href'      => 'index.php?class=BankAccountList',
-                'generator' => 'adianti',
-                'class'     => 'small',
-            ]));
-            $row->add($card);
-        }
-        else
-        {
-            $row->add(CvKpiCard::create('fa:university', 'info', CvFormat::money($bank), _t('Bank balance')));
-        }
+        // KPI de saldo bancário: o link para as contas vai como filho próprio do card
+        $card = $bank === null
+            ? CvKpiCard::create('fa:university', 'neutral', '—', _t('No bank account'))
+            : CvKpiCard::create('fa:university', 'info', CvFormat::money($bank), _t('Bank balance'));
+        $card->add(TElement::tag('a', CvFormat::e(_t('Bank accounts')), [
+            'href'      => 'index.php?class=BankAccountList',
+            'generator' => 'adianti',
+            'class'     => 'small ms-auto align-self-end',
+        ]));
+        $row->add($card);
 
         return $row;
     }

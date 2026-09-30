@@ -34,7 +34,7 @@ final class FinancialEntry
     private const TYPES = [self::TYPE_INCOME, self::TYPE_EXPENSE];
 
     /** Same list as Payment::METHODS (T-14); null means "not informed". */
-    private const PAYMENT_METHODS = [
+    public const PAYMENT_METHODS = [
         Payment::METHOD_CASH,
         Payment::METHOD_DEBIT_CARD,
         Payment::METHOD_CREDIT_CARD,

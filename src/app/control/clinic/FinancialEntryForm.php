@@ -65,16 +65,10 @@ class FinancialEntryForm extends TStandardForm
         $category = new TEntry('category');
         $amount = new TEntry('amount');
 
-        // forma de pagamento opcional (T-14): rótulos de CvFormat::paymentMethod()
+        // forma de pagamento opcional (T-14): lista de FinancialEntry::PAYMENT_METHODS, rótulos de CvFormat::paymentMethod()
         $payment_method = new TCombo('payment_method');
         $payment_items = [];
-        foreach ([
-            \CentralVet\Domain\Payment::METHOD_CASH,
-            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD,
-            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD,
-            \CentralVet\Domain\Payment::METHOD_PIX,
-            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER,
-        ] as $method)
+        foreach (\CentralVet\Domain\FinancialEntry::PAYMENT_METHODS as $method)
         {
             $payment_items[$method] = CvFormat::paymentMethod($method);
         }
