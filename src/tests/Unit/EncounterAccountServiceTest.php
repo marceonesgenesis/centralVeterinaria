@@ -260,48 +260,13 @@ final class EncounterAccountServiceTest
     public function testApplyDiscountDeniedByPolicyThrowsAuthorizationDeniedEvenForUnknownAuthorizer(): void
     {
         $policy = new FakeAuthorizationPolicy(allowed: true);
-        $accounts = new class (self::TENANT_ID) implements EncounterAccountRepositoryInterface {
-            public int $saves = 0;
-            private FakeEncounterAccountRepository $inner;
-
-            public function __construct(int $tenantId)
-            {
-                $this->inner = new FakeEncounterAccountRepository($tenantId);
-            }
-
-            public function tenantId(): int
-            {
-                return $this->inner->tenantId();
-            }
-
-            public function findById(int|string $id): ?object
-            {
-                return $this->inner->findById($id);
-            }
-
-            public function findByEncounterId(int $encounterId): ?object
-            {
-                return $this->inner->findByEncounterId($encounterId);
-            }
-
-            public function save(object $entity): object
-            {
-                $this->saves++;
-
-                return $this->inner->save($entity);
-            }
-
-            public function remove(object $entity): void
-            {
-                $this->inner->remove($entity);
-            }
-        };
+        $accounts = new FakeEncounterAccountRepository(self::TENANT_ID);
         [$service, $encounterId, , $procedureExecutions, $procedureCatalogItems] = $this->buildService(new FakeTenantUserDirectory([]), $policy, $accounts);
         $this->recordConsultation($encounterId, $procedureExecutions, $procedureCatalogItems);
 
         $account = $service->openOrGet($encounterId, self::ACTION);
         $service->syncAutomaticItems($account->id(), self::ACTION);
-        $savesBefore = $accounts->saves;
+        $accounts->saveCount = 0;
         $policy->setAllowed(false);
 
         Assert::throws(
@@ -309,7 +274,7 @@ final class EncounterAccountServiceTest
             fn () => $service->applyDiscount($account->id(), 500, 999, self::ACTION),
         );
 
-        Assert::same($savesBefore, $accounts->saves, 'a denied applyDiscount must not save the account');
+        Assert::same(0, $accounts->saveCount, 'a denied applyDiscount must not save the account');
         Assert::same(0, $accounts->findById($account->id())?->discountCents(), 'discount_cents must remain 0 after a denied applyDiscount');
     }
 
