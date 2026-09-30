@@ -608,7 +608,9 @@ class EncounterView extends TPage
         {
             $body->add(TElement::tag('img', '', [
                 'class' => 'cv-patient-photo',
-                'src' => 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $patient->id,
+                // &v= muda a cada troca de foto: o cache privado (max-age) é por URL (T-32)
+                'src' => 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $patient->id
+                       . '&v=' . \CentralVet\Application\PatientService::photoVersion($patient),
                 'alt' => CvFormat::e($name),
             ]));
         }
