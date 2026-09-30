@@ -5,10 +5,12 @@
  * Tela de cadastro de paciente (T-10) em página cheia (kit Cv*), vinculada a
  * um tutor recebido por querystring (?tutor_id=...) ou escolhido por
  * TDBUniqueSearch de Tutor filtrado pelo tenant; com key/id na URL o
- * paciente salvo é reaberto em modo leitura. Nenhuma regra de negócio própria
- * vive aqui: criação e validação (inclusive a rejeição de um tutor_id de
- * outro tenant) são responsabilidade exclusiva de
- * CentralVet\Application\PatientService (T-05). Este controller apenas monta
+ * paciente salvo é reaberto para edição (rodada 2, T-07), com o tutor só
+ * leitura; key inexistente ou de outro tenant mostra "Record not found", sem
+ * campos editáveis nem Salvar. Nenhuma regra de negócio própria vive aqui:
+ * criação, edição e validação (inclusive a rejeição de um tutor_id de outro
+ * tenant) são responsabilidade exclusiva de
+ * CentralVet\Application\PatientService (T-05, T-07). Este controller apenas monta
  * o formulário, repassa os dados recebidos e traduz o resultado do serviço
  * (sucesso ou exceção) em feedback de tela — nunca deixando escapar um erro
  * HTTP 500/fatal.
@@ -25,16 +27,16 @@ class PatientForm extends TStandardForm
     protected $form; // form
     protected $tutor_id; // received via querystring (or from the opened patient), forwarded to PatientService
 
-    /** @var int|null paciente aberto em modo leitura (key/id na URL) */
+    /** @var int|null paciente aberto para edição (key/id na URL) */
     protected $viewId = null;
 
-    /** @var \CentralVet\Domain\Patient|null paciente carregado no modo leitura */
+    /** @var \CentralVet\Domain\Patient|null paciente carregado para edição (null: não encontrado no tenant) */
     protected $viewPatient = null;
 
     /**
      * Class constructor
      * Creates the page: registration form (new) or the patient's record
-     * opened read-only (key/id in the URL — PatientService has no update use case).
+     * opened for editing (key/id in the URL, tutor read-only — T-07).
      */
     function __construct($param = null)
     {
@@ -51,7 +53,7 @@ class PatientForm extends TStandardForm
         $this->setActiveRecord('Patient');          // defines the active record
         $this->setUseToast(true);
 
-        // modo leitura: o tutor vem do próprio paciente
+        // edição: o tutor vem do próprio paciente
         $tutor_name = null;
         try
         {
@@ -172,9 +174,20 @@ class PatientForm extends TStandardForm
         }
         else
         {
-            foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes] as $field)
+            if ($this->viewPatient !== null)
             {
-                $field->setEditable(FALSE);
+                // edição: Salvar reenvia key e tutor_id, para o construtor do
+                // postback recarregar o mesmo paciente e onSave chamar update()
+                $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave'), ['key' => $this->viewId, 'tutor_id' => $this->tutor_id]), 'fa:check');
+                $btn->class = 'btn btn-sm btn-primary';
+            }
+            else
+            {
+                // key inexistente ou de outro tenant: nada editável, sem Salvar
+                foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes] as $field)
+                {
+                    $field->setEditable(FALSE);
+                }
             }
 
             $actions = [$back];
@@ -200,9 +213,9 @@ class PatientForm extends TStandardForm
     /**
      * method onEdit()
      * Without key: clears the form and re-applies the tutor_id received in
-     * the querystring (new patient). With key/id: shows the patient loaded
-     * by PatientService::findById() (tenant-scoped) read-only — there is no
-     * update use case in PatientService.
+     * the querystring (new patient). With key/id: fills the form with the
+     * patient loaded by PatientService::findById() (tenant-scoped) for
+     * editing; not found in the tenant → "Record not found".
      */
     public function onEdit($param)
     {
@@ -243,8 +256,10 @@ class PatientForm extends TStandardForm
 
     /**
      * method onSave()
-     * Executed whenever the user clicks the save button. All business rules
-     * (including cross-tenant tutor_id rejection) live in PatientService;
+     * Executed whenever the user clicks the save button. Without key it
+     * creates (PatientService::create); with key it updates the opened
+     * patient (PatientService::update — the tutor never changes). All
+     * business rules (including cross-tenant tutor_id rejection) live in PatientService;
      * this method only forwards form data and translates the outcome into
      * screen feedback, never letting an exception escape as a 500.
      */
@@ -255,6 +270,11 @@ class PatientForm extends TStandardForm
             $data = $this->form->getData();
 
             $this->form->validate();
+
+            if ($this->viewId !== null)
+            {
+                return $this->saveExisting($data);
+            }
 
             $tutor_id = $this->tutor_id ?? (isset($data->tutor_id) ? (int) $data->tutor_id : null);
 
@@ -312,6 +332,68 @@ class PatientForm extends TStandardForm
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
+            if ($this->viewId !== null && isset($data))
+            {
+                // edição: os dados digitados ficam no formulário
+                $this->form->setData($data);
+            }
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Update path of onSave (key/id in the URL): forwards the form data to
+     * PatientService::update(), which ignores tutor_id and rejects a patient
+     * outside the tenant. On error the typed data stays on the form.
+     */
+    private function saveExisting($data)
+    {
+        try
+        {
+            if ($this->viewPatient === null)
+            {
+                throw new Exception(_t('Record not found'));
+            }
+
+            TTransaction::open('permission');
+
+            $patient = $this->buildPatientService()->update($this->viewId, [
+                'name'       => $data->name ?? null,
+                'species'    => $data->species ?? null,
+                'breed'      => $data->breed ?? null,
+                'sex'        => $data->sex ?? null,
+                'birth_date' => !empty($data->birth_date) ? $data->birth_date : null,
+                'weight_kg'  => $data->weight_kg ?? null,
+                'color'      => $data->color ?? null,
+                'notes'      => $data->notes ?? null,
+            ]);
+
+            TTransaction::close();
+
+            $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $patient->tutorId]);
+
+            if (!empty($this->useToast))
+            {
+                TToast::show('info', _t('Record saved'));
+                AdiantiCoreApplication::loadPageURL( $open->serialize() );
+            }
+            else
+            {
+                new TMessage('info', _t('Record saved'), $open);
+            }
+
+            return $patient;
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->form->setData($data);
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (Exception $e) // validation, domain (sex/weight), not found
+        {
+            TTransaction::rollback();
+            $this->form->setData($data);
             new TMessage('error', $e->getMessage());
         }
     }

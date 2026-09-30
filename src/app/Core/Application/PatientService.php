@@ -79,6 +79,80 @@ final class PatientService
         return $saved;
     }
 
+    /**
+     * Updates the clinical data of an existing patient of the current tenant
+     * (rodada 2, T-07). The tutor never changes here: any `tutor_id` in
+     * $data is ignored, and id, tenantId, tutorId and createdAt are carried
+     * over from the stored patient. Optional fields map '' to null.
+     *
+     * @param array{
+     *     name: string,
+     *     species: string,
+     *     breed?: string|null,
+     *     sex?: string|null,
+     *     birth_date?: string|null,
+     *     weight_kg?: float|int|string|null,
+     *     color?: string|null,
+     *     notes?: string|null,
+     * } $data
+     *
+     * @throws \InvalidArgumentException when the patient is missing (or
+     *         belongs to another tenant), a required field is blank, or the
+     *         entity rejects sex/weight_kg.
+     */
+    public function update(int $id, array $data): Patient
+    {
+        $current = $this->findById($id);
+
+        if ($current === null) {
+            throw new \InvalidArgumentException("Patient {$id} not found for this tenant");
+        }
+
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('name is required');
+        }
+
+        $species = trim((string) ($data['species'] ?? ''));
+        if ($species === '') {
+            throw new \InvalidArgumentException('species is required');
+        }
+
+        $weight = self::optional($data, 'weight_kg');
+
+        $patient = new Patient(
+            id: $current->id,
+            tenantId: $current->tenantId,
+            tutorId: $current->tutorId,
+            name: $name,
+            species: $species,
+            breed: self::optional($data, 'breed'),
+            sex: self::optional($data, 'sex'),
+            birthDate: self::optional($data, 'birth_date'),
+            weightKg: $weight !== null ? (float) $weight : null,
+            color: self::optional($data, 'color'),
+            notes: self::optional($data, 'notes'),
+            createdAt: $current->createdAt,
+        );
+
+        /** @var Patient $saved */
+        $saved = $this->patients->save($patient);
+
+        return $saved;
+    }
+
+    /** Optional field of $data as a string, with null/'' (after trim) → null. */
+    private static function optional(array $data, string $key): ?string
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+
+        $value = trim((string) $data[$key]);
+
+        return $value === '' ? null : $value;
+    }
+
     public function findById(int $id): ?Patient
     {
         /** @var Patient|null $patient */
