@@ -757,7 +757,8 @@ class PrescriptionForm extends TPage
             {
                 $this->form->setData($data);
             }
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -923,7 +924,8 @@ class PrescriptionForm extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -977,7 +979,8 @@ class PrescriptionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1023,7 +1026,8 @@ class PrescriptionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1081,7 +1085,8 @@ class PrescriptionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
