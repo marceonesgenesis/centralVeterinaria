@@ -301,6 +301,22 @@ final class PatientService
         return $weight;
     }
 
+    /**
+     * weight_kg as the form shows it (T-27, correção 1): decimal comma, no
+     * thousands separator, trailing zeros dropped (4.5 → "4,5", 12.0 → "12").
+     * The result parses back to the same value through parseWeightKg().
+     */
+    public static function formatWeightKg(?float $weightKg): ?string
+    {
+        if ($weightKg === null) {
+            return null;
+        }
+
+        $text = number_format($weightKg, 2, ',', '');
+
+        return rtrim(rtrim($text, '0'), ',');
+    }
+
     /** Optional field of $data as a string, with null/'' (after trim) → null. */
     private static function optional(array $data, string $key): ?string
     {

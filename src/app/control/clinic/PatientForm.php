@@ -138,8 +138,13 @@ class PatientForm extends TStandardForm
         $sex = new TRadioGroup('sex');
         $birth_date = new TDate('birth_date');
         $weight_kg = new TEntry('weight_kg');
-        // vírgula decimal na tela; o POST chega com ponto (T-27)
-        $weight_kg->setNumericMask(2, ',', '.', true);
+        // digitação livre ("4,5", "12", "0,8"): sem máscara numérica, que
+        // preenche da direita e transformaria "4,5" em "0,45". Conversão e
+        // validação ficam em PatientService::parseWeightKg (T-27).
+        $weight_kg->setProperty('placeholder', _t('e.g. 4,5'));
+        $weight_kg->setProperty('inputmode', 'decimal');
+        $weight_kg->setProperty('oninput', "this.value = this.value.replace(/[^0-9,.]/g, '')");
+        $weight_kg->setMaxLength(7);
         $color = new TEntry('color');
         $notes = new TText('notes');
         $allergies = new TText('allergies');
@@ -279,8 +284,7 @@ class PatientForm extends TStandardForm
             'breed'      => $patient->breed,
             'sex'        => $patient->sex,
             'birth_date' => $birth ? $birth->format('d/m/Y') : null,
-            // float: o TEntry com máscara numérica o exibe como "4,50"
-            'weight_kg'  => $patient->weightKg,
+            'weight_kg'  => \CentralVet\Application\PatientService::formatWeightKg($patient->weightKg),
             'color'      => $patient->color,
             'notes'      => $patient->notes,
             'allergies'  => $patient->allergies,
