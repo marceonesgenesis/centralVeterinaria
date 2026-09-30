@@ -89,10 +89,10 @@ final class PatientRepository extends AbstractTenantRepository implements Patien
                 <<<'SQL'
                 INSERT INTO patient (
                     tenant_id, tutor_id, name, species, breed, sex,
-                    birth_date, weight_kg, color, notes
+                    birth_date, weight_kg, color, notes, allergies
                 ) VALUES (
                     :tenant_id, :tutor_id, :name, :species, :breed, :sex,
-                    :birth_date, :weight_kg, :color, :notes
+                    :birth_date, :weight_kg, :color, :notes, :allergies
                 )
                 SQL
             );
@@ -107,6 +107,7 @@ final class PatientRepository extends AbstractTenantRepository implements Patien
                 ':weight_kg' => $entity->weightKg,
                 ':color' => $entity->color,
                 ':notes' => $entity->notes,
+                ':allergies' => $entity->allergies,
             ]);
 
             return $entity->withId((int) $this->connection->lastInsertId());
@@ -118,7 +119,10 @@ final class PatientRepository extends AbstractTenantRepository implements Patien
             UPDATE patient SET
                 tutor_id = :tutor_id, name = :name, species = :species,
                 breed = :breed, sex = :sex, birth_date = :birth_date,
-                weight_kg = :weight_kg, color = :color, notes = :notes
+                weight_kg = :weight_kg, color = :color, notes = :notes,
+                allergies = :allergies,
+                photo_object_key = :photo_object_key,
+                photo_content_type = :photo_content_type
             WHERE {$query->whereSql()}
             SQL
         );
@@ -133,6 +137,9 @@ final class PatientRepository extends AbstractTenantRepository implements Patien
             ':weight_kg' => $entity->weightKg,
             ':color' => $entity->color,
             ':notes' => $entity->notes,
+            ':allergies' => $entity->allergies,
+            ':photo_object_key' => $entity->photoObjectKey,
+            ':photo_content_type' => $entity->photoContentType,
         ]);
 
         return $entity;

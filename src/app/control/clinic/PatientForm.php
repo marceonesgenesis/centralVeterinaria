@@ -18,6 +18,11 @@
  * Do Tutor, esta tela só lê o nome (TutorService::findById) para exibição;
  * o tutor_id é repassado ao serviço, que valida o vínculo com o tenant.
  *
+ * Alergia e foto (rodada 2, T-12): `allergies` vai em create()/update(); a
+ * foto (TFile, arquivo já em tmp/) vai por PatientService::attachPhoto() para
+ * o storage S3 (S3CompatibleStorage::fromEnvironment) e é servida por
+ * PatientForm::onPhoto (static), que responde os bytes ou 404.
+ *
  * @version    8.6
  * @package    control
  * @subpackage clinic
@@ -129,6 +134,9 @@ class PatientForm extends TStandardForm
         $weight_kg = new TEntry('weight_kg');
         $color = new TEntry('color');
         $notes = new TText('notes');
+        $allergies = new TText('allergies');
+        $photo = new TFile('photo');
+        $photo->setAllowedExtensions(['jpg', 'jpeg', 'png', 'webp']);
 
         $species->addItems( ['Canino' => _t('Dog'), 'Felino' => _t('Cat'), 'Outro' => _t('Other')] );
         $species->setLayout('horizontal');
@@ -154,10 +162,25 @@ class PatientForm extends TStandardForm
         $this->form->addFields( [new TLabel(_t('Sex'))], [$sex], [new TLabel(_t('Birth date'))], [$birth_date] );
         $this->form->addFields( [new TLabel(_t('Weight (kg)'))], [$weight_kg], [new TLabel(_t('Color'))], [$color] );
         $this->form->addFields( [new TLabel(_t('Notes'))], [$notes] );
+        $this->form->addFields( [new TLabel(_t('Allergies'))], [$allergies] );
+
+        $photo_cell = [$photo];
+        if ($this->viewPatient !== null && $this->viewPatient->photoObjectKey !== null)
+        {
+            // pré-visualização servida por onPhoto (bytes do storage, tenant da sessão)
+            $preview = new TElement('img');
+            $preview->{'class'} = 'cv-patient-photo';
+            $preview->{'src'}   = 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $this->viewPatient->id;
+            $preview->{'alt'}   = _t('Photo');
+            $preview->{'style'} = 'max-width:160px;max-height:160px;border-radius:8px;display:block;margin-top:8px';
+            $photo_cell[] = $preview;
+        }
+        $this->form->addFields( [new TLabel(_t('Photo'))], $photo_cell );
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
         $species->addValidation( _t('Species'), new TRequiredValidator );
         $notes->setSize('100%', 80);
+        $allergies->setSize('100%', 60);
 
         $back = $this->tutor_id !== null
             ? ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->tutor_id])]
@@ -184,7 +207,7 @@ class PatientForm extends TStandardForm
             else
             {
                 // key inexistente ou de outro tenant: nada editável, sem Salvar
-                foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes] as $field)
+                foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes, $allergies, $photo] as $field)
                 {
                     $field->setEditable(FALSE);
                 }
@@ -251,6 +274,7 @@ class PatientForm extends TStandardForm
             'weight_kg'  => $patient->weightKg,
             'color'      => $patient->color,
             'notes'      => $patient->notes,
+            'allergies'  => $patient->allergies,
         ]);
     }
 
@@ -285,7 +309,8 @@ class PatientForm extends TStandardForm
 
             TTransaction::open('permission');
 
-            $service = $this->buildPatientService();
+            $photo_upload = self::uploadedPhoto($data);
+            $service = $this->buildPatientService($photo_upload !== null);
 
             $patient = $service->create([
                 'tutor_id'   => $tutor_id,
@@ -297,9 +322,16 @@ class PatientForm extends TStandardForm
                 'weight_kg'  => $data->weight_kg ?? null,
                 'color'      => $data->color ?? null,
                 'notes'      => $data->notes ?? null,
+                'allergies'  => $data->allergies ?? null,
             ]);
 
+            if ($photo_upload !== null)
+            {
+                $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+            }
+
             TTransaction::close();
+            self::discardUpload($photo_upload);
 
             // reabre o registro salvo em página cheia
             $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $tutor_id]);
@@ -357,7 +389,10 @@ class PatientForm extends TStandardForm
 
             TTransaction::open('permission');
 
-            $patient = $this->buildPatientService()->update($this->viewId, [
+            $photo_upload = self::uploadedPhoto($data);
+            $service = $this->buildPatientService($photo_upload !== null);
+
+            $patient = $service->update($this->viewId, [
                 'name'       => $data->name ?? null,
                 'species'    => $data->species ?? null,
                 'breed'      => $data->breed ?? null,
@@ -366,9 +401,16 @@ class PatientForm extends TStandardForm
                 'weight_kg'  => $data->weight_kg ?? null,
                 'color'      => $data->color ?? null,
                 'notes'      => $data->notes ?? null,
+                'allergies'  => $data->allergies ?? null,
             ]);
 
+            if ($photo_upload !== null)
+            {
+                $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+            }
+
             TTransaction::close();
+            self::discardUpload($photo_upload);
 
             $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $patient->tutorId]);
 
@@ -399,19 +441,121 @@ class PatientForm extends TStandardForm
     }
 
     /**
+     * Serves the patient's photo (rodada 2, T-12) for the
+     * <img class="cv-patient-photo"> preview: Content-Type of the stored
+     * file plus its bytes, or 404 without a body when PatientService::photo()
+     * returns null (no photo, unknown id or patient of another tenant) or
+     * the request cannot be served (no tenant, storage failure).
+     */
+    public static function onPhoto($param)
+    {
+        $id = isset($param['key']) && is_numeric($param['key']) ? (int) $param['key'] : 0;
+        $photo = null;
+
+        try
+        {
+            if ($id > 0)
+            {
+                TTransaction::open('permission');
+                $tenant_context = self::resolveTenantContext();
+                $connection = TTransaction::get();
+                $service = new \CentralVet\Application\PatientService(
+                    new \CentralVet\Persistence\PatientRepository($tenant_context, $connection),
+                    new \CentralVet\Persistence\TutorRepository($tenant_context, $connection),
+                    $tenant_context,
+                    \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context),
+                );
+                $photo = $service->photo($id);
+                TTransaction::close();
+            }
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            $photo = null;
+        }
+
+        while (ob_get_level() > 0)
+        {
+            ob_end_clean();
+        }
+
+        if ($photo === null)
+        {
+            http_response_code(404);
+            exit;
+        }
+
+        header('Content-Type: ' . $photo['content_type']);
+        header('Content-Length: ' . strlen($photo['contents']));
+        header('Cache-Control: private, max-age=300');
+        header('X-Content-Type-Options: nosniff');
+        echo $photo['contents'];
+        exit;
+    }
+
+    /**
+     * Reads the photo TFile already moved into tmp/ on upload (same
+     * convention as EncounterView::onAttachDocument). Returns null when no
+     * file was chosen; type and size are validated by
+     * PatientService::attachPhoto().
+     *
+     * @return array{name: string, path: string, contents: string, content_type: string}|null
+     */
+    private static function uploadedPhoto($data)
+    {
+        $file_name = isset($data->photo) ? basename((string) $data->photo) : '';
+
+        if ($file_name === '')
+        {
+            return null;
+        }
+
+        $path = 'tmp/' . $file_name;
+
+        if (!is_file($path))
+        {
+            throw new InvalidArgumentException(_t('Uploaded file was not found'));
+        }
+
+        $content_type = function_exists('mime_content_type')
+            ? ((string) (mime_content_type($path) ?: 'application/octet-stream'))
+            : 'application/octet-stream';
+
+        return [
+            'name'         => $file_name,
+            'path'         => $path,
+            'contents'     => (string) file_get_contents($path),
+            'content_type' => $content_type,
+        ];
+    }
+
+    /** Removes the uploaded photo from tmp/ after it reached the storage. */
+    private static function discardUpload($upload)
+    {
+        if ($upload !== null)
+        {
+            @unlink($upload['path']);
+        }
+    }
+
+    /**
      * Builds CentralVet\Application\PatientService with tenant-aware
      * repositories, reusing the authenticated session's tenant context.
-     * Must be called inside an open 'permission' TTransaction.
+     * With $withStorage the S3-compatible storage is wired too (only when a
+     * photo is being saved, so a missing storage config never breaks the
+     * plain form). Must be called inside an open 'permission' TTransaction.
      */
-    private function buildPatientService()
+    private function buildPatientService($withStorage = false)
     {
         $tenant_context = self::resolveTenantContext();
         $connection = TTransaction::get();
 
         $tutors = new \CentralVet\Persistence\TutorRepository($tenant_context, $connection);
         $patients = new \CentralVet\Persistence\PatientRepository($tenant_context, $connection);
+        $storage = $withStorage ? \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context) : null;
 
-        return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context);
+        return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context, $storage);
     }
 
     /**

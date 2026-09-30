@@ -32,6 +32,9 @@ final class Patient
         public readonly ?string $notes = null,
         public readonly ?string $createdAt = null,
         public readonly ?string $updatedAt = null,
+        public readonly ?string $allergies = null,
+        public readonly ?string $photoObjectKey = null,
+        public readonly ?string $photoContentType = null,
     ) {
         if ($this->sex !== null && !in_array($this->sex, ['M', 'F', 'U'], true)) {
             throw new \InvalidArgumentException('Patient sex must be one of M, F, U');
@@ -59,6 +62,9 @@ final class Patient
             notes: $row['notes'] !== null ? (string) $row['notes'] : null,
             createdAt: isset($row['created_at']) ? (string) $row['created_at'] : null,
             updatedAt: isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+            allergies: isset($row['allergies']) ? (string) $row['allergies'] : null,
+            photoObjectKey: isset($row['photo_object_key']) ? (string) $row['photo_object_key'] : null,
+            photoContentType: isset($row['photo_content_type']) ? (string) $row['photo_content_type'] : null,
         );
     }
 
@@ -79,6 +85,9 @@ final class Patient
             notes: $this->notes,
             createdAt: $this->createdAt,
             updatedAt: $this->updatedAt,
+            allergies: $this->allergies,
+            photoObjectKey: $this->photoObjectKey,
+            photoContentType: $this->photoContentType,
         );
     }
 }

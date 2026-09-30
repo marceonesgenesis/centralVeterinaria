@@ -8,6 +8,7 @@ use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Patient;
+use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
 
 /**
@@ -19,10 +20,21 @@ use CentralVet\Tenancy\TenantContext;
  */
 final class PatientService
 {
+    /** Content types accepted by attachPhoto() (rodada 2, T-12). */
+    public const PHOTO_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    /** Largest photo attachPhoto() accepts, in bytes (2 MB). */
+    public const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+
+    /**
+     * $storage is optional so the existing 3-argument callers keep working;
+     * only attachPhoto()/photo() need it (LogicException when absent).
+     */
     public function __construct(
         private readonly PatientRepositoryInterface $patients,
         private readonly TutorRepositoryInterface $tutors,
         private readonly TenantContext $context,
+        private readonly ?StorageInterface $storage = null,
     ) {
     }
 
@@ -36,6 +48,7 @@ final class PatientService
      *     weight_kg?: float|int|string|null,
      *     color?: string|null,
      *     notes?: string|null,
+     *     allergies?: string|null,
      *     tutor_id: int|string,
      * } $data
      *
@@ -71,6 +84,7 @@ final class PatientService
             weightKg: isset($data['weight_kg']) ? (float) $data['weight_kg'] : null,
             color: isset($data['color']) ? (string) $data['color'] : null,
             notes: isset($data['notes']) ? (string) $data['notes'] : null,
+            allergies: self::optional($data, 'allergies'),
         );
 
         /** @var Patient $saved */
@@ -83,7 +97,9 @@ final class PatientService
      * Updates the clinical data of an existing patient of the current tenant
      * (rodada 2, T-07). The tutor never changes here: any `tutor_id` in
      * $data is ignored, and id, tenantId, tutorId and createdAt are carried
-     * over from the stored patient. Optional fields map '' to null.
+     * over from the stored patient. Optional fields map '' to null. The
+     * photo (photoObjectKey/photoContentType) is never changed here, only by
+     * attachPhoto() (T-12).
      *
      * @param array{
      *     name: string,
@@ -94,6 +110,7 @@ final class PatientService
      *     weight_kg?: float|int|string|null,
      *     color?: string|null,
      *     notes?: string|null,
+     *     allergies?: string|null,
      * } $data
      *
      * @throws \InvalidArgumentException when the patient is missing (or
@@ -133,12 +150,113 @@ final class PatientService
             color: self::optional($data, 'color'),
             notes: self::optional($data, 'notes'),
             createdAt: $current->createdAt,
+            allergies: self::optional($data, 'allergies'),
+            photoObjectKey: $current->photoObjectKey,
+            photoContentType: $current->photoContentType,
         );
 
         /** @var Patient $saved */
         $saved = $this->patients->save($patient);
 
         return $saved;
+    }
+
+    /**
+     * Stores the patient's photo in object storage under
+     * `tenant/<tenantId>/patient/<patientId>/photo-<sanitized name>` (same
+     * key scheme as EncounterDocumentService::attach) and then records the
+     * key and content type on the patient (rodada 2, T-12).
+     *
+     * @throws \LogicException when no storage was injected
+     * @throws \InvalidArgumentException when the patient is missing (or of
+     *         another tenant), the content type is not JPEG/PNG/WEBP, or the
+     *         file is larger than 2 MB
+     */
+    public function attachPhoto(int $patientId, string $fileName, string $contents, string $contentType): Patient
+    {
+        if ($this->storage === null) {
+            throw new \LogicException('Storage not configured');
+        }
+
+        $current = $this->findById($patientId);
+
+        if ($current === null) {
+            throw new \InvalidArgumentException("Patient {$patientId} not found for this tenant");
+        }
+
+        if (!in_array($contentType, self::PHOTO_CONTENT_TYPES, true)) {
+            throw new \InvalidArgumentException('Photo must be a JPEG, PNG or WEBP image');
+        }
+
+        if (strlen($contents) > self::PHOTO_MAX_BYTES) {
+            throw new \InvalidArgumentException('Photo must be at most 2 MB');
+        }
+
+        $key = sprintf(
+            'tenant/%d/patient/%d/photo-%s',
+            $this->context->tenantId(),
+            $patientId,
+            self::sanitizeFileName($fileName),
+        );
+
+        $this->storage->put($key, $contents, $contentType);
+
+        $patient = new Patient(
+            id: $current->id,
+            tenantId: $current->tenantId,
+            tutorId: $current->tutorId,
+            name: $current->name,
+            species: $current->species,
+            breed: $current->breed,
+            sex: $current->sex,
+            birthDate: $current->birthDate,
+            weightKg: $current->weightKg,
+            color: $current->color,
+            notes: $current->notes,
+            createdAt: $current->createdAt,
+            updatedAt: $current->updatedAt,
+            allergies: $current->allergies,
+            photoObjectKey: $key,
+            photoContentType: $contentType,
+        );
+
+        /** @var Patient $saved */
+        $saved = $this->patients->save($patient);
+
+        return $saved;
+    }
+
+    /**
+     * The patient's photo bytes and content type, or null when the patient
+     * does not exist in this tenant or has no photo.
+     *
+     * @return array{contents: string, content_type: string}|null
+     *
+     * @throws \LogicException when the patient has a photo but no storage was injected
+     */
+    public function photo(int $patientId): ?array
+    {
+        $patient = $this->findById($patientId);
+
+        if ($patient === null || $patient->photoObjectKey === null) {
+            return null;
+        }
+
+        if ($this->storage === null) {
+            throw new \LogicException('Storage not configured');
+        }
+
+        return [
+            'contents' => $this->storage->get($patient->photoObjectKey),
+            'content_type' => $patient->photoContentType ?? 'application/octet-stream',
+        ];
+    }
+
+    private static function sanitizeFileName(string $fileName): string
+    {
+        $safe = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $fileName);
+
+        return $safe === '' ? '_' : $safe;
     }
 
     /** Optional field of $data as a string, with null/'' (after trim) → null. */
