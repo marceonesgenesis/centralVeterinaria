@@ -349,6 +349,8 @@ class QueueEntryView extends TPage
      */
     public function onAdvance($param)
     {
+        $advanced = false;
+
         try
         {
             $id = isset($param['id']) ? (int) $param['id'] : 0;
@@ -362,9 +364,7 @@ class QueueEntryView extends TPage
             $service = self::makeQueueEntryService($context);
             $service->advanceStatus($id, __CLASS__ . '::' . __FUNCTION__);
 
-            $this->loadData();
-
-            new TMessage('info', _t('Status updated'));
+            $advanced = true;
         }
         catch (CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
@@ -382,6 +382,15 @@ class QueueEntryView extends TPage
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
+        }
+
+        // recarrega a fila no sucesso e na recusa: o construtor não carrega
+        // quando há method, então a tela nunca fica sem linhas/contadores
+        $this->loadData();
+
+        if ($advanced)
+        {
+            new TMessage('info', _t('Status updated'));
         }
     }
 
