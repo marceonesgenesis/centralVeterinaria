@@ -10,6 +10,11 @@
  * Parâmetros opcionais `from`/`to` (Y-m-d ou dd/mm/yyyy, inclusivos); padrão
  * mês corrente. Unidade = userunitid da sessão (TenantContext::requireUnitId).
  *
+ * Rodada 2 (T-20): os lançamentos recentes respeitam o período; os KPIs
+ * comparam com o período anterior de mesmo tamanho ("vs. período anterior");
+ * KPI de saldo bancário (BankAccountService::totalBalanceCents); ação
+ * Exportar → onExport (static), CSV dos lançamentos do período.
+ *
  * @package    control
  * @subpackage clinic
  */
@@ -29,7 +34,13 @@ class FinancialOverview extends TPage
         $container->{'class'} = 'cv-financial-overview';
         $container->{'style'} = 'width: 100%';
 
-        $container->add(CvPage::header(_t('Financial'), _t('Revenues, expenses and cash of the unit')));
+        $export = [
+            'label'  => _t('Export'),
+            'icon'   => 'fa:download',
+            'href'   => 'engine.php?class=FinancialOverview&method=onExport&static=1&from=' . $from->format('Y-m-d') . '&to=' . $to->format('Y-m-d'),
+            'target' => '_blank',
+        ];
+        $container->add(CvPage::header(_t('Financial'), _t('Revenues, expenses and cash of the unit'), [$export]));
         $container->add(CvNav::tabs('finance', 'overview'));
         $container->add($this->buildFilter($from, $to));
 
@@ -46,12 +57,16 @@ class FinancialOverview extends TPage
             $totals     = $service->totals($unitId, $from, $to);
             $series     = $service->dailySeries($unitId, $from, $to);
             $categories = $service->revenueByCategory($unitId, $from, $to);
-            $recent     = $service->recentEntries($unitId, self::RECENT_LIMIT);
+            $recent     = $service->recentEntries($unitId, self::RECENT_LIMIT, $from, $to);
             $cash       = $service->openCashBalanceCents($unitId);
+            $bank       = (new \CentralVet\Application\BankAccountService(
+                new \CentralVet\Persistence\BankAccountRepository($context, TTransaction::get()),
+                $context
+            ))->totalBalanceCents($unitId);
 
             TTransaction::close();
 
-            $container->add(self::buildKpis($totals, $cash));
+            $container->add(self::buildKpis($totals, $cash, $bank));
             $container->add(CvPage::columns(
                 CvCard::create(_t('Revenue x Expenses'), self::chartBox('cv-fin-line', 280)),
                 CvCard::create(_t('Revenue by category'), self::categoryBody($categories))
@@ -84,6 +99,113 @@ class FinancialOverview extends TPage
      */
     public function onFilter($param = null)
     {
+    }
+
+    /**
+     * Exportar (T-20): CSV dos lançamentos do período `from`/`to` (mesma
+     * leitura de period()) via FinancialEntryService::listByPeriod(). BOM
+     * UTF-8, separador `;`, valor `1234,56` com sinal negativo nas despesas.
+     * Sem tenant/unidade responde 403; outra falha, 500 — sem corpo HTML.
+     */
+    public static function onExport($param = null)
+    {
+        $param = is_array($param) ? $param : [];
+        [$from, $to] = self::period($param);
+
+        $entries = null;
+        $status  = 500;
+
+        try
+        {
+            TTransaction::open('permission');
+
+            $context    = self::resolveTenantContext();
+            $unitId     = $context->requireUnitId();
+            $connection = TTransaction::get();
+
+            $service = new \CentralVet\Application\FinancialEntryService(
+                new \CentralVet\Persistence\FinancialEntryRepository($context, $connection),
+                new \CentralVet\Authorization\RbacAuthorizationService(
+                    new \CentralVet\Authorization\AdiantiProgramPermissionProvider(new \CentralVet\Tenancy\AdiantiSessionContextSource()),
+                    new \CentralVet\Audit\PdoAuditLogWriter($connection),
+                ),
+                $context
+            );
+
+            $entries = $service->listByPeriod($unitId, $from->format('Y-m-d') . ' 00:00:00', $to->format('Y-m-d') . ' 23:59:59');
+
+            TTransaction::close();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $status = 403;
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+        }
+
+        while (ob_get_level() > 0)
+        {
+            ob_end_clean();
+        }
+
+        if ($entries === null)
+        {
+            http_response_code($status);
+            exit;
+        }
+
+        $file_name = 'financeiro-' . $from->format('Y-m-d') . '-' . $to->format('Y-m-d') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $file_name . '"');
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, [_t('Date'), _t('Type'), _t('Category'), _t('Payment method'), _t('Reference'), _t('Amount')], ';', '"', '');
+
+        foreach ($entries as $entry)
+        {
+            fputcsv($out, self::exportRow($entry), ';', '"', '');
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function exportRow(\CentralVet\Domain\FinancialEntry $entry): array
+    {
+        $isExpense = $entry->entryType() === 'expense';
+        $amount    = number_format($entry->amountCents() / 100, 2, ',', '');
+        $method    = $entry->paymentMethod();
+        $reference = $entry->referenceType() !== null
+            ? $entry->referenceType() . ($entry->referenceId() !== null ? ' #' . $entry->referenceId() : '')
+            : '';
+
+        return [
+            $entry->occurredAt()->format('d/m/Y H:i'),
+            $isExpense ? _t('Expense') : _t('Income'),
+            self::csvSafe(CvFormat::paymentMethod($entry->category())),
+            $method !== null && $method !== '' ? CvFormat::paymentMethod($method) : '',
+            self::csvSafe($reference),
+            $isExpense ? '-' . $amount : $amount,
+        ];
+    }
+
+    /**
+     * Neutraliza injeção de fórmula em planilha: texto começando com
+     * = + - @ ou tab/CR ganha um apóstrofo na frente.
+     */
+    private static function csvSafe(string $value): string
+    {
+        return $value !== '' && strpbrk($value[0], "=+-@\t\r") !== false ? "'" . $value : $value;
     }
 
     /**
@@ -163,17 +285,20 @@ class FinancialOverview extends TPage
         return $box;
     }
 
-    private static function buildKpis(array $totals, ?int $cash): TElement
+    private static function buildKpis(array $totals, ?int $cash, ?int $bank): TElement
     {
         $row = new TElement('div');
         $row->{'class'} = 'cv-kpi-row';
 
+        // FinancialOverviewService::totals compara com o período anterior de mesmo tamanho
+        $vs = _t('vs. previous period');
+
         $row->add(CvKpiCard::create('fa:arrow-up', 'success', CvFormat::money($totals['revenue_cents']), _t('Revenues'),
-            CvFormat::delta($totals['revenue_cents'], $totals['prev_revenue_cents'])));
+            CvFormat::delta($totals['revenue_cents'], $totals['prev_revenue_cents']), $vs));
         $row->add(CvKpiCard::create('fa:arrow-down', 'danger', CvFormat::money($totals['expense_cents']), _t('Expenses'),
-            CvFormat::delta($totals['expense_cents'], $totals['prev_expense_cents'])));
+            CvFormat::delta($totals['expense_cents'], $totals['prev_expense_cents']), $vs));
         $row->add(CvKpiCard::create('fa:chart-line', 'info', CvFormat::money($totals['result_cents']), _t('Result'),
-            CvFormat::delta($totals['result_cents'], $totals['prev_result_cents'])));
+            CvFormat::delta($totals['result_cents'], $totals['prev_result_cents']), $vs));
 
         if ($cash === null)
         {
@@ -182,6 +307,22 @@ class FinancialOverview extends TPage
         else
         {
             $row->add(CvKpiCard::create('fa:cash-register', 'warning', CvFormat::money($cash), _t('Open cash balance')));
+        }
+
+        if ($bank === null)
+        {
+            $card = CvKpiCard::create('fa:university', 'neutral', '—', _t('No bank account'));
+            // corpo do card (filho 1: ícone, corpo): link para cadastrar a conta
+            $card->get(1)->add(TElement::tag('a', CvFormat::e(_t('Bank accounts')), [
+                'href'      => 'index.php?class=BankAccountList',
+                'generator' => 'adianti',
+                'class'     => 'small',
+            ]));
+            $row->add($card);
+        }
+        else
+        {
+            $row->add(CvKpiCard::create('fa:university', 'info', CvFormat::money($bank), _t('Bank balance')));
         }
 
         return $row;

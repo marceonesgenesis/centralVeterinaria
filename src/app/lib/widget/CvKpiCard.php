@@ -1,6 +1,6 @@
 <?php
 /**
- * CvKpiCard — indicador com ícone, valor, rótulo e variação vs. mês anterior.
+ * CvKpiCard — indicador com ícone, valor, rótulo e variação (padrão: vs. mês anterior).
  */
 class CvKpiCard
 {
@@ -9,9 +9,10 @@ class CvKpiCard
      * @param string     $tone         success|warning|danger|info|neutral
      * @param string     $value        valor já formatado
      * @param string     $label        rótulo já traduzido
-     * @param float|null $deltaPercent variação em %; null omite a linha "vs. mês anterior"
+     * @param float|null  $deltaPercent variação em %; null omite a linha de variação
+     * @param string|null $deltaLabel   texto já traduzido após a variação; null = _t('vs. previous month')
      */
-    public static function create(string $icon, string $tone, string $value, string $label, ?float $deltaPercent = null): TElement
+    public static function create(string $icon, string $tone, string $value, string $label, ?float $deltaPercent = null, ?string $deltaLabel = null): TElement
     {
         $tone = in_array($tone, CvBadge::TONES, true) ? $tone : 'neutral';
 
@@ -40,7 +41,7 @@ class CvKpiCard
             $deltaValue->add(new TImage($arrow));
             $deltaValue->add(CvFormat::e(CvFormat::percent($deltaPercent)));
             $delta->add($deltaValue);
-            $delta->add(TElement::tag('span', CvFormat::e(_t('vs. previous month')), ['class' => 'cv-kpi__delta-label']));
+            $delta->add(TElement::tag('span', CvFormat::e($deltaLabel ?? _t('vs. previous month')), ['class' => 'cv-kpi__delta-label']));
             $body->add($delta);
         }
 

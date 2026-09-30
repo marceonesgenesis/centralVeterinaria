@@ -95,11 +95,27 @@ final class FinancialOverviewService
     }
 
     /**
-     * @return list<array{id: int, occurred_at: string, entry_type: string, category: string, reference: ?string, amount_cents: int}>
+     * Newest entries of the unit. With $from and $to (rodada 2, T-20) only
+     * entries inside the period count, with the same inclusive day bounds
+     * as totals(); without them (both null) the whole history is read. A
+     * single bound limits only that side.
+     *
+     * @return list<array{id: int, occurred_at: string, entry_type: string, category: string, payment_method: ?string, reference: ?string, amount_cents: int}>
      */
-    public function recentEntries(int $systemUnitId, int $limit = 5): array
+    public function recentEntries(int $systemUnitId, int $limit = 5, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
     {
-        return $this->reader->recentEntries($systemUnitId, $limit);
+        if ($from !== null && $to !== null) {
+            [$start, $end] = self::bounds($from, $to);
+
+            return $this->reader->recentEntries($systemUnitId, $limit, self::sql($start), self::sql($end));
+        }
+
+        return $this->reader->recentEntries(
+            $systemUnitId,
+            $limit,
+            $from !== null ? self::sql($from->setTime(0, 0)) : null,
+            $to !== null ? self::sql($to->setTime(0, 0)->modify('+1 day')) : null,
+        );
     }
 
     public function openCashBalanceCents(int $systemUnitId): ?int

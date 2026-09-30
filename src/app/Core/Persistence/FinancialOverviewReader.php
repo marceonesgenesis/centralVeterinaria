@@ -108,19 +108,36 @@ final class FinancialOverviewReader extends AbstractTenantRepository
     }
 
     /**
-     * @return list<array{id: int, occurred_at: string, entry_type: string, category: string, reference: ?string, amount_cents: int}>
+     * Newest entries first. $from/$to (rodada 2, T-20) are optional
+     * half-open bounds (occurred_at >= $from AND occurred_at < $to); null
+     * leaves that side open.
+     *
+     * @return list<array{id: int, occurred_at: string, entry_type: string, category: string, payment_method: ?string, reference: ?string, amount_cents: int}>
      */
-    public function recentEntries(int $systemUnitId, int $limit): array
+    public function recentEntries(int $systemUnitId, int $limit, ?string $from = null, ?string $to = null): array
     {
         $limit = max(1, $limit);
         $query = $this->tenantQuery()->andEquals('system_unit_id', $systemUnitId);
 
+        $period = '';
+        $parameters = $query->parameters();
+
+        if ($from !== null) {
+            $period .= ' AND occurred_at >= :period_from';
+            $parameters[':period_from'] = $from;
+        }
+
+        if ($to !== null) {
+            $period .= ' AND occurred_at < :period_to';
+            $parameters[':period_to'] = $to;
+        }
+
         $statement = $this->connection->prepare(
-            "SELECT id, DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at, entry_type, category, "
+            "SELECT id, DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at, entry_type, category, payment_method, "
             . 'reference_type, reference_id, amount_cents '
-            . "FROM financial_entry WHERE {$query->whereSql()} ORDER BY occurred_at DESC, id DESC LIMIT {$limit}"
+            . "FROM financial_entry WHERE {$query->whereSql()}{$period} ORDER BY occurred_at DESC, id DESC LIMIT {$limit}"
         );
-        $statement->execute($query->parameters());
+        $statement->execute($parameters);
 
         $rows = [];
 
@@ -137,6 +154,7 @@ final class FinancialOverviewReader extends AbstractTenantRepository
                 'occurred_at' => (string) $row['occurred_at'],
                 'entry_type' => (string) $row['entry_type'],
                 'category' => (string) $row['category'],
+                'payment_method' => $row['payment_method'] !== null ? (string) $row['payment_method'] : null,
                 'reference' => $reference,
                 'amount_cents' => (int) $row['amount_cents'],
             ];
