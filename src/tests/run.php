@@ -50,6 +50,19 @@ $centralvetTestRedisDatabase = ($centralvetTestRedisDatabaseRaw === false || $ce
     ? '15'
     : $centralvetTestRedisDatabaseRaw;
 
+// Redis has databases 0..15 (redis.conf default `databases 16`). Anything
+// else must be refused up front: RedisConnectionFactory skips select() for
+// values <= 0 and ignores select()'s false return for values > 15, so both
+// "-1" and "99" would silently run the suite on DB 0, next to the browser
+// sessions (T-55).
+if (!ctype_digit($centralvetTestRedisDatabase) || (int) $centralvetTestRedisDatabase > 15) {
+    fwrite(STDERR, sprintf(
+        "Refusing to run: TEST_REDIS_DATABASE must be an integer between 0 and 15 (%s)\n",
+        $centralvetTestRedisDatabase,
+    ));
+    exit(1);
+}
+
 if ((int) $centralvetTestRedisDatabase === $centralvetApplicationRedisDatabase) {
     fwrite(STDERR, sprintf(
         "Refusing to run: test Redis database equals the application database (%d)\n",
@@ -59,6 +72,44 @@ if ((int) $centralvetTestRedisDatabase === $centralvetApplicationRedisDatabase) 
 }
 
 putenv('REDIS_DATABASE=' . $centralvetTestRedisDatabase);
+
+// Preflight: when the real Redis is reachable, select() the test database
+// once and abort if the server refuses it (false), instead of letting the
+// integration tests fall back to DB 0. Unreachable Redis is not an error
+// here: RedisIntegrationTestCase reports those tests as SKIP.
+if (extension_loaded('redis')) {
+    $centralvetPreflightRedis = new \Redis();
+
+    try {
+        $centralvetPreflightConnected = @$centralvetPreflightRedis->connect(
+            (string) (getenv('REDIS_HOST') ?: '127.0.0.1'),
+            (int) (getenv('REDIS_PORT') ?: 6379),
+            1.5,
+        );
+    } catch (\Throwable) {
+        $centralvetPreflightConnected = false;
+    }
+
+    if ($centralvetPreflightConnected) {
+        $centralvetPreflightPassword = getenv('REDIS_PASSWORD');
+
+        if (is_string($centralvetPreflightPassword) && $centralvetPreflightPassword !== '') {
+            $centralvetPreflightRedis->auth($centralvetPreflightPassword);
+        }
+
+        if ($centralvetPreflightRedis->select((int) $centralvetTestRedisDatabase) === false) {
+            fwrite(STDERR, sprintf(
+                "Refusing to run: Redis refused SELECT %d for TEST_REDIS_DATABASE\n",
+                (int) $centralvetTestRedisDatabase,
+            ));
+            exit(1);
+        }
+
+        $centralvetPreflightRedis->close();
+    }
+
+    unset($centralvetPreflightRedis, $centralvetPreflightConnected, $centralvetPreflightPassword);
+}
 
 // Belt-and-braces autoloader for the CentralVet\Tests\ namespace: the
 // project's composer.json already declares it under "autoload-dev", but an
