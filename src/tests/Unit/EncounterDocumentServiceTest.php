@@ -202,6 +202,142 @@ final class EncounterDocumentServiceTest
         Assert::same('PRIMEIRO', $service->download(10, $listed[0]['public_id'])['contents'] ?? null);
     }
 
+    /** T-56: a commit that fails after attach() lets the caller remove the object just written. */
+    public function testDiscardRemovesTheAttachedObject(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+
+        $kept = $service->attach(10, 'anterior.pdf', 'ANTERIOR', 'application/pdf');
+        $metadata = $service->attach(10, 'laudo.pdf', 'bytes', 'application/pdf');
+        Assert::true($storage->exists($metadata->objectKey));
+
+        $service->discard($metadata);
+
+        Assert::false($storage->exists($metadata->objectKey), 'discard() must delete the object of the failed attach');
+        Assert::true($storage->exists($kept->objectKey), 'discard() must not touch other objects');
+    }
+
+    /**
+     * Real storages return the key wrapped in their own namespace (S3:
+     * "<root>/<env>/tenant/<t>/objects/<logical key>") while delete() expects
+     * the logical key again: discard() must hand delete() the logical key.
+     */
+    public function testDiscardUsesTheLogicalKeyWhenTheStorageNamespacesKeys(): void
+    {
+        $inner = new FakeStorage();
+        $storage = self::namespacingStorage($inner);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), new FakeStoredObjectRepository(7));
+
+        $metadata = $service->attach(10, 'laudo.pdf', 'bytes', 'application/pdf');
+        Assert::true(str_starts_with($metadata->objectKey, 'centralvet/test/tenant/7/objects/tenant/7/encounter/10/'), $metadata->objectKey);
+        Assert::true($inner->exists($metadata->objectKey));
+
+        $service->discard($metadata);
+
+        Assert::false($inner->exists($metadata->objectKey), 'the namespaced object must be gone');
+    }
+
+    /** discard() runs inside a catch: a storage failure is logged, never thrown. */
+    public function testDiscardSwallowsStorageFailure(): void
+    {
+        $inner = new FakeStorage();
+        $storage = self::failingDeleteStorage($inner);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), new FakeStoredObjectRepository(7));
+        $metadata = $service->attach(10, 'laudo.pdf', 'bytes', 'application/pdf');
+
+        $log = (string) tempnam(sys_get_temp_dir(), 'cv-discard-');
+        $previous = ini_set('error_log', $log);
+
+        try {
+            $service->discard($metadata);
+            $logged = (string) file_get_contents($log);
+        } finally {
+            ini_set('error_log', $previous === false ? '' : $previous);
+            @unlink($log);
+        }
+
+        Assert::true(str_contains($logged, $metadata->objectKey), 'error_log must name the key: ' . $logged);
+        Assert::true(str_contains($logged, 'delete refused'), 'error_log must carry the storage error: ' . $logged);
+        Assert::true($inner->exists($metadata->objectKey));
+    }
+
+    /** StorageInterface whose delete() always throws. */
+    private static function failingDeleteStorage(FakeStorage $inner): StorageInterface
+    {
+        return new class ($inner) implements StorageInterface {
+            public function __construct(private readonly FakeStorage $inner)
+            {
+            }
+
+            public function put(string $key, string $contents, string $contentType = 'application/octet-stream'): StoredObjectMetadata
+            {
+                return $this->inner->put($key, $contents, $contentType);
+            }
+
+            public function get(string $key): string
+            {
+                return $this->inner->get($key);
+            }
+
+            public function exists(string $key): bool
+            {
+                return $this->inner->exists($key);
+            }
+
+            public function delete(string $key): void
+            {
+                throw new RuntimeException('delete refused');
+            }
+
+            public function presignedUrl(string $key, int $ttlSeconds = 300): string
+            {
+                return $this->inner->presignedUrl($key, $ttlSeconds);
+            }
+        };
+    }
+
+    /** StorageInterface that wraps every logical key like S3CompatibleStorage::fullKey(). */
+    private static function namespacingStorage(FakeStorage $inner): StorageInterface
+    {
+        return new class ($inner) implements StorageInterface {
+            public function __construct(private readonly FakeStorage $inner)
+            {
+            }
+
+            public function put(string $key, string $contents, string $contentType = 'application/octet-stream'): StoredObjectMetadata
+            {
+                return $this->inner->put($this->full($key), $contents, $contentType);
+            }
+
+            public function get(string $key): string
+            {
+                return $this->inner->get($this->full($key));
+            }
+
+            public function exists(string $key): bool
+            {
+                return $this->inner->exists($this->full($key));
+            }
+
+            public function delete(string $key): void
+            {
+                $this->inner->delete($this->full($key));
+            }
+
+            public function presignedUrl(string $key, int $ttlSeconds = 300): string
+            {
+                return $this->inner->presignedUrl($this->full($key), $ttlSeconds);
+            }
+
+            private function full(string $key): string
+            {
+                return 'centralvet/test/tenant/7/objects/' . $key;
+            }
+        };
+    }
+
     /** StorageInterface decorator that remembers every key passed to put(). */
     private static function recordingStorage(FakeStorage $inner): StorageInterface
     {
