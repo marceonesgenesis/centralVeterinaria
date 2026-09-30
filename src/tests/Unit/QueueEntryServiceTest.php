@@ -302,6 +302,24 @@ final class QueueEntryServiceTest
         Assert::same([], $service->appointmentIdsInQueue([]));
     }
 
+    /**
+     * T-57: like QueueEntryRepository (ORDER BY appointment_id), the Fake
+     * returns the ids in ascending order, whatever order they were saved.
+     */
+    public function testAppointmentIdsInQueueAreReturnedInAscendingOrder(): void
+    {
+        $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
+        $patients = new FakePatientRepository(1, $ownPatient);
+        $queueEntries = new FakeQueueEntryRepository(1);
+        $service = $this->makeQueueEntryService($patients, $queueEntries);
+
+        foreach ([9, 7, 8] as $appointmentId) {
+            $service->checkIn(['patient_id' => 1, 'professional_system_user_id' => 10, 'system_unit_id' => 1, 'appointment_id' => $appointmentId], self::ACTION);
+        }
+
+        Assert::same([7, 8, 9], $service->appointmentIdsInQueue([9, 7, 8]));
+    }
+
     public function testCheckInWithoutAppointmentIdTwiceCreatesTwoEntries(): void
     {
         $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
