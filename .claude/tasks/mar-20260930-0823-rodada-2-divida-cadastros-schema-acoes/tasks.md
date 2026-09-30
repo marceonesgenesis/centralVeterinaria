@@ -25,7 +25,8 @@
 | T-21 | frontend | ProductList: constantes, overview(), preço/código, Gerar relatório PDF | T-03, T-04, T-11 | sim | média | Darwin | [x] |
 | T-22 | frontend | BankAccountList/BankAccountForm e aba no CvNav | T-01, T-15 | sim | média | Athena | [x] |
 | T-23 | frontend | i18n do board e mensagem de CrossTenantReferenceException nos 14 controllers | T-02, T-04, T-05, T-06, T-07, T-08, T-10, T-11, T-12, T-17, T-18, T-19, T-20, T-21, T-22 | não | média | Platão | [x] |
-| T-24 | qa | Validação final: suíte, varredura Playwright, Review Focus, dados preservados | T-23 | não | média | Spock | [ ] |
+| T-24 | qa | Validação final: suíte, varredura Playwright, Review Focus, dados preservados | T-23 | não | média | Spock | [x] |
+| T-25 | frontend | Correção (usuário): AgendaView mostra agendamento fora do slot exato de 30 min | — | sim | média | Sherlock | [x] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
@@ -955,6 +956,53 @@ Task de QA, sem edição de código. Bug encontrado em tela de task das ondas 1�
 - SUITE (evidência: `Total: N, Passed: N, Failed: 0`)
 - GATE → varredura completa (evidência: tabela no relatório)
 - `SELECT COUNT(*)` das 5 tabelas × contagens de `notes.md § Bloqueios` (evidência: todas ≥)
+
+### T-25 — Correção (usuário): AgendaView mostra agendamento fora do slot exato de 30 min
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Sherlock
+
+Achado da QA de T-24 (`reports/T-24.md`), com correção pedida pelo usuário. Em `AgendaView::renderGrid`, `src/app/control/clinic/AgendaView.php:302` só desenha o agendamento quando `$appointment->scheduledAt->format('H:i') === $slot`. Os slots vão de 07:00 a 18:30, de 30 em 30 min (`SLOT_START_MINUTES`/`SLOT_END_MINUTES`/`SLOT_STEP_MINUTES`, :26-28). Com isso, os agendamentos 3 (14:21) e 1 (15:59) não aparecem na grade, e o mesmo acontece com qualquer horário fora de 07:00–18:30. Reprodução exigida em `## RED`:
+- `SELECT id, scheduled_at, professional_system_user_id FROM appointment WHERE id IN (1, 3)`;
+- `AgendaView` na data desses agendamentos, onde os blocos ficam ausentes, com o snapshot da BASE.
+T-24 roda em paralelo e não toca estes arquivos.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/AgendaSlots.php`
+- `src/tests/Unit/AgendaSlotsTest.php`
+- `src/app/control/clinic/AgendaView.php`
+
+**Interface**
+- Produz: `CentralVet\Application\AgendaSlots` (final, sem dependência de Adianti) com `AgendaSlots::__construct(int $startMinutes, int $endMinutes, int $stepMinutes)`, `AgendaSlots::slots(): array` (`list<string>` `H:i`, igual ao `buildTimeSlots()` atual) e `AgendaSlots::slotFor(DateTimeImmutable $at): string`:
+  - horário dentro da grade → o slot de início imediatamente anterior ou igual (arredonda para baixo ao múltiplo de `stepMinutes` a partir de `startMinutes`): 14:21 → `14:00`, 15:59 → `15:30`, 14:30 → `14:30`;
+  - antes de `startMinutes` → o primeiro slot (`07:00`);
+  - em `endMinutes` ou depois → o último slot (`18:30`);
+  - `stepMinutes <= 0` ou `endMinutes <= startMinutes` no construtor → `InvalidArgumentException('Invalid agenda slot configuration')`.
+- Produz: `AgendaView` monta a grade com `new AgendaSlots(self::SLOT_START_MINUTES, self::SLOT_END_MINUTES, self::SLOT_STEP_MINUTES)`. `renderGrid` agrupa os agendamentos por `slotFor($appointment->scheduledAt)` e não compara mais `format('H:i') === $slot`, e `buildTimeSlots()` delega a `slots()`. Na célula, os agendamentos vêm em ordem de `scheduledAt`. O bloco (`renderAppointmentBlock`) mostra o horário exato `H:i` antes do paciente (`<span class="agenda-block-time">14:21</span>`); o link e o badge não mudam.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/AgendaSlotsTest.php` — cobre dois grupos de casos e falha antes da implementação porque a classe `AgendaSlots` não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`): com `new AgendaSlots(420, 1140, 30)`, `slotFor` de `2026-09-30 14:21` = `14:00`, de `15:59` = `15:30`, de `14:30` = `14:30`, de `06:45` = `07:00` e de `19:10` = `18:30`; `slots()` tem 24 itens, de `07:00` a `18:30`; `new AgendaSlots(420, 1140, 0)` lança `InvalidArgumentException` com a mensagem exata
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\AgendaSlotsTest::` em todos os métodos, `Failed: 0`.
+- `grep -c "format('H:i') === \$slot" src/app/control/clinic/AgendaView.php` = 0.
+- GATE:
+  - na data do agendamento 3, a linha `14:00` da coluna do profissional dele mostra o bloco do agendamento 3 com `14:21`;
+  - na data do agendamento 1, a linha `15:30` da coluna do profissional dele mostra o bloco do agendamento 1 com `15:59`;
+  - os agendamentos em slot exato seguem na mesma linha que antes;
+  - o número de blocos `.agenda-block` do dia = `SELECT COUNT(*) FROM appointment WHERE DATE(scheduled_at) = <data> AND professional_system_user_id IN (<profissionais da grade>)`;
+  - clicar no bloco abre `AppointmentForm&key=<id>`;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `AgendaSlots.php` e `AgendaView.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\AgendaSlotsTest::`, `Failed: 0`)
+- `grep -c "format('H:i') === \$slot" /var/www/html/centralvet/src/app/control/clinic/AgendaView.php` (evidência: `0`)
+- GATE → `AgendaView` na(s) data(s) de `SELECT id, DATE(scheduled_at), TIME(scheduled_at), professional_system_user_id FROM appointment WHERE id IN (1, 3)` (evidência: snapshot com o bloco do 3 na linha 14:00 e do 1 na linha 15:30, com os horários 14:21/15:59; `document.querySelectorAll('.agenda-block').length` = `SELECT COUNT(*)` do dia; clique abre `key=<id>`; console 0 `error`)
+- Review Focus: agendamento `R2 varredura` criado pelo `AppointmentForm` às 06:45 ou às 19:10 da mesma data, se a regra de agendamento aceitar esse horário (evidência: o bloco aparece na linha `07:00` ou `18:30` com o horário exato; se o formulário recusar o horário, fica registrado com a mensagem, e o caso vale pelo RED)
 
 ## Legenda
 

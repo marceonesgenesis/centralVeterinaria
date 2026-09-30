@@ -41,6 +41,14 @@
 - 2026-09-30 · onda 4 — O validador rodou `git stash` por engano e desfez com `git stash pop`; o orquestrador conferiu: `git stash list` vazio, working tree só com os artefatos de <DIR>.
 - 2026-09-30 · onda 4 — O orquestrador rebuildou o container e refez o login admin do Playwright. Nenhuma credencial registrada.
 
+- 2026-09-30 · plano (revisão) · onda 6 — O usuário pediu a `### Onda 6 — correção (usuário)` com T-25 (Sherlock), a partir de `reports/T-24.md`: `AgendaView.php:302` só desenha o agendamento no slot exato de 30 min, e os agendamentos 3 (14:21) e 1 (15:59) somem da grade. A regra horário → slot vai para `CentralVet\Application\AgendaSlots` (arredonda para baixo; fora da grade, fixa no primeiro ou no último slot), com RED unitário. T-25 roda em paralelo a T-24, com arquivos disjuntos. No Review Focus, o item de T-07 (`PatientForm key=999999`), já provado no gate da onda 1 e mantido no bloco Validação de T-07, deu lugar ao item de T-25, para o total continuar em 5.
+- 2026-09-30 · T-24 · onda 5 — Atendimento de teste: com aprovação SQL explícita do usuário, o orquestrador executou `INSERT INTO encounter (tenant_id,system_unit_id,patient_id,appointment_id,professional_system_user_id,status,started_at,anamnesis_text) VALUES (1,1,2772,NULL,1,'in_progress',NOW(6),'R2 varredura atendimento')`. Resultado: encounter 3408; COUNT de encounter de 5 para 6. Com ele a QA exercitou T-18 e T-19; o 3408 foi finalizado depois.
+- 2026-09-30 · T-25 · onda 6 — Criada a pedido do usuário como onda de correção do bug da AgendaView que o T-24 encontrou; o planejador registrou em plan.md. O item de T-07 no Review Focus foi substituído pelo de T-25; a evidência de T-07 é a do gate da onda 1.
+- 2026-09-30 · T-24 · onda 5 — Fix loop rodada 1: o revisor exigiu exercitar os fluxos de gravação no HEAD final; feito em reports/T-24.md § Correção 1 e aprovado na re-validação.
+- 2026-09-30 · T-17 · onda 5 — O menu da fila segue `não rodado`: não há tela de check-in e a fila está vazia. Fica como pendência para a revisão final.
+- 2026-09-30 · T-09 · onda 5 — Vale a evidência da onda 2; a exclusão foi negada pelo classificador.
+- 2026-09-30 · ondas 5/6 — O orquestrador rebuildou o container e refez o login admin do Playwright. Nenhuma credencial registrada.
+
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
@@ -73,6 +81,8 @@
 - [T-21] ProductList: um overview() por carga (cacheado por filtros), colunas Code/Sale price, onReport (PDF estoque-<data>.pdf).
 - [T-22] BankAccountList/BankAccountForm (TPage) e aba 'bank_accounts' no CvNav; rodapé com total das contas ativas.
 - [T-23] translations.json: 45 chaves novas das ondas 1–3 (dup=0, missing=0); CvFormat::userError(\Throwable) pronto e os 20 catch de CrossTenantReferenceException nos 14 controllers usam error_log + TMessage(CvFormat::userError($e)) (6db7e48); PatientForm troca a mensagem de tutor pelo texto genérico.
+- [T-24] Validação final (onda 5): tutor 3141, appointment 4 (02/10 19:10), prescription_template 81, prescription 1677 (itens 2515/2516), encounter 3408, serviços 8-10, produto 946 preço 2190 e financial_entry 6826 criados/alterados como dados de teste.
+- [T-25] AgendaSlots + AgendaView agrupando por slotFor() (onda 6; f63fe25 RED, 2ae4334).
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -120,6 +130,12 @@
 - T-23: chaves ausentes já antes da rodada: "%s days" (VaccineProtocolForm:180) e "This entry cannot advance right now: ^1" (QueueEntryView:385).
 - T-23: POST adulterado em EncounterAccountForm (conta #46, authorized_by_system_user_id=999999) e fluxos com registro em EncounterView e PrescriptionForm não rodados; levar à QA de T-24.
 - T-23: CvFormat::userError sem teste unitário (tests/run.php; CvFormat.php:75); chave "Selected tutor was not found for your account" órfã em translations.json.
+- T-24: mensagens de domínio em inglês (Patient sex, BankAccount e outras) seguem sem tradução.
+- T-24: PrescriptionForm aberto sem patient_id mostra erro cru ao salvar.
+- T-24: sem screenshot da BASE de T-19.
+- T-24: T-17 (menu da fila) `não rodado`; levar à revisão final.
+- T-24: agendamento da linha AgendaView consta "sem dona (anterior à rodada)"; a dona é T-25. A linha "System* (19 telas)" não bate com menu.xml (18 ações); RF T-14 (donut) vale pelo registro 5948 da onda 2.
+- T-25: `span.agenda-block-time` sem `ms-1` (AgendaView.php:371); espaçamento depende do whitespace do TElement.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -135,6 +151,7 @@
 - Registros da onda 2: serviços 3 (R2 varredura Serviço, inativo), 5 e 6 (importados); agendamento 3; financial_entry 5947 (Pix) e 5948; payment 113 (recebível 42 "Tutor Teste Levi", agora com R$ 1,00 pago); produto 946 (code R2-001, sale_price 1990); paciente 2772 com alergia Dipirona e foto no minio tenant/1/patient/2772/photo-r2-foto.png.
 - Registros da onda 3: bank_account 101 "R2 varredura Conta", saldo 100000.
 - Registros da onda 4: serviço 7 "R2 varredura Imp A (cópia)", criado pelo Duplicar do serviço 5.
+- Registros da onda 5: encounter 3408 (finalizado); prescription_template 81; prescription 1677 (itens 2515, 2516); appointment 4 (02/10, 19:10); tutor 3141 com address; serviços 8, 9 e 10; produto 946 com preço 2190; financial_entry 6826.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -146,5 +163,7 @@
   - Onda 2: BASE b16bbbd → HEAD 181aac2 (348aead, 5388404, d36ea5c, 4d446a1, 1a1099d, 4d719ca, 8ce4e81, b2a31ff, 777018f, 46494e5, edaf460, 4003ce7, 5d6b1f1, 181aac2, e419b9c, e79489f, 160526b)
   - Onda 3: BASE 37797c6 → HEAD 1927ef6 (6c04826, 0e25755, 22947f6, 052e9c2, ab837e6, 1927ef6)
   - Onda 4: BASE 62cc510 → HEAD 6db7e48 (6db7e48)
-- Último status conhecido: onda 4 concluída (T-23 [x]); migration 0007 e DML aplicados.
-- Próxima onda recomendada: onda 5 (T-24).
+  - Onda 5: BASE 5b31c1d → HEAD 5b31c1d (sem commit de código; artefatos em reports/reviews)
+  - Onda 6: BASE 5b31c1d → HEAD 2ae4334 (f63fe25, 2ae4334)
+- Último status conhecido: ondas 5 (T-24 [x]) e 6 (T-25 [x]) concluídas; pendem só a revisão final e as pendências acima.
+- Próxima onda recomendada: nenhuma; revisão final.

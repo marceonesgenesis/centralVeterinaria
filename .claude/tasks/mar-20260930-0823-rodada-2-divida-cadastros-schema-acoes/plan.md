@@ -245,6 +245,9 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/control/clinic/StockBatchForm.php` | mensagem de tenant | modificar | T-23 |
 | `src/app/control/clinic/SaleForm.php` | mensagem de tenant | modificar | T-23 |
 | `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/reports/T-24.md` | relatório da validação final | criar | T-24 |
+| `src/app/Core/Application/AgendaSlots.php` | horário → slot da grade da agenda | criar | T-25 |
+| `src/tests/Unit/AgendaSlotsTest.php` | testes do mapeamento (RED) | criar | T-25 |
+| `src/app/control/clinic/AgendaView.php` | grade agrupada por `slotFor()`; horário exato no bloco | modificar | T-25 |
 | banco `centralvet` (schema e `system_program`/`system_group_program`) | aplicar 0007 e o DML de T-01 | DDL/DML pelo orquestrador, com aprovação | T-01 |
 
 Os 11 arquivos com ⚠ são serializados em ondas diferentes: T-03, T-05, T-07 e T-08 (onda 1), T-11 e T-12 (onda 2), T-18 e T-19 (onda 3), T-23 (onda 4). Em cada onda, cada arquivo está numa só task. `translations.json` tem escritor único (T-23). `FakeStorage.php` e os Fakes de Patient, Prescription, FinancialEntry e Encounter só são tocados pela task dona da entidade. `CvPage.php` só por T-04, `CvKpiCard.php` só por T-20 e `CvNav.php` só por T-22.
@@ -273,6 +276,7 @@ Onda 3: T-18 (T-03,T-12,T-16) EncounterView | T-19 (T-13) PrescriptionForm | T-2
         T-21 (T-03,T-04,T-11) ProductList | T-22 (T-01,T-15) contas bancárias UI
 Onda 4: T-23 (ondas 1–3) i18n + mensagens de tenant
 Onda 5: T-24 (todas) validação final e varredura
+Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
 ```
 
 ## Estratégia de execução
@@ -308,6 +312,9 @@ Onda 5: T-24 (todas) validação final e varredura
 ### Onda 5
 - T-24
 
+### Onda 6 — correção (usuário)
+- T-25 — bug da `AgendaView` achado na QA de T-24 (`reports/T-24.md`). Sem dependência de código (ondas 1–4 fechadas); roda em paralelo a T-24, que não toca a `AgendaView`.
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
@@ -315,7 +322,7 @@ Onda 5: T-24 (todas) validação final e varredura
 | Sun Tzu — orquestrador | — | — | todas |
 | Jaspion | general-purpose | inherit | T-01 |
 | Arquimedes | general-purpose | inherit | T-02, T-14 |
-| Sherlock | general-purpose | inherit | T-03 |
+| Sherlock | general-purpose | inherit | T-03, T-25 |
 | Aang | general-purpose | inherit | T-04, T-17 |
 | Levi | general-purpose | inherit | T-05, T-10 |
 | Thanos | general-purpose | inherit | T-06 |
@@ -333,7 +340,7 @@ Onda 5: T-24 (todas) validação final e varredura
 - Remarcar um agendamento para um horário que se sobrepõe a outro agendamento ativo do mesmo profissional → `SchedulingConflictException`, o agendamento não muda; remarcar sem mudar o horário → passa (o próprio id é ignorado no conflito) → T-08
 - Excluir um serviço que tem agendamento → recusa com a mensagem de inativar, o serviço continua na lista → T-09
 - Finalizar um atendimento pausado → `finished_at` gravado, `paused_at` nulo e `paused_seconds` somando o trecho pausado; pausar atendimento finalizado → `InvalidStatusTransitionException` → T-16
-- `PatientForm&method=onEdit&key=999999` (id inexistente ou de outro tenant) → mensagem de não encontrado, sem campos editáveis nem Salvar que grave → T-07
+- Agendamento às 06:45 ou 19:10, fora de 07:00–18:30 → aparece no primeiro ou no último slot da `AgendaView` com o horário exato, sem sumir da grade → T-25
 
 ## Critérios gerais de aceite
 - SUITE termina com `Failed: 0` e `Total` ≥ 205 + os testes novos de cada onda, no gate de cada onda.
@@ -346,3 +353,4 @@ Onda 5: T-24 (todas) validação final e varredura
   - Onda 3: `EncounterView` (Pausar/Retomar, alergia/foto, Finalizar), `PrescriptionForm` (validade, Salvar como modelo, Aplicar modelo, PDF), `FinancialOverview` (Exportar, período, KPI de saldo), `ProductList` (colunas, Gerar relatório), `BankAccountList`, `BankAccountForm`;
   - Onda 4: todas as telas das linhas `i18n:` do board, sem "Message not found";
   - Onda 5 (T-24): todas as telas acima e as do `menu.xml`.
+  - Onda 6 — correção (usuário) (T-25): `AgendaView` nas datas dos agendamentos 1 e 3 (navegar entre os dias, abrir um bloco, voltar).
