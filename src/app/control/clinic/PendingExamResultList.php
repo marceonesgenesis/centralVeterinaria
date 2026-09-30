@@ -106,7 +106,8 @@ class PendingExamResultList extends TStandardList
             return CvFormat::e((string) $value);
         });
         $column_status->setTransformer(function ($value) {
-            // listPending() only returns requested exams
+            // ExamRequestRepository::listPending() filters status = ExamRequest::STATUS_REQUESTED,
+            // so every row here is a requested exam
             return CvBadge::create(_t('Requested'), 'warning');
         });
 
