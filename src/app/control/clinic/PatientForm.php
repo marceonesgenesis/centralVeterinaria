@@ -357,6 +357,7 @@ class PatientForm extends TStandardForm
 
             TTransaction::close();
             self::discardUpload($photo_upload);
+            self::discardPreviousPhoto($service, $patient);
 
             // reabre o registro salvo em página cheia
             $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $tutor_id]);
@@ -447,6 +448,7 @@ class PatientForm extends TStandardForm
 
             TTransaction::close();
             self::discardUpload($photo_upload);
+            self::discardPreviousPhoto($service, $patient);
 
             $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $patient->tutorId]);
 
@@ -562,6 +564,22 @@ class PatientForm extends TStandardForm
         header('Content-Security-Policy: sandbox');
         echo $photo['contents'];
         exit;
+    }
+
+    /**
+     * Deletes the photo the patient had before attachPhoto(), only after
+     * TTransaction::close() committed the new key (T-47): a failed commit
+     * keeps the row on the previous key, whose object must still exist.
+     * No-op without a previous key or when it equals the current one.
+     */
+    private static function discardPreviousPhoto(\CentralVet\Application\PatientService $service, $patient)
+    {
+        $previous = $service->previousPhotoKey();
+
+        if ($previous !== null && $previous !== $patient->photoObjectKey)
+        {
+            $service->discardPhoto($previous);
+        }
     }
 
     /**

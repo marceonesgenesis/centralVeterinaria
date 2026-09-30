@@ -32,6 +32,9 @@ final class PatientService
     /** Largest weight_kg the column patient.weight_kg decimal(6,2) holds. */
     private const MAX_WEIGHT_KG = 9999.99;
 
+    /** Key replaced by the last successful attachPhoto() (T-47). */
+    private ?string $previousPhotoKey = null;
+
     /**
      * $storage is optional so the existing 3-argument callers keep working;
      * only attachPhoto()/photo() need it (LogicException when absent).
@@ -171,9 +174,12 @@ final class PatientService
      * Stores the patient's photo in object storage under
      * `tenant/<tenantId>/patient/<patientId>/photo-<12 hex>-<sanitized name>`
      * (a new key per upload) and then records the key and content type on
-     * the patient (rodada 2, T-12). After the row is saved the previous
-     * photo object is deleted; if the save fails the new object is deleted
-     * and the exception rethrown (T-32).
+     * the patient (rodada 2, T-12). The previous photo object is NOT
+     * deleted here: its key is kept in previousPhotoKey(), and the caller
+     * passes it to discardPhoto() only after the transaction commits, so a
+     * failed commit never leaves the row pointing at a deleted object
+     * (T-47). If the save fails the new object is deleted and the exception
+     * rethrown (T-32).
      *
      * @throws \LogicException when no storage was injected
      * @throws \InvalidArgumentException when the patient is missing (or of
@@ -211,6 +217,7 @@ final class PatientService
             bin2hex(random_bytes(6)),
             self::sanitizeFileName($fileName),
         );
+        $this->previousPhotoKey = null;
         $previousKey = $current->photoObjectKey;
 
         $this->storage->put($key, $contents, $contentType);
@@ -240,16 +247,24 @@ final class PatientService
         } catch (\Throwable $e) {
             // The row still points at the previous photo: drop the object we
             // just wrote so it does not stay orphaned in the bucket.
-            $this->deleteQuietly($key);
+            $this->discardPhoto($key);
 
             throw $e;
         }
 
-        if ($previousKey !== null && $previousKey !== $key) {
-            $this->deleteQuietly($previousKey);
-        }
+        $this->previousPhotoKey = $previousKey;
 
         return $saved;
+    }
+
+    /**
+     * Photo key the patient had before the last successful attachPhoto(),
+     * or null (no previous photo, or attachPhoto() not called / failed).
+     * The caller discards it with discardPhoto() after the commit (T-47).
+     */
+    public function previousPhotoKey(): ?string
+    {
+        return $this->previousPhotoKey;
     }
 
     /**
@@ -263,13 +278,16 @@ final class PatientService
         return $patient->photoObjectKey === null ? null : substr(sha1($patient->photoObjectKey), 0, 12);
     }
 
-    /** Best-effort storage delete: a failure is logged, never thrown. */
-    private function deleteQuietly(string $key): void
+    /**
+     * Best-effort delete of a photo object: a storage failure is logged
+     * with error_log(), never thrown (T-47).
+     */
+    public function discardPhoto(string $objectKey): void
     {
         try {
-            $this->storage?->delete($key);
+            $this->storage?->delete($objectKey);
         } catch (\Throwable $e) {
-            error_log(sprintf('PatientService: could not delete photo object "%s": %s', $key, $e->getMessage()));
+            error_log(sprintf('PatientService: could not delete photo object "%s": %s', $objectKey, $e->getMessage()));
         }
     }
 
