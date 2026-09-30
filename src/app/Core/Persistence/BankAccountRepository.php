@@ -16,7 +16,10 @@ use PDO;
  * TenantQuery::forTenant() (via AbstractTenantRepository::tenantQuery(),
  * ADR 0002); tenant scoping is never accepted from caller input, and the
  * UPDATE/DELETE carry the tenant filter so a forged id of another tenant
- * touches nothing.
+ * touches nothing. When the TenantContext carries a current unit, every
+ * query (SELECT/UPDATE/DELETE) is also filtered by that system_unit_id, so
+ * an account of another unit of the same tenant is invisible (T-15
+ * rodada 1); a context without unit keeps the tenant-only scope.
  */
 final class BankAccountRepository extends AbstractTenantRepository implements BankAccountRepositoryInterface
 {
@@ -29,14 +32,14 @@ final class BankAccountRepository extends AbstractTenantRepository implements Ba
 
     public function findById(int|string $id): ?object
     {
-        $query = $this->tenantQuery()->andEquals('id', (int) $id);
+        $query = $this->scopedQuery()->andEquals('id', (int) $id);
 
         return $this->fetchOne("SELECT * FROM bank_account WHERE {$query->whereSql()} LIMIT 1", $query->parameters());
     }
 
     public function findByName(int $systemUnitId, string $name): ?object
     {
-        $query = $this->tenantQuery()
+        $query = $this->scopedQuery()
             ->andEquals('system_unit_id', $systemUnitId)
             ->andEquals('name', trim($name));
 
@@ -45,7 +48,7 @@ final class BankAccountRepository extends AbstractTenantRepository implements Ba
 
     public function listBySystemUnit(int $systemUnitId): array
     {
-        $query = $this->tenantQuery()->andEquals('system_unit_id', $systemUnitId);
+        $query = $this->scopedQuery()->andEquals('system_unit_id', $systemUnitId);
 
         $statement = $this->connection->prepare(
             "SELECT * FROM bank_account WHERE {$query->whereSql()} ORDER BY name ASC, id ASC"
@@ -78,6 +81,12 @@ final class BankAccountRepository extends AbstractTenantRepository implements Ba
         ];
 
         if ($entity->id() === null) {
+            $currentUnit = $this->context->unitId();
+
+            if ($currentUnit !== null && $entity->systemUnitId() !== $currentUnit) {
+                throw new InvalidArgumentException('BankAccount belongs to another unit than the current one');
+            }
+
             $statement = $this->connection->prepare(
                 <<<'SQL'
                 INSERT INTO bank_account (
@@ -98,7 +107,7 @@ final class BankAccountRepository extends AbstractTenantRepository implements Ba
             return $entity;
         }
 
-        $query = $this->tenantQuery()->andEquals('id', $entity->id());
+        $query = $this->scopedQuery()->andEquals('id', $entity->id());
 
         $statement = $this->connection->prepare(
             'UPDATE bank_account SET name = :name, bank_name = :bank_name, balance_cents = :balance_cents, '
@@ -124,10 +133,18 @@ final class BankAccountRepository extends AbstractTenantRepository implements Ba
 
         $this->assertEntityTenant($entity->tenantId());
 
-        $query = $this->tenantQuery()->andEquals('id', $id);
+        $query = $this->scopedQuery()->andEquals('id', $id);
 
         $statement = $this->connection->prepare("DELETE FROM bank_account WHERE {$query->whereSql()}");
         $statement->execute($query->parameters());
+    }
+
+    private function scopedQuery(): TenantQuery
+    {
+        $query = $this->tenantQuery();
+        $unitId = $this->context->unitId();
+
+        return $unitId === null ? $query : $query->andEquals('system_unit_id', $unitId);
     }
 
     /** @param array<string, mixed> $parameters */
