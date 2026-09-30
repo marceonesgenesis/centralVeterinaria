@@ -285,6 +285,23 @@ final class QueueEntryServiceTest
         Assert::count(1, $queueEntries->listActiveByUnit(1));
     }
 
+    /**
+     * T-41: AgendaView asks once per load which of the day's appointments
+     * already have a queue entry, to swap the Check-in link for the badge.
+     */
+    public function testAppointmentIdsInQueueReturnsOnlyCheckedInAppointments(): void
+    {
+        $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
+        $patients = new FakePatientRepository(1, $ownPatient);
+        $queueEntries = new FakeQueueEntryRepository(1);
+        $service = $this->makeQueueEntryService($patients, $queueEntries);
+        $service->checkIn(['patient_id' => 1, 'professional_system_user_id' => 10, 'system_unit_id' => 1, 'appointment_id' => 7], self::ACTION);
+
+        Assert::same([7], $service->appointmentIdsInQueue([7, 8]));
+        Assert::same([], $service->appointmentIdsInQueue([8]));
+        Assert::same([], $service->appointmentIdsInQueue([]));
+    }
+
     public function testCheckInWithoutAppointmentIdTwiceCreatesTwoEntries(): void
     {
         $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');

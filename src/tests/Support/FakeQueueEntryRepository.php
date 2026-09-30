@@ -68,6 +68,26 @@ final class FakeQueueEntryRepository implements QueueEntryRepositoryInterface
         return null;
     }
 
+    /**
+     * @param list<int> $appointmentIds
+     * @return list<int>
+     */
+    public function listAppointmentIdsInQueue(array $appointmentIds): array
+    {
+        $wanted = array_map('intval', $appointmentIds);
+        $found = [];
+
+        foreach ($this->entries as $entry) {
+            $appointmentId = $entry->appointmentId();
+
+            if ($entry->tenantId() === $this->tenantId && $appointmentId !== null && in_array($appointmentId, $wanted, true)) {
+                $found[$appointmentId] = $appointmentId;
+            }
+        }
+
+        return array_values($found);
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof QueueEntry) {
