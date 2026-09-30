@@ -87,8 +87,18 @@ class QueueEntryView extends TPage
         // QueueEntryService::advanceStatus() e' a unica fonte de verdade
         // sobre qual e' o proximo status legal.
         $action = new TDataGridAction(array($this, 'onAdvance'), array('id' => '{id}', 'register_state' => 'false'));
+        // atalhos para os cadastros da linha: "Avançar status" continua o
+        // primeiro item; "Editar agendamento" só aparece quando a entrada
+        // veio de um agendamento (encaixe tem appointment_id nulo)
+        $action_patient = new TDataGridAction(['PatientForm', 'onEdit'], ['key' => '{patient_id}', 'register_state' => 'false']);
+        $action_appointment = new TDataGridAction(['AppointmentForm', 'onEdit'], ['key' => '{appointment_id}', 'register_state' => 'false']);
+        $action_appointment->setDisplayCondition(function ($object) {
+            return !empty($object->appointment_id);
+        });
         $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
             ['label' => _t('Advance status'), 'action' => $action, 'icon' => 'fa:arrow-circle-right'],
+            ['label' => _t('Edit patient'), 'action' => $action_patient, 'icon' => 'fa:paw'],
+            ['label' => _t('Edit appointment'), 'action' => $action_appointment, 'icon' => 'far:calendar-alt'],
         ]));
 
         $this->datagrid->createModel();
@@ -230,6 +240,10 @@ class QueueEntryView extends TPage
 
             $row = new stdClass;
             $row->id = $entry->id();
+            $row->patient_id = $patientId;
+            // 0 (e nao null) no encaixe: TDataGridAction::prepare() exige o
+            // campo {appointment_id} setado antes da display condition
+            $row->appointment_id = $entry->appointmentId() ? (int) $entry->appointmentId() : 0;
             $row->checked_in_at = $entry->checkedInAt()->format('H:i');
             $row->patient_label = $patientLabel;
             $row->professional_label = $professionalLabel;
