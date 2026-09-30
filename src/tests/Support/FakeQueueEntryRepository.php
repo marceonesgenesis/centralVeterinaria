@@ -85,6 +85,9 @@ final class FakeQueueEntryRepository implements QueueEntryRepositoryInterface
             }
         }
 
+        // T-57: mesma ordem do QueueEntryRepository (ORDER BY appointment_id)
+        ksort($found);
+
         return array_values($found);
     }
 

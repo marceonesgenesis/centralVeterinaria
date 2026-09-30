@@ -412,12 +412,22 @@ class AgendaView extends TPage
         ]);
         $block->add($edit_link);
 
-        // já na fila (T-41): badge no lugar do Check-in
+        // já na fila (T-41): badge no lugar do Check-in; só para agendamento
+        // ativo (T-57), cancelado/atendido/faltou mostram só o status
+        $active_statuses = [
+            \CentralVet\Domain\Appointment::STATUS_SCHEDULED,
+            \CentralVet\Domain\Appointment::STATUS_CONFIRMED,
+            \CentralVet\Domain\Appointment::STATUS_IN_PROGRESS,
+        ];
+
         if ($in_queue)
         {
-            $queued_badge = CvBadge::create(_t('In queue'), 'info');
-            $queued_badge->class .= ' agenda-block-queued ms-1';
-            $block->add($queued_badge);
+            if (in_array($appointment->status, $active_statuses, true))
+            {
+                $queued_badge = CvBadge::create(_t('In queue'), 'info');
+                $queued_badge->class .= ' agenda-block-queued ms-1';
+                $block->add($queued_badge);
+            }
         }
         // check-in na fila (T-29): só agendado/confirmado; confirma antes
         elseif (in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
