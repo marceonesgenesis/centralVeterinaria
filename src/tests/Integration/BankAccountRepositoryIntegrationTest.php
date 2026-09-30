@@ -98,6 +98,26 @@ final class BankAccountRepositoryIntegrationTest extends MysqlIntegrationTestCas
         Assert::null($repoA->findByName($this->unit2, 'Banco'));
     }
 
+    public function testRepositoryWithCurrentUnitIgnoresAccountsOfAnotherUnit(): void
+    {
+        $now = new DateTimeImmutable();
+        $unaware = $this->repositoryFor($this->tenantA);
+        $inU2 = $unaware->save(BankAccount::create($this->tenantA, $this->unit2, 'Caixa U2', null, 70, $now));
+
+        $repoU1 = new BankAccountRepository(TenantContext::authenticated($this->tenantA, $this->userId, $this->unit1), $this->pdo);
+
+        Assert::null($repoU1->findById((int) $inU2->id()), 'account of another unit is not found');
+        Assert::same([], $repoU1->listBySystemUnit($this->unit2), 'another unit lists nothing');
+        Assert::null($repoU1->findByName($this->unit2, 'Caixa U2'));
+
+        // UPDATE carries the unit filter too: a forged save from U1 leaves the U2 row untouched
+        /** @var BankAccount $forged */
+        $forged = $unaware->findById((int) $inU2->id());
+        $forged->changeBalance(1, $now);
+        $repoU1->save($forged);
+        Assert::same(70, (int) $this->pdo->query('SELECT balance_cents FROM bank_account WHERE id = ' . (int) $inU2->id())->fetchColumn());
+    }
+
     private function repositoryFor(int $tenantId): BankAccountRepository
     {
         return new BankAccountRepository(TenantContext::authenticated($tenantId, $this->userId), $this->pdo);

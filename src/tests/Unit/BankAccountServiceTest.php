@@ -32,6 +32,26 @@ final class BankAccountServiceTest
         return [new BankAccountService($repository, $context), $repository];
     }
 
+    /** Service of the same tenant working on another current unit, sharing the repository. */
+    private static function serviceForUnit(FakeBankAccountRepository $repository, int $unitId): BankAccountService
+    {
+        return new BankAccountService($repository, TenantContext::authenticated(self::TENANT_ID, 1, $unitId));
+    }
+
+    private static function accountOfOtherUnit(int $id): BankAccount
+    {
+        return BankAccount::reconstitute([
+            'id' => $id,
+            'tenant_id' => self::TENANT_ID,
+            'system_unit_id' => self::OTHER_UNIT_ID,
+            'name' => 'Conta U2',
+            'bank_name' => null,
+            'balance_cents' => 300,
+            'balance_updated_at' => null,
+            'active' => 1,
+        ]);
+    }
+
     public function testTotalBalanceSumsOnlyActiveAccountsOfTheUnit(): void
     {
         [$service] = $this->buildService();
@@ -47,7 +67,8 @@ final class BankAccountServiceTest
 
     public function testTotalBalanceIsNullForUnitWithoutActiveAccount(): void
     {
-        [$service] = $this->buildService();
+        [, $repository] = $this->buildService();
+        $service = self::serviceForUnit($repository, self::OTHER_UNIT_ID);
 
         Assert::null($service->totalBalanceCents(self::OTHER_UNIT_ID), 'unit without accounts');
 
@@ -71,7 +92,7 @@ final class BankAccountServiceTest
         Assert::same(1, $repository->count(), 'the repeated account must not be saved');
 
         // the same name in another unit is allowed
-        $service->create(['system_unit_id' => self::OTHER_UNIT_ID, 'name' => 'Caixa', 'balance_cents' => 5]);
+        self::serviceForUnit($repository, self::OTHER_UNIT_ID)->create(['system_unit_id' => self::OTHER_UNIT_ID, 'name' => 'Caixa', 'balance_cents' => 5]);
         Assert::same(2, $repository->count());
     }
 
@@ -178,6 +199,62 @@ final class BankAccountServiceTest
             fn () => $service->update((int) $second->id(), ['name' => 'Caixa']),
         );
         Assert::same('Banco', $service->findById((int) $second->id())?->name());
+    }
+
+    public function testFindByIdOfAccountOfAnotherUnitOfTheSameTenantIsNull(): void
+    {
+        [$service, $repository] = $this->buildService(self::accountOfOtherUnit(4));
+        Assert::notNull($repository->findById(4), 'same tenant: the repository sees it');
+
+        Assert::null($service->findById(4), 'account of another unit must be treated as not found');
+    }
+
+    public function testUpdateOfAccountOfAnotherUnitOfTheSameTenantThrowsNotFound(): void
+    {
+        $other = self::accountOfOtherUnit(4);
+        [$service] = $this->buildService($other);
+
+        self::assertThrowsMessage(
+            InvalidArgumentException::class,
+            'Bank account 4 not found for this tenant',
+            fn () => $service->update(4, ['balance_cents' => 1, 'name' => 'Invadida']),
+        );
+        Assert::same(300, $other->balanceCents(), 'nothing changed');
+        Assert::same('Conta U2', $other->name());
+    }
+
+    public function testCreateRefusesAnotherUnitAndUsesTheCurrentOne(): void
+    {
+        [$service, $repository] = $this->buildService();
+
+        Assert::throws(
+            InvalidArgumentException::class,
+            fn () => $service->create(['system_unit_id' => self::OTHER_UNIT_ID, 'name' => 'Caixa', 'balance_cents' => 1]),
+        );
+        Assert::same(0, $repository->count(), 'account of another unit must not be created');
+
+        $account = $service->create(['name' => 'Caixa', 'balance_cents' => 1]);
+        Assert::same(self::UNIT_ID, $account->systemUnitId(), 'without system_unit_id the current unit is used');
+    }
+
+    public function testListByUnitRefusesAnotherUnit(): void
+    {
+        [$service] = $this->buildService(self::accountOfOtherUnit(4));
+
+        Assert::throws(InvalidArgumentException::class, fn () => $service->listByUnit(self::OTHER_UNIT_ID));
+        Assert::same([], $service->listByUnit(self::UNIT_ID));
+    }
+
+    public function testBalanceCentsMustBeAnInteger(): void
+    {
+        [$service] = $this->buildService();
+
+        Assert::throws(InvalidArgumentException::class, fn () => $service->create(['name' => 'Caixa']));
+        Assert::throws(InvalidArgumentException::class, fn () => $service->create(['name' => 'Caixa', 'balance_cents' => 'abc']));
+        $account = $service->create(['name' => 'Caixa', 'balance_cents' => '-15']);
+        Assert::same(-15, $account->balanceCents());
+        Assert::throws(InvalidArgumentException::class, fn () => $service->update((int) $account->id(), ['balance_cents' => '1,5']));
+        Assert::same(-15, $account->balanceCents());
     }
 
     private static function assertThrowsMessage(string $class, string $message, callable $callback): void
