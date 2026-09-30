@@ -83,16 +83,17 @@ final class ServiceCatalogService
     /**
      * Copies a service of the current tenant (same category, duration and
      * price) as a new, inactive entry named "{name} ({copyLabel})", or
-     * "{name} ({copyLabel} N)" with the first free N >= 2.
+     * "{name} ({copyLabel} N)" with the first free N >= 2. The base name is
+     * cut so the whole name fits MAX_NAME_LENGTH.
      */
     public function duplicate(int $id, string $copyLabel = 'copy'): Service
     {
         $original = $this->findOwned($id);
 
-        $name = "{$original->name()} ({$copyLabel})";
+        $name = self::copyName($original->name(), "({$copyLabel})");
 
         for ($n = 2; $this->repository->findByName($name) !== null; $n++) {
-            $name = "{$original->name()} ({$copyLabel} {$n})";
+            $name = self::copyName($original->name(), "({$copyLabel} {$n})");
         }
 
         return $this->create([
@@ -272,6 +273,14 @@ final class ServiceCatalogService
         }
 
         return $service;
+    }
+
+    /** "{base} {suffix}" with the base cut (mb_substr) so the result has at most MAX_NAME_LENGTH characters. */
+    private static function copyName(string $base, string $suffix): string
+    {
+        $room = max(1, self::MAX_NAME_LENGTH - mb_strlen($suffix) - 1);
+
+        return rtrim(mb_substr($base, 0, $room)) . ' ' . $suffix;
     }
 
     /** Digits only, 1..MAX_UNSIGNED_INT; compared as a string of up to 10 digits before any cast. */
