@@ -44,6 +44,7 @@ final class UserMessage
         '/^A template named "(.+)" already exists for this tenant$/' => 'A template named "^1" already exists',
         '/^Appointment (\d+) cannot be rescheduled from status (\S+)$/' => 'Appointment ^1 cannot be rescheduled from status ^2',
         '/^Appointment (\d+) is already in the queue$/' => 'This appointment is already in the queue',
+        '/^Requested slot .+ conflicts with an existing appointment for professional_system_user_id \d+$/' => 'Requested slot conflicts with an existing appointment',
     ];
 
     private function __construct()

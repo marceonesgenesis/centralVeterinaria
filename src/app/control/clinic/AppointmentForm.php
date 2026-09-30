@@ -157,7 +157,8 @@ class AppointmentForm extends TPage
             catch (Exception $e)
             {
                 TTransaction::rollback();
-                new TMessage('error', $e->getMessage());
+                error_log(__METHOD__ . ': ' . $e->getMessage());
+                new TMessage('error', CvFormat::userError($e));
             }
             return;
         }
@@ -222,7 +223,8 @@ class AppointmentForm extends TPage
             // AppointmentService::schedule() vira mensagem tratada na tela,
             // nunca uma exceção não tratada.
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
@@ -247,12 +249,14 @@ class AppointmentForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -300,7 +304,8 @@ class AppointmentForm extends TPage
         {
             TTransaction::rollback();
             $this->keepRescheduleData($data);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
