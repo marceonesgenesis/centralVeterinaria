@@ -27,4 +27,14 @@ interface QueueEntryRepositoryInterface extends TenantRepositoryInterface
      * @return TEntity|null
      */
     public function findByAppointment(int $appointmentId): ?object;
+
+    /**
+     * Returns which of the given appointment ids already have a queue entry
+     * within the current tenant (one `IN (...)` query; an empty list returns
+     * `[]` without touching the database).
+     *
+     * @param list<int> $appointmentIds
+     * @return list<int>
+     */
+    public function listAppointmentIdsInQueue(array $appointmentIds): array;
 }

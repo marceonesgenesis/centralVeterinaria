@@ -212,4 +212,17 @@ final class QueueEntryService
 
         return $entries;
     }
+
+    /**
+     * Which of the given appointments already have a queue entry in the
+     * current tenant (T-41): AgendaView calls it once per load with the
+     * day's appointment ids to show "In queue" instead of Check-in.
+     *
+     * @param list<int> $appointmentIds
+     * @return list<int>
+     */
+    public function appointmentIdsInQueue(array $appointmentIds): array
+    {
+        return $this->queueEntries->listAppointmentIdsInQueue($appointmentIds);
+    }
 }

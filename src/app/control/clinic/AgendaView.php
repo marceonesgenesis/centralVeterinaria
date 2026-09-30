@@ -139,10 +139,41 @@ class AgendaView extends TPage
 
         $patient_names = $this->resolvePatientNames($tenant_context, $appointments_by_professional);
         $service_names = $this->resolveServiceNames($tenant_context, $appointments_by_professional);
+        $in_queue = $this->resolveAppointmentsInQueue($tenant_context, $appointments_by_professional);
 
         TTransaction::close();
 
-        return $this->renderGrid($professionals, $appointments_by_professional, $patient_names, $service_names);
+        return $this->renderGrid($professionals, $appointments_by_professional, $patient_names, $service_names, $in_queue);
+    }
+
+    /**
+     * Ids of the day's appointments that already have a queue entry (T-41),
+     * in one QueueEntryService::appointmentIdsInQueue() call per load. Must
+     * run inside buildGrid()'s open 'permission' transaction.
+     *
+     * @param array<int|string, list<\CentralVet\Domain\Appointment>> $appointments_by_professional
+     * @return array<int, true> appointment_id => true
+     */
+    private function resolveAppointmentsInQueue(\CentralVet\Tenancy\TenantContext $tenant_context, array $appointments_by_professional): array
+    {
+        $appointment_ids = [];
+
+        foreach ($appointments_by_professional as $appointments)
+        {
+            foreach ($appointments as $appointment)
+            {
+                $appointment_ids[] = (int) $appointment->id;
+            }
+        }
+
+        if (empty($appointment_ids))
+        {
+            return [];
+        }
+
+        $ids = self::buildQueueEntryService($tenant_context)->appointmentIdsInQueue($appointment_ids);
+
+        return array_fill_keys($ids, true);
     }
 
     /**
@@ -253,8 +284,9 @@ class AgendaView extends TPage
      * @param array<int|string, list<\CentralVet\Domain\Appointment>> $appointments_by_professional
      * @param array<int, string|null> $patient_names patient_id => name (null when not found)
      * @param array<int, string|null> $service_names service_id => name (null when not found)
+     * @param array<int, true> $in_queue appointment_id => true when already in the queue (T-41)
      */
-    private function renderGrid(array $professionals, array $appointments_by_professional, array $patient_names = [], array $service_names = [])
+    private function renderGrid(array $professionals, array $appointments_by_professional, array $patient_names = [], array $service_names = [], array $in_queue = [])
     {
         if (empty($professionals))
         {
@@ -314,7 +346,7 @@ class AgendaView extends TPage
 
                 foreach ($appointments_by_cell[$slot][$professional->id] ?? [] as $appointment)
                 {
-                    $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names));
+                    $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names, isset($in_queue[(int) $appointment->id])));
                 }
 
                 $row->add($cell);
@@ -342,8 +374,9 @@ class AgendaView extends TPage
     /**
      * @param array<int, string|null> $patient_names patient_id => name (null when not found)
      * @param array<int, string|null> $service_names service_id => name (null when not found)
+     * @param bool $in_queue the appointment already has a queue entry (T-41)
      */
-    private function renderAppointmentBlock(\CentralVet\Domain\Appointment $appointment, array $patient_names = [], array $service_names = [])
+    private function renderAppointmentBlock(\CentralVet\Domain\Appointment $appointment, array $patient_names = [], array $service_names = [], bool $in_queue = false)
     {
         $block = new TElement('div');
         $block->class = 'agenda-block';
@@ -379,8 +412,15 @@ class AgendaView extends TPage
         ]);
         $block->add($edit_link);
 
+        // já na fila (T-41): badge no lugar do Check-in
+        if ($in_queue)
+        {
+            $queued_badge = CvBadge::create(_t('In queue'), 'info');
+            $queued_badge->class .= ' agenda-block-queued ms-1';
+            $block->add($queued_badge);
+        }
         // check-in na fila (T-29): só agendado/confirmado; confirma antes
-        if (in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
+        elseif (in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
         {
             $block->add(TElement::tag('a', CvFormat::e(_t('Check-in')), [
                 'href' => 'index.php?class=AgendaView&method=onAskCheckIn&static=1&appointment_id=' . (int) $appointment->id
