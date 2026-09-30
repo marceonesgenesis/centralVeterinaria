@@ -6,13 +6,10 @@
  * "Novo produto" e por "…" → Editar em ProductList
  * (index.php?class=ProductForm&method=onEdit&id=<id>).
  *
- * Criação delegada a CentralVet\Application\ProductService::create(). Leitura
- * para edição via ProductService::findById() (repositório escopado ao tenant),
- * nunca pelo ActiveRecord Product. ProductService ainda não tem caso de uso de
- * atualização: a edição reaplica as validações de Product::create(), confere
- * nome único no tenant e grava pelo ProductRepository escopado (UPDATE por id
- * e tenant) — ver pendência no relatório T-17. Depois de salvar volta para
- * ProductList.
+ * Criação e edição delegadas a CentralVet\Application\ProductService
+ * (create()/update(), T-34). Leitura para edição via ProductService::findById()
+ * (repositório escopado ao tenant), nunca pelo ActiveRecord Product. Depois de
+ * salvar volta para ProductList.
  *
  * @version    2.0
  * @package    control
@@ -155,8 +152,8 @@ class ProductForm extends TPage
 
     /**
      * method onSave()
-     * New product → ProductService::create(); existing id → update of the
-     * tenant-scoped row (see class docblock). Returns to ProductList.
+     * New product → ProductService::create(); existing id →
+     * ProductService::update(). Returns to ProductList.
      */
     public function onSave($param = null)
     {
@@ -177,7 +174,15 @@ class ProductForm extends TPage
 
             if (!empty($data->id))
             {
-                $product = self::updateProduct($repository, $tenant_context, (int) $data->id, $data, $active);
+                $product = $service->update(
+                    (int) $data->id,
+                    (string) $data->name,
+                    $data->category ?: null,
+                    (string) $data->unit_of_measure,
+                    self::toCents($data->unit_cost),
+                    (int) $data->minimum_stock_quantity,
+                    $active
+                );
             }
             else
             {
@@ -232,59 +237,6 @@ class ProductForm extends TPage
             $this->form->setData($data ?? null);
             new TMessage('error', $e->getMessage());
         }
-    }
-
-    /**
-     * Updates an existing product of the session tenant: same rules as
-     * Product::create() (validated by building a throwaway instance), name
-     * unique within the tenant, row written by the tenant-scoped repository.
-     */
-    private static function updateProduct(
-        \CentralVet\Persistence\ProductRepository $repository,
-        \CentralVet\Tenancy\TenantContext $tenant_context,
-        int $id,
-        $data,
-        bool $active
-    ): \CentralVet\Domain\Product {
-        $current = $repository->findById($id);
-
-        if (!$current instanceof \CentralVet\Domain\Product)
-        {
-            throw new InvalidArgumentException(_t('Record not found'));
-        }
-
-        $validated = \CentralVet\Domain\Product::create(
-            $tenant_context->tenantId(),
-            (string) $data->name,
-            $data->category ?: null,
-            (string) $data->unit_of_measure,
-            self::toCents($data->unit_cost),
-            (int) $data->minimum_stock_quantity
-        );
-
-        $sameName = $repository->findByName($validated->name());
-        if ($sameName instanceof \CentralVet\Domain\Product && $sameName->id() !== $current->id())
-        {
-            throw new InvalidArgumentException("A product named \"{$validated->name()}\" already exists for this tenant");
-        }
-
-        $product = \CentralVet\Domain\Product::reconstitute(
-            (int) $current->id(),
-            $current->tenantId(),
-            $validated->name(),
-            $validated->category(),
-            $validated->unitOfMeasure(),
-            $validated->unitCostCents(),
-            $validated->minimumStockQuantity(),
-            $active,
-            $current->createdAt(),
-            $current->updatedAt()
-        );
-
-        /** @var \CentralVet\Domain\Product $saved */
-        $saved = $repository->save($product);
-
-        return $saved;
     }
 
     /**

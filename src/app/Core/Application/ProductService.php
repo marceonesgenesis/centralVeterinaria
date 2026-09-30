@@ -70,6 +70,62 @@ final class ProductService
         return $saved;
     }
 
+    /**
+     * Edits a catalog entry of the session tenant (T-34): same rules as
+     * Product::create() (name trimmed), name unique within the tenant
+     * (keeping its own name is allowed), id/tenantId/createdAt preserved.
+     */
+    public function update(
+        int $productId,
+        string $name,
+        ?string $category,
+        string $unitOfMeasure,
+        int $unitCostCents,
+        int $minimumStockQuantity,
+        bool $active,
+    ): Product {
+        /** @var Product|null $current */
+        $current = $this->products->findById($productId);
+
+        if (!$current instanceof Product) {
+            throw new InvalidArgumentException("Product {$productId} not found for this tenant");
+        }
+
+        $validated = Product::create(
+            tenantId: $current->tenantId(),
+            name: $name,
+            category: $category,
+            unitOfMeasure: $unitOfMeasure,
+            unitCostCents: $unitCostCents,
+            minimumStockQuantity: $minimumStockQuantity,
+        );
+
+        $name = $validated->name();
+        $sameName = $this->products->findByName($name);
+
+        if ($sameName instanceof Product && $sameName->id() !== $current->id()) {
+            throw new InvalidArgumentException("A product named \"{$name}\" already exists for this tenant");
+        }
+
+        $product = Product::reconstitute(
+            (int) $current->id(),
+            $current->tenantId(),
+            $validated->name(),
+            $validated->category(),
+            $validated->unitOfMeasure(),
+            $validated->unitCostCents(),
+            $validated->minimumStockQuantity(),
+            $active,
+            $current->createdAt(),
+            $current->updatedAt(),
+        );
+
+        /** @var Product $saved */
+        $saved = $this->products->save($product);
+
+        return $saved;
+    }
+
     /** @return list<Product> */
     public function listActive(int $tenantId): array
     {
