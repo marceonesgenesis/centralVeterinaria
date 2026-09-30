@@ -39,7 +39,7 @@ final class StockSalesOverviewService
      * productStocks() runs once unfiltered and, only when $search or
      * $category is given, once more with those filters.
      *
-     * @return array{summary: array{products_in_stock: int, low_stock: int, out_of_stock: int, sales_month_cents: int, sales_prev_month_cents: int, items_sold_month: int, items_sold_prev_month: int}, products: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>, low_stock: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>}
+     * @return array{summary: array{products_in_stock: int, low_stock: int, out_of_stock: int, sales_month_cents: int, sales_prev_month_cents: int, items_sold_month: int, items_sold_prev_month: int}, products: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}>, low_stock: list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}>}
      */
     public function overview(
         DateTimeImmutable $month,
@@ -60,7 +60,7 @@ final class StockSalesOverviewService
     }
 
     /**
-     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}>
      */
     public function products(?string $search = null, ?string $category = null, ?string $status = null): array
     {
@@ -82,7 +82,7 @@ final class StockSalesOverviewService
     /**
      * Products with status low/out, lowest stock first. A limit <= 0 returns [].
      *
-     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}>
      */
     public function lowStock(int $limit = 5): array
     {
@@ -96,7 +96,7 @@ final class StockSalesOverviewService
     }
 
     /**
-     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}> $products
+     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}> $products
      * @return array{products_in_stock: int, low_stock: int, out_of_stock: int, sales_month_cents: int, sales_prev_month_cents: int, items_sold_month: int, items_sold_prev_month: int}
      */
     private function summarize(array $products, DateTimeImmutable $month): array
@@ -137,8 +137,8 @@ final class StockSalesOverviewService
     }
 
     /**
-     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float}> $rows
-     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, status: string}>
+     * @param list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int}> $rows
+     * @return list<array{id: int, name: string, category: string, unit: string, stock_quantity: float, minimum_stock_quantity: float, code: ?string, sale_price_cents: ?int, status: string}>
      */
     private function withStatus(array $rows): array
     {

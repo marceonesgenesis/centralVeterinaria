@@ -22,6 +22,19 @@ final class PrescriptionTemplate
 {
     public const ITEM_FIELDS = ['medication_name', 'dose', 'dose_unit', 'route', 'frequency', 'duration'];
 
+    /** Column widths of `prescription_template`/`_item` (migration 0007), in characters. */
+    public const NAME_MAX_LENGTH = 190;
+
+    /** @var array<string, int> */
+    public const ITEM_FIELD_MAX_LENGTHS = [
+        'medication_name' => 190,
+        'dose' => 40,
+        'dose_unit' => 20,
+        'route' => 40,
+        'frequency' => 60,
+        'duration' => 60,
+    ];
+
     /**
      * @param list<array{medication_name: string, dose: string, dose_unit: string, route: string, frequency: string, duration: string}> $items
      */
@@ -40,7 +53,9 @@ final class PrescriptionTemplate
      *        ITEM_FIELDS keys, in the order they must be applied.
      *
      * @throws InvalidArgumentException "name is required",
-     *         "items must be a non-empty list" or "items[].{field} is required".
+     *         "items must be a non-empty list", "items[].{field} is required"
+     *         (missing or blank after trim) or "{field} must have at most
+     *         {max} characters" (name and the six item fields).
      */
     public static function create(
         int $tenantId,
@@ -59,6 +74,8 @@ final class PrescriptionTemplate
             throw new InvalidArgumentException('name is required');
         }
 
+        self::assertMaxLength('name', $name, self::NAME_MAX_LENGTH);
+
         if ($createdBySystemUserId <= 0) {
             throw new InvalidArgumentException('created_by_system_user_id must be positive');
         }
@@ -67,13 +84,25 @@ final class PrescriptionTemplate
             throw new InvalidArgumentException('items must be a non-empty list');
         }
 
+        $normalized = self::normalizeItems($items);
+
+        foreach ($normalized as $line) {
+            foreach (self::ITEM_FIELD_MAX_LENGTHS as $field => $max) {
+                if (trim($line[$field]) === '') {
+                    throw new InvalidArgumentException("items[].{$field} is required");
+                }
+
+                self::assertMaxLength($field, $line[$field], $max);
+            }
+        }
+
         return new self(
             id: null,
             tenantId: $tenantId,
             name: $name,
             orientationText: $orientationText !== null && trim($orientationText) !== '' ? $orientationText : null,
             createdBySystemUserId: $createdBySystemUserId,
-            items: self::normalizeItems($items),
+            items: $normalized,
         );
     }
 
@@ -139,6 +168,13 @@ final class PrescriptionTemplate
     public function items(): array
     {
         return $this->items;
+    }
+
+    private static function assertMaxLength(string $field, string $value, int $max): void
+    {
+        if (mb_strlen($value) > $max) {
+            throw new InvalidArgumentException("{$field} must have at most {$max} characters");
+        }
     }
 
     /**

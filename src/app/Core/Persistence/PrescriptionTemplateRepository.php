@@ -9,6 +9,7 @@ use CentralVet\Domain\PrescriptionTemplate;
 use CentralVet\Tenancy\TenantContext;
 use InvalidArgumentException;
 use PDO;
+use PDOException;
 
 /**
  * PDO-backed persistence for PrescriptionTemplate (rodada 2, T-13): header
@@ -17,7 +18,10 @@ use PDO;
  * TenantQuery::forTenant() (ADR 0002).
  *
  * save() of an existing template updates the header and replaces its lines
- * (delete + insert), so position always stays 1..n.
+ * (delete + insert), so position always stays 1..n. A name already used in
+ * the tenant (unique key prescription_template_tenant_name_uq) surfaces as
+ * the same InvalidArgumentException PrescriptionTemplateService raises, so
+ * two concurrent saves cannot both land.
  *
  * @implements PrescriptionTemplateRepositoryInterface<PrescriptionTemplate>
  */
@@ -48,13 +52,21 @@ final class PrescriptionTemplateRepository extends AbstractTenantRepository impl
         );
         $statement->execute($query->parameters());
 
-        $templates = [];
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $templates[] = $this->hydrate($row);
+        if ($rows === []) {
+            return [];
         }
 
-        return $templates;
+        $itemsByTemplate = $this->itemRowsFor(array_map(static fn (array $row): int => (int) $row['id'], $rows));
+
+        return array_map(
+            static fn (array $row): PrescriptionTemplate => PrescriptionTemplate::reconstitute(
+                $row,
+                $itemsByTemplate[(int) $row['id']] ?? [],
+            ),
+            $rows,
+        );
     }
 
     public function save(object $entity): object
@@ -75,12 +87,12 @@ final class PrescriptionTemplateRepository extends AbstractTenantRepository impl
                 )
                 SQL
             );
-            $statement->execute([
+            $this->executeGuardingName($statement, [
                 ':tenant_id' => $entity->tenantId(),
                 ':name' => $entity->name(),
                 ':orientation_text' => $entity->orientationText(),
                 ':created_by_system_user_id' => $entity->createdBySystemUserId(),
-            ]);
+            ], $entity->name());
 
             $entity->assignId((int) $this->connection->lastInsertId());
             $this->insertItems($entity);
@@ -103,11 +115,11 @@ final class PrescriptionTemplateRepository extends AbstractTenantRepository impl
             WHERE {$query->whereSql()}
             SQL
         );
-        $statement->execute([
+        $this->executeGuardingName($statement, [
             ...$query->parameters(),
             ':name' => $entity->name(),
             ':orientation_text' => $entity->orientationText(),
-        ]);
+        ], $entity->name());
 
         $this->deleteItems((int) $entity->id());
         $this->insertItems($entity);
@@ -136,6 +148,29 @@ final class PrescriptionTemplateRepository extends AbstractTenantRepository impl
         $query = $this->tenantQuery()->andEquals('id', $id);
         $statement = $this->connection->prepare("DELETE FROM prescription_template WHERE {$query->whereSql()}");
         $statement->execute($query->parameters());
+    }
+
+    /**
+     * Runs an INSERT/UPDATE of the header, turning a violation of the
+     * tenant+name unique key into the service's duplicate-name message.
+     *
+     * @param array<string, mixed> $parameters
+     */
+    private function executeGuardingName(\PDOStatement $statement, array $parameters, string $name): void
+    {
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000' && str_contains($e->getMessage(), 'prescription_template_tenant_name_uq')) {
+                throw new InvalidArgumentException(
+                    "A template named \"{$name}\" already exists for this tenant",
+                    0,
+                    $e,
+                );
+            }
+
+            throw $e;
+        }
     }
 
     private function findOneBy(string $column, int|string $value): ?PrescriptionTemplate
@@ -193,12 +228,42 @@ final class PrescriptionTemplateRepository extends AbstractTenantRepository impl
     /** @param array<string, mixed> $row */
     private function hydrate(array $row): PrescriptionTemplate
     {
-        $query = $this->tenantQuery()->andEquals('template_id', (int) $row['id']);
-        $statement = $this->connection->prepare(
-            "SELECT * FROM prescription_template_item WHERE {$query->whereSql()} ORDER BY position ASC, id ASC"
-        );
-        $statement->execute($query->parameters());
+        $id = (int) $row['id'];
 
-        return PrescriptionTemplate::reconstitute($row, $statement->fetchAll(PDO::FETCH_ASSOC));
+        return PrescriptionTemplate::reconstitute($row, $this->itemRowsFor([$id])[$id] ?? []);
+    }
+
+    /**
+     * Item rows of the given templates in one tenant-scoped query, grouped by
+     * template id and ordered by position.
+     *
+     * @param list<int> $templateIds non-empty
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function itemRowsFor(array $templateIds): array
+    {
+        $query = $this->tenantQuery();
+        $placeholders = [];
+        $parameters = $query->parameters();
+
+        foreach (array_values($templateIds) as $index => $templateId) {
+            $placeholders[] = ":template_id_{$index}";
+            $parameters[":template_id_{$index}"] = $templateId;
+        }
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM prescription_template_item WHERE {$query->whereSql()}"
+            . ' AND template_id IN (' . implode(', ', $placeholders) . ')'
+            . ' ORDER BY template_id ASC, position ASC, id ASC'
+        );
+        $statement->execute($parameters);
+
+        $grouped = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $item) {
+            $grouped[(int) $item['template_id']][] = $item;
+        }
+
+        return $grouped;
     }
 }

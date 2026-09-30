@@ -69,7 +69,12 @@ final class FakeProductRepository implements ProductRepositoryInterface
     public function findByCode(string $code): ?object
     {
         foreach ($this->products as $product) {
-            if ($product->tenantId() === $this->tenantId && $product->code() === $code) {
+            // Case-insensitive, like the utf8mb4_unicode_ci column in MySQL.
+            if (
+                $product->tenantId() === $this->tenantId
+                && $product->code() !== null
+                && mb_strtolower($product->code()) === mb_strtolower($code)
+            ) {
                 return $product;
             }
         }
