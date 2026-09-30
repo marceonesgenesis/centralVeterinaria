@@ -3,7 +3,8 @@
  * AppointmentForm
  *
  * Formulario de agendamento (mock 03), consumindo
- * CentralVet\Application\AppointmentService::schedule() (T-07). Nao
+ * CentralVet\Application\AppointmentService::schedule() (T-07) e, com
+ * `key` na URL, AppointmentService::reschedule() (rodada 2, T-08). Nao
  * contem regra de negocio propria: validacao de conflito de horario e
  * de referencias entre tenants e feita inteiramente por AppointmentService.
  *
@@ -29,13 +30,14 @@ class AppointmentForm extends TPage
 {
     protected $form; // form
 
-    /** @var int|null agendamento aberto em modo leitura (key na URL, vindo da AgendaView) */
+    /** @var int|null agendamento aberto para remarcar (key na URL, vindo da AgendaView) */
     protected $viewId = null;
 
     /**
      * Class constructor
      * Creates the appointment scheduling form in full page (kit Cv*); with
-     * key in the URL the appointment is shown read-only (no reschedule use case).
+     * key in the URL the appointment opens for rescheduling (service,
+     * professional and date/time editable, patient read-only).
      */
     public function __construct($param = null)
     {
@@ -79,7 +81,11 @@ class AppointmentForm extends TPage
         $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
         $this->form->addFields( [new TLabel(_t('Professional'))], [$professional_system_user_id], [new TLabel(_t('Date/time'))], [$scheduled_at] );
 
-        $patient_id->addValidation( _t('Patient'), new TRequiredValidator );
+        if ($this->viewId === null)
+        {
+            // remarcar: paciente só leitura, fora da validação
+            $patient_id->addValidation( _t('Patient'), new TRequiredValidator );
+        }
         $service_id->addValidation( _t('Service'), new TRequiredValidator );
         $professional_system_user_id->addValidation( _t('Professional'), new TRequiredValidator );
         $scheduled_at->addValidation( _t('Date/time'), new TRequiredValidator );
@@ -96,10 +102,11 @@ class AppointmentForm extends TPage
         }
         else
         {
-            foreach ([$patient_id, $service_id, $professional_system_user_id, $scheduled_at] as $field)
-            {
-                $field->setEditable(FALSE);
-            }
+            // remarcar: o paciente não muda (AppointmentService::reschedule)
+            $patient_id->setEditable(FALSE);
+
+            $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave'), ['key' => $this->viewId]), 'fa:check');
+            $btn->class = 'btn btn-sm btn-primary';
         }
 
         CvForm::decorate($this->form, 2);
@@ -116,8 +123,8 @@ class AppointmentForm extends TPage
     /**
      * method onEdit()
      * Prefills the form (e.g. with a date coming from AgendaView's date
-     * navigator), shows the appointment read-only when a key is given
-     * (AgendaView block link), or clears it.
+     * navigator), loads the appointment for rescheduling when a key is
+     * given (AgendaView block link), or clears it.
      */
     public function onEdit($param)
     {
@@ -164,16 +171,26 @@ class AppointmentForm extends TPage
 
     /**
      * method onSave()
-     * Executed whenever the user clicks the "Schedule" button. Calls
-     * AppointmentService::schedule() and turns every business-rule refusal
-     * (scheduling conflict, cross-tenant reference, invalid data) into a
-     * message shown on screen instead of a fatal error.
+     * Executed whenever the user clicks "Schedule" (new appointment, calls
+     * AppointmentService::schedule()) or "Save" (key given, calls
+     * AppointmentService::reschedule()). Every business-rule refusal
+     * (scheduling conflict, status, cross-tenant reference, invalid data)
+     * becomes a message shown on screen instead of a fatal error.
      */
     public function onSave($param)
     {
+        $data = null;
+
         try
         {
             $data = $this->form->getData();
+
+            if ($this->viewId !== null)
+            {
+                $this->onReschedule($data);
+                return;
+            }
+
             $this->form->validate();
 
             TTransaction::open('permission');
@@ -233,6 +250,76 @@ class AppointmentForm extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Reschedule branch of onSave() (key given): the patient field is
+     * read-only, so only service, professional and date/time are validated
+     * and sent. Refusals are shown in TMessage('error') and the typed values
+     * stay on the form.
+     */
+    private function onReschedule($data)
+    {
+        try
+        {
+            $this->form->validate();
+
+            TTransaction::open('permission');
+
+            $service = self::buildAppointmentService(self::resolveTenantContext());
+
+            $appointment = $service->reschedule($this->viewId, [
+                'service_id' => (int) $data->service_id,
+                'professional_system_user_id' => (int) $data->professional_system_user_id,
+                'scheduled_at' => (string) $data->scheduled_at,
+            ], __CLASS__ . '::onSave');
+
+            TTransaction::close();
+
+            new TMessage('info', _t('Record saved'), new TAction(['AgendaView', 'onReload'], [
+                'date' => $appointment->scheduledAt->format('Y-m-d'),
+            ]));
+        }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            $this->keepRescheduleData($data);
+            new TMessage('error', _t('You are not allowed to schedule an appointment for this unit'));
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->keepRescheduleData($data);
+            new TMessage('error', _t('An authenticated session with a tenant is required'));
+        }
+        catch (Exception $e) // conflito, status, outro tenant, dado inválido
+        {
+            TTransaction::rollback();
+            $this->keepRescheduleData($data);
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Keeps the typed values (and the read-only patient) after a refused reschedule. */
+    private function keepRescheduleData($data)
+    {
+        try
+        {
+            TTransaction::open('permission');
+            $current = self::buildAppointmentService(self::resolveTenantContext())->findById($this->viewId);
+            TTransaction::close();
+
+            if ($current !== null)
+            {
+                $data->patient_id = $current->patientId;
+            }
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+        }
+
+        $this->form->setData($data);
     }
 
     /**

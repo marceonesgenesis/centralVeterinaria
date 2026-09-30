@@ -10,6 +10,7 @@ use CentralVet\Domain\Appointment;
 use CentralVet\Domain\Contract\AppointmentRepositoryInterface;
 use CentralVet\Domain\Contract\ServiceRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\SchedulingConflictException;
 use CentralVet\Domain\Service;
 use CentralVet\Tenancy\TenantContext;
@@ -23,24 +24,22 @@ use InvalidArgumentException;
  * TenantContext — no TPage or any other Adianti class (ADR 0001).
  *
  * Dependency note: this class consumes CentralVet\Application\PatientService
- * (T-05) to validate patient_id, exactly as specified for T-07. For
- * service_id it consumes ServiceRepositoryInterface (T-06's persistence
- * contract) directly rather than ServiceCatalogService: ServiceCatalogService
- * only exposes create() and listActive(), with no by-id lookup, but
- * schedule() needs random-access lookup of an arbitrary service's
- * duration_minutes (both for the new appointment and for every existing
- * appointment it must be checked against) — a capability only the
- * repository contract exposes. ServiceRepositoryInterface's findById() is
- * already tenant-scoped (ADR 0002) the same way PatientRepositoryInterface
- * and TutorRepositoryInterface are, so this preserves fail-closed
- * cross-tenant behaviour.
+ * (T-05) to validate patient_id. For service_id it consumes
+ * ServiceRepositoryInterface directly: schedule() and reschedule() need
+ * random-access lookup of an arbitrary service's duration_minutes (both for
+ * the appointment being booked and for every existing appointment it must
+ * be checked against). ServiceRepositoryInterface's findById() is
+ * tenant-scoped (ADR 0002) the same way PatientRepositoryInterface and
+ * TutorRepositoryInterface are, so this preserves fail-closed cross-tenant
+ * behaviour.
  *
  * Scheduling-conflict rule (T-07's acceptance criterion) lives here, in the
  * Application layer, not in AppointmentRepository: see the docblock on
  * AppointmentRepository for the rationale (cross-aggregate duration lookup,
  * unit-testability without a live database).
  *
- * Unit-scope authorization (post-Fase-1 gap closed here): schedule() also
+ * Unit-scope authorization (post-Fase-1 gap closed here): schedule() and
+ * reschedule() also
  * asks the injected AuthorizationPolicyInterface whether the caller's active
  * unit (TenantContext::unitId(), via TenantContext::requireUnitId()) is
  * allowed to act on the resource's own system_unit_id, via a unit-scoped
@@ -140,6 +139,94 @@ final class AppointmentService
             serviceId: $serviceId,
             professionalSystemUserId: $professionalId,
             scheduledAt: $scheduledAt,
+        );
+
+        $this->assertNoConflict($candidate, $service->durationMinutes());
+
+        /** @var Appointment $saved */
+        $saved = $this->appointments->save($candidate);
+
+        return $saved;
+    }
+
+    /**
+     * Moves an existing appointment to another service, professional and/or
+     * slot (rodada 2, T-08). patientId, systemUnitId and status never change.
+     *
+     * @param array{
+     *     service_id: int|string,
+     *     professional_system_user_id: int|string,
+     *     scheduled_at: string|DateTimeImmutable,
+     * } $data
+     * @param string $action "ClassName::method" of the caller (ADR 0001).
+     *
+     * @throws InvalidArgumentException when a required key is missing or the
+     *         appointment does not exist for this tenant.
+     * @throws InvalidStatusTransitionException when the appointment is not
+     *         scheduled/confirmed.
+     * @throws CrossTenantReferenceException when service_id does not resolve
+     *         within the authenticated tenant.
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied when
+     *         the active unit does not match the appointment's unit or the
+     *         caller lacks permission for $action.
+     * @throws SchedulingConflictException when the new slot overlaps another
+     *         active appointment of the professional (the appointment itself
+     *         is ignored, so keeping the same slot is allowed).
+     */
+    public function reschedule(int $id, array $data, string $action): Appointment
+    {
+        foreach (['service_id', 'professional_system_user_id', 'scheduled_at'] as $required) {
+            if (!array_key_exists($required, $data)) {
+                throw new InvalidArgumentException("{$required} is required");
+            }
+        }
+
+        $current = $this->appointments->findById($id);
+
+        if (!$current instanceof Appointment) {
+            throw new InvalidArgumentException("Appointment {$id} not found for this tenant");
+        }
+
+        if (!in_array($current->status, [Appointment::STATUS_SCHEDULED, Appointment::STATUS_CONFIRMED], true)) {
+            throw new InvalidStatusTransitionException(
+                "Appointment {$id} cannot be rescheduled from status {$current->status}"
+            );
+        }
+
+        $serviceId = (int) $data['service_id'];
+        $professionalId = (int) $data['professional_system_user_id'];
+        $scheduledAt = $data['scheduled_at'] instanceof DateTimeImmutable
+            ? $data['scheduled_at']
+            : new DateTimeImmutable((string) $data['scheduled_at']);
+
+        $service = $this->services->findById($serviceId);
+
+        if (!$service instanceof Service) {
+            throw new CrossTenantReferenceException(
+                "service_id {$serviceId} was not found for the authenticated tenant"
+            );
+        }
+
+        $this->authorization->decide(new AuthorizationRequest(
+            context: $this->context,
+            action: $action,
+            requiresUnitScope: true,
+            resourceUnitId: $current->systemUnitId,
+            entityType: 'appointment',
+            entityId: $id,
+        ))->assertAllowed();
+
+        $candidate = new Appointment(
+            id: $current->id,
+            tenantId: $current->tenantId,
+            systemUnitId: $current->systemUnitId,
+            patientId: $current->patientId,
+            serviceId: $serviceId,
+            professionalSystemUserId: $professionalId,
+            scheduledAt: $scheduledAt,
+            status: $current->status,
+            createdAt: $current->createdAt,
+            updatedAt: $current->updatedAt,
         );
 
         $this->assertNoConflict($candidate, $service->durationMinutes());
