@@ -48,6 +48,13 @@ final class UserMessageTest
         Assert::same(['key' => 'Appointment ^1 cannot be rescheduled from status ^2', 'params' => ['5', 'finished']], $resolved);
     }
 
+    public function testSchedulingConflictDropsSlotAndProfessional(): void
+    {
+        $resolved = UserMessage::resolve('Requested slot 2026-09-30 14:00-14:30 conflicts with an existing appointment for professional_system_user_id 1');
+
+        Assert::same(['key' => 'Requested slot conflicts with an existing appointment', 'params' => []], $resolved);
+    }
+
     public function testUnknownMessageResolvesToNull(): void
     {
         Assert::null(UserMessage::resolve('qualquer outra'));
@@ -57,7 +64,7 @@ final class UserMessageTest
     public function testCatalogHasExactlyTheContractEntries(): void
     {
         Assert::count(13, UserMessage::STATIC);
-        Assert::count(12, UserMessage::PATTERNS);
+        Assert::count(13, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
