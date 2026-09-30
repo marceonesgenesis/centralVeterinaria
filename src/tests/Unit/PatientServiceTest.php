@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\PatientService;
+use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Patient;
 use CentralVet\Domain\Tutor;
@@ -287,8 +288,11 @@ final class PatientServiceTest
 
         $saved = $service->attachPhoto($patient->id, 'foto.png', $bytes, 'image/png');
 
-        $expectedKey = "tenant/1/patient/{$patient->id}/photo-foto.png";
-        Assert::same($expectedKey, $saved->photoObjectKey);
+        $expectedKey = $saved->photoObjectKey;
+        Assert::true(
+            preg_match("#^tenant/1/patient/{$patient->id}/photo-[0-9a-f]{12}-foto\\.png$#", (string) $expectedKey) === 1,
+            "unexpected photo key {$expectedKey}",
+        );
         Assert::same('image/png', $saved->photoContentType);
         Assert::same($bytes, $storage->get($expectedKey));
         Assert::same('image/png', $storage->contentType($expectedKey));
@@ -309,7 +313,10 @@ final class PatientServiceTest
 
         $saved = $service->attachPhoto($patient->id, '../minha foto.jpg', 'jpg', 'image/jpeg');
 
-        Assert::same("tenant/1/patient/{$patient->id}/photo-.._minha_foto.jpg", $saved->photoObjectKey);
+        Assert::true(
+            preg_match("#^tenant/1/patient/{$patient->id}/photo-[0-9a-f]{12}-\\.\\._minha_foto\\.jpg$#", (string) $saved->photoObjectKey) === 1,
+            "unexpected photo key {$saved->photoObjectKey}",
+        );
     }
 
     public function testAttachPhotoRejectsInvalidInput(): void
@@ -334,8 +341,7 @@ final class PatientServiceTest
             }
         }
 
-        Assert::false($storage->exists("tenant/1/patient/{$patient->id}/photo-x.svg"));
-        Assert::false($storage->exists("tenant/1/patient/{$patient->id}/photo-doc.pdf"));
+        Assert::same(0, self::storedObjectCount($storage));
         Assert::null($service->findById($patient->id)->photoObjectKey);
     }
 
@@ -361,5 +367,110 @@ final class PatientServiceTest
 
         Assert::null($service->photo($patient->id));
         Assert::null($service->photo(999999));
+    }
+
+    public function testAttachPhotoTwiceWithSameNameUsesNewKeyAndDeletesPrevious(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new FakeStorage();
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        $first = $service->attachPhoto($patient->id, 'foto.png', 'first-bytes', 'image/png');
+        $second = $service->attachPhoto($patient->id, 'foto.png', 'second-bytes', 'image/png');
+
+        Assert::true($first->photoObjectKey !== $second->photoObjectKey, 'same file name must get a new key on each upload');
+        Assert::false($storage->exists((string) $first->photoObjectKey));
+        Assert::true($storage->exists((string) $second->photoObjectKey));
+        Assert::same(1, self::storedObjectCount($storage));
+        Assert::same(['contents' => 'second-bytes', 'content_type' => 'image/png'], $service->photo($patient->id));
+    }
+
+    public function testAttachPhotoRemovesNewObjectWhenSaveFails(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new FakeStorage();
+        $inner = new FakePatientRepository(1);
+        $patient = (new PatientService($inner, $tutors, TenantContext::authenticated(1, 1)))
+            ->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        $failing = new class ($inner) implements PatientRepositoryInterface {
+            public function __construct(private readonly FakePatientRepository $inner)
+            {
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                return $this->inner->findById($id);
+            }
+
+            public function findByTutor(int $tutorId): array
+            {
+                return $this->inner->findByTutor($tutorId);
+            }
+
+            public function search(string $term): array
+            {
+                return $this->inner->search($term);
+            }
+
+            public function save(object $entity): object
+            {
+                throw new \RuntimeException('database down');
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
+            }
+        };
+
+        $service = new PatientService($failing, $tutors, TenantContext::authenticated(1, 1), $storage);
+
+        try {
+            $service->attachPhoto($patient->id, 'foto.png', 'png-bytes', 'image/png');
+            throw new \LogicException('attachPhoto() should have rethrown the save() failure');
+        } catch (\RuntimeException $e) {
+            Assert::same('database down', $e->getMessage());
+        }
+
+        Assert::same(0, self::storedObjectCount($storage));
+        Assert::null($inner->findById($patient->id)->photoObjectKey);
+    }
+
+    public function testCreateNormalizesBlankOptionalFieldsToNull(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+
+        $patient = $service->create([
+            'tutor_id' => 1,
+            'name' => 'Rex',
+            'species' => 'dog',
+            'breed' => '',
+            'sex' => '  ',
+            'birth_date' => '',
+            'color' => ' ',
+            'notes' => '',
+            'allergies' => '',
+        ]);
+
+        Assert::null($patient->breed);
+        Assert::null($patient->sex);
+        Assert::null($patient->birthDate);
+        Assert::null($patient->color);
+        Assert::null($patient->notes);
+        Assert::null($patient->allergies);
+    }
+
+    /** Number of objects held by the FakeStorage (it has no listing API). */
+    private static function storedObjectCount(FakeStorage $storage): int
+    {
+        return count((new \ReflectionProperty(FakeStorage::class, 'objects'))->getValue($storage));
     }
 }
