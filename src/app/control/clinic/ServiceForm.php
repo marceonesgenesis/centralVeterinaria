@@ -10,7 +10,8 @@
  * onEdit carrega o serviço por ServiceCatalogService::findById() (repositório
  * escopado ao tenant da sessão) — nunca pelo ActiveRecord Service, que não
  * filtra tenant. onSave chama update() quando o campo id vem preenchido e
- * create() quando vazio; depois de salvar volta para ServiceList.
+ * create() (com 'active' do form, num único save) quando vazio; depois de
+ * salvar volta para ServiceList.
  *
  * @version    2.0
  * @package    control
@@ -180,12 +181,8 @@ class ServiceForm extends TPage
             }
             else
             {
-                $service = $catalog->create($input);
-
-                if (((string) $data->active) === '0')
-                {
-                    $service = $catalog->update((int) $service->id(), $input + ['active' => false]);
-                }
+                // um único write: create() já grava o serviço inativo
+                $service = $catalog->create($input + ['active' => ((string) $data->active) !== '0']);
             }
 
             TTransaction::close();
