@@ -69,10 +69,10 @@ class ProductForm extends TPage
 
         // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
         // MoneyInput::toCents() converte ou recusa ("Valor inválido").
-        $unit_cost->setProperty('placeholder', 'ex.: 12,34');
+        $unit_cost->setProperty('placeholder', _t('e.g. 12,34'));
         $unit_cost->setProperty('inputmode', 'decimal');
         $unit_cost->setMaxLength(16);
-        $sale_price->setProperty('placeholder', 'ex.: 12,34');
+        $sale_price->setProperty('placeholder', _t('e.g. 12,34'));
         $sale_price->setProperty('inputmode', 'decimal');
         $sale_price->setMaxLength(16);
         $code->setMaxLength(60);

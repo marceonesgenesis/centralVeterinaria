@@ -71,7 +71,7 @@ class PayableForm extends TStandardForm
         $hidden_row->style = 'display: none';
         // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
         // MoneyInput::toCents() converte ou recusa ("Valor inválido").
-        $amount->setProperty('placeholder', 'ex.: 12,34');
+        $amount->setProperty('placeholder', _t('e.g. 12,34'));
         $amount->setProperty('inputmode', 'decimal');
         $amount->setMaxLength(16);
 

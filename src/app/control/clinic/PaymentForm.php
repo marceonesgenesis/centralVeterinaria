@@ -288,7 +288,7 @@ class PaymentForm extends TPage
         $amount_cents = new TEntry('amount_cents');
         // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
         // MoneyInput::toCents() converte ou recusa ("Valor inválido").
-        $amount_cents->setProperty('placeholder', 'ex.: 12,34');
+        $amount_cents->setProperty('placeholder', _t('e.g. 12,34'));
         $amount_cents->setProperty('inputmode', 'decimal');
         $amount_cents->setMaxLength(16);
         $amount_cents->setSize('100%');

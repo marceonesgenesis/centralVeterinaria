@@ -64,7 +64,7 @@ class ServiceForm extends TPage
         $duration_minutes->setProperty('pattern', '[0-9]*');
         // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
         // MoneyInput::toCents() converte ou recusa ("Valor inválido").
-        $price->setProperty('placeholder', 'ex.: 12,34');
+        $price->setProperty('placeholder', _t('e.g. 12,34'));
         $price->setProperty('inputmode', 'decimal');
         $price->setMaxLength(16);
         $active->setValue(1);
