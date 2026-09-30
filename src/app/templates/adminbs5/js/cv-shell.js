@@ -9,26 +9,27 @@
  *
  * - Desabilita os itens de menu sem tela (T-19): links para
  *   CvShellController::onComingSoon ganham .cv-menu-disabled, o selo
- *   "Em breve" e não navegam (hint=encounter acrescenta "Abra pelo
- *   atendimento" como dica).
+ *   labels.coming_soon e não navegam (hint=encounter acrescenta
+ *   labels.open_from_encounter como dica).
  *
  * Dados: engine.php?class=CvShellController&method=onContext&static=1
- * Troca de unidade: CvShellController::onSwitchUnit (unit_id).
+ *   (inclui csrf_token e labels traduzidos; nenhum texto fixo aqui — T-26).
+ * Troca de unidade: POST em CvShellController::onSwitchUnit com unit_id e
+ *   csrf_token; resposta JSON {switched:true} ou {error}.
  */
 var CvShell = (function () {
     'use strict';
 
     var CONTEXT_URL = 'engine.php?class=CvShellController&method=onContext&static=1';
+    var SWITCH_URL = 'engine.php?class=CvShellController&method=onSwitchUnit';
     var contextPromise = null;
     var observer = null;
     var initialized = false;
 
     var MENU_DISABLED_MARK = 'method=onComingSoon';
-    var MENU_TEXT = {
-        soon: 'Em breve',
-        hints: {
-            encounter: 'Abra pelo atendimento'
-        }
+    // Chave do parâmetro hint do menu → chave de labels do onContext.
+    var MENU_HINT_LABELS = {
+        encounter: 'open_from_encounter'
     };
 
     function parseJson(text) {
@@ -79,20 +80,46 @@ var CvShell = (function () {
         return '';
     }
 
-    function switchUnit(select, previous) {
+    function labelsOf(context) {
+        return (context && context.labels) || {};
+    }
+
+    function showError(labels, message) {
+        if (typeof __adianti_error === 'function') {
+            __adianti_error(labels.error || '', message);
+        } else {
+            window.alert(message);
+        }
+    }
+
+    function switchUnit(select, previous, context) {
         var unitId = select.value;
         if (!unitId || unitId === previous) {
             return;
         }
-        var action = 'class=CvShellController&method=onSwitchUnit&unit_id=' + encodeURIComponent(unitId);
-        if (typeof __adianti_ajax_exec === 'function') {
-            // Sucesso: o servidor devolve um script que recarrega a página.
-            // Erro: TMessage; o select volta para a unidade atual.
-            select.value = previous;
-            __adianti_ajax_exec(action);
-        } else {
-            window.location.href = 'engine.php?' + action;
-        }
+        var labels = labelsOf(context);
+        // O select volta para a unidade atual até o servidor confirmar.
+        select.value = previous;
+
+        var body = new FormData();
+        body.append('unit_id', unitId);
+        body.append('csrf_token', context.csrf_token || '');
+
+        fetch(SWITCH_URL, { method: 'POST', credentials: 'same-origin', cache: 'no-store', body: body })
+            .then(function (response) {
+                return response.text();
+            })
+            .then(parseJson)
+            .then(function (data) {
+                if (data && data.switched) {
+                    window.location.reload();
+                    return;
+                }
+                showError(labels, (data && data.error) || labels.error || '');
+            })
+            .catch(function () {
+                showError(labels, labels.error || '');
+            });
     }
 
     function buildUnitSelect(slot, context) {
@@ -108,8 +135,9 @@ var CvShell = (function () {
         var current = currentUnitId(context);
         var select = document.createElement('select');
         select.className = 'form-select form-select-sm cv-unit-switch__select';
-        select.setAttribute('aria-label', 'Unidade');
-        select.title = 'Unidade';
+        var unitLabel = labelsOf(context).unit || '';
+        select.setAttribute('aria-label', unitLabel);
+        select.title = unitLabel;
 
         if (!current) {
             var placeholder = document.createElement('option');
@@ -133,7 +161,7 @@ var CvShell = (function () {
         }
 
         select.addEventListener('change', function () {
-            switchUnit(select, current);
+            switchUnit(select, current, context);
         });
 
         slot.appendChild(select);
@@ -154,6 +182,7 @@ var CvShell = (function () {
         loadContext(false)
             .then(function (context) {
                 fillUserRole(context);
+                decorateMenu(labelsOf(context));
                 fillUnitSlots(context);
             })
             .catch(function () {
@@ -184,36 +213,48 @@ var CvShell = (function () {
         return match ? decodeURIComponent(match[1]) : '';
     }
 
-    function disableMenuLink(link) {
-        var href = link.getAttribute('href') || '';
-        var item = link.closest('li');
-        var hint = MENU_TEXT.hints[queryParam(href, 'hint')] || '';
-        var label = link.querySelector('span');
-        var text = label ? label.textContent.trim() : link.textContent.trim();
-
-        link.setAttribute('data-cv-disabled-href', href);
-        link.removeAttribute('href');
-        link.removeAttribute('generator');
-        link.classList.add('cv-menu-disabled');
-        link.setAttribute('role', 'link');
-        link.setAttribute('aria-disabled', 'true');
-        link.setAttribute('title', hint ? text + ' — ' + hint : text + ' — ' + MENU_TEXT.soon);
-        if (item) {
-            item.classList.add('cv-menu-disabled');
+    // Neutraliza o link já no init (sem esperar o contexto); os textos
+    // (selo e dica) entram quando labels chega do onContext.
+    function disableMenuLink(link, labels) {
+        if (!link.hasAttribute('data-cv-disabled-href')) {
+            var item = link.closest('li');
+            link.setAttribute('data-cv-disabled-href', link.getAttribute('href') || '');
+            link.removeAttribute('href');
+            link.removeAttribute('generator');
+            link.classList.add('cv-menu-disabled');
+            link.setAttribute('role', 'link');
+            link.setAttribute('aria-disabled', 'true');
+            if (item) {
+                item.classList.add('cv-menu-disabled');
+            }
         }
 
-        if (!link.querySelector('.cv-menu-soon')) {
-            var badge = document.createElement('span');
+        var soon = labels.coming_soon || '';
+        if (!soon) {
+            return;
+        }
+
+        var label = link.querySelector('span:not(.cv-menu-soon)');
+        var text = label ? label.textContent.trim() : link.textContent.trim();
+        var hintKey = MENU_HINT_LABELS[queryParam(link.getAttribute('data-cv-disabled-href'), 'hint')];
+        var hint = hintKey ? (labels[hintKey] || '') : '';
+        link.setAttribute('title', text + ' — ' + (hint || soon));
+
+        var badge = link.querySelector('.cv-menu-soon');
+        if (!badge) {
+            badge = document.createElement('span');
             badge.className = 'cv-menu-soon';
-            badge.textContent = MENU_TEXT.soon;
             link.appendChild(badge);
         }
+        badge.textContent = soon;
     }
 
-    function decorateMenu() {
-        var links = document.querySelectorAll('#side-menu a[href*="' + MENU_DISABLED_MARK + '"]');
+    function decorateMenu(labels) {
+        var links = document.querySelectorAll(
+            '#side-menu a[href*="' + MENU_DISABLED_MARK + '"], #side-menu a[data-cv-disabled-href]'
+        );
         for (var i = 0; i < links.length; i++) {
-            disableMenuLink(links[i]);
+            disableMenuLink(links[i], labels || {});
         }
     }
 
@@ -250,7 +291,7 @@ var CvShell = (function () {
     }
 
     function init() {
-        decorateMenu();
+        decorateMenu({});
         bindSearch();
         refresh();
         if (!initialized) {

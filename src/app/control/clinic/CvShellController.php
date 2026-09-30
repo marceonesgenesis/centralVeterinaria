@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Security\CsrfToken;
+
 /**
  * CvShellController
  *
@@ -6,10 +9,14 @@
  * seletor de unidade ([data-cv-unit-switch]) montados por cv-shell.js.
  *
  * - onContext (engine.php?class=CvShellController&method=onContext&static=1)
- *   devolve JSON {"user":{"name","role"},"units":[{"id","name","current"}]}.
- * - onSwitchUnit (parâmetro unit_id) troca a unidade da sessão via
- *   ApplicationAuthenticationService::setUnit(), que valida o vínculo do
- *   usuário com a unidade; em caso de sucesso recarrega a página atual.
+ *   devolve JSON {"user":{"name","role"},"units":[{"id","name","current"}],
+ *   "csrf_token","labels":{coming_soon,open_from_encounter,unit,error}}.
+ *   O token fica em TSession 'cv_shell_csrf' (gerado só quando vazio).
+ * - onSwitchUnit (POST unit_id + csrf_token) troca a unidade da sessão via
+ *   ApplicationAuthenticationService::setUnit() e responde só JSON:
+ *   403 {error} sem token válido (T-26: GET é sempre recusado) ou fora das
+ *   unidades permitidas; 200 {switched:true} em caso de sucesso (o reload
+ *   é feito por cv-shell.js).
  * - onComingSoon: destino dos itens de menu desabilitados ("Em breve").
  *   cv-shell.js neutraliza esses links; sem JS, o clique só mostra o aviso.
  *
@@ -69,6 +76,13 @@ class CvShellController extends TPage
                     'role' => $groups ? (string) reset($groups) : '',
                 ],
                 'units' => array_values($units),
+                'csrf_token' => self::csrfToken(),
+                'labels' => [
+                    'coming_soon'         => _t('Coming soon'),
+                    'open_from_encounter' => _t('Open from the encounter'),
+                    'unit'                => _t('Unit'),
+                    'error'               => _t('Error'),
+                ],
             ];
 
             TTransaction::close();
@@ -78,7 +92,8 @@ class CvShellController extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            self::sendJson(['error' => $e->getMessage()], 500);
+            error_log('CvShellController::onContext: ' . $e->getMessage());
+            self::sendJson(['error' => _t('Could not load the user context')], 500);
         }
     }
 
@@ -87,22 +102,36 @@ class CvShellController extends TPage
      */
     public static function onSwitchUnit($param)
     {
+        $valid_token = CsrfToken::isValid(
+            $_SERVER['REQUEST_METHOD'] ?? 'GET',
+            $_POST['csrf_token'] ?? null,
+            TSession::getValue('cv_shell_csrf')
+        );
+
+        if (!$valid_token)
+        {
+            self::sendJson(['error' => _t('Invalid or expired request. Reload the page')], 403);
+            return;
+        }
+
         try
         {
             $unit_id = isset($param['unit_id']) ? (int) $param['unit_id'] : 0;
 
             if ($unit_id <= 0 || !in_array($unit_id, self::allowedUnitIds(), true))
             {
-                throw new Exception(_t('Unauthorized access to that unit'));
+                self::sendJson(['error' => _t('Unauthorized access to that unit')], 403);
+                return;
             }
 
             ApplicationAuthenticationService::setUnit($unit_id);
 
-            TScript::create('window.location.reload();');
+            self::sendJson(['switched' => true]);
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log('CvShellController::onSwitchUnit: ' . $e->getMessage());
+            self::sendJson(['error' => _t('Unauthorized access to that unit')], 403);
         }
     }
 
@@ -155,6 +184,21 @@ class CvShellController extends TPage
             TTransaction::rollback();
             throw $e;
         }
+    }
+
+    /**
+     * Token CSRF da casca, guardado na sessão e gerado só quando vazio.
+     */
+    private static function csrfToken(): string
+    {
+        $token = TSession::getValue('cv_shell_csrf');
+        if (!is_string($token) || $token === '')
+        {
+            $token = CsrfToken::generate();
+            TSession::setValue('cv_shell_csrf', $token);
+        }
+
+        return $token;
     }
 
     private static function sendJson(array $payload, int $status = 200): void
