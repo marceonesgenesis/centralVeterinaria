@@ -35,6 +35,11 @@
 - 2026-09-30 · T-22 · onda 3 — A edição do saldo para −50,00 pela UI ficou `não rodado` (classificador negou); a conversão foi provada no relatório.
 - 2026-09-30 · onda 3 — "Message not found" de chaves novas fica para T-23; as chaves estão no board.
 - 2026-09-30 · onda 3 — O orquestrador rebuildou o container e refez o login admin do Playwright, que caiu com o rebuild. Nenhuma credencial registrada.
+- 2026-09-30 · T-23 · onda 4 — Fora do escopo por lista de arquivos, seguem como pendência: "Patient sex must be one of M, F, U" (Core/Patient.php) e as mensagens em inglês de BankAccount.
+- 2026-09-30 · T-23 · onda 4 — As chaves ausentes "%s days" (VaccineProtocolForm:180) e "This entry cannot advance right now: ^1" (QueueEntryView:385) já existiam antes da rodada; viram pendência.
+- 2026-09-30 · T-23 · onda 4 — Ficaram como não rodado e passam para a QA de T-24: o POST adulterado em EncounterAccountForm e os fluxos com registro em EncounterView e PrescriptionForm.
+- 2026-09-30 · onda 4 — O validador rodou `git stash` por engano e desfez com `git stash pop`; o orquestrador conferiu: `git stash list` vazio, working tree só com os artefatos de <DIR>.
+- 2026-09-30 · onda 4 — O orquestrador rebuildou o container e refez o login admin do Playwright. Nenhuma credencial registrada.
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
@@ -67,6 +72,7 @@
 - [T-20] CvKpiCard ganhou deltaPercent/deltaLabel; FinancialOverviewService::recentEntries($unit, $limit, ?from, ?to); Exportar em onExport (static, CSV com csvSafe).
 - [T-21] ProductList: um overview() por carga (cacheado por filtros), colunas Code/Sale price, onReport (PDF estoque-<data>.pdf).
 - [T-22] BankAccountList/BankAccountForm (TPage) e aba 'bank_accounts' no CvNav; rodapé com total das contas ativas.
+- [T-23] translations.json: 45 chaves novas das ondas 1–3 (dup=0, missing=0); CvFormat::userError(\Throwable) pronto e os 20 catch de CrossTenantReferenceException nos 14 controllers usam error_log + TMessage(CvFormat::userError($e)) (6db7e48); PatientForm troca a mensagem de tutor pelo texto genérico.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -110,6 +116,10 @@
 - Validador (onda 3): o agendamento 3 (hoje, paciente 2772, serviço 3) não aparece na Agenda nem na Fila; bug provável da AgendaView ou da fila, investigar na T-24.
 - Validador (onda 3): a varredura completa de todas as telas ficou parcial.
 - Validador (onda 3): gate de navegador de Pausar/Retomar/Finalizar, alergia/foto e modelos de prescrição não rodado (sem atendimento em andamento); T-24 precisa de atendimento de teste.
+- T-23: "Patient sex must be one of M, F, U" (Core/Patient.php) e as mensagens em inglês de BankAccountService seguem sem tradução (fora da lista de arquivos).
+- T-23: chaves ausentes já antes da rodada: "%s days" (VaccineProtocolForm:180) e "This entry cannot advance right now: ^1" (QueueEntryView:385).
+- T-23: POST adulterado em EncounterAccountForm (conta #46, authorized_by_system_user_id=999999) e fluxos com registro em EncounterView e PrescriptionForm não rodados; levar à QA de T-24.
+- T-23: CvFormat::userError sem teste unitário (tests/run.php; CvFormat.php:75); chave "Selected tutor was not found for your account" órfã em translations.json.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -124,6 +134,7 @@
 - Registros "R2 varredura" criados pelo validador pela UI na onda 1: tutor id 3141 (T-06), paciente id 2772 (T-07) e agendamento id 2, remarcado para 2026-10-01 11:00 (T-08).
 - Registros da onda 2: serviços 3 (R2 varredura Serviço, inativo), 5 e 6 (importados); agendamento 3; financial_entry 5947 (Pix) e 5948; payment 113 (recebível 42 "Tutor Teste Levi", agora com R$ 1,00 pago); produto 946 (code R2-001, sale_price 1990); paciente 2772 com alergia Dipirona e foto no minio tenant/1/patient/2772/photo-r2-foto.png.
 - Registros da onda 3: bank_account 101 "R2 varredura Conta", saldo 100000.
+- Registros da onda 4: serviço 7 "R2 varredura Imp A (cópia)", criado pelo Duplicar do serviço 5.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -134,5 +145,6 @@
   - Onda 1: BASE d6dce7a → HEAD c664c3f (b532c63, 7ad33ce, 180a03a, e521126, bc695d6, 7f449dc, f492567, fa0c143, 02e1c5f, 5681449, efaed8c, 4f197c9, 3c40dc4, 169233e, c664c3f)
   - Onda 2: BASE b16bbbd → HEAD 181aac2 (348aead, 5388404, d36ea5c, 4d446a1, 1a1099d, 4d719ca, 8ce4e81, b2a31ff, 777018f, 46494e5, edaf460, 4003ce7, 5d6b1f1, 181aac2, e419b9c, e79489f, 160526b)
   - Onda 3: BASE 37797c6 → HEAD 1927ef6 (6c04826, 0e25755, 22947f6, 052e9c2, ab837e6, 1927ef6)
-- Último status conhecido: onda 3 concluída (T-18 a T-22 [x]); migration 0007 e DML aplicados.
-- Próxima onda recomendada: onda 4 (T-23), depois onda 5 (T-24).
+  - Onda 4: BASE 62cc510 → HEAD 6db7e48 (6db7e48)
+- Último status conhecido: onda 4 concluída (T-23 [x]); migration 0007 e DML aplicados.
+- Próxima onda recomendada: onda 5 (T-24).

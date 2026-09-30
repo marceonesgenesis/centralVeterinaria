@@ -24,7 +24,7 @@
 | T-20 | frontend | FinancialOverview: saldo bancário, Exportar CSV, recentes no período, "vs. período anterior" | T-04, T-14, T-15 | sim | alta | Tesla | [x] |
 | T-21 | frontend | ProductList: constantes, overview(), preço/código, Gerar relatório PDF | T-03, T-04, T-11 | sim | média | Darwin | [x] |
 | T-22 | frontend | BankAccountList/BankAccountForm e aba no CvNav | T-01, T-15 | sim | média | Athena | [x] |
-| T-23 | frontend | i18n do board e mensagem de CrossTenantReferenceException nos 14 controllers | T-02, T-04, T-05, T-06, T-07, T-08, T-10, T-11, T-12, T-17, T-18, T-19, T-20, T-21, T-22 | não | média | Platão | [ ] |
+| T-23 | frontend | i18n do board e mensagem de CrossTenantReferenceException nos 14 controllers | T-02, T-04, T-05, T-06, T-07, T-08, T-10, T-11, T-12, T-17, T-18, T-19, T-20, T-21, T-22 | não | média | Platão | [x] |
 | T-24 | qa | Validação final: suíte, varredura Playwright, Review Focus, dados preservados | T-23 | não | média | Spock | [ ] |
 
 ## Convenções (valem para todas as tasks)
