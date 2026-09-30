@@ -648,6 +648,10 @@
     "pt": "Excluir"
   },
   {
+    "en": "Delete the service \"^1\"?",
+    "pt": "Excluir o serviço \"^1\"?"
+  },
+  {
     "en": "Description",
     "pt": "Descrição"
   },
@@ -756,8 +760,8 @@
     "pt": "Duplicar"
   },
   {
-    "en": "Duplicate this service?",
-    "pt": "Duplicar este serviço?"
+    "en": "Duplicate the service \"^1\"?",
+    "pt": "Duplicar o serviço \"^1\"?"
   },
   {
     "en": "duplicated name",
@@ -1138,6 +1142,10 @@
   {
     "en": "In progress",
     "pt": "Em andamento"
+  },
+  {
+    "en": "In queue",
+    "pt": "Na fila"
   },
   {
     "en": "In service",

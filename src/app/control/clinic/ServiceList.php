@@ -264,10 +264,16 @@ class ServiceList extends TPage
     {
         $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
 
+        $service = self::findServiceForQuestion($id);
+        if ($service === null)
+        {
+            return;
+        }
+
         $action = new TAction([__CLASS__, 'onDuplicate']);
         $action->setParameter('id', $id);
 
-        new TQuestion(_t('Duplicate this service?'), $action);
+        new TQuestion(_t('Duplicate the service "^1"?', CvFormat::e($service->name())), $action);
     }
 
     /**
@@ -304,10 +310,46 @@ class ServiceList extends TPage
     {
         $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
 
+        $service = self::findServiceForQuestion($id);
+        if ($service === null)
+        {
+            return;
+        }
+
         $action = new TAction([__CLASS__, 'onDelete']);
         $action->setParameter('id', $id);
 
-        new TQuestion(AdiantiCoreTranslator::translate('Do you really want to delete ?'), $action);
+        new TQuestion(_t('Delete the service "^1"?', CvFormat::e($service->name())), $action);
+    }
+
+    /**
+     * Carrega o serviço do tenant para a pergunta de Duplicar/Excluir.
+     * Id inexistente (ou de outro tenant) mostra "Record not found" e
+     * devolve null, sem pergunta.
+     */
+    private static function findServiceForQuestion(int $id)
+    {
+        try
+        {
+            TTransaction::open('permission');
+            $service = $id > 0 ? self::buildServiceCatalogService()->findById($id) : null;
+            TTransaction::close();
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+            return null;
+        }
+
+        if ($service === null)
+        {
+            new TMessage('error', _t('Record not found'));
+            return null;
+        }
+
+        return $service;
     }
 
     /**
