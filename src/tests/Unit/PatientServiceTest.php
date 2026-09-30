@@ -468,6 +468,24 @@ final class PatientServiceTest
         Assert::null($patient->allergies);
     }
 
+    public function testPhotoVersionChangesWhenPhotoIsReplaced(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), new FakeStorage());
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        Assert::null(PatientService::photoVersion($patient));
+
+        $first = $service->attachPhoto($patient->id, 'foto.png', 'first-bytes', 'image/png');
+        $second = $service->attachPhoto($patient->id, 'foto.png', 'second-bytes', 'image/png');
+        $v1 = PatientService::photoVersion($first);
+        $v2 = PatientService::photoVersion($second);
+
+        Assert::true(preg_match('/^[0-9a-f]{12}$/', (string) $v1) === 1, "unexpected photo version {$v1}");
+        Assert::true($v1 !== $v2, 'replacing the photo must change its version (cache-busting of the preview URL)');
+        Assert::same($v2, PatientService::photoVersion($service->findById($patient->id)));
+    }
+
     /** Number of objects held by the FakeStorage (it has no listing API). */
     private static function storedObjectCount(FakeStorage $storage): int
     {
