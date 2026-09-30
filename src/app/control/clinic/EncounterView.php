@@ -604,13 +604,12 @@ class EncounterView extends TPage
 
         $patient = $data['patient'] ?? null;
 
-        if ($patient !== null && $patient->photoObjectKey !== null)
+        if ($patient !== null && trim((string) $patient->photoObjectKey) !== '')
         {
             $body->add(TElement::tag('img', '', [
                 'class' => 'cv-patient-photo',
                 'src' => 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $patient->id,
                 'alt' => CvFormat::e($name),
-                'style' => 'width:4rem; height:4rem; border-radius:50%; object-fit:cover; flex:0 0 auto',
             ]));
         }
         else
@@ -644,7 +643,6 @@ class EncounterView extends TPage
             $alert = new TElement('div');
             $alert->{'class'} = 'cv-alert-allergy';
             $alert->{'role'} = 'alert';
-            $alert->style = 'display:flex; align-items:center; gap:var(--cv-space-2); margin-top:var(--cv-space-3); padding:var(--cv-space-2) var(--cv-space-3); border-radius:6px; background:var(--cv-color-danger-soft); color:var(--cv-color-danger); font-weight:600';
             $alert->add(new TImage('fa:exclamation-triangle'));
             $alert->add(TElement::tag('span', CvFormat::e(_t('Allergies') . ': ' . $allergies)));
             $info->add($alert);
@@ -1085,7 +1083,7 @@ class EncounterView extends TPage
     private function autosaveScript(int $encounterId): TElement
     {
         $autosaveAction = new TAction([$this, 'onAutosave']);
-        $autosaveAction->setParameter('id', $encounterId);
+        $autosaveAction->setParameter('encounter_id', $encounterId);
         $serializedAction = $autosaveAction->serialize(false);
 
         $fieldsJs = implode(',', array_map(static function ($field)
@@ -1217,7 +1215,7 @@ class EncounterView extends TPage
         $docForm->addFields([$docFile]);
 
         $attachAction = new TAction([$this, 'onAttachDocument']);
-        $attachAction->setParameter('id', $encounter->id());
+        $attachAction->setParameter('encounter_id', $encounter->id());
         $attachButton = $docForm->addAction(_t('Attach'), $attachAction, 'fa:paperclip');
         $attachButton->class = 'btn btn-sm btn-secondary';
 
@@ -1259,7 +1257,7 @@ class EncounterView extends TPage
         $followUpForm->addFields([$followUpService]);
 
         $followUpAction = new TAction([$this, 'onScheduleFollowUp']);
-        $followUpAction->setParameter('id', $encounter->id());
+        $followUpAction->setParameter('encounter_id', $encounter->id());
         $followUpButton = $followUpForm->addAction(_t('Schedule follow-up'), $followUpAction, 'fa:calendar-plus');
         $followUpButton->class = 'btn btn-sm btn-primary';
 
@@ -1355,7 +1353,7 @@ class EncounterView extends TPage
             $panel->add('<p>' . nl2br(htmlspecialchars($data['aiSummary'])) . '</p>');
 
             $acceptAction = new TAction([$this, 'onAcceptAiSummary']);
-            $acceptAction->setParameter('id', $data['encounter']->id());
+            $acceptAction->setParameter('encounter_id', $data['encounter']->id());
 
             $acceptButton = new TButton('accept_ai_summary');
             $acceptButton->setAction($acceptAction, _t('Accept'));
@@ -1526,7 +1524,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1564,7 +1563,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
 
             if ($id <= 0)
             {
@@ -1597,7 +1596,7 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Summary accepted'));
+            new TMessage('info', _t('Summary accepted'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (Exception $e)
         {
@@ -1618,7 +1617,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
 
             if ($id <= 0)
             {
@@ -1728,7 +1727,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
             $scheduledAt = isset($param['followup_scheduled_at']) ? (string) $param['followup_scheduled_at'] : '';
             $serviceId = isset($param['followup_service_id']) && $param['followup_service_id'] !== ''
                 ? (int) $param['followup_service_id']
@@ -1763,7 +1762,7 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Follow-up scheduled successfully'));
+            new TMessage('info', _t('Follow-up scheduled successfully'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (\CentralVet\Domain\Exception\SchedulingConflictException $e)
         {
@@ -1798,7 +1797,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
             $fileName = isset($param['filename']) ? (string) $param['filename'] : '';
 
             if ($id <= 0 || $fileName === '')
@@ -1825,7 +1824,7 @@ class EncounterView extends TPage
 
             @unlink($sourcePath);
 
-            new TMessage('info', _t('Document attached successfully'));
+            new TMessage('info', _t('Document attached successfully'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (Exception $e)
         {

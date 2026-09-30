@@ -265,6 +265,29 @@ a.cv-tab:hover {
     font-size: 1.5rem;
 }
 
+/* Foto do paciente (EncounterView e pré-visualização do PatientForm) */
+.cv-patient-photo {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    display: block;
+}
+
+/* Alerta de alergia do paciente */
+.cv-alert-allergy {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    margin-top: var(--cv-space-3);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    border-radius: 6px;
+    background: var(--cv-color-danger-soft);
+    color: var(--cv-color-danger);
+    font-weight: 600;
+}
+
 /* ---------- Tabela ---------- */
 .cv-table {
     width: 100%;
