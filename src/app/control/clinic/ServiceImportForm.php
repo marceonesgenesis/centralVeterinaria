@@ -115,10 +115,18 @@ class ServiceImportForm extends TPage
             TTransaction::rollback();
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
-        catch (Exception $e)
+        catch (InvalidArgumentException $e)
         {
+            // Cabeçalho inválido ou problema no arquivo: a mensagem é do domínio/do form.
             TTransaction::rollback();
             new TMessage('error', CvFormat::e($e->getMessage()));
+        }
+        catch (Exception $e)
+        {
+            // PDOException e afins: nada de SQLSTATE na tela; o detalhe vai para o log.
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', _t('Could not import the file. No service was created'));
         }
     }
 

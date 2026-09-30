@@ -22,6 +22,11 @@ final class ServiceCatalogService
 {
     public const CSV_HEADER = 'name;category;duration_minutes;price';
 
+    /** Column limits of the `service` table (varchar(190), varchar(60), int unsigned). */
+    public const MAX_NAME_LENGTH = 190;
+    public const MAX_CATEGORY_LENGTH = 60;
+    public const MAX_UNSIGNED_INT = 4294967295;
+
     public function __construct(
         private readonly ServiceRepositoryInterface $repository,
         private readonly TenantContext $context,
@@ -119,7 +124,10 @@ final class ServiceCatalogService
      * CSV_HEADER. UTF-8 BOM and CRLF are accepted; `price` is in reais with
      * comma or dot (120,50 → 12050 cents). Blank lines are ignored. Each
      * valid line becomes an active service; the others are reported with
-     * their file line number (header = 1).
+     * their file line number (header = 1). Lines beyond the column limits
+     * (MAX_NAME_LENGTH, MAX_CATEGORY_LENGTH, MAX_UNSIGNED_INT) or rejected
+     * by create() with InvalidArgumentException are skipped too, so one bad
+     * line never aborts the others.
      *
      * @return array{created: int, skipped: list<array{line: int, reason: string}>}
      */
@@ -157,9 +165,13 @@ final class ServiceCatalogService
 
             if ($name === '') {
                 $reason = 'name is required';
-            } elseif (!ctype_digit($duration) || (int) $duration <= 0) {
+            } elseif (mb_strlen($name) > self::MAX_NAME_LENGTH) {
+                $reason = 'name too long';
+            } elseif (mb_strlen($category) > self::MAX_CATEGORY_LENGTH) {
+                $reason = 'category too long';
+            } elseif (!self::isUnsignedIntInRange($duration)) {
                 $reason = 'invalid duration_minutes';
-            } elseif ($priceCents === null) {
+            } elseif ($priceCents === null || $priceCents > self::MAX_UNSIGNED_INT) {
                 $reason = 'invalid price';
             } elseif (isset($seen[$nameKey]) || $this->repository->findByName($name) !== null) {
                 $reason = 'duplicated name';
@@ -170,12 +182,18 @@ final class ServiceCatalogService
                 continue;
             }
 
-            $this->create([
-                'name' => $name,
-                'category' => $category,
-                'duration_minutes' => (int) $duration,
-                'price_cents' => $priceCents,
-            ]);
+            try {
+                $this->create([
+                    'name' => $name,
+                    'category' => $category,
+                    'duration_minutes' => (int) $duration,
+                    'price_cents' => $priceCents,
+                ]);
+            } catch (InvalidArgumentException $e) {
+                $skipped[] = ['line' => $lineNumber, 'reason' => $e->getMessage()];
+                continue;
+            }
+
             $seen[$nameKey] = true;
             $created++;
         }
@@ -256,10 +274,33 @@ final class ServiceCatalogService
         return $service;
     }
 
+    /** Digits only, 1..MAX_UNSIGNED_INT; compared as a string of up to 10 digits before any cast. */
+    private static function isUnsignedIntInRange(string $value): bool
+    {
+        if (!ctype_digit($value)) {
+            return false;
+        }
+
+        $digits = ltrim($value, '0');
+
+        if ($digits === '' || strlen($digits) > 10) {
+            return false;
+        }
+
+        return strlen($digits) < 10 || strcmp($digits, (string) self::MAX_UNSIGNED_INT) <= 0;
+    }
+
     /** Reais with comma or dot and up to 2 decimals ("120,50", "80.00", "150") → cents; null when invalid. */
     private static function parsePriceCents(string $price): ?int
     {
         if (preg_match('/^(\d+)(?:[.,](\d{1,2}))?$/', $price, $m) !== 1) {
+            return null;
+        }
+
+        $reais = ltrim($m[1], '0');
+
+        // More than 8 significant digits of reais is already above MAX_UNSIGNED_INT cents.
+        if (strlen($reais) > 8) {
             return null;
         }
 
