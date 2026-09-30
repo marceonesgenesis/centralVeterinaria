@@ -205,7 +205,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
@@ -216,7 +216,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
 
         return null;
@@ -401,14 +401,14 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
             return null;
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
             return null;
         }
     }
@@ -1451,19 +1451,19 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1531,7 +1531,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1557,6 +1557,58 @@ class EncounterView extends TPage
         }
 
         return is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+    }
+
+    /**
+     * Follow-up date/time posted by TDateTime → normalized 'Y-m-d H:i:s',
+     * or null when it is not a real date/time inside the DATETIME range the
+     * database accepts (e.g. a mask glitch producing '0110-08-26 11:00').
+     * Validated here so a malformed value never reaches the SQL layer.
+     */
+    private static function parseFollowUpScheduledAt(string $raw): ?string
+    {
+        $raw = trim($raw);
+
+        foreach (['!Y-m-d H:i', '!Y-m-d H:i:s', '!d/m/Y H:i', '!d/m/Y H:i:s'] as $format)
+        {
+            $parsed = \DateTimeImmutable::createFromFormat($format, $raw);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            if ($parsed === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)))
+            {
+                continue;
+            }
+
+            $year = (int) $parsed->format('Y');
+
+            if ($year < 1900 || $year > 2100)
+            {
+                return null;
+            }
+
+            return $parsed->format('Y-m-d H:i:s');
+        }
+
+        return null;
+    }
+
+    /**
+     * Error text for the screen: database/driver failures (PDOException or
+     * any message carrying an SQLSTATE) become a generic translated text, so
+     * no SQL detail leaks; everything else follows CvFormat::userError().
+     * The caller logs the original message with error_log() first.
+     */
+    private static function screenError(\Throwable $e): string
+    {
+        for ($current = $e; $current !== null; $current = $current->getPrevious())
+        {
+            if ($current instanceof \PDOException || str_contains($current->getMessage(), 'SQLSTATE['))
+            {
+                return CvFormat::e(_t('Could not complete the operation. Please try again'));
+            }
+        }
+
+        return CvFormat::userError($e);
     }
 
     /**
@@ -1608,7 +1660,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1719,7 +1771,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1745,6 +1797,15 @@ class EncounterView extends TPage
             {
                 throw new InvalidArgumentException(_t('Date/time and service id are required to schedule a follow-up'));
             }
+
+            $scheduledAtNormalized = self::parseFollowUpScheduledAt($scheduledAt);
+
+            if ($scheduledAtNormalized === null)
+            {
+                throw new InvalidArgumentException(_t('Invalid date and time'));
+            }
+
+            $scheduledAt = $scheduledAtNormalized;
 
             $context = self::resolveTenantContext();
 
@@ -1776,13 +1837,13 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -1793,7 +1854,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1839,7 +1900,7 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::screenError($e));
         }
     }
 
