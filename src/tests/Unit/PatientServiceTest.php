@@ -11,6 +11,7 @@ use CentralVet\Domain\Tutor;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakePatientRepository;
+use CentralVet\Tests\Support\FakeStorage;
 use CentralVet\Tests\Support\FakeTutorRepository;
 
 /**
@@ -187,5 +188,107 @@ final class PatientServiceTest
             static fn () => $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'sex' => 'X']),
         );
         Assert::same('Rex', $service->findById($patient->id)->name);
+    }
+
+    public function testCreateAndUpdatePersistAllergies(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+
+        $created = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog', 'allergies' => 'Dipirona']);
+        Assert::same('Dipirona', $created->allergies);
+        Assert::same('Dipirona', $service->findById($created->id)->allergies);
+
+        $blank = $service->create(['tutor_id' => 1, 'name' => 'Mia', 'species' => 'cat', 'allergies' => '']);
+        Assert::null($blank->allergies);
+
+        $updated = $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'allergies' => '  Penicilina ']);
+        Assert::same('Penicilina', $updated->allergies);
+
+        $cleared = $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'allergies' => '']);
+        Assert::null($cleared->allergies);
+    }
+
+    public function testAttachPhotoStoresUnderTenantKeyAndPhotoReturnsBytes(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new FakeStorage();
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+        $bytes = "\x89PNG\r\n\x1a\nfake-png-bytes";
+
+        $saved = $service->attachPhoto($patient->id, 'foto.png', $bytes, 'image/png');
+
+        $expectedKey = "tenant/1/patient/{$patient->id}/photo-foto.png";
+        Assert::same($expectedKey, $saved->photoObjectKey);
+        Assert::same('image/png', $saved->photoContentType);
+        Assert::same($bytes, $storage->get($expectedKey));
+        Assert::same('image/png', $storage->contentType($expectedKey));
+        Assert::same($expectedKey, $service->findById($patient->id)->photoObjectKey);
+        Assert::same(['contents' => $bytes, 'content_type' => 'image/png'], $service->photo($patient->id));
+
+        // update() of the clinical data never drops the photo.
+        $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'allergies' => 'Dipirona']);
+        Assert::same($expectedKey, $service->findById($patient->id)->photoObjectKey);
+        Assert::same('image/png', $service->findById($patient->id)->photoContentType);
+    }
+
+    public function testAttachPhotoSanitizesFileName(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), new FakeStorage());
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        $saved = $service->attachPhoto($patient->id, '../minha foto.jpg', 'jpg', 'image/jpeg');
+
+        Assert::same("tenant/1/patient/{$patient->id}/photo-.._minha_foto.jpg", $saved->photoObjectKey);
+    }
+
+    public function testAttachPhotoRejectsInvalidInput(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new FakeStorage();
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        foreach ([
+            'Photo must be a JPEG, PNG or WEBP image' => [$patient->id, 'doc.pdf', '%PDF', 'application/pdf'],
+            'Photo must be at most 2 MB' => [$patient->id, 'big.png', str_repeat('a', 2 * 1024 * 1024 + 1), 'image/png'],
+            'Patient 999 not found for this tenant' => [999, 'foto.png', 'png', 'image/png'],
+        ] as $message => $args) {
+            try {
+                $service->attachPhoto(...$args);
+                throw new \RuntimeException("attachPhoto() should have thrown '{$message}'");
+            } catch (\InvalidArgumentException $e) {
+                Assert::same($message, $e->getMessage());
+            }
+        }
+
+        Assert::false($storage->exists("tenant/1/patient/{$patient->id}/photo-doc.pdf"));
+        Assert::null($service->findById($patient->id)->photoObjectKey);
+    }
+
+    public function testAttachPhotoWithoutStorageThrowsLogicException(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        try {
+            $service->attachPhoto($patient->id, 'foto.png', 'png', 'image/png');
+            throw new \RuntimeException('attachPhoto() without storage should have thrown');
+        } catch (\LogicException $e) {
+            Assert::same('Storage not configured', $e->getMessage());
+        }
+    }
+
+    public function testPhotoReturnsNullWithoutPhotoOrPatient(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), new FakeStorage());
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        Assert::null($service->photo($patient->id));
+        Assert::null($service->photo(999999));
     }
 }
