@@ -1,6 +1,6 @@
 # Eficiência — mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes
 
-- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T15:38:32-03:00 · última onda medida 6
+- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T16:01:07-03:00 · última onda medida 7
 - Sessões: 72051bcd-769a-4db4-bb19-021f9565544c (encontrada)
 - Base: sem base (nenhum plano da versão anterior no acervo)
 
@@ -9,15 +9,15 @@
 | Indicador | Este plano | Base |
 |---|---|---|
 | Tokens retidos por onda (mediana) | 33.948 | sem base |
-| Contexto máximo | 304.971 | sem base |
+| Contexto máximo | 333.752 | sem base |
 | Compactações | 0 | sem base |
-| Correções por implementador | 0,12 | sem base |
+| Correções por implementador | 0,15 | sem base |
 | Retornos acima do limite (%) | 12 | sem base |
-| Validador acima da meta (%) | 42 | sem base |
+| Validador acima da meta (%) | 50 | sem base |
 | Aprovadas de primeira (%) | 92 | sem base |
 | Precisão do mapa de arquivos (%) | 100 | sem base |
-| Rodadas de fix loop | 3 | sem base |
-| Tasks de correção pós-Fase 5 (%) | 4 | sem base |
+| Rodadas de fix loop | 4 | sem base |
+| Tasks de correção pós-Fase 5 (%) | 11 | sem base |
 
 ## Tasks
 
@@ -48,6 +48,8 @@
 | T-23 | 4 | plano | média | [x] | sem teste | 0 | 0 | 0/3 | 0 | 4 | — |
 | T-24 | 5 | plano | média | [x] | sem teste | 0 | 1 | 1/3 | 2 | 1 | — |
 | T-25 | 6 | correcao | média | [x] | ok | 0 | 0 | 0/1 | 0 | 1 | — |
+| T-26 | 7 | correcao | média | [x] | ok | 0 | 0 | 0/3 | 0 | 1 | — |
+| T-27 | 7 | correcao | média | [x] | ok | 1 | 1 | 0/3 | 0 | 3 | — |
 
 ## Causas
 
@@ -71,3 +73,5 @@
 - T-23: Desvios: error_log acrescentado nos catches, PatientForm usa texto genérico e 20 catches em 14 arquivos; escopo de i18n do Core ficou fora.
 - T-24: Revisor exigiu exercitar os fluxos de gravação da varredura no HEAD final; faltavam TutorForm, Service/Product/FinancialEntry e casca.
 - T-25: Gate e revisão aprovaram de primeira; desvio só de evidência por render CLI em vez de Playwright.
+- T-26: Reproducao no banco feita por leitura de codigo e information_schema, sem php -r gravando, como a task permite.
+- T-27: A mascara numerica setNumericMask da Interface transformava "4,5" em 0,45 (dose clinica); campo passou a digitacao livre com filtro.

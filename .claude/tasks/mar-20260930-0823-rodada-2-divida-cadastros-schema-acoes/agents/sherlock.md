@@ -9,6 +9,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 ## Tasks atribuídas
 - T-03: Readers: limite ≤ 0, `overview()` com uma varredura, atendimento anterior
 - T-25: Correção (usuário): AgendaView mostra agendamento fora do slot exato de 30 min (onda 6, em paralelo a T-24)
+- T-37: Onda 8: testes de integração faltantes e verify da 0007
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -36,6 +37,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-37 (onda 8): só testes e o `.verify.sql` (SELECT). Nunca edite o `.sql` da 0007 (checksum aplicado). Se um teste revelar bug de produção, pare com `precisa de contexto` e o caminho.
 - Restrição específica: `ProductList.php` usa `overview()` só em T-21 (onda 3). Não o edite.
 - T-25 (onda 6): as ondas 1–4 estão fechadas, e T-24 (validador) roda em paralelo, só leitura mais o próprio relatório. Não toque `reports/T-24.md` nem outro controller além de `AgendaView.php`. Commits com `Task: T-25 (RED)` (só `AgendaSlotsTest.php`) e depois `Task: T-25`.
 

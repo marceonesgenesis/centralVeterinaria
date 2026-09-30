@@ -8,6 +8,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 
 ## Tasks atribuídas
 - T-06: Editar tutor: TutorService::update + TutorForm
+- T-39: Onda 8: CvPage (docblock, target restrito) e seletor de unidade única
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -34,6 +35,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-39 (onda 8): pode editar `src/app/lib/widget/CvPage.php` e `src/app/templates/adminbs5/js/cv-shell.js`; não mude o contrato JSON de `onContext` nem o `csrf_token` da troca de unidade.
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 

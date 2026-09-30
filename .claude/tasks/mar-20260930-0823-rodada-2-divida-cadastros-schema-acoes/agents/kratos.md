@@ -9,6 +9,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 ## Tasks atribuídas
 - T-08: Editar agendamento: AppointmentService::reschedule + AppointmentForm
 - T-19: PrescriptionForm: validade, Salvar como modelo, Aplicar modelo, estilos, onEdit
+- T-30: Onda 8: PrescriptionForm sem patient_id, combo de modelos e remoção de item
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -35,6 +36,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-30 (onda 8): não edite `translations.json` nem `cv-components.css` (são de T-28 e T-31).
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`. (vale para T-19; T-08 é da onda 1).
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
