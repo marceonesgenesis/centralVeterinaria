@@ -6,6 +6,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 - GATE = orquestrador roda `docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`; depois o validador usa o Playwright MCP em `http://127.0.0.1:8081` (sessão admin) e salva screenshots em `/var/www/html/centralvet/.playwright-mcp/f10-<Tela>.png`.
 - VARREDURA = no gate de cada onda, depois dos passos GATE das tasks, o validador percorre as telas da onda listadas em `plan.md § Critérios gerais de aceite` (item "Varredura Playwright no gate"), exercitando abrir/listar/filtrar/salvar/voltar e lendo console (`error`) e rede (≥ 400); bug em tela da task reprova a task (fix loop).
 - PATTERN0 = correção do gate da onda 2: `TEntry::setNumericMask(0, …)` do framework (`src/lib/adianti/widget/form/TEntry.php:148`, não editável) grava no campo um `pattern` com `\d{1,0}`, regex inválida que o navegador reporta no console. Em cada arquivo da task, todo `setNumericMask(0, …)` que permanecer é seguido, no mesmo campo, de `$campo->setProperty('pattern', '[0-9]*');`. Verificação por arquivo: `f=<arquivo>; echo "$(grep -c 'setNumericMask(0' $f) $(grep -cF "setProperty('pattern', '[0-9]*')" $f)"` imprime dois números iguais; no gate, `browser_console_messages` da tela não traz linha com `pattern`.
+- ONDAS 7–8 (correção, usuário) = BASE da onda 7 `2c7611d`. Tasks com teste: T-25, T-26, T-27, T-28, T-34, com o commit `Task: <ID> (RED)` só dos arquivos do bloco Teste RED antes da implementação. As demais são `sem teste:` e colam a reprodução do achado em `## RED` do relatório. Texto novo usa `_t('<chave en>')` com a chave e o pt definidos na Interface da task; quem grava `translations.json` é T-36 (onda 8). Até lá o Adianti mostra "Message not found" nesses rótulos, o que é aceito no gate da onda 7.
 - COMMITS = branch `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`); todo commit da task lista só os caminhos dela e leva o trailer `Task: <ID>`; nas tasks com teste (T-04, T-05, T-06, T-17) o primeiro commit contém só os arquivos do bloco Teste RED (teste e fixtures) falhando, com trailer `Task: <ID> (RED)`. O relatório registra o hash em "Commit RED" (ou `sem teste: <motivo>`) e os hashes da implementação em `## Evidência`.
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
@@ -34,6 +35,18 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-22 | frontend | Onda 6 (B1): remover a carga duplicada de `chart.umd.min.js` do layout.html | T-01, T-21 | sim | simples | Athena | [x] |
 | T-23 | frontend | Onda 6 (O1): status do plano clínico do EncounterView em CvBadge traduzido | T-13, T-21 | sim | simples | Yoda | [x] |
 | T-24 | frontend | Onda 6 (O2): forma de pagamento traduzida como categoria em FinancialOverview e FinancialEntryList | T-09, T-18, T-21 | sim | simples | Tesla | [x] |
+| T-25 | backend | Onda 7 (A#2): EncounterAccountService revalida `authorized_by_system_user_id` do desconto contra o tenant da sessão | T-18 | sim | média | Jaspion | [x] |
+| T-26 | frontend/backend | Onda 7 (A#3, T-19): troca de unidade só por POST com token (CsrfToken), onContext sem mensagem de exceção e textos do cv-shell.js vindos do servidor | T-08, T-19 | sim | alta | Aang | [x] |
+| T-27 | backend | Onda 7 (A#4): AuthorizationRequest valida o formato de `$action` | — | sim | simples | Arquimedes | [x] |
+| T-28 | backend/frontend | Onda 7 (B#10, B#7): filtro de status em PayableList (Em aberto/Pagas/Todas), mensagem pt ao editar conta paga, teste de SQL do PayableRepository e docblock | T-18 | sim | alta | Tesla | [x] |
+| T-29 | frontend | Onda 7 (B, T-14): `&query=` dispara a busca global, sem `<style>` inline; fila carregada uma vez por requisição | T-14 | sim | simples | Thanos | [x] |
+| T-30 | frontend | Onda 7 (C#5, B#5, T-13/T-15): status do plano do EncounterView por constantes e com badge para status vazio; docblock de onInlineAction; ramo morto em PendingExamResultList | T-13, T-15, T-23 | sim | simples | Yoda | [x] |
+| T-31 | frontend | Onda 7 (C#5): CvFormat::paymentMethod por `Payment::METHOD_*` e PaymentForm sem mapa duplicado | T-18, T-24 | sim | simples | Platão | [x] |
+| T-32 | frontend | Onda 7 (C#1, T-12): comentários obsoletos de combo de profissional e `loadSummary` com Throwable | T-12, T-15 | sim | simples | Kratos | [x] |
+| T-33 | frontend | Onda 7 (C#9, T-11/T-16): link focável na linha de ServiceList; combos de catálogo mostram o item atual inativo | T-11, T-16, T-17 | sim | simples | Levi | [x] |
+| T-34 | backend | Onda 7 (C#9, T-17): ProductService::update() e ProductForm sem regra de edição no controller | T-17 | sim | média | Darwin | [x] |
+| T-35 | frontend | Onda 7 (C#9, C#4, T-10/T-17): "Ver tudo" de estoque baixo inclui sem estoque, erro de tenant uma vez só em ProductList, "Gerar PDF" do SaleForm em nova aba | T-10, T-17 | sim | simples | Darwin | [x] |
+| T-36 | frontend | Onda 8 (C#8): chaves i18n unificadas por par de caixa, com os `_t()` migrados, e chaves novas da onda 7 | T-26, T-28, T-29, T-33, T-35 | não | média | Platão | [ ] |
 
 ## Detalhamento
 
@@ -830,6 +843,509 @@ Achado (`reports/T-21.md`, O2, veredito **aprovado com observação**, tasks de 
 - GATE → `browser_navigate` `index.php?class=FinancialOverview&from=2026-01-01&to=2026-12-31` e depois `index.php?class=FinancialEntryList&entry_type=income` + `browser_evaluate` `document.body.innerText.match(/\b(cash|debit_card|credit_card|pix|bank_transfer)\b/)` em cada uma (evidência: `null` nas duas) e `document.body.innerText.includes('Dinheiro')` (evidência: `true`) + `browser_evaluate` `Chart.getChart(document.querySelector('#cv-fin-donut')).data.labels` (evidência: sem `cash`) + screenshots `f10-FinancialOverview-cat.png`, `f10-FinancialEntryList-cat.png`
 - `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*), SUM(amount_cents) FROM financial_entry;"'` antes e depois do deploy da onda (evidência: mesmos valores; os fluxos do gate que criam lançamento rodam depois desta conferência)
 - GATE → depois do fluxo `PaymentForm` do gate da onda 6 (`plan.md § Critérios gerais de aceite`), o lançamento novo aparece em `FinancialEntryList&entry_type=income` com categoria "Dinheiro" (evidência: `browser_evaluate` da linha nova)
+
+### T-25 — Onda 7 (A#2): EncounterAccountService revalida o autorizador do desconto
+
+**Camada:** backend
+**Dependências:** T-18
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Jaspion
+
+Achado (`reviews/final.md § Rodada 2`, sugestão; `reports/final-fix.md § Limitações`, veredito **aberta**): o combo `authorized_by_system_user_id` de `EncounterAccountForm` só lista usuários do tenant, mas `EncounterAccountService::applyDiscount()` (`EncounterAccountService.php:323`) não confere o id recebido. Um POST adulterado grava como autorizador um usuário de outro tenant. O domínio (`EncounterAccount.php:228`) só exige id > 0. Reprodução exigida antes da correção: o teste RED abaixo aplica desconto com autorizador `999` e `FakeTenantUserDirectory([10])`, e o desconto é gravado sem exceção. Correção pedida pelo usuário em 2026-09-29 (escopo A).
+
+**Arquivos prováveis**
+- `src/app/Core/Application/EncounterAccountService.php`
+- `src/app/control/clinic/EncounterAccountForm.php`
+- `src/tests/Unit/EncounterAccountServiceTest.php`
+
+**Interface**
+- Produz: construtor `EncounterAccountService(..., AuthorizationPolicyInterface $authorization, TenantContext $context, TenantUserDirectoryInterface $tenantUsers)`. O diretório é o 12º e último argumento, no mesmo padrão dos 4 serviços clínicos do final-fix. `EncounterAccountForm::makeEncounterAccountService()` passa `new \CentralVet\Persistence\TenantUserDirectory($context, $connection)`, e `EncounterAccountServiceTest::buildService()` passa `FakeTenantUserDirectory::allowingAll()`.
+- Produz: `applyDiscount(int $accountId, int $discountCents, int $authorizedBySystemUserId, string $action)` com a mesma assinatura. Quando `$authorizedBySystemUserId > 0`, a primeira instrução é `if (!$this->tenantUsers->isActiveMember($authorizedBySystemUserId)) throw new CrossTenantReferenceException("authorized_by_system_user_id {$authorizedBySystemUserId} was not found for the authenticated tenant");`, antes de `requireAccount()` e de qualquer `save()`. Id ≤ 0 segue para a `InvalidArgumentException` do domínio, como hoje. `close()`, `syncAutomaticItems()` e os demais métodos não mudam. O `catch (CrossTenantReferenceException)` existente de `onApplyDiscount` fica como está.
+- Consome: nada (usa `TenantUserDirectoryInterface`, `TenantUserDirectory` e `FakeTenantUserDirectory`, entregues pelo final-fix em `12945fa`)
+
+**Teste RED**
+- `src/tests/Unit/EncounterAccountServiceTest.php` — `applyDiscount()` com autorizador `999` e `FakeTenantUserDirectory([10])` deve lançar `CrossTenantReferenceException`, e a conta no `FakeEncounterAccountRepository` fica com `discountCents() === 0`. Antes da implementação o 12º argumento é ignorado e o desconto é gravado (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- A SUITE imprime `PASS  Unit\EncounterAccountServiceTest::` para o teste novo e para os 3 existentes, com `Failed: 0` e `Total` ≥ 187.
+- `grep -c "new \\\\CentralVet\\\\Application\\\\EncounterAccountService(" -r src/app src/tests` = 2, e as duas construções passam o diretório.
+- No gate, `EncounterAccountForm` da conta aberta #46 (atendimento 1708) aplica desconto de R$ 5,00 com o autorizador "1=Administrator" e mostra a mensagem de sucesso. O mesmo POST com `authorized_by_system_user_id=999999` mostra diálogo de erro e deixa `discount_cents` da conta 46 igual ao valor anterior.
+
+**Validação**
+- LINT de `app/Core/Application/EncounterAccountService.php` e de `app/control/clinic/EncounterAccountForm.php` (evidência: 2 `No syntax errors detected`)
+- SUITE (evidência: linhas `PASS  Unit\EncounterAccountServiceTest::` e `Failed: 0`)
+- `grep -rn "new \\\\CentralVet\\\\Application\\\\EncounterAccountService(\|new EncounterAccountService(" /var/www/html/centralvet/src/app /var/www/html/centralvet/src/tests` (evidência: 2 linhas, EncounterAccountForm e EncounterAccountServiceTest)
+- GATE → `browser_navigate` `index.php?class=EncounterAccountForm&encounter_id=1708`, aplicar desconto 5,00 com autorizador 1 (evidência: mensagem de sucesso). Depois, `browser_evaluate` com o POST de `onApplyDiscount` e `authorized_by_system_user_id=999999` (evidência: diálogo de erro), e `SELECT discount_cents FROM encounter_account WHERE id=46` antes e depois do POST adulterado (evidência: mesmo valor)
+- Review Focus: um teste unitário a mais com autorizador do próprio tenant mas inativo (`FakeTenantUserDirectory([])`, que simula `active='N'`) → `CrossTenantReferenceException` (evidência: `PASS`)
+
+### T-26 — Onda 7 (A#3, T-19): troca de unidade só por POST com token e shell sem textos fixos
+
+**Camada:** frontend/backend
+**Dependências:** T-08, T-19
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Aang
+
+Achado (`reviews/final.md § Triagem` T-08 e § Achados, sugestões **abertas**; notes.md § Pendências T-08/T-19):
+- `cv-shell.js:87-95` chama `CvShellController::onSwitchUnit` por GET (`__adianti_ajax_exec` ou `location.href`), sem token, e o método (`CvShellController.php:88-107`) muda `userunitid` da sessão.
+- `onContext` devolve `$e->getMessage()` no JSON 500 (`CvShellController.php:78-82`), o que pode expor erro de SQL.
+- `cv-shell.js` tem "Em breve", "Abra pelo atendimento" e "Unidade" fixos em pt (L27-32, L111-112).
+
+Reprodução exigida antes da correção: com a sessão admin, `browser_evaluate` `fetch('engine.php?class=CvShellController&method=onSwitchUnit&unit_id=<unidade atual>').then(r => r.status)` devolve 200 e troca a unidade por GET. Cole a reprodução em `## RED` junto com a falha do teste. Correção pedida pelo usuário em 2026-09-29 (escopo A e C#6).
+
+Padrão do projeto para token: `BootstrapFormBuilder::enableCSRFProtection/validateCSRFToken` guarda `bin2hex(random_bytes(32))` em `TSession` e compara com `hash_equals` contra `$_POST['csrf_token']`. `CvShellController` não é formulário, então a regra pura vai para o Core, onde a suíte a testa.
+
+**Arquivos prováveis**
+- `src/app/Core/Security/CsrfToken.php`
+- `src/tests/Unit/CsrfTokenTest.php`
+- `src/app/control/clinic/CvShellController.php`
+- `src/app/templates/adminbs5/js/cv-shell.js`
+
+**Interface**
+- Produz: `CentralVet\Security\CsrfToken::generate(): string`, que devolve 64 caracteres hex (`bin2hex(random_bytes(32))`).
+- Produz: `CentralVet\Security\CsrfToken::isValid(string $requestMethod, mixed $sentToken, mixed $expectedToken): bool`. Devolve `true` só quando `strtoupper($requestMethod) === 'POST'`, os dois tokens são strings não vazias e `hash_equals($expectedToken, $sentToken)`. Em qualquer outro caso devolve `false`, sem exceção.
+- Produz: `onContext` guarda o token em `TSession::getValue('cv_shell_csrf')` e só o gera quando está vazio. O JSON 200 passa a `{user:{name,role}, units:[{id,name,current}], csrf_token:<64 hex>, labels:{coming_soon:_t('Coming soon'), open_from_encounter:_t('Open from the encounter'), unit:_t('Unit'), error:_t('Error')}}`, com as 4 chaves já existentes. Em exceção o JSON 500 é `{error: _t('Could not load the user context')}` e a mensagem real vai para `error_log()`.
+- Produz: `onSwitchUnit` responde só JSON, pelo `sendJson` existente:
+  - sem `CsrfToken::isValid($_SERVER['REQUEST_METHOD'] ?? 'GET', $_POST['csrf_token'] ?? null, TSession::getValue('cv_shell_csrf'))` → 403 `{error: _t('Invalid or expired request. Reload the page')}`, sem chamar `setUnit()`;
+  - unidade fora de `allowedUnitIds()` → 403 `{error: <mesma mensagem de recusa de hoje>}`;
+  - sucesso → 200 `{switched: true}`.
+  - O `TScript` de reload sai do servidor.
+- Produz: `cv-shell.js` troca a unidade com `fetch('engine.php?class=CvShellController&method=onSwitchUnit', {method: 'POST', credentials: 'same-origin', body: FormData(unit_id, csrf_token)})`. Lê a resposta com o `parseJson` existente (JSON seguido do JS do Adianti). Com `switched`, faz `location.reload()`; com `error`, chama `__adianti_error(labels.error, error)` quando existe, senão `alert(error)`. "Em breve", "Abra pelo atendimento" e o `aria-label`/`title` do seletor vêm de `labels`, e nenhum texto pt fica no JS.
+- Produz: chaves novas pedidas no board (quem grava é T-36): `Could not load the user context` → "Não foi possível carregar o contexto do usuário"; `Invalid or expired request. Reload the page` → "Requisição inválida ou expirada. Recarregue a página"
+- Consome: T-19 `allowedUnitIds()`
+
+**Teste RED**
+- `src/tests/Unit/CsrfTokenTest.php` — `CsrfToken::isValid('POST', $t, $t)` = true; `('GET', $t, $t)`, `('POST', 'x', $t)`, `('POST', null, $t)`, `('POST', '', $t)` e `('POST', $t, null)` = false; `generate()` casa `/^[0-9a-f]{64}$/` e duas chamadas diferem. Antes da implementação falha porque a classe `CentralVet\Security\CsrfToken` não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- A SUITE imprime `PASS  Unit\CsrfTokenTest::` em todos os métodos e `Failed: 0`.
+- No gate, com a sessão admin:
+  - `onContext` devolve status 200 e JSON com `csrf_token` que casa `/^[0-9a-f]{64}$/` e `labels.coming_soon` = "Em breve";
+  - GET em `onSwitchUnit&unit_id=<atual>` → 403 com campo `error`;
+  - POST sem token ou com `csrf_token=x` → 403;
+  - POST com o token e `unit_id=999999` → 403;
+  - POST com o token e a unidade atual → 200 `{"switched":true}`;
+  - depois de todos os 403, `units[].current` de `onContext` continua na mesma unidade.
+- `grep -c "'error' => \$e->getMessage()" src/app/control/clinic/CvShellController.php` = 0, e `grep -c "Em breve\|Abra pelo atendimento\|'Unidade'" src/app/templates/adminbs5/js/cv-shell.js` = 0.
+- Sidebar: os 7 itens `onComingSoon` continuam com `.cv-menu-disabled` e `span.cv-menu-soon` "Em breve", e o console tem 0 `error` em `ServiceList` e `ProductList`.
+
+**Validação**
+- LINT de `app/Core/Security/CsrfToken.php` e `app/control/clinic/CvShellController.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\CsrfTokenTest::` e `Failed: 0`)
+- `grep -c "'error' => \$e->getMessage()" /var/www/html/centralvet/src/app/control/clinic/CvShellController.php; grep -c "Em breve\|Abra pelo atendimento\|'Unidade'" /var/www/html/centralvet/src/app/templates/adminbs5/js/cv-shell.js` (evidência: `0` e `0`)
+- GATE → `browser_evaluate` com a sequência async:
+  - `fetch('engine.php?class=CvShellController&method=onContext')` → JSON (evidência: `csrf_token` com 64 hex, `labels.unit` = "Unidade");
+  - GET `onSwitchUnit` (evidência: `403`);
+  - POST sem token (evidência: `403`);
+  - POST com o token e `unit_id=999999` (evidência: `403`);
+  - POST com o token e a unidade atual (evidência: `200` e `switched:true`);
+  - `onContext` de novo (evidência: `current` na mesma unidade).
+- GATE → `ServiceList` e `ProductList`: sidebar com os itens "Em breve", seletor de unidade com `aria-label` "Unidade" e `browser_console_messages` (evidência: 0 `error`)
+- Review Focus: aba aberta antes do deploy, com o `cv-shell.js` antigo em cache, dispara a troca por GET → 403 e unidade inalterada (coberto pelo GET acima). Sessão sem `cv_shell_csrf`, porque o onContext nunca foi chamado → POST devolve 403 com a mensagem, sem laço de reload (evidência: `browser_evaluate` após `TSession` limpa pelo re-login, e um único diálogo)
+
+### T-27 — Onda 7 (A#4): AuthorizationRequest valida o formato de `$action`
+
+**Camada:** backend
+**Dependências:** —
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Arquimedes
+
+Achado (`reviews/final.md § Achados`, sugestão; ruling "HIGH descartado" de T-17 mantido): `AuthorizationRequest` aceita qualquer `string $action`, e `AdiantiProgramPermissionProvider.php:37` a divide em `::`. Não há vulnerabilidade, porque todos os chamadores passam constante. A validação é defesa em profundidade: uma ação vazia ou malformada falha cedo, antes de virar consulta de permissão. Reprodução exigida antes da correção: o teste RED abaixo constrói `new AuthorizationRequest($context, '')` sem exceção. Correção pedida pelo usuário em 2026-09-29 (escopo A).
+
+Premissa de formato (definida pelo orquestrador, sem pergunta ao usuário). Aceitam-se os dois formatos em uso:
+- `Classe::metodo`, inclusive namespaced e com a classe minúscula: `EncounterAccountForm::onApplyDiscount`, `StockBatchForm::onSave`, `SaleServiceTest::create`, `test::action`, `test::encounter_account`;
+- chave pontuada do `RbacAuthorizationServiceTest`: `patient.view`, `schedule.manage`.
+
+Rejeitam-se vazio, só espaço, espaço ou quebra de linha em qualquer posição, `Classe::`, `::metodo`, `Classe::metodo:extra` e qualquer caractere fora de `[A-Za-z0-9_\\:.]`. A string `EncounterView::onInlineAction:<kind>` é `action` de `AuditEvent`, não de `AuthorizationRequest`, e fica fora.
+
+**Arquivos prováveis**
+- `src/app/Core/Authorization/AuthorizationRequest.php`
+- `src/tests/Unit/AuthorizationRequestTest.php`
+
+**Interface**
+- Produz: `AuthorizationRequest::ACTION_PATTERN = '/\A(?:[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*::[A-Za-z_][A-Za-z0-9_]*|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)\z/'` (constante pública). O construtor lança `\InvalidArgumentException("Invalid authorization action format: '{$action}'")` quando `preg_match(self::ACTION_PATTERN, $action) !== 1`. A assinatura do construtor e os getters não mudam.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/AuthorizationRequestTest.php` — constrói sem exceção `EncounterAccountForm::onApplyDiscount`, `CentralVet\Application\X::run`, `test::encounter_account`, `patient.view` e `schedule.manage`; `Assert::throws(InvalidArgumentException::class, ...)` para `''`, `' '`, `'Classe::'`, `'::metodo'`, `'Classe::metodo:extra'`, `'Classe::metodo; DROP'` e `"Classe::metodo\n"`. Antes da implementação os casos inválidos não lançam (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- A SUITE imprime `PASS  Unit\AuthorizationRequestTest::` em todos os métodos, `PASS  Unit\RbacAuthorizationServiceTest::` nos 5 existentes e `Failed: 0`.
+- Nenhuma ação de produção é recusada: `grep -rhoE "'[A-Za-z]+::on[A-Za-z]+'" src/app/control | php -r` contra `ACTION_PATTERN` imprime `0 inválidas`.
+
+**Validação**
+- LINT de `app/Core/Authorization/AuthorizationRequest.php` (evidência: `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\AuthorizationRequestTest::`, `PASS  Unit\RbacAuthorizationServiceTest::` e `Failed: 0`)
+- `grep -rhoE "'[A-Za-z]+::on[A-Za-z]+'" /var/www/html/centralvet/src/app/control | tr -d "'" | sort -u | docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'require "vendor/autoload.php"; $n=0; while(($l=fgets(STDIN))!==false){ if(preg_match(\CentralVet\Authorization\AuthorizationRequest::ACTION_PATTERN, trim($l))!==1) $n++; } echo "$n inválidas\n";'` (evidência: `0 inválidas`)
+- GATE → a varredura da onda abre `PayableList` → Pagar, `EncounterAccountForm` → aplicar desconto e `SaleForm` → registrar venda, que são ações autorizadas por `__CLASS__ . '::' . __FUNCTION__` (evidência: nenhuma mensagem "Invalid authorization action format")
+
+### T-28 — Onda 7 (B#10, B#7): filtro de status em PayableList, mensagem pt e teste de SQL do PayableRepository
+
+**Camada:** backend/frontend
+**Dependências:** T-18
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Tesla
+
+Achados (`reviews/final.md § Triagem` Onda 3 e T-18, **abertos**; notes.md § Pendências T-18):
+- (1) `PayableService::listOpen()` só traz `status='open'`. A conta paga aparece na renderização do "Pagar" e some ao recarregar, e a lista não tem como mostrá-la (`PayableList.php:168-176`).
+- (2) Editar conta paga mostra a mensagem crua do domínio `Payable {id} cannot be edited from status 'paid'` (`PayableForm.php:157-161`, `Payable.php:183-184`).
+- (3) O UPDATE de `PayableRepository::save()` (`PayableRepository.php:113`) não tem teste de SQL.
+- (4) O docblock de `PayableForm` diz que o save só cria.
+
+Decisão do usuário (2026-09-29): filtro de status Em aberto (padrão) / Pagas / Todas. `listOpen()` continua sendo "em aberto", e o service/repo ganham a listagem por status.
+
+Reprodução exigida antes da correção: `PayableList` sem conta paga visível depois de recarregar, e `PayableForm&method=onEdit&key=<conta paga>` → Salvar mostra o texto em inglês.
+
+**Arquivos prováveis**
+- `src/app/Core/Domain/Contract/PayableRepositoryInterface.php`
+- `src/app/Core/Persistence/PayableRepository.php`
+- `src/app/Core/Application/PayableService.php`
+- `src/tests/Support/FakePayableRepository.php`
+- `src/tests/Unit/PayableServiceTest.php`
+- `src/tests/Integration/PayableRepositoryIntegrationTest.php`
+- `src/app/control/clinic/PayableList.php`
+- `src/app/control/clinic/PayableForm.php`
+
+**Interface**
+- Produz: `PayableRepositoryInterface::listBySystemUnitAndStatus(int $systemUnitId, ?string $status): array`. Com `null`, devolve todos os status. Tem o mesmo filtro de tenant + `system_unit_id` e a mesma ordem de `listOpenBySystemUnit` (`ORDER BY due_date IS NULL, due_date ASC, id ASC`). É implementado em `PayableRepository` e em `FakePayableRepository`.
+- Produz: `PayableService::listByStatus(int $systemUnitId, ?string $status): array` (`list<Payable>`). `$status` pode ser `Payable::STATUS_OPEN`, `Payable::STATUS_PAID`, `Payable::STATUS_CANCELLED` ou `null`; outro valor lança `InvalidArgumentException("Invalid payable status '{$status}'")`. `listOpen()` fica com a mesma assinatura e o mesmo resultado.
+- Produz: `PayableList` com `TCombo` `status` na barra de filtros (sem opção vazia): `open` → `_t('Open (filter)')`, `paid` → `_t('Paid (filter)')`, `all` → `_t('All (filter)')`, com padrão `open`.
+  - O valor vem de `$param['status']` ou da sessão `PayableList_filter_status`, e valor inválido cai em `open`.
+  - `onReload` chama `listByStatus($unitId, $status === 'all' ? null : $status)`.
+  - O `array_unshift` de `justPaid` só roda com filtro `open`.
+  - `statusBadge()` ganha `STATUS_CANCELLED` → `CvBadge::create(_t('Canceled'), 'neutral')` (chave existente).
+- Produz: `PayableForm::onSave` troca a mensagem do `catch (InvalidStatusTransitionException)` por `new TMessage('error', _t('Only open payables can be edited'))`. O docblock da classe passa a descrever criar (sem `id`) e editar (com `id`, via `PayableService::update`).
+- Produz: chaves novas pedidas no board (quem grava é T-36): `Open (filter)` → "Em aberto"; `Paid (filter)` → "Pagas"; `All (filter)` → "Todas"; `Only open payables can be edited` → "Só contas em aberto podem ser editadas"
+- Consome: nada (usa o `update()` de PayableService entregue pela onda 3, commit 68206c7)
+
+**Teste RED**
+- `src/tests/Unit/PayableServiceTest.php`, `src/tests/Support/FakePayableRepository.php`, `src/tests/Integration/PayableRepositoryIntegrationTest.php` — unidade com uma conta `open` e uma `paid`: `listByStatus($u, 'paid')` devolve só a paga, `listByStatus($u, null)` devolve as duas e `listByStatus($u, 'xyz')` lança `InvalidArgumentException`; na integração (`MysqlIntegrationTestCase`, rollback), `save()` de conta existente grava `description_text`/`category`/`amount_cents`/`due_date` novos (lidos por `SELECT` direto) sem alterar a conta de outro tenant, e `listBySystemUnitAndStatus($u, 'paid')` não traz conta de outra unidade nem de outro tenant; antes da implementação falha porque `listByStatus`/`listBySystemUnitAndStatus` não existem (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- A SUITE imprime `PASS  Unit\PayableServiceTest::` e `PASS  Integration\PayableRepositoryIntegrationTest::` em todos os métodos, com `Failed: 0`.
+- No gate, `PayableList` sem parâmetro mostra só contas "Aberto". `PayableList&status=paid` lista a conta paga `payable` id 2 com badge "Pago", depois de recarregar. `status=all` mostra as duas situações, e `status=xyz` equivale a Em aberto.
+- `PayableForm&method=onEdit&key=2` (conta paga) → Salvar mostra diálogo sem o texto `cannot be edited from status`. Na onda 7 aparece a chave `Only open payables can be edited` ou "Message not found"; a partir de T-36, "Só contas em aberto podem ser editadas".
+- Nenhum registro muda: `SELECT COUNT(*), SUM(amount_cents), SUM(status='paid') FROM payable` igual antes e depois do gate. O Salvar da conta paga é recusado.
+
+**Validação**
+- LINT dos 5 arquivos PHP de `app/` da task (evidência: 5 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\PayableServiceTest::`, `PASS  Integration\PayableRepositoryIntegrationTest::` e `Failed: 0`)
+- `docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*), SUM(amount_cents), SUM(status=\"paid\") FROM payable;"'` antes e depois do gate (evidência: mesmos valores)
+- GATE → `browser_navigate` para `PayableList`, `PayableList&status=paid`, `&status=all` e `&status=xyz` + `browser_evaluate` `[...document.querySelectorAll('.cv-badge')].map(b => b.innerText)` em cada (evidência: só "Aberto"; contém "Pago"; as duas; só "Aberto") + `browser_console_messages` (evidência: 0 `error`)
+- GATE → `PayableForm&method=onEdit&key=2` → Salvar + `browser_evaluate` `document.body.innerText.includes('cannot be edited from status')` (evidência: `false`)
+- Review Focus: filtro `paid` salvo na sessão e volta à lista pelo menu, sem `status` → a lista abre em `paid`, o combo mostra "Pagas" e "Pagar" não aparece em conta paga (evidência: `browser_evaluate` do combo e das ações da linha)
+
+### T-29 — Onda 7 (B, T-14): `&query=` dispara a busca global; fila carregada uma vez
+
+**Camada:** frontend
+**Dependências:** T-14
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Thanos
+
+Achados (`reviews/final.md § Triagem`, Onda 3 e T-14, **abertos**):
+- `index.php?class=GlobalSearchController&query=Rex` abre a página vazia, porque a busca só roda em `onSearch`, que o Adianti chama com `method=onSearch`. O construtor não lê `query`.
+- `GlobalSearchController.php:227` injeta `<style>` inline redundante com `.cv-pager .page-item.off` de `cv-components.css` (dd4efaa).
+- `QueueEntryView` chama `loadData()` no construtor (`QueueEntryView.php:122`) e de novo em `onReload`/`onSearch` na mesma requisição.
+
+Reprodução exigida: `GlobalSearchController&query=F10` mostra 0 resultados, e `&method=onSearch&query=F10` mostra ≥ 1. Correção pedida pelo usuário em 2026-09-29 (escopo B e C#9).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/GlobalSearchController.php`
+- `src/app/control/clinic/QueueEntryView.php`
+
+**Interface**
+- Produz: `GlobalSearchController::__construct()` chama `$this->onSearch(['query' => $_GET['query']])` quando `$_GET['query']` é string não vazia e `$_GET['method']` está ausente. Com `method=onSearch`, o fluxo atual fica igual. Sai a linha `TElement::tag('style', '.cv-global-search-footer .page-item.off{display:none}', [])`.
+- Produz: `QueueEntryView::__construct()` só chama `loadData()` quando `empty($param['method'])`, no mesmo padrão de `AgendaView.php:50`. `onReload`/`onSearch`/`onAdvance` continuam carregando.
+- Consome: nada
+
+**Teste RED**
+- sem teste: comportamento de controller Adianti (construtor × `method`); a suíte não instancia controllers. A reprodução vai em `## RED` e a verificação é no navegador, no gate.
+
+**Critério de aceite**
+- No gate, `GlobalSearchController&query=F10` e `GlobalSearchController&method=onSearch&query=F10` mostram o mesmo número de linhas de resultado, ≥ 1 (tutor "F10…" id 1595), e o campo de busca vem preenchido com "F10".
+- `grep -c "TElement::tag('style'" src/app/control/clinic/GlobalSearchController.php` = 0. No gate, todo `.cv-pager .page-item.off` da busca tem `getComputedStyle(...).display` = `none`.
+- `QueueEntryView` e `QueueEntryView&method=onReload` listam as mesmas linhas e contadores. `grep -n "loadData(" src/app/control/clinic/QueueEntryView.php` mostra a chamada do construtor dentro de `if (empty($param['method']))`.
+
+**Validação**
+- LINT dos 2 arquivos (evidência: 2 `No syntax errors detected`)
+- `grep -c "TElement::tag('style'" /var/www/html/centralvet/src/app/control/clinic/GlobalSearchController.php; grep -n -B2 "loadData(" /var/www/html/centralvet/src/app/control/clinic/QueueEntryView.php` (evidência: `0`; `empty($param['method'])` antes da chamada do construtor)
+- GATE → `browser_navigate` `index.php?class=GlobalSearchController&query=F10` e `...&method=onSearch&query=F10` + `browser_evaluate` com a contagem de `tbody tr` e o valor de `input[name=query]` (evidência: mesma contagem ≥ 1 e "F10") + `[...document.querySelectorAll('.cv-pager .page-item.off')].every(e => getComputedStyle(e).display === 'none')` (evidência: `true`)
+- GATE → `QueueEntryView` e `QueueEntryView&method=onReload` + `browser_console_messages` (evidência: mesma contagem de linhas, 0 `error`)
+- Review Focus: `query` com 1 caractere pela URL (`&query=a`) → mesma regra de tamanho mínimo do `onSearch` (mensagem de mínimo e nenhum erro) (evidência: `browser_evaluate` do texto do vazio)
+
+### T-30 — Onda 7 (C#5, B#5, T-13/T-15): status do plano por constantes, badge para status vazio, ramo morto
+
+**Camada:** frontend
+**Dependências:** T-13, T-15, T-23
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Yoda
+
+Achados (`reviews/final.md § Triagem` T-23, T-13 e T-15, **abertos**):
+- `EncounterView::planStatusBadge()` usa os literais `'draft'`, `'issued'`, `'requested'` e `'result_available'` (`EncounterView.php:885-890`).
+- `planItemList()` não gera badge quando o status é vazio ou null (`EncounterView.php:922`).
+- O docblock de `onInlineAction` está desatualizado.
+- O ramo `STATUS_RESULT_AVAILABLE` do transformer de `PendingExamResultList.php:108-111` nunca roda (`listPending()` só traz `requested`).
+
+Reprodução exigida: `grep -n "'draft' =>" src/app/control/clinic/EncounterView.php` acha o literal, e a invocação por Reflection abaixo com `detail` vazio não imprime `cv-badge`. Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/control/clinic/PendingExamResultList.php`
+
+**Interface**
+- Produz: o mapa de `planStatusBadge()` usa `\CentralVet\Domain\Prescription::STATUS_DRAFT`, `Prescription::STATUS_ISSUED`, `\CentralVet\Domain\ExamRequest::STATUS_REQUESTED` e `ExamRequest::STATUS_RESULT_AVAILABLE`, com os mesmos rótulos e tons de T-23. `planStatusBadge('')` devolve `CvBadge::create('—', 'neutral')`. Em `planItemList()`, com `$detailIsStatus`, todo item recebe `planStatusBadge((string) ($item['detail'] ?? ''))`. As abas sem status continuam imprimindo `detail` só quando não vazio.
+- Produz: o docblock de `onInlineAction` descreve os `kind` de `PLAN_ACTIONS` e a auditoria `EncounterView::onInlineAction:<kind>`. `onStart`/`onAutosave`/`onFinish`/`onAttachDocument` e o `setInterval` ficam intactos.
+- Produz: o transformer de status de `PendingExamResultList` devolve sempre `CvBadge::create(_t('Requested'), 'warning')` (sem ramo `STATUS_RESULT_AVAILABLE`).
+- Consome: nada
+
+**Teste RED**
+- sem teste: apresentação em controller Adianti; a suíte não carrega o Adianti. A verificação é por `php -r` com `init.php` e Reflection, e no navegador.
+
+**Critério de aceite**
+- `grep -c "'draft' =>\|'issued' =>\|'requested' =>\|'result_available' =>" src/app/control/clinic/EncounterView.php` = 0 e `grep -c "STATUS_RESULT_AVAILABLE" src/app/control/clinic/PendingExamResultList.php` = 0.
+- `php -r` com `init.php`, invocando `EncounterView::planItemList([['title'=>'X','detail'=>'']], true)` por Reflection, imprime HTML com `cv-badge` e `—`.
+- `grep -c "TButton::create(" src/app/control/clinic/EncounterView.php` = 0 e `grep -c "enableSpeechRecognition\|setInterval" src/app/control/clinic/EncounterView.php` ≥ 2. No gate, as abas Prescrições e Exames do `EncounterView` 1547 mantêm "Rascunho"/"Emitida" e "Solicitado"/"Resultado disponível".
+
+**Validação**
+- LINT dos 2 arquivos (evidência: 2 `No syntax errors detected`)
+- Os 4 `grep -c` do critério (evidência: `0`, `0`, `0`, ≥ 2)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'require "init.php"; $m = new ReflectionMethod("EncounterView", "planItemList"); $m->setAccessible(true); $h = (string) $m->invoke(null, [["title"=>"X","detail"=>""]], true); echo (str_contains($h, "cv-badge") && str_contains($h, "—")) ? "com-badge" : "sem-badge";'` (evidência: `com-badge`)
+- GATE → `EncounterView&encounter_id=1547`, abas Prescrições e Exames + `PendingExamResultList` + `browser_console_messages` (evidência: badges traduzidos e 0 `error`)
+
+### T-31 — Onda 7 (C#5): CvFormat::paymentMethod por constantes e PaymentForm sem mapa duplicado
+
+**Camada:** frontend
+**Dependências:** T-18, T-24
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Platão
+
+Achado (`reviews/final.md § Triagem` T-24, **aberto**): `CvFormat::paymentMethod()` (`CvFormat.php:51-59`) tem as chaves literais `'cash'`… `'bank_transfer'`. `PaymentForm.php:273-277` repete o mapa método → rótulo, já com `Payment::METHOD_*`, mas com os `_t()` duplicados. Reprodução exigida: `grep -n "'cash'" src/app/lib/widget/CvFormat.php` acha o literal. Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/lib/widget/CvFormat.php`
+- `src/app/control/clinic/PaymentForm.php`
+
+**Interface**
+- Produz: o mapa de `CvFormat::paymentMethod(string $value): string` usa as chaves `\CentralVet\Domain\Payment::METHOD_CASH`, `METHOD_DEBIT_CARD`, `METHOD_CREDIT_CARD`, `METHOD_PIX` e `METHOD_BANK_TRANSFER`. A assinatura, os rótulos e o retorno de valor desconhecido ficam iguais.
+- Produz: o `TCombo payment_method` de `PaymentForm` monta os itens com `Payment::METHOD_X => CvFormat::paymentMethod(Payment::METHOD_X)`, nos 5 métodos e na mesma ordem.
+- Consome: T-24 `CvFormat::paymentMethod(string $value): string`
+
+**Teste RED**
+- sem teste: helper de apresentação em `app/lib`, fora do autoload do runner, e `_t()` sem stub (mesmo motivo de T-24). A verificação é por `php -r` com `init.php` e no navegador.
+
+**Critério de aceite**
+- `grep -c "'cash'\|'debit_card'\|'credit_card'\|'pix'\|'bank_transfer'" src/app/lib/widget/CvFormat.php` = 0 e `grep -c "_t('Cash')\|_t('Pix')\|_t('Bank transfer')" src/app/control/clinic/PaymentForm.php` = 0.
+- `php -r` com `init.php` imprime `Dinheiro|Transferência bancária|Outros` para `CvFormat::paymentMethod('cash')`, `('bank_transfer')` e `('Outros')`.
+- No gate, o combo "Forma de pagamento" do `PaymentForm` do recebível aberto mostra, em ordem, "Dinheiro", "Cartão de débito", "Cartão de crédito", "Pix", "Transferência bancária".
+
+**Validação**
+- LINT dos 2 arquivos (evidência: 2 `No syntax errors detected`) + os 2 `grep -c` (evidência: `0` e `0`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'require "init.php"; echo CvFormat::paymentMethod("cash"), "|", CvFormat::paymentMethod("bank_transfer"), "|", CvFormat::paymentMethod("Outros");'` (evidência: `Dinheiro|Transferência bancária|Outros`)
+- GATE → `PendingReceivableList` → Receber (sem salvar) + `browser_evaluate` `[...document.querySelectorAll('select[name=payment_method] option')].map(o => o.innerText)` (evidência: os 5 rótulos em pt) + `browser_console_messages` (evidência: 0 `error`)
+
+### T-32 — Onda 7 (C#1, T-12): comentários obsoletos do combo de profissional e loadSummary com Throwable
+
+**Camada:** frontend
+**Dependências:** T-12, T-15
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Kratos
+
+Achados:
+- (`reviews/final.md § Rodada 2`, sugestão) Os comentários "system_user não tem tenant_id: combo sem filtro de tenant…" contradizem o `CvTenantUsers::combo` do final-fix em `ExamRequestForm.php:72-73`, `ProcedureExecutionForm.php:101-102`, `VaccinationForm.php:62-63` e no docblock de `PrescriptionForm.php:27-28`.
+- (`§ Triagem` T-12, **aberto**) `PrescriptionForm::loadSummary` (`:299`) captura só `Exception`.
+
+Reprodução exigida: `grep -n "system_user não tem tenant_id" <4 arquivos>` acha 3 linhas, e o docblock cita "sem filtro de tenant". Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/ExamRequestForm.php`
+- `src/app/control/clinic/ProcedureExecutionForm.php`
+- `src/app/control/clinic/VaccinationForm.php`
+- `src/app/control/clinic/PrescriptionForm.php`
+
+**Interface**
+- Produz: nos 3 forms, o comentário acima do `CvTenantUsers::combo(...)` passa a dizer "combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save". O docblock de `PrescriptionForm` diz o mesmo. `loadSummary` passa a `catch (\Throwable $e)` e mantém só o rollback, com o mesmo comportamento para o usuário. Nenhuma outra linha muda.
+- Consome: nada
+
+**Teste RED**
+- sem teste: só comentários e o tipo capturado num `catch`, sem comportamento novo observável pela suíte
+
+**Critério de aceite**
+- `grep -c "system_user não tem tenant_id\|sem filtro de tenant" src/app/control/clinic/{ExamRequestForm,ProcedureExecutionForm,VaccinationForm,PrescriptionForm}.php` = 0 nos 4 arquivos, e `grep -c "catch (\\\\Throwable" src/app/control/clinic/PrescriptionForm.php` ≥ 1.
+- `git diff --stat <BASE da onda>..HEAD -- <4 arquivos>`, nos commits `Task: T-32`, mostra ≤ 12 linhas alteradas no total.
+- No gate, `ExamRequestForm`, `ProcedureExecutionForm`, `VaccinationForm` e `PrescriptionForm` abertos a partir do atendimento 1708 renderizam o combo de profissional com a opção "Administrator", com 0 `error` no console.
+
+**Validação**
+- LINT dos 4 arquivos (evidência: 4 `No syntax errors detected`) + os `grep -c` do critério (evidência: `0` em cada e ≥ 1)
+- `git -C /var/www/html/centralvet log --format=%h --grep='Task: T-32' <BASE da onda>..HEAD | xargs -I{} git -C /var/www/html/centralvet show --stat {}` (evidência: só os 4 arquivos, total ≤ 12 linhas)
+- GATE → os 4 formulários com `encounter_id=1708` + `browser_console_messages` (evidência: combo com "Administrator", 0 `error`)
+
+### T-33 — Onda 7 (C#9, T-11/T-16): link focável na linha de ServiceList e combos de catálogo com o item atual inativo
+
+**Camada:** frontend
+**Dependências:** T-11, T-16, T-17
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Levi
+
+Achados (`reviews/final.md § Triagem` T-11 e T-16, **abertos**):
+- `ServiceList::linkRow()` (`:256-265`) põe `href`/`generator` na célula, sem `<a>` nem `tabindex`, e a linha não abre pelo teclado.
+- `ProcedureInputForm.php:69` e `VaccineProtocolForm.php:65` filtram o combo por `active = 1`. Abrir por URL o formulário de um item de catálogo inativo deixa o combo vazio e perde o vínculo no Salvar.
+
+Reprodução exigida: em `ServiceList`, Tab não chega a nenhuma linha. `ProcedureInputForm&procedure_catalog_item_id=<item inativo>` mostra o combo sem o item; se o banco não tiver item inativo, a reprodução é pelo SQL do critério (`dump()` do `TCriteria`). Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/ServiceList.php`
+- `src/app/control/clinic/ProcedureInputForm.php`
+- `src/app/control/clinic/VaccineProtocolForm.php`
+
+**Interface**
+- Produz: a coluna Nome de `ServiceList` renderiza `<a class="cv-row-link" href="<selectUrl(id)>" generator="adianti">nome</a>`, com o nome escapado por `CvFormat::e`. O clique na linha continua abrindo o painel, que também abre pelo Enter no link.
+- Produz: o critério dos 2 combos passa a `tenant_id = <tenant> AND (active = 1 OR id = <id atual>)`, via `TCriteria` aninhado com `TExpression::OR_OPERATOR`, quando há id atual (`procedure_catalog_item_id` ou `vaccine_catalog_item_id` do form). Sem id atual, o critério fica igual. O fallback `tenant_id = -1` sem tenant fica.
+- Consome: nada
+
+**Teste RED**
+- sem teste: controllers Adianti (render e `TCriteria`); a suíte não carrega o Adianti. A verificação é por `php -r` com `init.php` e no navegador.
+
+**Critério de aceite**
+- No gate, em `ServiceList`, `document.querySelectorAll('a.cv-row-link').length` é igual ao número de linhas da tabela. Focar o 1º link e pressionar Enter abre o painel de detalhe do serviço, com `service_id` na URL.
+- `php -r` com `init.php` monta o critério de `ProcedureInputForm` com tenant 1 e id atual 5, e `dump()` contém `tenant_id = 1` e `(active = 1 OR id = 5)`. O mesmo vale para `VaccineProtocolForm`.
+- No gate, `ProcedureInputForm` e `VaccineProtocolForm` abrem com 0 `error` no console, e o combo tem ao menos as opções ativas do tenant (`option[value!=""]` ≥ 1 em `ProcedureInputForm`).
+
+**Validação**
+- LINT dos 3 arquivos (evidência: 3 `No syntax errors detected`)
+- `php -r` com `init.php` e `dump()` do critério nos 2 forms (evidência: `(active = 1 OR id = 5)` nos dois; o implementador pode expor o critério num `private static function catalogCriteria(int $tenantId, ?int $currentId): TCriteria` invocado por Reflection)
+- GATE → `ServiceList` + `browser_press_key` Tab até o 1º `a.cv-row-link` + Enter + `browser_evaluate` `location.search.includes('service_id=')` (evidência: `true`) + `browser_console_messages` (evidência: 0 `error`)
+- GATE → `ProcedureInputForm` e `VaccineProtocolForm` pelas listas de catálogo (evidência: 0 `error`, combo com opções)
+
+### T-34 — Onda 7 (C#9, T-17): ProductService::update() e ProductForm sem regra de edição
+
+**Camada:** backend
+**Dependências:** T-17
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Darwin
+
+Achado (`reviews/final.md § Achados`, sugestão; § Triagem Onda 3, **aberto**): `ProductForm::updateProduct()` (`ProductForm.php:242-287`) valida com um `Product::create` descartável, confere nome único, reconstitui e grava pelo repositório, tudo no controller. Isso contraria o README do Core (lógica nos services). Reprodução exigida: o teste RED abaixo chama `ProductService::update()` inexistente. Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/Core/Application/ProductService.php`
+- `src/tests/Unit/ProductServiceTest.php`
+- `src/app/control/clinic/ProductForm.php`
+
+**Interface**
+- Produz: `ProductService::update(int $productId, string $name, ?string $category, string $unitOfMeasure, int $unitCostCents, int $minimumStockQuantity, bool $active): Product`.
+  - Id inexistente ou de outro tenant (`findById` null) → `InvalidArgumentException("Product {$productId} not found for this tenant")`.
+  - Valida pelas regras de `Product::create`, com nome aparado.
+  - Nome de outro produto do tenant → `InvalidArgumentException("A product named \"{$name}\" already exists for this tenant")`, a mesma mensagem de `create()`; manter o próprio nome é permitido.
+  - Grava `Product::reconstitute` com id, `tenantId` e `createdAt` do atual e devolve o `save()`.
+- Produz: `ProductForm::onSave` com `id` chama `$service->update(...)`, e `updateProduct()` sai do controller. A mensagem e o redirecionamento de sucesso não mudam.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/ProductServiceTest.php` — com `FakeProductRepository` e 2 produtos (`A`, `B`): `update(idA, 'A2', ...)` muda nome e custo, mantém id e `createdAt` e não cria produto (`findActive()` com o mesmo número de itens); `update(idA, 'B', ...)` e `update(999, ...)` lançam `InvalidArgumentException`; `update(idA, 'A', ...)` passa; antes da implementação falha porque `ProductService::update` não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- A SUITE imprime `PASS  Unit\ProductServiceTest::` em todos os métodos e `Failed: 0`.
+- `grep -c "function updateProduct\|Product::reconstitute\|Product::create(" src/app/control/clinic/ProductForm.php` = 0.
+- No gate, editar o produto "F10 varredura Produto T21" (custo + 0,01) → Salvar mostra a mensagem de salvo, volta a `ProductList` com o custo novo e `SELECT COUNT(*) FROM product` fica igual antes e depois.
+
+**Validação**
+- LINT de `app/Core/Application/ProductService.php` e `app/control/clinic/ProductForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\ProductServiceTest::`, `Failed: 0`)
+- `grep -c "function updateProduct\|Product::reconstitute\|Product::create(" /var/www/html/centralvet/src/app/control/clinic/ProductForm.php` (evidência: `0`)
+- `SELECT COUNT(*) FROM product` antes e depois do gate (evidência: igual) + GATE → `ProductForm&method=onEdit&key=<id F10>` → Salvar (evidência: mensagem de salvo, custo novo na lista, 0 `error`)
+- Review Focus: renomear para o nome de outro produto do tenant pela tela → diálogo de erro, e nenhum dos dois produtos muda (evidência: `SELECT name FROM product WHERE id IN (...)` igual)
+
+### T-35 — Onda 7 (C#9, C#4, T-10/T-17): "Ver tudo" de estoque baixo, erro de tenant único e "Gerar PDF" em nova aba
+
+**Camada:** frontend
+**Dependências:** T-10, T-17
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Darwin
+
+Achados (`reviews/final.md § Triagem` T-10 e T-17, **abertos**):
+- "Ver tudo" do card de estoque baixo leva a `ProductList&status=low` (`ProductList.php:337`), mas o card lista low + out (`StockSalesOverviewService::lowStock`).
+- Sem tenant na sessão, `ProductList` mostra o `TMessage` de tenant duas vezes (construtor `:58` e `onReload` `:102`).
+- O link "Gerar PDF" do `SaleForm` (`:185-190`) perdeu o `target="_blank"` do BASE (`main:SaleForm.php:220`) e abre o PDF na mesma aba, pelo `generator="adianti"` do `CvPage::actionButton`.
+
+Reprodução exigida: `ProductList&status=low` omite produtos "Sem estoque" que o card mostra. `php -r` sem sessão conta 2 mensagens de tenant. `grep -c "_blank" src/app/control/clinic/SaleForm.php` = 0. Correção pedida pelo usuário em 2026-09-29 (escopo C).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/ProductList.php`
+- `src/app/control/clinic/SaleForm.php`
+
+**Interface**
+- Produz: `ProductList::STATUSES` ganha `attention`, e `statusLabels()` ganha `attention => _t('Low or out of stock')`, filtro que não é status de linha. Com `status=attention`, `onReload` chama `products($search, $category, null)` e mantém as linhas com `status` `low` ou `out`. "Ver tudo" do card aponta para `index.php?class=ProductList&status=attention`.
+- Produz: o `TMessage` de `MissingTenantContext` aparece uma vez por requisição, com uma flag privada `$tenantErrorShown` marcada no construtor e respeitada em `onReload`.
+- Produz: "Gerar PDF" do `SaleForm` entra nas ações do `CvPage::header` como widget pronto: `TElement('a')` com `href` `index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=<id>`, `target="_blank"`, `rel="noopener"`, classe `btn btn-outline-secondary`, ícone `fa:file-pdf` e rótulo `_t('Generate PDF')`, sem `generator`.
+- Produz: chave nova pedida no board (quem grava é T-36): `Low or out of stock` → "Estoque baixo ou zerado"
+- Consome: nada
+
+**Teste RED**
+- sem teste: controllers Adianti; a suíte não os instancia. A verificação é por `php -r` com `init.php` e no navegador.
+
+**Critério de aceite**
+- No gate, o número de produtos de `ProductList&status=attention` é igual à soma de `status=low` e `status=out`, e todo item do card "Produtos com estoque baixo" está na lista aberta pelo "Ver tudo".
+- `php -r` com `init.php`, sem sessão, renderizando `new ProductList([])` + `show()` com buffer, imprime `1` para `substr_count($html, _t('Your session does not have an active tenant. Please log in again'))`.
+- `grep -c "_blank" src/app/control/clinic/SaleForm.php` ≥ 1, e o link do PDF não passa pelo array de `actionButton` (`grep -n "onGenerateReceiptPdf" src/app/control/clinic/SaleForm.php` mostra um `TElement('a')` com `target`).
+
+**Validação**
+- LINT dos 2 arquivos (evidência: 2 `No syntax errors detected`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'require "init.php"; ob_start(); (new ProductList([]))->show(); $h = ob_get_clean(); echo substr_count($h, _t("Your session does not have an active tenant. Please log in again"));'` (evidência: `1`)
+- `grep -c "_blank" /var/www/html/centralvet/src/app/control/clinic/SaleForm.php` (evidência: ≥ 1)
+- GATE → `ProductList&status=low`, `&status=out`, `&status=attention` + `browser_evaluate` com a contagem de linhas de cada (evidência: attention = low + out) + clicar "Ver tudo" no card (evidência: URL com `status=attention`) + `browser_console_messages` (evidência: 0 `error`)
+
+### T-36 — Onda 8 (C#8): chaves i18n unificadas e chaves novas da onda 7
+
+**Camada:** frontend
+**Dependências:** T-26, T-28, T-29, T-33, T-35
+**Paralelizável:** não
+**Complexidade:** média
+**Agente:** Platão
+
+Achado (`reviews/final.md § Triagem` T-20, **aberto**; notes.md § Pendências T-20): `translations.json` tem 5 pares que diferem só pela caixa, e o `ApplicationTranslator` distingue caixa (`array_flip`, `ApplicationTranslator.php:41-60`). Os pares são `Patients`/`patients`, `Results`/`results`, `Services`/`services`, `Tutors`/`tutors` e `Date/time`/`Date/Time`, e os dois lados de cada par estão em uso. Decisão do usuário (2026-09-29): uma chave canônica por par, com todos os usos da variante removida migrados nesta task, que roda depois das tasks da onda 7 que tocam os mesmos controllers. A task também grava as 7 chaves novas pedidas pela onda 7. Reprodução exigida: a contagem abaixo mostra os 5 pares.
+
+**Arquivos prováveis**
+- `src/app/config/translations.json`
+- `src/app/control/clinic/QueueEntryView.php`
+- `src/app/control/clinic/PatientList.php`
+- `src/app/control/clinic/GlobalSearchController.php`
+- `src/app/control/clinic/ServiceList.php`
+- `src/app/control/clinic/TutorList.php`
+- `src/app/control/clinic/AppointmentForm.php`
+
+**Interface**
+- Produz: as chaves canônicas são `Patients` (Pacientes), `Results` (Resultados), `Services` (Serviços), `Tutors` (Tutores) e `Date/time` (Data/hora). Saem do JSON as entradas `patients`, `results`, `services`, `tutors` e `Date/Time`.
+- Produz: os usos migram assim, e o rodapé continua minúsculo: `QueueEntryView.php:266` e `PatientList.php:238` → `mb_strtolower(_t('Patients'))`; `GlobalSearchController.php:230` → `mb_strtolower(_t('Results'))`; `ServiceList.php:227` → `mb_strtolower(_t('Services'))`; `TutorList.php:210` → `mb_strtolower(_t('Tutors'))`; `AppointmentForm.php:80,85` → `_t('Date/time')`. Os números de linha são do BASE da onda 7 e podem ter mudado com T-29/T-33.
+- Produz: 7 entradas novas em ordem alfabética, no formato `{"en": ..., "pt": ...}`:
+  - `Could not load the user context` → "Não foi possível carregar o contexto do usuário"
+  - `Invalid or expired request. Reload the page` → "Requisição inválida ou expirada. Recarregue a página"
+  - `Open (filter)` → "Em aberto"
+  - `Paid (filter)` → "Pagas"
+  - `All (filter)` → "Todas"
+  - `Only open payables can be edited` → "Só contas em aberto podem ser editadas"
+  - `Low or out of stock` → "Estoque baixo ou zerado"
+  - O total passa de 683 para 685 entradas (683 − 5 + 7).
+- Consome: T-26 `Could not load the user context`, T-26 `Invalid or expired request. Reload the page`, T-28 `Open (filter)`, T-28 `Paid (filter)`, T-28 `All (filter)`, T-28 `Only open payables can be edited`, T-35 `Low or out of stock`
+
+**Teste RED**
+- sem teste: dados de tradução e troca de chave em `_t()`; a suíte não carrega o `ApplicationTranslator`. A verificação é por script sobre o JSON, por `grep` e no navegador.
+
+**Critério de aceite**
+- `python3` sobre `translations.json` imprime `685 0 0`: 685 entradas, 0 pares `en` que diferem só pela caixa e 0 `en` duplicados. As 7 chaves novas têm o `pt` definido na Interface.
+- `grep -rn "_t('patients')\|_t('results')\|_t('services')\|_t('tutors')\|_t('Date/Time')" src/app src/menu.xml` não imprime nada.
+- No gate, os rodapés de `TutorList`, `PatientList` (com `tutor_id` de "F10"), `QueueEntryView`, `ServiceList` e `GlobalSearchController&query=F10` mostram "tutores", "pacientes", "serviços" e "resultados" em minúsculas. `AppointmentForm` mostra o rótulo "Data/hora". `PayableList` mostra "Em aberto/Pagas/Todas", `ProductList&status=attention` mostra "Estoque baixo ou zerado", e nenhuma tela da lista mostra "Message not found".
+- A contagem de registros não se aplica (nenhum DML), mas `git show --stat` dos commits `Task: T-36` em `translations.json` tem 7 blocos adicionados e 5 removidos, e nenhuma outra entrada muda: o `diff` por chave do script abaixo imprime só as 12 chaves.
+
+**Validação**
+- `python3 -c 'import json,collections; d=json.load(open("/var/www/html/centralvet/src/app/config/translations.json")); en=[x["en"] for x in d]; low=collections.Counter(e.lower() for e in en); print(len(d), sum(1 for k,v in low.items() if v>1), len(en)-len(set(en)))'` (evidência: `685 0 0`)
+- `git -C /var/www/html/centralvet diff <BASE da onda 8> HEAD -- src/app/config/translations.json | grep -c '"en":'` (evidência: `12`)
+- `grep -rn "_t('patients')\|_t('results')\|_t('services')\|_t('tutors')\|_t('Date/Time')" /var/www/html/centralvet/src/app /var/www/html/centralvet/src/menu.xml` (evidência: saída vazia) + LINT dos 6 controllers (evidência: 6 `No syntax errors detected`)
+- GATE → as telas do critério + `browser_evaluate` `document.body.innerText.includes('Message not found')` em cada (evidência: `false`) + os textos do critério + `CvShellController` 403 do T-26 com a mensagem "Requisição inválida ou expirada. Recarregue a página" + `PayableForm` da conta paga 2 com "Só contas em aberto podem ser editadas" (evidência: `browser_evaluate` dos textos)
 
 ## Legenda
 

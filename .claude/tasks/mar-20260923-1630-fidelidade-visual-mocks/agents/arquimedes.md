@@ -9,6 +9,7 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 ## Tasks atribuídas
 - T-04: Leitura de indicadores de estoque e vendas
 - T-05: Leitura de indicadores financeiros
+- T-27: Onda 7 — correção (usuário), BASE `2c7611d` — `AuthorizationRequest::ACTION_PATTERN` e recusa de `$action` malformada, no formato fixado na seção da task (não quebre `RbacAuthorizationServiceTest` nem as constantes `test::…`). A task tem Teste RED: o primeiro commit leva só os arquivos do bloco Teste RED, com `Task: T-27 (RED)`, e a implementação vai nos commits seguintes com `Task: T-27`; reproduza o achado da seção da task e cole-o em `## RED` junto com a falha.
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 
@@ -27,7 +28,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Branch de trabalho: `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`), já em checkout quando você começa — confira com `git -C /var/www/html/centralvet branch --show-current`; se for outra, pare com `Status: bloqueado`, sem trocar de branch.
 - Commits: um ou mais por task, sempre listando os caminhos da própria task e com o trailer `Task: T-NN` (teste falhando: `Task: T-NN (RED)`). Proibido `git add -A`, `git add .`, `git commit -a`, `git checkout`, `git switch`, `git reset`, `git stash`, `git restore`, `git rebase`, `git push`. Sem hooks de git no repositório. Se o commit falhar por `index.lock` (outro agente commitando), espere alguns segundos e repita — nunca apague o lock.
 - Lint: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo>` → cada arquivo PHP tocado imprime `No syntax errors detected` (baseline sem erros: `baseline/php-lint.txt`, 0 linhas).
-- Suíte: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` → `Failed: 0` (baseline 155/155; sem filtro por arquivo — leia as linhas `PASS/FAIL  <Suite>\<Classe>::`).
+- Suíte: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` → `Failed: 0` (baseline 155/155 no planejamento; 186/186 no BASE `2c7611d` das ondas 7–8; sem filtro por arquivo — leia as linhas `PASS/FAIL  <Suite>\<Classe>::`).
 - Proibido: `docker compose build`, `docker compose up`, `docker compose restart`, `docker compose down` (rebuild é do orquestrador, no gate); usar o navegador Playwright MCP (é do validador, no gate); SQL que escreve fora da transação de teste (skill `sql-write-approval`: só SELECT/SHOW sem aprovação); editar arquivos de `src/lib/adianti`, `index.php`, `engine.php` (listados em `framework_hashes.php`); `composer` que altere `composer.lock`/`vendor`.
 - Pré-requisito: containers `app`, `mysql`, `redis` no ar (`docker compose ps`). Textos novos: use `_t('<chave en>')`; se a chave não estiver em `translations.json`, registre no board `- [T-xx] i18n: <chave en> → <texto pt>` (quem edita o JSON é Platão, em T-03/T-20).
 - Restrição específica: Não altere `*RepositoryInterface` nem Fakes existentes. Não execute DML/DDL fora da transação de teste (o teste faz rollback).

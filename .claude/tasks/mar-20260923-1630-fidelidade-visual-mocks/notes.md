@@ -37,6 +37,24 @@
 - 2026-09-29 · final · onda final — O bloqueante promovido na revisão final (SystemUser sem tenant nos combos de profissional) contrariava a exceção documentada em plan.md; o orquestrador decidiu corrigir, por ser vazamento entre tenants (commits dbe7318 RED e 12945fa).
 - 2026-09-29 · final-fix · onda final — Trailer `Task: final-fix` aceito nos commits dbe7318 e 12945fa (correção sem T-NN).
 - 2026-09-29 · final-fix · onda final — O gate do final-fix precisou de 2 complementos: a sessão do Playwright caiu, o orquestrador refez o login com a senha fornecida pelo usuário e passou os ids dos dados de teste.
+- 2026-09-29 · plano (revisão) · onda 7 — O usuário pediu as ondas 7–8 de correção a partir de reviews/final.md, reports/final-fix.md e § Pendências. BASE `2c7611d`, IDs T-25..T-36.
+  - Onda 7, 11 tasks com arquivos disjuntos e `caminho exclusivo`: T-25 (Jaspion), T-26 (Aang), T-27 (Arquimedes), T-28 (Tesla), T-29 (Thanos), T-30 (Yoda), T-31 (Platão), T-32 (Kratos), T-33 (Levi), T-34 e T-35 (Darwin, em sequência).
+  - Onda 8: T-36 (Platão), escritor único de `translations.json`, depois das tasks que tocam os mesmos controllers.
+  - Tasks com RED: T-25, T-26, T-27, T-28, T-34. As demais são controllers Adianti ou comentários, que a suíte não carrega; a verificação é por `php -r` com `init.php`, grep e gate.
+- 2026-09-29 · plano (revisão) · onda 7 — Respostas do usuário:
+  - (1) PayableList ganha o filtro Em aberto (padrão) / Pagas / Todas; `listOpen()` continua "em aberto", e o service/repo ganham `listByStatus`/`listBySystemUnitAndStatus` (T-28).
+  - (2) i18n: uma chave canônica por par de caixa (`Patients`, `Results`, `Services`, `Tutors`, `Date/time`); os usos da variante removida migram na mesma task (T-36). O rodapé fica minúsculo com `mb_strtolower(_t(...))`.
+- 2026-09-29 · plano (revisão) · onda 7 — Premissas do orquestrador, sem pergunta ao usuário:
+  - formato de `$action` = `Classe::metodo` (namespaced ou com classe minúscula, como `test::action`) ou chave pontuada (`patient.view`), porque `RbacAuthorizationServiceTest` usa `patient.view`/`schedule.manage`; `EncounterView::onInlineAction:<kind>` é ação de `AuditEvent`, fora de `AuthorizationRequest` (T-27);
+  - `StockBatchForm` lendo `$_GET['product_id']` com fallback em `$param` é o padrão do projeto (`paramInt()` em SaleForm, ProcedureExecutionForm, ExamRequestForm, VaccinationForm, PaymentForm, ExamResultForm, PrescriptionForm, EncounterAccountForm, EncounterView): pendência T-17 fechada sem task;
+  - o construtor de `EncounterAccountService` só é construído em `EncounterAccountForm.php:757` e `EncounterAccountServiceTest.php:97`, e os dois mudam em T-25.
+- 2026-09-29 · plano (revisão) · onda 7 — Token da troca de unidade: não há helper de CSRF no projeto além de `BootstrapFormBuilder::validateCSRFToken` (só para formulários). A regra pura vai para `CentralVet\Security\CsrfToken` (Core, testável), com o token em `TSession 'cv_shell_csrf'`, entregue por `onContext` e exigido por POST em `onSwitchUnit` (T-26). A resposta de `onSwitchUnit` vira JSON (`switched`/`error`), e o reload fica no JS.
+- 2026-09-29 · plano (revisão) · onda 7 — Premissa operacional: os PNGs soltos na raiz (`f10-EncounterView-plan.png`, `f10-FinancialEntryList-cat.png`, `f10-FinancialOverview-cat.png`, `f10-SystemAdministrationDashboard.png`) são evidência de T-21/onda 6. O fechador da onda 7 os move para `reports/`, sem task de código.
+- 2026-09-29 · plano (revisão) · onda 7 — O Review Focus das ondas 1–6, já coberto pelos gates, foi substituído pelos 5 riscos das ondas 7–8 (plan.md).
+- 2026-09-29 · T-27 · onda 7 — src/tests/Unit/RbacAuthorizationServiceTest.php entrou no escopo ('x'→'test::x'); ACTION_PATTERN mantido sem ampliação (resposta a precisa de contexto).
+- 2026-09-29 · T-32 · onda 7 — diff de 14 linhas (limite 12) aceito — mínimo possível para o texto pedido (9 linhas efetivamente modificadas).
+- 2026-09-29 · T-29 · onda 7 — caso "avanço recusado na fila" no navegador aceito como pendência — sem caminho pela UI para criar entrada na fila; coberto por repro CLI e re-revisão.
+- 2026-09-29 · gate · onda 7 — O rebuild do container foi esquecido no primeiro gate e feito pelo orquestrador antes do Complemento (3); passos Playwright com credencial fornecida pelo usuário (não gravada em arquivo); usuário autorizou gravações de teste pela UI no banco local para T-26/T-27/T-35.
 
 ## Bloqueios
 - nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
@@ -84,6 +102,10 @@
 - Dados de teste da onda 3: Tutor/Pet F10, payable id 2, financial_entry 1623, stock_batch 729. Suíte 182/182; 40 itens de menu sem erro.
 - [T-21] B1: independent-plugins.min.js já embute Chart.js v4.5.1; a carga extra de chart.umd.min.js no layout.html quebra o SystemAdministrationDashboard. Varredura de 65 telas, suíte 182/182.
 - Dados de teste da T-21: tutor 1595, pet 1452, atendimento 1547, exam_request 263, prescription 524, produto "F10 varredura Produto T21"; capturas em .playwright-mcp/f10-*.png (fora do git).
+- [T-33] ServiceList: coluna Nome agora renderiza `<a class="cv-row-link text-reset" ... generator="adianti">` (linha ~85-95); T-36 migra `_t('services')` na mesma classe e a linha mudou de número. Commit e3478b3.
+- [T-26] CvShellController: onContext agora devolve também `csrf_token` (TSession `cv_shell_csrf`) e `labels` {coming_soon, open_from_encounter, unit, error}; 500 genérico com error_log. onSwitchUnit só aceita POST com `csrf_token` (CentralVet\Security\CsrfToken) e responde só JSON: 403 {error} / 200 {switched:true}; o reload é do cv-shell.js. Menu desabilitado é neutralizado no init e recebe o se
+- [T-34] ProductService::update() pronto (1d4941c); ProductForm::updateProduct() removido. Id inexistente agora lança "Product <id> not found for this tenant" (antes _t('Record not found')).
+- [T-28] PayableRepositoryInterface ganhou listBySystemUnitAndStatus(int, ?string) (listOpenBySystemUnit delega a ela); PayableService::listByStatus() pronto (ba02a97). No banco atual payable id 2 está 'open' e ids 1 e 3 'paid' (tenant 1/unidade 1): o gate que cita "conta paga id 2" deve usar id 1 ou 3.
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
@@ -126,6 +148,45 @@
 - final-fix: comentários obsoletos ("system_user não tem tenant_id: combo sem filtro de tenant") em ExamRequestForm.php:72-73, ProcedureExecutionForm.php:101-102, VaccinationForm.php:62-63 e no docblock de PrescriptionForm.php:28.
 - final-fix: dados de teste no banco: atendimento 1708 em andamento, exam_request 312 com resultado, conta #46 com item e desconto.
 - Revisão final: triagem mantém 30 pendências, conforme reviews/final.md.
+- Ondas 7–8 (plano), fora de escopo por decisão ou premissa:
+  - itens desabilitados só no grupo 1 (DML em `system_group_program`, decisão de produto);
+  - units sem `current` (placeholder "—" já trata);
+  - `StockBatchForm` com `$_GET` (padrão do projeto);
+  - `products()` 3x em ProductList (contrato de leitura de T-04);
+  - offset do pageNavigation e cards à mão (T-16);
+  - VaccinationCardView sem pista, `actionMenu`/`columns` sem uso (T-15);
+  - estilos inline e `onEdit` vazio (T-12);
+  - título/KPI de estoque (T-10);
+  - CvCard/CvFormat::e fora de "Consome" (T-11, documental);
+  - mensagem crua de `CrossTenantReferenceException` em inglês nos 5 forms (entrada só por POST adulterado).
+- T-25: Critério 3 (GATE no navegador: desconto R$ 5,00 com autorizador 1 e POST adulterado com 999999 na conta 46) sem evidência; o validador o marcou [não rodado]. O código do diff sustenta o fluxo (guarda antes de requireAccount/save, catch exis
+- T-25: A guarda roda antes de requireAccount() (e da checagem RBAC da ação), como tasks.md mandou: um usuário sem permissão de desconto distingue "não é membro ativo" (CrossTenantReferenceException) de AuthorizationDenied e consegue sondar ids ati
+- T-25: O docblock de applyDiscount() não cita o novo motivo do @throws CrossTenantReferenceException (autorizador fora do tenant ou inativo) → src/app/Core/Application/EncounterAccountService.php:316
+- T-25: O catch de CrossTenantReferenceException em onApplyDiscount mostra ao operador a mensagem em inglês com o id ("authorized_by_system_user_id 999999 was not found…"); inalterado por ordem do plano → src/app/control/clinic/EncounterAccountForm
+- T-26: Os critérios de gate da task (onContext com csrf_token/labels, GET 403, POST sem token ou com `x` 403, 999999 403, unidade atual 200 switched, current inalterado, sidebar "Em breve" e console 0 error em ServiceList/ProductList) e o item da 
+- T-26: A reprodução exigida (`browser_evaluate` GET onSwitchUnit → 200) foi feita por leitura de código, não no navegador. Confere com o BASE: em `git show 2c7611d:src/app/templates/adminbs5/js/cv-shell.js` L82-96 a troca é por GET sem token → rep
+- T-26: O catch genérico de onSwitchUnit transforma falha de infraestrutura (SQL em allowedUnitIds/setUnit) em 403 "Unauthorized access to that unit". Isso esconde do operador um erro de servidor como se fosse recusa de acesso; um 500 com mensagem 
+- T-26: Sem `labels` (onContext falhou), o seletor recebe `aria-label=""` e os itens desabilitados ficam sem selo e sem title, porque o JS não tem fallback. É um desvio declarado, e o contexto também é pré-requisito do próprio seletor → src/app/tem
+- T-27: O teste não confere a mensagem `Invalid authorization action format: '...'` fixada na Interface, só a classe da exceção → src/tests/Unit/AuthorizationRequestTest.php:46
+- T-27: A mensagem interpola `$action` cru, inclusive `\n`, e pode quebrar uma linha de log. O formato veio da Interface (plano-mandou), por isso fica como sugestão → src/app/Core/Authorization/AuthorizationRequest.php:41
+- T-28: Gate de navegador da task não rodou (validador sem credencial): critérios de UI (PayableList sem status/`paid`/`all`/`xyz`, PayableForm onEdit→Salvar de conta paga sem `cannot be edited from status`) e o item da Review Focus (filtro `paid` 
+- T-28: plano: o critério e a validação do GATE usam `payable` id 2 como conta paga, mas no banco o id 2 está `open` (pagas: 1 e 3) → tasks.md § T-28 Critério de aceite/Validação; reports/T-28.md § Pendências
+- T-28: `testUpdateScopedByTenantDoesNotTouchOtherTenantRowWithSameId` só verifica que a linha de B ficou intacta; não verifica que o save forjado não inseriu linha nem o que save() devolve (UPDATE com 0 linhas afetadas passa em silêncio) → src/tes
+- T-28: resolveStatus() lê `$_REQUEST['status']` como fallback (necessário porque TStandardList::show() chama onReload() sem parâmetro); vale uma linha no docblock dizendo por quê → src/app/control/clinic/PayableList.php resolveStatus()
+- T-29: a ocultação de `.page-item.off` agora depende só de `.tpagenavigation .pagination > li.page-item.off` (cv-components.css:375), que casa com a marcação de TPageNavigation.php:243/247/333; o `getComputedStyle` do critério e as contagens de `t
+- T-30: Docblock de `onInlineAction` afirma que `kind` "is one of the keys of PLAN_ACTIONS", mas o método não valida `kind` contra `PLAN_ACTIONS` (qualquer string não vazia é gravada na auditoria), e nenhum código em `src/app` chama mais a ação → s
+- T-30: Comentário `// listPending() only returns requested exams` depende de contrato de outra classe sem referência a `ExamRequest::STATUS_REQUESTED`; se `listPending()` mudar, o badge "Solicitado" mente em silêncio → src/app/control/clinic/Pendi
+- T-33: GATE do navegador não rodado (Tab até o 1º `a.cv-row-link` + Enter → `service_id` na URL; console com 0 `error` e combo com opções nos 2 forms): critérios 1 e 3 ficam sem evidência de execução; o código sustenta o comportamento (`<a href ge
+- T-33: Combo com item inativo validado só pelo `dump()` do critério (banco sem item inativo); o render real com item inativo e o Salvar mantendo o vínculo não foram exercitados → reports/T-33.md § Pendências; src/app/control/clinic/ProcedureInputF
+- T-33: `catalogCriteria()` duplicado byte a byte nos 2 forms; aceitável pelo plano (Interface sugere o método privado em cada form), mas é candidato a helper comum se um 3º combo precisar → src/app/control/clinic/ProcedureInputForm.php:341-358, Va
+- T-34: Testes de rejeição só afirmam a classe da exceção, não a mensagem da Interface ("A product named \"B\" already exists…", "Product 999 not found for this tenant"), e o caso de nome duplicado não confere que B ficou intacto → src/tests/Unit/P
+- T-34: Nenhum teste cobre id de outro tenant (fixture só semeia o tenant 1; FakeProductRepository já filtra por tenant) → src/tests/Unit/ProductServiceTest.php:25-35
+- T-34: plano-mandou: id inexistente agora mostra ao usuário a mensagem em inglês "Product <id> not found for this tenant" no lugar de _t('Record not found') → src/app/Core/Application/ProductService.php:91 / src/app/control/clinic/ProductForm.php:
+- T-35: filtro `attention` compara com literais `'low'`/`'out'` em vez de `StockSalesOverviewService::STATUS_LOW`/`STATUS_OUT`, que já existem (padrão das constantes de T-30/T-31) → src/app/control/clinic/ProductList.php:103
+- T-35: critério 1 (attention = low + out no navegador; clique em "Ver tudo" → URL com `status=attention`) segue sem evidência de runtime: o gate Playwright ficou `[não rodado]`. Pela leitura do código a equivalência vale: `products(null)` filtrado
+- Validador (onda 7): T-29 avanço recusado no navegador não rodado (sem caminho pela UI para criar entrada na fila; coberto por repro CLI e re-revisão).
+- Dados de teste no banco local pela UI (onda 7): payable id 2 marcada paga, venda sale_id 1715 (F10), atendimento 2189 (paciente 1452) em "Em atendimento", produto 946 com custo 3,01.
+- Chaves i18n novas de T-26/T-28/T-35 (7 entradas) pendentes para T-36 (onda 8).
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -138,7 +199,7 @@
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/`
-- Sessões: 004a97f0-faff-49ba-997a-092d97b4dffc, a4d85a4e-ac84-4bb6-b1c2-cdadb6248b2b
+- Sessões: 004a97f0-faff-49ba-997a-092d97b4dffc, a4d85a4e-ac84-4bb6-b1c2-cdadb6248b2b, 460ad1be-51d4-4e12-8f14-86b62c3dfad9
 - Branch de trabalho: feat/fidelidade-visual-mocks (base: main)
 - BASE da onda 1: 9efef4e
 - Commits por onda:
@@ -149,5 +210,6 @@
   - Onda 5: sem commits de código (QA); só chore(tasks)
   - Onda 6: BASE 0a72b8a → HEAD d006c24 (57eec6a, 851a947, 0df204b, d006c24)
   - Correção da revisão final (final-fix): BASE 720f185 → HEAD 12945fa (dbe7318, 12945fa)
-- Último status conhecido: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.
-- Próxima onda recomendada: nenhuma; fechar o plano (revisão final aprovada).
+  - Onda 7: BASE 2c7611d → HEAD e82a889 (ecbd0e3, 44576d9, 145b788, 2df282a, f56c67e, c7057f8, c2583b0, 700e761, 1d4941c, be2ed81, 4542605, e3478b3, 8e46e57, d264dcf, 645929e, ba02a97, e82a889)
+- Último status conhecido: T-01 a T-35 [x] (onda 7 aprovada; T-29 com 1 rodada de fix loop). [anterior: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.]
+- Próxima onda recomendada: onda 8 — T-36 (i18n, Platão; consome as 7 chaves novas de T-26/T-28/T-35).

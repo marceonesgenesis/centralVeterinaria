@@ -82,3 +82,14 @@ EOF
 - [T-14] TPageNavigation (framework) sempre desenha 10 páginas (as inexistentes como `li.off.page-item`): afeta toda lista com CvDatagrid::footer (TutorList, PatientList, QueueEntryView, ServiceList, ProductList...). GlobalSearchController corrigido localmente (pager oculto com 1 página; `.off` oculto por style escopado). Correção geral cabe em cv-components.css (`.cv-pager .page-item.off{display:none}`) — dono do CSS decide.
 - [T-18] PayableService::update(int $payableId, string $descriptionText, string $category, int $amountCents, ?string $dueDate, string $action): Payable (novo; tenant + unidade + só status open); Payable::changeDetails(); PayableRepository UPDATE agora grava description_text/category/amount_cents/due_date. PayableForm::onEdit(key|id) lê pelo repositório escopado. FinancialEntryForm::onEdit só limpa (append-only); antes o herdado mostrava "Active Record não definido" em Novo/Limpar.
 - [T-21] B1: layout.html (T-01) recarrega lib/independent/js/chart.umd.min.js, mas independent-plugins.min.js já embute Chart.js v4.5.1; a 2ª carga quebra o tooltip do SystemAdministrationDashboard ("TypeError: Cannot read properties of null (reading 'x')"). Sem o script extra, FinancialOverview desenha os 2 gráficos normalmente. Mocks images/1-4.png ausentes no host: GATE lado a lado não feito.
+- [T-33] ServiceList: coluna Nome agora renderiza `<a class="cv-row-link text-reset" ... generator="adianti">` (linha ~85-95); T-36 migra `_t('services')` na mesma classe e a linha mudou de número. Commit e3478b3.
+- [T-26] i18n: Could not load the user context → Não foi possível carregar o contexto do usuário
+- [T-26] i18n: Invalid or expired request. Reload the page → Requisição inválida ou expirada. Recarregue a página
+- [T-26] CvShellController: onContext agora devolve também `csrf_token` (TSession `cv_shell_csrf`) e `labels` {coming_soon, open_from_encounter, unit, error}; 500 genérico com error_log. onSwitchUnit só aceita POST com `csrf_token` (CentralVet\Security\CsrfToken) e responde só JSON: 403 {error} / 200 {switched:true}; o reload é do cv-shell.js. Menu desabilitado é neutralizado no init e recebe o selo/dica quando labels chega.
+- [T-35] i18n: Low or out of stock → Estoque baixo ou zerado
+- [T-34] ProductService::update() pronto (1d4941c); ProductForm::updateProduct() removido. Id inexistente agora lança "Product <id> not found for this tenant" (antes _t('Record not found')).
+- [T-28] i18n: Open (filter) → Em aberto
+- [T-28] i18n: Paid (filter) → Pagas
+- [T-28] i18n: All (filter) → Todas
+- [T-28] i18n: Only open payables can be edited → Só contas em aberto podem ser editadas
+- [T-28] PayableRepositoryInterface ganhou listBySystemUnitAndStatus(int, ?string) (listOpenBySystemUnit delega a ela); PayableService::listByStatus() pronto (ba02a97). No banco atual payable id 2 está 'open' e ids 1 e 3 'paid' (tenant 1/unidade 1): o gate que cita "conta paga id 2" deve usar id 1 ou 3.

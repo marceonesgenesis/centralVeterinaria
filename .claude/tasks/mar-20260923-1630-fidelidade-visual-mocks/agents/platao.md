@@ -10,6 +10,8 @@ Fase 10 do Central Vet Pro: levar casca e telas ao visual dos mocks com dados re
 - T-02: Kit de componentes Cv* + cv-components.css
 - T-03: Vocabulário novo em translations.json
 - T-20: Consolidação de chaves i18n pedidas no board
+- T-31: Onda 7 — correção (usuário), BASE `2c7611d` — `CvFormat::paymentMethod()` com chaves `Payment::METHOD_*` e `PaymentForm` montando o combo por ele. A task é `sem teste:`: reproduza o achado da seção da task antes de editar, cole a reprodução em `## RED` e commite com `Task: T-31`.
+- T-36: Onda 8 — correção (usuário), BASE = HEAD do fechamento da onda 7 — unificação dos 5 pares de chaves que diferem só pela caixa em `translations.json`, com os `_t()` migrados nos 6 controllers, e as 7 chaves novas da onda 7 (lista fechada na Interface). A task é `sem teste:`: reproduza o achado da seção da task antes de editar, cole a reprodução em `## RED` e commite com `Task: T-36`.
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/tasks.md`. Não leia as demais seções.
 
@@ -29,7 +31,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Branch de trabalho: `feat/fidelidade-visual-mocks` (base `main` @ `9efef4e`), já em checkout quando você começa — confira com `git -C /var/www/html/centralvet branch --show-current`; se for outra, pare com `Status: bloqueado`, sem trocar de branch.
 - Commits: um ou mais por task, sempre listando os caminhos da própria task e com o trailer `Task: T-NN` (teste falhando: `Task: T-NN (RED)`). Proibido `git add -A`, `git add .`, `git commit -a`, `git checkout`, `git switch`, `git reset`, `git stash`, `git restore`, `git rebase`, `git push`. Sem hooks de git no repositório. Se o commit falhar por `index.lock` (outro agente commitando), espere alguns segundos e repita — nunca apague o lock.
 - Lint: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo>` → cada arquivo PHP tocado imprime `No syntax errors detected` (baseline sem erros: `baseline/php-lint.txt`, 0 linhas).
-- Suíte: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` → `Failed: 0` (baseline 155/155; sem filtro por arquivo — leia as linhas `PASS/FAIL  <Suite>\<Classe>::`).
+- Suíte: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` → `Failed: 0` (baseline 155/155 no planejamento; 186/186 no BASE `2c7611d` das ondas 7–8; sem filtro por arquivo — leia as linhas `PASS/FAIL  <Suite>\<Classe>::`).
 - Proibido: `docker compose build`, `docker compose up`, `docker compose restart`, `docker compose down` (rebuild é do orquestrador, no gate); usar o navegador Playwright MCP (é do validador, no gate); SQL que escreve fora da transação de teste (skill `sql-write-approval`: só SELECT/SHOW sem aprovação); editar arquivos de `src/lib/adianti`, `index.php`, `engine.php` (listados em `framework_hashes.php`); `composer` que altere `composer.lock`/`vendor`.
 - Pré-requisito: containers `app`, `mysql`, `redis` no ar (`docker compose ps`). Textos novos: use `_t('<chave en>')`; se a chave não estiver em `translations.json`, registre no board `- [T-xx] i18n: <chave en> → <texto pt>` (quem edita o JSON é Platão, em T-03/T-20).
 - Restrição específica: Assinaturas do Produz de T-02 são contrato: não mude nomes nem parâmetros sem registrar no board.
