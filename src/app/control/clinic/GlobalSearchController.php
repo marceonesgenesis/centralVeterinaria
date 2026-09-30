@@ -121,6 +121,13 @@ class GlobalSearchController extends TPage
         $container->add($card);
 
         parent::add($container);
+
+        // link direto (…&query=termo, sem method): roda a busca aqui, já que
+        // o dispatcher só chama onSearch() quando method=onSearch
+        if (empty($_GET['method']) && isset($_GET['query']) && is_string($_GET['query']) && trim($_GET['query']) !== '')
+        {
+            $this->onSearch(['query' => $_GET['query']]);
+        }
     }
 
     /**
@@ -215,16 +222,12 @@ class GlobalSearchController extends TPage
 
         // TPageNavigation (framework) sempre desenha as páginas 1..10, com as
         // inexistentes como placeholders "off": com uma página só o pager
-        // some; com mais, os placeholders ficam ocultos e só restam as
-        // páginas reais, coerentes com "Mostrando X–Y de N".
+        // some; com mais, os placeholders ficam ocultos (regra
+        // .page-item.off de cv-components.css) e só restam as páginas
+        // reais, coerentes com "Mostrando X–Y de N".
         if ($total <= self::LIMIT)
         {
             $this->pageNavigation->hide();
-        }
-        else
-        {
-            $this->footerBox->{'class'} = 'cv-global-search-footer';
-            $this->footerBox->add(TElement::tag('style', '.cv-global-search-footer .page-item.off{display:none}', []));
         }
 
         $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, _t('results')));

@@ -119,7 +119,12 @@ class QueueEntryView extends TPage
 
         parent::add($container);
 
-        $this->loadData(null, $param['offset'] ?? 0);
+        // só carrega aqui no primeiro acesso: com method, o dispatcher chama
+        // onReload()/onSearch()/onAdvance(), que já carregam a fila
+        if (empty($param['method']))
+        {
+            $this->loadData(null, $param['offset'] ?? 0);
+        }
     }
 
     /**
