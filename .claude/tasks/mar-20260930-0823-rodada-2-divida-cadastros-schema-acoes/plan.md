@@ -165,20 +165,20 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/Core/Application/TutorService.php` | `update()` | modificar | T-06 |
 | `src/tests/Unit/TutorServiceTest.php` | testes de `update()` (RED) | modificar | T-06 |
 | `src/app/control/clinic/TutorForm.php` | edição com `key` | modificar | T-06 |
-| `src/app/Core/Application/PatientService.php` ⚠ | `update()` (T-07); alergia/foto (T-12) | modificar | T-07, T-12 |
-| `src/tests/Unit/PatientServiceTest.php` ⚠ | testes de `update()` (T-07) e de foto/alergia (T-12) (RED) | modificar | T-07, T-12 |
-| `src/app/control/clinic/PatientForm.php` ⚠ | edição (T-07); alergia/foto/`onPhoto` (T-12); mensagem (T-23) | modificar | T-07, T-12, T-23 |
+| `src/app/Core/Application/PatientService.php` ⚠ | `update()` (T-07); alergia/foto (T-12); peso (T-27) | modificar | T-07, T-12, T-27 |
+| `src/tests/Unit/PatientServiceTest.php` ⚠ | testes de `update()` (T-07), foto/alergia (T-12) e peso (T-27) (RED) | modificar | T-07, T-12, T-27 |
+| `src/app/control/clinic/PatientForm.php` ⚠ | edição (T-07); alergia/foto/`onPhoto` (T-12); mensagem (T-23); máscara e erro de peso (T-27) | modificar | T-07, T-12, T-23, T-27 |
 | `src/app/Core/Application/AppointmentService.php` | `reschedule()` e docblock | modificar | T-08 |
 | `src/tests/Unit/AppointmentServiceTest.php` | testes de `reschedule()` (RED) | modificar | T-08 |
 | `src/app/control/clinic/AppointmentForm.php` ⚠ | edição (T-08); mensagem (T-23) | modificar | T-08, T-23 |
-| `src/app/Core/Application/ServiceCatalogService.php` | `create` com `active`, `duplicate`, `delete`, `importCsv` | modificar | T-09 |
+| `src/app/Core/Application/ServiceCatalogService.php` ⚠ | `create` com `active`, `duplicate`, `delete`, `importCsv` (T-09); limites por linha (T-26) | modificar | T-09, T-26 |
 | `src/app/Core/Domain/Contract/ServiceRepositoryInterface.php` | `hasAppointments()` | modificar | T-09 |
 | `src/app/Core/Persistence/ServiceRepository.php` | `hasAppointments()` | modificar | T-09 |
 | `src/tests/Support/FakeServiceRepository.php` | `hasAppointments()` no Fake (fixture do RED) | modificar | T-09 |
-| `src/tests/Unit/ServiceCatalogServiceTest.php` | testes das ações (RED) | modificar | T-09 |
+| `src/tests/Unit/ServiceCatalogServiceTest.php` ⚠ | testes das ações (T-09); limites (T-26) (RED) | modificar | T-09, T-26 |
 | `src/app/control/clinic/ServiceList.php` | Importar, Duplicar, Excluir | modificar | T-10 |
 | `src/app/control/clinic/ServiceForm.php` | create em um write | modificar | T-10 |
-| `src/app/control/clinic/ServiceImportForm.php` | upload do CSV | criar | T-10 |
+| `src/app/control/clinic/ServiceImportForm.php` ⚠ | upload do CSV (T-10); erro de banco sem mensagem crua (T-26) | criar/modificar | T-10, T-26 |
 | `src/app/Core/Domain/Product.php` | `salePriceCents`, `code` | modificar | T-11 |
 | `src/app/Core/Domain/Contract/ProductRepositoryInterface.php` | `findByCode()` | modificar | T-11 |
 | `src/app/Core/Persistence/ProductRepository.php` | colunas novas | modificar | T-11 |
@@ -235,7 +235,7 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/control/clinic/BankAccountList.php` | lista de contas | criar | T-22 |
 | `src/app/control/clinic/BankAccountForm.php` | formulário e saldo | criar | T-22 |
 | `src/app/lib/widget/CvNav.php` | aba `bank_accounts` no grupo finance | modificar | T-22 |
-| `src/app/config/translations.json` | chaves do board | modificar | T-23 |
+| `src/app/config/translations.json` ⚠ | chaves do board (T-23); chaves de T-26/T-27 (T-27) | modificar | T-23, T-27 |
 | `src/app/lib/widget/CvFormat.php` | `userError()` | modificar | T-23 |
 | `src/app/control/clinic/EncounterAccountForm.php` | mensagem de tenant | modificar | T-23 |
 | `src/app/control/clinic/ExamResultForm.php` | mensagem de tenant | modificar | T-23 |
@@ -250,7 +250,7 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/control/clinic/AgendaView.php` | grade agrupada por `slotFor()`; horário exato no bloco | modificar | T-25 |
 | banco `centralvet` (schema e `system_program`/`system_group_program`) | aplicar 0007 e o DML de T-01 | DDL/DML pelo orquestrador, com aprovação | T-01 |
 
-Os 11 arquivos com ⚠ são serializados em ondas diferentes: T-03, T-05, T-07 e T-08 (onda 1), T-11 e T-12 (onda 2), T-18 e T-19 (onda 3), T-23 (onda 4). Em cada onda, cada arquivo está numa só task. `translations.json` tem escritor único (T-23). `FakeStorage.php` e os Fakes de Patient, Prescription, FinancialEntry e Encounter só são tocados pela task dona da entidade. `CvPage.php` só por T-04, `CvKpiCard.php` só por T-20 e `CvNav.php` só por T-22.
+Os 15 arquivos com ⚠ são serializados em ondas diferentes: T-03, T-05, T-07, T-08 e T-09 (onda 1), T-10, T-11 e T-12 (onda 2), T-26 e T-27 (onda 7, disjuntos entre si), T-18 e T-19 (onda 3), T-23 (onda 4). Em cada onda, cada arquivo está numa só task. `translations.json` tem escritor único (T-23). `FakeStorage.php` e os Fakes de Patient, Prescription, FinancialEntry e Encounter só são tocados pela task dona da entidade. `CvPage.php` só por T-04, `CvKpiCard.php` só por T-20 e `CvNav.php` só por T-22.
 
 ## Decisões de arquitetura
 
@@ -277,6 +277,7 @@ Onda 3: T-18 (T-03,T-12,T-16) EncounterView | T-19 (T-13) PrescriptionForm | T-2
 Onda 4: T-23 (ondas 1–3) i18n + mensagens de tenant
 Onda 5: T-24 (todas) validação final e varredura
 Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
+Onda 7 — correção (code-review): T-26 importCsv limites | T-27 peso do paciente
 ```
 
 ## Estratégia de execução
@@ -315,6 +316,9 @@ Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
 ### Onda 6 — correção (usuário)
 - T-25 — bug da `AgendaView` achado na QA de T-24 (`reports/T-24.md`). Sem dependência de código (ondas 1–4 fechadas); roda em paralelo a T-24, que não toca a `AgendaView`.
 
+### Onda 7 — correção (code-review)
+- T-26, T-27 — achados do `/code-review` da branch, depois da revisão final. São independentes, com arquivos disjuntos; T-27 é o escritor único de `translations.json` na onda (inclui as 3 chaves fixadas por T-26).
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
@@ -324,9 +328,9 @@ Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
 | Arquimedes | general-purpose | inherit | T-02, T-14 |
 | Sherlock | general-purpose | inherit | T-03, T-25 |
 | Aang | general-purpose | inherit | T-04, T-17 |
-| Levi | general-purpose | inherit | T-05, T-10 |
+| Levi | general-purpose | inherit | T-05, T-10, T-26 |
 | Thanos | general-purpose | inherit | T-06 |
-| Naruto | general-purpose | inherit | T-07 |
+| Naruto | general-purpose | inherit | T-07, T-27 |
 | Kratos | general-purpose | inherit | T-08, T-19 |
 | Platão | general-purpose | inherit | T-09, T-13, T-23 |
 | Darwin | general-purpose | inherit | T-11, T-21 |
@@ -338,8 +342,8 @@ Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
 ## Review Focus
 - Receber um recebível pelo `PaymentForm` com forma Pix depois da migration → a `financial_entry` nova tem `payment_method = 'pix'` e a mesma `category` de antes (`pix`), e o donut de `FinancialOverview` não muda de categoria → T-14
 - Remarcar um agendamento para um horário que se sobrepõe a outro agendamento ativo do mesmo profissional → `SchedulingConflictException`, o agendamento não muda; remarcar sem mudar o horário → passa (o próprio id é ignorado no conflito) → T-08
-- Excluir um serviço que tem agendamento → recusa com a mensagem de inativar, o serviço continua na lista → T-09
-- Finalizar um atendimento pausado → `finished_at` gravado, `paused_at` nulo e `paused_seconds` somando o trecho pausado; pausar atendimento finalizado → `InvalidStatusTransitionException` → T-16
+- CSV de importação com um nome de 190 caracteres exatos e outro de 191 → a de 190 é criada e a de 191 vira linha ignorada "nome muito longo", sem rollback do resto → T-26
+- Paciente com peso já gravado (12.30) aberto e salvo sem mexer no peso → `weight_kg` continua 12.30, sem virar 1230 nem 12 pela máscara → T-27
 - Agendamento às 06:45 ou 19:10, fora de 07:00–18:30 → aparece no primeiro ou no último slot da `AgendaView` com o horário exato, sem sumir da grade → T-25
 
 ## Critérios gerais de aceite
@@ -353,4 +357,5 @@ Onda 6 — correção (usuário): T-25 AgendaView slot (em paralelo a T-24)
   - Onda 3: `EncounterView` (Pausar/Retomar, alergia/foto, Finalizar), `PrescriptionForm` (validade, Salvar como modelo, Aplicar modelo, PDF), `FinancialOverview` (Exportar, período, KPI de saldo), `ProductList` (colunas, Gerar relatório), `BankAccountList`, `BankAccountForm`;
   - Onda 4: todas as telas das linhas `i18n:` do board, sem "Message not found";
   - Onda 5 (T-24): todas as telas acima e as do `menu.xml`.
+  - Onda 7 — correção (code-review) (T-26, T-27): `ServiceImportForm` (CSV com limites) e `ServiceList` depois da importação, `PatientForm` (peso com vírgula, texto forçado, salvar sem mexer no peso).
   - Onda 6 — correção (usuário) (T-25): `AgendaView` nas datas dos agendamentos 1 e 3 (navegar entre os dias, abrir um bloco, voltar).

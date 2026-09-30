@@ -27,6 +27,8 @@
 | T-23 | frontend | i18n do board e mensagem de CrossTenantReferenceException nos 14 controllers | T-02, T-04, T-05, T-06, T-07, T-08, T-10, T-11, T-12, T-17, T-18, T-19, T-20, T-21, T-22 | não | média | Platão | [x] |
 | T-24 | qa | Validação final: suíte, varredura Playwright, Review Focus, dados preservados | T-23 | não | média | Spock | [x] |
 | T-25 | frontend | Correção (usuário): AgendaView mostra agendamento fora do slot exato de 30 min | — | sim | média | Sherlock | [x] |
+| T-26 | backend | Correção (code-review): importCsv valida tamanhos e limites por linha | — | sim | média | Levi | [x] |
+| T-27 | backend | Correção (code-review): peso do paciente com vírgula decimal e recusa de texto | — | sim | média | Naruto | [x] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
@@ -1003,6 +1005,99 @@ T-24 roda em paralelo e não toca estes arquivos.
 - `grep -c "format('H:i') === \$slot" /var/www/html/centralvet/src/app/control/clinic/AgendaView.php` (evidência: `0`)
 - GATE → `AgendaView` na(s) data(s) de `SELECT id, DATE(scheduled_at), TIME(scheduled_at), professional_system_user_id FROM appointment WHERE id IN (1, 3)` (evidência: snapshot com o bloco do 3 na linha 14:00 e do 1 na linha 15:30, com os horários 14:21/15:59; `document.querySelectorAll('.agenda-block').length` = `SELECT COUNT(*)` do dia; clique abre `key=<id>`; console 0 `error`)
 - Review Focus: agendamento `R2 varredura` criado pelo `AppointmentForm` às 06:45 ou às 19:10 da mesma data, se a regra de agendamento aceitar esse horário (evidência: o bloco aparece na linha `07:00` ou `18:30` com o horário exato; se o formulário recusar o horário, fica registrado com a mensagem, e o caso vale pelo RED)
+
+### T-26 — Correção (code-review): importCsv valida tamanhos e limites por linha
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Levi
+
+Achado do `/code-review` da branch, em `src/app/Core/Application/ServiceCatalogService.php:173`. `importCsv()` não valida o tamanho de `name` (coluna `varchar(190)`) nem de `category` (`varchar(60)`), nem o teto de `duration_minutes`/`price_cents` (`int unsigned`, máx. 4294967295; `ctype_digit` aceita dígitos além do tipo). O INSERT falha, `ServiceImportForm` (catch `Exception` → `TTransaction::rollback()` + `$e->getMessage()`) desfaz a importação inteira e mostra o erro cru do banco. Reprodução exigida em `## RED`: CSV com uma linha válida e uma linha com nome de 191 caracteres. Na BASE, `importCsv` devolve erro de banco e `SELECT COUNT(*) FROM service` fica igual; a evidência é o `php -r` no container dentro de `TTransaction` com rollback, ou só a leitura do código se o `php -r` gravar.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/ServiceCatalogService.php`
+- `src/tests/Unit/ServiceCatalogServiceTest.php`
+- `src/app/control/clinic/ServiceImportForm.php`
+
+**Interface**
+- Produz: `ServiceCatalogService::importCsv(string $csv): array` (assinatura e formato de retorno de T-09 mantidos) valida cada linha antes do `create()`, e a linha inválida entra em `skipped` sem abortar as demais:
+  - `mb_strlen(trim($name)) > 190` → `reason` `name too long`;
+  - `mb_strlen(trim($category)) > 60` → `reason` `category too long`;
+  - `duration_minutes` fora de `1..4294967295` (comparar como string de dígitos com até 10 caracteres antes do cast) → `invalid duration_minutes`;
+  - `price_cents` calculado acima de `4294967295` → `invalid price`;
+  - `InvalidArgumentException` lançada por `create()`/`Service::create` numa linha → `skipped` com `reason` = mensagem da exceção.
+  As constantes `ServiceCatalogService::MAX_NAME_LENGTH = 190`, `MAX_CATEGORY_LENGTH = 60` e `MAX_UNSIGNED_INT = 4294967295` são usadas nas checagens.
+- Produz: `ServiceImportForm::onImport` troca a mensagem crua de `\PDOException` (e de qualquer `Exception` que não seja `InvalidArgumentException`) por `TMessage('error', _t('Could not import the file. No service was created'))`, grava a mensagem original em `error_log` e mantém o rollback. `InvalidArgumentException` (cabeçalho inválido, arquivo) continua mostrando a própria mensagem.
+- Produz: as chaves i18n `name too long` → "nome muito longo (máx. 190 caracteres)", `category too long` → "categoria muito longa (máx. 60 caracteres)" e `Could not import the file. No service was created` → "Não foi possível importar o arquivo. Nenhum serviço foi criado". Elas são gravadas por T-27, escritor único de `translations.json` na onda 7; T-26 não edita o JSON.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/ServiceCatalogServiceTest.php` — `importCsv` com cabeçalho válido e 5 linhas (1 válida, nome de 191 caracteres, categoria de 61, `duration_minutes` = `4294967296`, preço `42949672,96`) devolve `created: 1` e `skipped` com as linhas 3, 4, 5 e 6 e os motivos `name too long`, `category too long`, `invalid duration_minutes` e `invalid price`, e `storedCount()` +1; falha antes da correção porque hoje as 5 linhas chegam ao `create()` e os motivos novos não existem (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\ServiceCatalogServiceTest::` em todos os métodos (inclusive os de T-09), `Failed: 0`.
+- GATE:
+  - `ServiceImportForm` com um CSV de 3 linhas (1 válida "R2 varredura Import 1", 1 com nome de 191 caracteres e 1 com categoria de 61) mostra "Serviços criados: 1" e as linhas 3 e 4 como ignoradas, com "nome muito longo"/"categoria muito longa" (ou a chave, se T-27 ainda não gravou o JSON);
+  - `SELECT COUNT(*) FROM service` fica +1;
+  - nenhum texto `SQLSTATE` na tela;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `ServiceCatalogService.php` e `ServiceImportForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\ServiceCatalogServiceTest::`, `Failed: 0`)
+- `grep -n "SQLSTATE\|getMessage()" /var/www/html/centralvet/src/app/control/clinic/ServiceImportForm.php` (evidência: `getMessage()` só no `error_log` e no ramo `InvalidArgumentException`)
+- GATE → importação do CSV de 3 linhas criado em `.playwright-mcp/r2-import-limites.csv` (evidência: mensagem com 1 criado e 2 ignorados, `SELECT COUNT(*) FROM service` antes e depois +1, snapshot sem `SQLSTATE`, console 0 `error`)
+- Review Focus: CSV com o nome de 190 caracteres exatos → a linha é criada, sem ser ignorada (evidência: `SELECT CHAR_LENGTH(name) FROM service ORDER BY id DESC LIMIT 1` = 190)
+
+### T-27 — Correção (code-review): peso do paciente com vírgula decimal e recusa de texto
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Naruto
+
+Achado do `/code-review` da branch. `PatientService::update()` (a linha citada no achado, :1114, é do diff; no arquivo é `src/app/Core/Application/PatientService.php:138-148`) faz `(float) $weight`: `"4,5"` grava `4` e `"abc"` grava `0` sem erro, e o peso alimenta dose clínica. `create()` (:84) tem o mesmo cast. O campo `weight_kg` do `PatientForm` (:140) é um `TEntry` sem máscara. A coluna é `patient.weight_kg decimal(6,2)`, com máximo 9999,99. Reprodução exigida em `## RED`: o teste abaixo antes da correção, que mostra `weightKg` = 4.0 para `"4,5"` e 0.0 para `"abc"`.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/PatientService.php`
+- `src/tests/Unit/PatientServiceTest.php`
+- `src/app/control/clinic/PatientForm.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `PatientService::INVALID_WEIGHT_MESSAGE = 'weight_kg must be a number between 0 and 9999.99, e.g. 4,5'` (public const) e a conversão única `private static function parseWeightKg(mixed $value): ?float`, usada por `create()` e `update()`:
+  - `null` ou `''`/espaços → `null`;
+  - `int`/`float` → `(float)`;
+  - string aparada casando `^\d{1,4}([.,]\d{1,2})?$` → vírgula trocada por ponto e `(float)` (`"4,5"` → 4.5, `"4.50"` → 4.5, `"12"` → 12.0);
+  - qualquer outro valor (`"abc"`, `"4,5kg"`, `"-1"`, `"1.234,5"`) → `InvalidArgumentException(PatientService::INVALID_WEIGHT_MESSAGE)`;
+  - valor numérico acima de 9999.99 → a mesma exceção.
+- Produz: `PatientForm`:
+  - `weight_kg` com `setNumericMask(2, ',', '.', true)` (o POST chega com ponto);
+  - `onEdit` exibe o peso salvo com vírgula;
+  - no `catch (InvalidArgumentException $e)` do `onSave`, a mensagem igual a `PatientService::INVALID_WEIGHT_MESSAGE` vira `TMessage('error', _t(PatientService::INVALID_WEIGHT_MESSAGE))`, e as demais seguem como hoje;
+  - os dados digitados ficam no formulário.
+- Produz: em `translations.json`, `weight_kg must be a number between 0 and 9999.99, e.g. 4,5` → "Peso inválido: informe um número entre 0 e 9999,99, ex.: 4,5", mais as 3 chaves que T-26 fixou na Interface (`name too long`, `category too long`, `Could not import the file. No service was created`) com o `pt` de lá. Sem duplicata nem duplicata por caixa.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/PatientServiceTest.php` — `update(P, [... 'weight_kg' => '4,5'])` devolve `weightKg === 4.5`; `create([... 'weight_kg' => '4,5'])` devolve 4.5; `update(P, [... 'weight_kg' => 'abc'])` e `update(P, [... 'weight_kg' => '10000'])` lançam `InvalidArgumentException` com a mensagem exata `PatientService::INVALID_WEIGHT_MESSAGE`, e o paciente no Fake mantém o peso anterior; `weight_kg` `''` grava `null`. Falha antes da correção porque hoje `'4,5'` vira 4.0 e `'abc'` vira 0.0 sem exceção (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\PatientServiceTest::` e `PASS  Unit\QueueEntryServiceTest::` em todos os métodos, `Failed: 0`.
+- `grep -c "(float) \$weight\|(float) \$data\['weight_kg'\]" src/app/Core/Application/PatientService.php` = 0.
+- Script python sobre `translations.json`: 0 duplicatas `en` exatas e 0 por `casefold()`, e as 4 chaves presentes.
+- GATE:
+  - `PatientForm` do paciente "R2 varredura Pet" → peso "4,5" → Salvar faz `SELECT weight_kg FROM patient WHERE id=<id>` dar `4.50`, e o campo reabre como "4,50";
+  - POST com `weight_kg=abc` (valor forçado por `browser_evaluate`, porque a máscara bloqueia a digitação) mostra "Peso inválido: informe um número entre 0 e 9999,99, ex.: 4,5", e `weight_kg` continua `4.50`;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `PatientService.php` e `PatientForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- `python3 -c "import json;d=json.load(open('/var/www/html/centralvet/src/app/config/translations.json'));…"` — conta duplicatas `en` e `casefold()` e confere as 4 chaves (evidência: `dup=0 dupcase=0 missing=0`)
+- GATE → os 2 fluxos do critério (evidência: `SELECT weight_kg` depois de cada um, texto da mensagem no snapshot, console 0 `error`)
+- Review Focus: paciente com `weight_kg` já gravado (ex.: 12.30) aberto e salvo sem mexer no peso → `weight_kg` continua `12.30`, sem virar `1230` nem `12` pela máscara (evidência: `SELECT weight_kg` antes e depois iguais); `SELECT COUNT(*) FROM patient WHERE weight_kg IS NOT NULL` igual antes e depois do gate
 
 ## Legenda
 

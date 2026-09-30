@@ -49,6 +49,13 @@
 - 2026-09-30 · T-09 · onda 5 — Vale a evidência da onda 2; a exclusão foi negada pelo classificador.
 - 2026-09-30 · ondas 5/6 — O orquestrador rebuildou o container e refez o login admin do Playwright. Nenhuma credencial registrada.
 
+- 2026-09-30 · plano (revisão) · onda 7 — O usuário pediu a `### Onda 7 — correção (code-review)` com T-26 (Levi) e T-27 (Naruto), a partir do `/code-review` da branch depois da revisão final. T-26: `importCsv` com limites de coluna por linha (190/60/`int unsigned`), e `ServiceImportForm` sem erro cru de banco. T-27: peso com vírgula decimal, texto recusado por `PatientService::INVALID_WEIGHT_MESSAGE`, máscara numérica no `PatientForm`. Para os arquivos continuarem disjuntos, T-27 é o escritor único de `translations.json` na onda e grava também as 3 chaves que a Interface de T-26 fixou. O achado cita `PatientService.php:1114`, que é linha do diff; no arquivo são :84 (`create`) e :138-148 (`update`). No Review Focus, os itens de T-09 (excluir serviço com agendamento) e T-16 (finalizar pausado) deram lugar aos de T-26/T-27, para o total continuar em 5. Os dois já foram provados nos gates e seguem no bloco Validação das tasks donas.
+- 2026-09-30 · onda 7 · onda 7 — Criada a pedido do usuário, depois que o /code-review da branch apontou dois bugs: importCsv sem limites de coluna (rollback total) e peso com vírgula truncado (risco de dose clínica). A revisão final tinha aprovado sem bloqueantes antes disso.
+- 2026-09-30 · T-27 · onda 7 — Ruling do fix loop: o campo de peso aceita a digitação natural; o filtro também aceita "." como desvio aceito; ao reabrir, o peso aparece como "4,5" (sem zeros à direita).
+- 2026-09-30 · T-26/T-27 · onda 7 — As três chaves i18n de T-26 foram gravadas por T-27, único editor de translations.json na onda.
+- 2026-09-30 · onda 7 · onda 7 — O orquestrador rebuildou o container duas vezes e refez o login admin do Playwright; nenhuma credencial registrada.
+- 2026-09-30 · onda 7 · onda 7 — Validação cruzada coberta pela re-validação de T-27 no HEAD final (suíte 296/296), pois T-26 não teve commit posterior.
+
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
@@ -136,6 +143,13 @@
 - T-24: T-17 (menu da fila) `não rodado`; levar à revisão final.
 - T-24: agendamento da linha AgendaView consta "sem dona (anterior à rodada)"; a dona é T-25. A linha "System* (19 telas)" não bate com menu.xml (18 ações); RF T-14 (donut) vale pelo registro 5948 da onda 2.
 - T-25: `span.agenda-block-time` sem `ms-1` (AgendaView.php:371); espaçamento depende do whitespace do TElement.
+- T-26: ramo InvalidArgumentException de create() → skipped não tem teste (quase inalcançável após a pré-validação) (ServiceCatalogService.php:192).
+- T-26: a mensagem de create() usada como reason passa por _t(); mensagens dinâmicas aparecem em inglês (ServiceImportForm.php:105).
+- T-26: testImportCsvAcceptsValuesAtColumnLimits assere só priceCents, sem durationMinutes nem categoria (ServiceCatalogServiceTest.php:363).
+- T-27: formato de reabertura "4,5" e filtro com "." fazem parte do ruling (registrado em Decisões); critério do GATE dizia "4,50".
+- T-27: comentário do catch em PatientForm.php:455 cita "not found", que cai no catch seguinte.
+- T-27: filtro oninput, maxlength 7 e ausência de setNumericMask sem teste automatizado; regressão para máscara não falharia teste (PatientForm.php:141-147).
+- Onda 7: registros de teste service 11 "R2 varredura Import 1", service 12 (nome de 190 caracteres) e patient 2772 com weight_kg 4.50 ficam no banco.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -152,6 +166,7 @@
 - Registros da onda 3: bank_account 101 "R2 varredura Conta", saldo 100000.
 - Registros da onda 4: serviço 7 "R2 varredura Imp A (cópia)", criado pelo Duplicar do serviço 5.
 - Registros da onda 5: encounter 3408 (finalizado); prescription_template 81; prescription 1677 (itens 2515, 2516); appointment 4 (02/10, 19:10); tutor 3141 com address; serviços 8, 9 e 10; produto 946 com preço 2190; financial_entry 6826.
+- Registros da onda 7: serviço 11 "R2 varredura Import 1"; serviço 12 (nome de 190 caracteres); paciente 2772 com weight_kg 4.50.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
@@ -165,5 +180,5 @@
   - Onda 4: BASE 62cc510 → HEAD 6db7e48 (6db7e48)
   - Onda 5: BASE 5b31c1d → HEAD 5b31c1d (sem commit de código; artefatos em reports/reviews)
   - Onda 6: BASE 5b31c1d → HEAD 2ae4334 (f63fe25, 2ae4334)
-- Último status conhecido: ondas 5 (T-24 [x]) e 6 (T-25 [x]) concluídas; pendem só a revisão final e as pendências acima.
-- Próxima onda recomendada: nenhuma; revisão final.
+- Último status conhecido: onda 7 (T-26 [x], T-27 [x]) concluída; revisão final já feita antes da onda 7 (ver reviews/final.md § Pós-revisão final).
+- Próxima onda recomendada: nenhuma.
