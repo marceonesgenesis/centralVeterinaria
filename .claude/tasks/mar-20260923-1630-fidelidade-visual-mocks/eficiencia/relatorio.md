@@ -1,7 +1,7 @@
 # Eficiência — mar-20260923-1630-fidelidade-visual-mocks
 
-- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-29T17:47:22-03:00 · última onda medida 6
-- Sessões: 004a97f0-faff-49ba-997a-092d97b4dffc (encontrada), a4d85a4e-ac84-4bb6-b1c2-cdadb6248b2b (encontrada)
+- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T00:09:13-03:00 · última onda medida 8
+- Sessões: 004a97f0-faff-49ba-997a-092d97b4dffc (encontrada), a4d85a4e-ac84-4bb6-b1c2-cdadb6248b2b (encontrada), 460ad1be-51d4-4e12-8f14-86b62c3dfad9 (encontrada)
 - Base: sem base (nenhum plano da versão anterior no acervo)
 
 ## Indicadores
@@ -12,12 +12,12 @@
 | Contexto máximo | 966.800 | sem base |
 | Compactações | 4 | sem base |
 | Correções por implementador | 0,12 | sem base |
-| Retornos acima do limite (%) | 33 | sem base |
-| Validador acima da meta (%) | 21 | sem base |
+| Retornos acima do limite (%) | 30 | sem base |
+| Validador acima da meta (%) | 20 | sem base |
 | Aprovadas de primeira (%) | 80 | sem base |
 | Precisão do mapa de arquivos (%) | 91 | sem base |
-| Rodadas de fix loop | 6 | sem base |
-| Tasks de correção pós-Fase 5 (%) | 12 | sem base |
+| Rodadas de fix loop | 7 | sem base |
+| Tasks de correção pós-Fase 5 (%) | 42 | sem base |
 
 ## Tasks
 
@@ -47,6 +47,18 @@
 | T-22 | 6 | correcao | simples | [x] | sem teste | 0 | 0 | 0/0 | 0 | 1 | — |
 | T-23 | 6 | correcao | simples | [x] | sem teste | 0 | 0 | 0/2 | 0 | 1 | — |
 | T-24 | 6 | correcao | simples | [x] | sem teste | 0 | 0 | 0/1 | 0 | 0 | — |
+| T-25 | 7 | correcao | média | [x] | ok | 0 | 0 | 0/4 | 0 | 0 | — |
+| T-26 | 7 | correcao | alta | [x] | ok | 0 | 0 | 0/4 | 0 | 3 | — |
+| T-27 | 7 | correcao | simples | [x] | ok | 0 | 0 | 0/2 | 0 | 1 | src/tests/Unit/RbacAuthorizationServiceTest.php |
+| T-28 | 7 | correcao | alta | [x] | ok | 0 | 0 | 0/4 | 0 | 2 | — |
+| T-29 | 7 | correcao | simples | [x] | sem teste | 0 | 1 | 2/1 | 0 | 0 | — |
+| T-30 | 7 | correcao | simples | [x] | sem teste | 0 | 0 | 0/2 | 0 | 1 | — |
+| T-31 | 7 | correcao | simples | [x] | sem teste | 0 | 0 | 0/0 | 0 | 1 | — |
+| T-32 | 7 | correcao | simples | [x] | sem teste | 1 | 0 | 0/0 | 0 | 1 | — |
+| T-33 | 7 | correcao | simples | [x] | sem teste | 0 | 0 | 0/3 | 0 | 2 | — |
+| T-34 | 7 | correcao | média | [x] | ok | 0 | 0 | 0/3 | 0 | 1 | — |
+| T-35 | 7 | correcao | simples | [x] | sem teste | 0 | 0 | 0/2 | 0 | 0 | — |
+| T-36 | 8 | correcao | média | [x] | sem teste | 0 | 0 | 0/0 | 0 | 2 | — |
 
 ## Causas
 
@@ -68,3 +80,13 @@
 - T-20: Route pt trocado de Rota para Via conforme o mock; decisão adiada pela T-12 para T-20
 - T-22: Reprodução no navegador não feita pelo agente (Playwright é do validador); entrou reprodução estática, verificação ficou no gate
 - T-23: Reprodução por render CLI e SELECT em vez de navegador (Playwright é do validador); sem desvio de escopo
+- T-26: onSwitchUnit devolve 403 genérico e loga exceção inesperada; links onComingSoon neutralizados no init
+- T-27: teste existente RbacAuthorizationServiceTest usava action x fora do formato; entrou no escopo
+- T-28: onSearch sobrescrito para gravar status na sessão; teste extra de UPDATE cross-tenant
+- T-29: onAdvance só recarregava a fila no sucesso; catches recusados deixavam linhas e contadores velhos
+- T-30: lint no container exige caminho relativo app/...; sem impacto no código
+- T-31: lint no container exige caminho relativo app/...; sem impacto no código
+- T-32: diff de 14 linhas contra limite 12; mínimo possível para o texto pedido
+- T-33: link focável leva text-reset; tenant -1 mantém fallback de catalogCriteria
+- T-34: teste extra de regras do create; id inexistente agora mostra mensagem em inglês da Interface
+- T-36: Critério de diff sem -U0 contava linhas de contexto (35 em vez de 12) e o lint com caminho relativo falhou no container

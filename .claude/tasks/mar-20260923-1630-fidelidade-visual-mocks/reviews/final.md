@@ -1,106 +1,125 @@
 # Revisão final
-Branch feat/fidelidade-visual-mocks @ 720f185 contra main @ 9efef4e (merge-base = 9efef4e); 46 commits, 82 arquivos de código (+10077/−3961). Comandos: `git diff --stat main...feat/fidelidade-visual-mocks`, `git diff main...feat/fidelidade-visual-mocks -- src docker` (sem translations.json), greps read-only abaixo. Suíte não re-executada nesta revisão (evidência de 182/182 só em relatório).
-Rótulos da triagem: resolvida = "descartada" pelo pedido do orquestrador (a correção está no diff); aberta = "mantida"; promovida = promovida.
+Rodada 3 (após ondas 7–8, T-25..T-36). Branch feat/fidelidade-visual-mocks @ b1a5b3b contra main (208 arquivos, +16872/−4215). Novas mudanças: `git diff 2c7611d..HEAD` (40 arquivos de código, +1051/−235, 17 commits da onda 7 + f1fda5f da onda 8). A rodada anterior (720f185 + Rodada 2 do final-fix) está no histórico git deste arquivo.
+Comandos: `git diff --stat main...feat/fidelidade-visual-mocks`; `git diff 2c7611d..HEAD -- src/app/Core src/app/control/clinic src/app/lib src/app/templates src/tests`; `git diff -U0 2c7611d..HEAD -- src/app/config/translations.json`; `php -l` read-only dos 38 PHP tocados (container `-v src:ro`) → 38/38 "No syntax errors detected"; python sobre translations.json → 685 entradas, 0 duplicadas, 0 duplicadas por caixa, todas as chaves usadas pelo código novo presentes (`Unauthorized access to that unit` vem de AdiantiTemplateTranslator); `grep -rnE "_t\('(patients|results|services|tutors|Date/Time)'\)" src/app` → vazio. Suíte não re-executada (grava e faz rollback no banco); evidência do validador: `Total: 205, Passed: 205, Failed: 0` (reviews/T-35.md, T-36.md).
 
 ## Triagem
-- [aberta] Campos sem schema (preço de venda, código, foto/alergia, validade/modelos, forma de pagamento em financial_entry, saldo bancário, pausa) → fora do escopo por premissa do plano
-- [aberta] Ações sem backend (Exportar, Importar/Duplicar/Excluir, Salvar como modelo, Gerar relatório) → Excluído do plano
-- [aberta] T-01 layout.html CRLF→LF → informativo, só ruído de diff
-- [aberta] T-01 botão de ajuda disabled + pointer-events:none esconde o tooltip → sem correção no diff
-- [resolvida] T-01 chave `Toggle menu` ausente → `grep -c '"Toggle menu"' translations.json` = 1
-- [resolvida] T-02 `aria-label=""` em ação só com ícone → CvPage.php actionButton só define aria-label quando $title ≠ '' ; `.cv-avatar--species` → cv-components.css:258
-- [aberta] T-04 limite ≤ 0 inconsistente; GROUP_CONCAT truncado → sem correção
-- [aberta] T-05 saldo do caixa sem subtrair saídas; teste sem ruído de outra sessão → sem correção
-- [aberta] T-06 lastEncounter "mais recente diferente do excluído"; testes de tutor sem contato → sem correção
-- [aberta] T-07 CvShellController só no grupo 1 → sem DML adicional
-- [resolvida] Onda 1 `adianti_right_panel` em 16 *Form.php → `grep -c adianti_right_panel app/control/clinic/*Form.php` = 0 em todos
-- [resolvida] T-08 filtro de unidades por tenant → CvShellController.php:122-151 allowedUnitIds() com `system_unit.tenant_id = tenantid`; usado em onContext e onSwitchUnit
-- [resolvida] T-08 `.cv-unit-switch__select` sem CSS → custom.css:238-239
-- [aberta] T-08 onSwitchUnit muda estado por GET sem token; aria-label "Unidade" fixo em pt → cv-shell.js:106-107; CvShellController.php:90-108
+- [aberta] Campos sem schema (preço de venda, código, foto/alergia, validade/modelos, forma de pagamento em financial_entry, saldo bancário, pausa) → fora do escopo por premissa
+- [aberta] Ações sem backend (Exportar, Importar/Duplicar/Excluir, Salvar como modelo, Gerar relatório) → Excluído
+- [aberta] T-01 layout.html CRLF→LF → informativo
+- [aberta] T-01 botão de ajuda disabled + pointer-events:none esconde o tooltip → layout.html não tocado nas ondas 7–8
+- [resolvida] T-01 `Toggle menu` → rodada anterior
+- [resolvida] T-02 aria-label vazio / `.cv-avatar--species` → rodada anterior
+- [aberta] T-04 limite ≤ 0; GROUP_CONCAT → sem correção
+- [aberta] T-05 saldo sem saídas; teste sem ruído → sem correção
+- [aberta] T-06 lastEncounter; testes de tutor sem contato → sem correção
+- [aberta] T-07 / T-19 CvShellController e itens desabilitados só no grupo 1 → Excluído ondas 7–8 (DML)
+- [resolvida] T-08 onSwitchUnit por GET sem token → CvShellController.php:105-115 (CsrfToken::isValid, POST + `cv_shell_csrf`), cv-shell.js:470-474 (fetch POST com csrf_token); gate T-26 Complemento (3)/(4): GET 403, token `x` 403, sessão sem token 403 sem laço de reload
+- [resolvida] T-08 aria-label "Unidade" fixo em pt → cv-shell.js:498-500 (`labels.unit`)
+- [resolvida] T-08 filtro de unidades por tenant e CSS do select → rodada anterior
 - [aberta] T-09 "Lançamentos recentes" x período; "vs. mês anterior" fixo → sem correção
-- [aberta] T-10 "Ver tudo" low x low+out; TMessage sem tenant; products() 3x → sem correção
-- [resolvida] T-11 filtro Inativo e correção de ServiceForm → ServiceList.php:157 `listAll()`; ServiceForm onEdit por ServiceCatalogService::findById (tenantQuery) e onSave → update() com id
-- [aberta] T-11 clique na linha sem link focável → sem correção
-- [resolvida] T-12 "Rota" x "Via" → ruling T-20 (onda 4)
-- [aberta] T-12 loadSummary captura só Exception; estilos inline; onEdit vazio → PrescriptionForm.php:299 `catch (Exception $e)`
-- [promovida] T-12 "veterinário por TDBCombo sem critério" → a branch repetiu o padrão em 4 formulários; ver Achados
-- [aberta] T-13 vazio "Informe um encounter_id…" após Finalizar (pré-existente); docblock de onInlineAction → sem correção
-- [resolvida] Onda 2 CvNav `entry_type=revenue` → CvNav.php `FinancialEntryList&entry_type=income`
-- [resolvida] Onda 2 `pattern` `{1,0}` → PATTERN0 aplicado (ex.: ServiceForm.php `setProperty('pattern', '[0-9]*')`)
-- [aberta] Onda 2 mocks ausentes; EncounterDocumentService::list() sempre vazio → sem correção
-- [aberta] Dados de teste (serviço id 2, prescrição 247, atendimento 556) → permanecem no banco
-- [aberta] Onda 3: Log do PHP vazio; `<style>` inline redundante em GlobalSearchController; `&query=` não dispara a busca; ProductService sem update() (regra de edição no controller, ProductForm.php:241-287); PayableService::listOpen oculta conta paga → sem correção
-- [resolvida] Onda 3 "Message not found: results" → ruling T-20 (0 ocorrências)
-- [aberta] Onda 3 fluxos não rodados (exames, catálogos, caixa, PaymentForm, agenda/fila) → exercitados no gate da onda 6 segundo notes.md; sem evidência reproduzível read-only nesta revisão
-- [aberta] T-14 fila carregada 2x; edição de tutor/paciente/agendamento → demanda futura (ruling T-14)
-- [aberta] T-15 ramo morto "Result available"; VaccinationCardView sem pista; actionMenu/columns sem uso → sem correção
-- [aberta] T-16 evidência de tenant não discrimina; offset do pageNavigation; combo só active=1; cards à mão → sem correção
-- [aberta] T-17 validar `$action` contra padrão em AuthorizationRequest (opcional); StockBatchForm lê $_GET no construtor → sem correção (ver Rulings, HIGH descartado)
-- [aberta] T-17 link "Gerar PDF" do SaleForm sem target=_blank → `grep _blank SaleForm.php` vazio
-- [aberta] T-18 UPDATE de PayableRepository sem teste de SQL; docblock; mensagem crua em inglês → sem correção
-- [aberta] T-19 itens desabilitados só no grupo 1; textos pt fixos no JS; units sem `current` → sem correção
-- [aberta] T-20 chaves minúsculas x maiúsculas → sem correção
-- [aberta] T-21 comparação com mocks; seletor no EncounterView; ícone text-primary; dados de teste → sem correção
-- [resolvida] T-21 B1/O1/O2 → `grep chart.umd layout.html` vazio (57eec6a); CvBadge no plano (851a947); CvFormat::paymentMethod em FinancialOverview.php:217,268,298 e FinancialEntryList.php:202
-- [aberta] Onda 6 layout-basic.html com "Trace" → layout-basic.html:153; arquivo em framework_hashes.php:417 (framework, não editável)
-- [aberta] Onda 6 dados de teste no banco → permanecem
-- [aberta] T-23 literais em planStatusBadge; status vazio sem badge → EncounterView.php:886-891, 922
-- [aberta] T-24 mapa método→rótulo duplicado com literais → CvFormat.php:51-57, PaymentForm.php:275-281
+- [resolvida] T-10 "Ver tudo" low x low+out → ProductList.php:349 `status=attention`, filtro em :98-104; gate T-35: attention=2 (low 1 + out 1)
+- [resolvida] T-10 dois TMessage sem tenant → ProductList.php:59,110-114 (`tenantErrorShown`)
+- [aberta] T-10 products() 3x; título/KPI de estoque → Excluído ondas 7–8
+- [resolvida] T-11 clique na linha sem link focável → ServiceList.php:87-94 (`a.cv-row-link`); gate T-33: Tab + Enter → service_id=1
+- [resolvida] T-12 loadSummary só Exception → PrescriptionForm.php:298 `catch (\Throwable $e)`
+- [aberta] T-12 estilos inline; onEdit vazio → Excluído ondas 7–8
+- [aberta] T-13 vazio "Informe um encounter_id…" após Finalizar → pré-existente (ruling T-13)
+- [resolvida] T-13 docblock de onInlineAction desatualizado → EncounterView.php:1482-1492 reescrito (resta imprecisão, ver T-30 abaixo)
+- [aberta] Onda 2 mocks ausentes; EncounterDocumentService::list() vazio → sem correção
+- [aberta] Dados de teste (ondas 2, 3, 6, T-21, final-fix, onda 7: payable 2 paga, sale 1715, atendimento 2189, produto 946) → Excluído ondas 7–8
+- [aberta] Onda 3 Log do PHP vazio → decisão de infra
+- [resolvida] Onda 3 `<style>` inline em GlobalSearchController → removido (645929e); regra em cv-components.css:375
+- [resolvida] Onda 3 `&query=` não dispara a busca → GlobalSearchController.php:127-130 chama onSearch() (mesma regra de tamanho mínimo)
+- [resolvida] Onda 3 ProductService sem update() → ProductService.php:78-127; ProductForm.php:177-185 delega (1d4941c)
+- [resolvida] Onda 3 PayableService::listOpen oculta conta paga → PayableList.php filtro Em aberto/Pagas/Todas (listByStatus); gate T-28: paid → [Pago,Pago], all → 3, xyz → [Aberto]
+- [aberta] Onda 3 fluxos não rodados (exames, agenda, fila) → Excluído ondas 7–8
+- [resolvida] T-14 fila carregada 2x → QueueEntryView.php:122-127; onAdvance recarrega na recusa (:387-394, e82a889)
+- [aberta] T-14 edição de tutor/paciente/agendamento → demanda futura
+- [resolvida] T-15 ramo morto "Result available" → PendingExamResultList.php:108-111
+- [aberta] T-15 VaccinationCardView sem pista; actionMenu/columns sem uso → Excluído
+- [aberta] T-16 evidência de tenant; offset; combo só active=1 nos catálogos TStandardForm; cards à mão → Excluído (combo resolvido só em ProcedureInputForm/VaccineProtocolForm)
+- [resolvida] T-17 validar `$action` → AuthorizationRequest.php:25,40-42 (ACTION_PATTERN; be2ed81)
+- [aberta] T-17 StockBatchForm lê $_GET → aceito como padrão do projeto (premissa onda 7)
+- [resolvida] T-17 "Gerar PDF" sem target=_blank → SaleForm.php:187-195; gate T-35 Complemento (4)
+- [resolvida] T-18 UPDATE de PayableRepository sem teste de SQL → PayableRepositoryIntegrationTest.php (4542605)
+- [resolvida] T-18 docblock de PayableForm → PayableForm.php:5-17
+- [resolvida] T-18 mensagem crua ao editar conta paga → PayableForm.php:167 `_t('Only open payables can be edited')`
+- [resolvida] T-19 textos pt fixos no JS → cv-shell.js sem literais (labels do onContext)
+- [aberta] T-19 units sem `current` → Excluído (placeholder "—")
+- [resolvida] T-20 chaves minúsculas x maiúsculas → f1fda5f; 0 duplicadas por caixa; rodapés com `mb_strtolower(_t('Patients'|'Results'|'Services'|'Tutors'))`
+- [aberta] T-21 comparação com mocks; seletor no EncounterView; ícone text-primary → Excluído
+- [aberta] Onda 6 layout-basic.html com "Trace" → framework, não editável
+- [resolvida] T-23 literais em planStatusBadge → EncounterView.php:887-890 (Prescription/ExamRequest::STATUS_*)
+- [resolvida] T-23 status vazio sem badge → EncounterView.php:893-896,927-930
+- [resolvida] T-24 mapa método→rótulo duplicado → CvFormat.php:52-56 (Payment::METHOD_*); PaymentForm.php:275-280 usa CvFormat::paymentMethod
+- [resolvida] Final: onContext devolve getMessage no 500 → CvShellController.php:95-96 (error_log + mensagem genérica)
+- [resolvida] Final: regra de edição de produto no controller → ProductForm::updateProduct removido
+- [aberta] Final: ServiceForm cria com active=0 em dois writes → ServiceForm.php não tocado
+- [resolvida] final-fix: EncounterAccountService não valida authorized_by → EncounterAccountService.php:331-339 (isActiveMember antes de requireAccount); gate T-25: 999999 recusado
+- [resolvida] final-fix: comentários obsoletos do combo de profissional → ExamRequestForm.php:72, ProcedureExecutionForm.php:101, VaccinationForm.php:62, PrescriptionForm.php:27
+- [aberta] Mensagem em inglês de CrossTenantReferenceException nos forms (T-25 onApplyDiscount incluso) → Excluído ondas 7–8
+- [resolvida] T-25 critério 3 sem evidência → reviews/T-25.md:17 (desconto R$ 5,00 ok; 999999 recusado)
+- [aberta] T-25 guarda antes do RBAC permite sondar ids ativos → plano-mandou, sugestão
+- [aberta] T-25 docblock de applyDiscount sem o novo @throws → EncounterAccountService.php:316
+- [resolvida] T-26 critérios de gate e reprodução GET → reviews/T-26.md Complemento (3)/(4)
+- [aberta] T-26 catch genérico de onSwitchUnit devolve 403 para falha de infraestrutura → CvShellController.php:131-135
+- [aberta] T-26 sem labels o seletor fica com aria-label vazio → cv-shell.js:498
+- [aberta] T-27 teste não confere a mensagem; mensagem interpola `$action` cru → AuthorizationRequestTest.php:46, AuthorizationRequest.php:41
+- [resolvida] T-28 gate de navegador → reviews/T-28.md:17-18
+- [aberta] T-28 id 2 x conta paga no plano (documental); teste de UPDATE não verifica inserção/retorno; docblock de resolveStatus → PayableRepositoryIntegrationTest.php, PayableList.php:301
+- [aberta] T-29 ocultação depende de `.tpagenavigation … li.page-item.off` → cv-components.css:375 (informativo)
+- [aberta] T-29 avanço recusado no navegador não rodado → sem caminho pela UI; coberto por repro CLI (ruling T-29)
+- [aberta] T-30 docblock de onInlineAction diz que `kind` é validado contra PLAN_ACTIONS e não é → EncounterView.php:1485
+- [aberta] T-30 comentário de listPending() sem referência a STATUS_REQUESTED → PendingExamResultList.php:110
+- [resolvida] T-33 gate de navegador → reviews/T-33.md:15-16
+- [aberta] T-33 combo com item inativo sem render real; catalogCriteria duplicado → ProcedureInputForm.php:341-358, VaccineProtocolForm.php:317-334
+- [aberta] T-34 testes só afirmam a classe; sem caso de outro tenant; mensagem em inglês para id inexistente (plano-mandou) → ProductServiceTest.php, ProductService.php:96
+- [aberta] T-35 literais 'low'/'out' no filtro attention → ProductList.php:103
+- [resolvida] T-35 critério 1 sem evidência → reviews/T-35.md:14
 
 ## Rulings
 - plano · onda 0 — Financeiro vira FinancialOverview (DML em T-07 com aprovação); itens e abas sem tela desabilitados "Em breve"
 - plano · onda 0 — [substituída em 2026-09-29] RED sem git
 - plano · onda 0 — Campos do mock sem schema: omitir/placeholder, sem migration; "Saldo do caixa aberto"
 - plano · onda 0 — Comandos LINT/SUITE/GATE fixados; implementadores não rebuildam nem usam Playwright
-- plano · onda 0 — Menu: Pacientes → GlobalSearchController; Prescrições desabilitado; Atendimentos/Exames/Vacinação mapeados; catálogos e admin em Configurações
-- plano · onda 0 — translations.json com escritor único (T-03, T-20); chaves pedidas pelo board
+- plano · onda 0 — Menu: Pacientes → GlobalSearchController; Prescrições desabilitado; catálogos e admin em Configurações
+- plano · onda 0 — translations.json com escritor único (T-03, T-20)
 - plano · onda 0 — CvShellController registrado como programa, reaproveita setUnit()
 - plano (revisão) · onda 0 — Projeto em git; trailer Task:, RED antes da implementação, comandos git proibidos
-- plano (revisão) · onda 0 — Varredura Playwright em todo gate; bugs sem dona viram task de correção
+- plano (revisão) · onda 0 — Varredura Playwright em todo gate
 - plano · onda 0 — EncounterView: wizard só no cliente; onStart/onAutosave/onFinish mantidos; Pausar omitido
-- T-08..T-13 · onda 2 — "Message not found" aceito até T-20
-- T-08..T-13 · onda 2 — Mocks ausentes: telas pela especificação escrita
-- T-11 · onda 2 — plano-mandou: correção de ServiceForm (update com id, onEdit por tenant) movida para T-17
-- T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados; defesa em profundidade como pendência (resolvida em T-19)
-- plano (revisão) · onda 3 — Correções da onda 2 distribuídas em T-17, T-18, T-19
-- plano (revisão) · onda 3 — PATTERN0 por campo por causa de TEntry::setNumericMask(0) do framework
-- plano (revisão) · onda 3 — Só tenant 1 no banco: outro tenant coberto por teste unitário
-- T-13 · onda 2 — Vazio após Finalizar pré-existente; timer não reproduzido: sugestões
-- onda 3 · onda 3 — Login do gate feito pelo orquestrador com senha dada na conversa (não registrada)
-- T-17 · onda 3 — StockService.php/StockServiceTest.php fora dos Arquivos prováveis autorizados; HIGH "Spoofable Policy Key" descartado
-- T-18 · onda 3 — Arquivos de Core/teste de Payable fora dos Arquivos prováveis autorizados
+- T-08..T-13 · onda 2 — "Message not found" aceito até T-20; mocks ausentes
+- T-11 · onda 2 — plano-mandou: correção de ServiceForm movida para T-17
+- T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados
+- plano (revisão) · onda 3 — Correções da onda 2 em T-17/T-18/T-19; PATTERN0 por campo; só tenant 1 no banco
+- T-13 · onda 2 — Vazio após Finalizar pré-existente
+- onda 3 · onda 3 — Login do gate com senha dada na conversa (não registrada)
+- T-17 · onda 3 — StockService fora dos Arquivos prováveis autorizado; HIGH descartado
+- T-18 · onda 3 — Arquivos de Core/teste de Payable autorizados
 - cruzada-onda-3 · onda 3 — Trailer `Task: cruzada-onda-3` aceito
-- T-14 · onda 3 — Abrir tutor/paciente/agendamento só para leitura é pré-existente
-- T-15 · onda 3 — "Aplicar vacina" e badge "Solicitado" julgados pelo revisor de T-15
-- plano · onda 3 — Sem fixture de tenant 2
-- plano · onda 3 — Mocks ausentes; "Message not found" até T-20
-- T-20 · onda 4 — `Route` → "Via" conforme o mock
-- T-20 · onda 4 — Ruling "Message not found até T-20" encerrado
-- plano (revisão) · onda 6 — Onda 6 (T-22, T-23, T-24) aprovada pelo usuário; gate cobre caixa/PaymentForm/catálogos
-- plano · onda 6 — Usuário autorizou fechar a sessão de caixa id 1
-- cruzada-onda-6 · onda 6 — Prova CLI do rótulo "Dinheiro" no CashSessionForm aceita
-- cruzada-onda-6 · onda 6 — Trailer `Task: cruzada-onda-6` (d006c24) aceito
-### Decisões que tomei (revisor final)
-- final · onda final — StockService::receiveBatch com `$action` do chamador: HIGH descartado, confirmo o ruling de T-17. O único chamador passa a constante `__CLASS__ . '::' . __FUNCTION__` (StockBatchForm.php:197); é o mesmo contrato dos outros 12 serviços de Application (PayableService, SaleService, CashSessionService…); AdiantiProgramPermissionProvider confere contra os programas da sessão (fail-closed). O parâmetro não vem do request. Fica só a sugestão de desenho (pendência T-17 aberta).
-- final · onda final — ServiceForm: tenant ok. onEdit usa ServiceCatalogService::findById → ServiceRepository::findById com tenantQuery; update() recusa id de outro tenant e o UPDATE tem WHERE por tenant.
-- final · onda final — PayableService::update: tenant e unidade ok. findById é escopado, há checagem explícita de tenantId, AuthorizationRequest com resourceUnitId da conta (unidade da sessão), changeDetails só com status open, UPDATE com WHERE por tenant; PayableForm::onEdit carrega pelo repositório escopado.
-- final · onda final — CvShellController: tenant ok. allowedUnitIds() cruza as unidades do usuário com system_unit.tenant_id da sessão e usa placeholders; onSwitchUnit recusa fora da lista antes de setUnit(). Ficam sugestões: GET sem token (aberta) e mensagem de exceção no JSON 500.
-- final · onda final — Escape do kit Cv*: ok. TElement::openTag só troca aspas; todos os textos e atributos variáveis do kit passam por CvFormat::e (sem escape duplo: `&amp;` em href é decodificado pelo navegador); CvWizard sanitiza o prefixo; FinancialOverview embute JSON com JSON_HEX_*; cv-shell.js usa textContent. CvCard recebe `$content` cru por contrato (documentado).
-- final · onda final — Catálogos TStandardForm (Exam/Procedure/VaccineCatalogForm) mantêm o onEdit herdado sem tenant, mas as listas da branch só linkam "Novo" (sem key): não há exposição nova; é pré-existente.
-- final · onda final — Pendência de T-12 promovida: o TDBCombo de SystemUser sem critério de tenant, antes em um formulário, agora está em quatro. A própria branch já tem o padrão correto (EncounterAccountForm::tenantUsersCriteria).
+- T-14 · onda 3 — Leitura só de tutor/paciente/agendamento pré-existente
+- T-15 · onda 3 — "Aplicar vacina" e badge "Solicitado" julgados pelo revisor
+- plano · onda 3 — Sem fixture de tenant 2; mocks ausentes
+- T-20 · onda 4 — `Route` → "Via"; ruling "Message not found" encerrado
+- plano (revisão) · onda 6 — Onda 6 (T-22..T-24) aprovada; usuário autorizou fechar caixa id 1
+- cruzada-onda-6 · onda 6 — Prova CLI de "Dinheiro" aceita; trailer `Task: cruzada-onda-6` aceito
+- final · onda final — SystemUser sem tenant nos combos corrigido (dbe7318, 12945fa); trailer `Task: final-fix` aceito; gate com 2 complementos
+- plano (revisão) · onda 7 — Ondas 7–8 (T-25..T-36), BASE 2c7611d; PayableList com filtro de status; uma chave canônica por par de caixa
+- plano (revisão) · onda 7 — Formato de `$action` = Classe::metodo ou chave pontuada; StockBatchForm com $_GET é padrão do projeto; construtor de EncounterAccountService só em 2 lugares
+- plano (revisão) · onda 7 — CSRF por CentralVet\Security\CsrfToken, token em TSession `cv_shell_csrf`, onSwitchUnit JSON
+- plano (revisão) · onda 7 — PNGs soltos movidos para reports/; Review Focus substituído pelos 5 riscos das ondas 7–8
+- T-27 · onda 7 — RbacAuthorizationServiceTest no escopo ('x'→'test::x'); ACTION_PATTERN sem ampliação
+- T-32 · onda 7 — diff de 14 linhas (limite 12) aceito
+- T-29 · onda 7 — avanço recusado no navegador aceito como pendência (repro CLI)
+- gate · onda 7 — rebuild feito antes do Complemento (3); gravações de teste pela UI autorizadas (T-26/T-27/T-35)
+### Decisões que tomei (revisor final, rodada 3)
+- final · onda final — Review Focus T-26 ok: sem `static=1`, o engine instancia a TPage e AdiantiPageControlTrait::run() passa `$_REQUEST` (inclui o POST), então unit_id/csrf_token chegam a onSwitchUnit; a checagem do token vem antes de qualquer setUnit(); o JS antigo em cache (GET via __adianti_ajax_exec) recebe 403 e não recarrega. Confirmado pelo gate (Complemento 4).
+- final · onda final — Review Focus T-25 ok: guarda `isActiveMember` antes de requireAccount/save; teste do inativo (FakeTenantUserDirectory([])) presente; os 2 construtores atualizados (EncounterAccountForm.php:757, EncounterAccountServiceTest.php:99).
+- final · onda final — Review Focus T-28 ok: resolveStatus() sem `status` volta ao valor da sessão; o setData do filtro é sobrescrito por sessionStatus(); justPaid só entra no filtro Em aberto.
+- final · onda final — Review Focus T-29 ok: o construtor chama o mesmo onSearch(), logo a mesma regra de tamanho mínimo.
+- final · onda final — Review Focus T-34 ok: nome duplicado lança antes de save(), nenhum produto muda.
+- final · onda final — ACTION_PATTERN não quebra chamadores: todos os serviços recebem `$action` do controller como `__CLASS__ . '::' . __FUNCTION__` ou literal `Classe::metodo` (EncounterView.php:1348, EncounterAccountForm.php:584); nenhum `__METHOD__`/closure.
+- final · onda final — Não re-executei a suíte (escreve e faz rollback no banco de desenvolvimento); aceito a evidência 205/205 do validador, que é coerente com os testes novos vistos no diff.
 
 ## Achados
-- [bloqueante] plano-mandou (promovida de T-12): TDBCombo de `SystemUser` sem critério de tenant lista usuários de todos os tenants (nomes) e deixa escolher profissional de outro tenant em 4 formulários novos da branch. Antes era TEntry de id. O Incluso (d) pede "TDBCombo/TDBUniqueSearch com filtro de tenant"; plan.md § Padrões registra "SystemUser sem filtro de tenant (exceção documentada)". O filtro pronto está em EncounterAccountForm.php:681-695 → ExamRequestForm.php, PrescriptionForm.php, ProcedureExecutionForm.php, VaccinationForm.php (`new TDBCombo('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name')`)
-- [sugestão] CvShellController::onContext devolve `$e->getMessage()` no JSON 500 (pode expor erro de SQL) → CvShellController.php:79-81
-- [sugestão] Regra de edição de produto no controller (valida com Product::create descartável + reconstitute), contra o README do Core → ProductForm.php:241-287
-- [sugestão] `$action` livre em StockService::receiveBatch e demais serviços: validar formato `Classe::metodo` em AuthorizationRequest → StockService.php:64,74
-- [sugestão] ServiceForm cria com active=0 em dois writes (create + update) na mesma transação; um parâmetro `active` em create() evitaria isso → ServiceForm.php:185-192
-
-## Rodada 2
-Re-revisão do bloqueante promovido de T-12. Commits vistos: `git -C /var/www/html/centralvet log --format='%h %s' 720f185..HEAD` → dbe7318 (RED), 12945fa; `git show dbe7318 12945fa`; `git status --short` → só artefatos do plano e PNGs soltos (sem código fora de commit).
-- [resolvido] TDBCombo de `SystemUser` sem tenant nos 4 forms → ExamRequestForm.php:74, PrescriptionForm.php:180, ProcedureExecutionForm.php:103 e VaccinationForm.php:64 usam `CvTenantUsers::combo(...)`. O critério tem `active='Y'` e `id IN (SELECT system_user_id FROM tenant_user WHERE tenant_id = N)` e é fail-closed: se a resolução do tenant falha, usa tenant 0 (CvTenantUsers.php:22-37). `grep -rn "'SystemUser'" app` não acha mais combo sem critério nesses 4 forms. O único outro é AppointmentForm.php:75 (TDBUniqueSearch), que é pré-existente e fica fora deste escopo.
-- [resolvido] Validação no save: os 4 serviços lançam CrossTenantReferenceException antes de assertAllowed() e de qualquer save(): ExamService.php:107, PrescriptionService.php:128, ProcedureExecutionService.php:153 e VaccinationService.php:148. No VaccinationService, a checagem vem antes de `catalog->save` (linha 175). TenantUserDirectory.php:55-72 usa placeholders, pega o tenant só do TenantContext e retorna false para id ≤ 0. As 7 construções dos serviços foram atualizadas (`grep "new \\CentralVet\\Application\\(Exam|Prescription|ProcedureExecution|Vaccination)Service("`). Nenhuma construção ficou sem o diretório.
-- [ok] RED dbe7318: os 4 testes esperam a exceção com o profissional 999 fora de `[10]` e verificam que nada foi persistido e que o estoque não foi baixado. A falha vem da ausência da validação e não de setup (os argumentos extras do construtor são ignorados pelo PHP antes da implementação). GREEN: `docker exec centralvet-app-1 php tests/run.php` → `Total: 186, Passed: 186, Failed: 0, Skipped: 0`.
-- [ok] EncounterAccountForm manteve o comportamento. `tenantUsersCriteria()` (EncounterAccountForm.php:681-683) delega a `CvTenantUsers::criteria`, e o diff mostra que as 3 linhas de filtro e o try/catch foram movidos literalmente para lá. O combo `authorized_by_system_user_id` (linha 377) continua usando o mesmo critério. Os `resolveTenantContext()` dos 5 forms são `private static`, e a closure `static fn` preserva o escopo da classe. O gate (reviews/final-fix.md § Complemento 2) aplicou desconto de R$ 5,00 → total R$ 65,00 e confirmou os combos com "1=Administrator".
-- [sugestão] Os comentários obsoletos agora contradizem o código: "system_user não tem tenant_id: combo sem filtro de tenant (mesma exceção documentada…)" em ExamRequestForm.php:72-73, ProcedureExecutionForm.php:101-102 e VaccinationForm.php:62-63, e o docblock de PrescriptionForm.php:28.
-- [sugestão] EncounterAccountService não revalida `authorized_by_system_user_id` no save (limitação registrada em reports/final-fix.md). O padrão é o mesmo, e o item fica para follow-up.
+- nenhum bloqueante. As sugestões seguem na Triagem como [aberta].
