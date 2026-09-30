@@ -209,6 +209,52 @@ final class PatientServiceTest
         Assert::null($cleared->allergies);
     }
 
+    public function testCreateAndUpdateParseWeightWithDecimalComma(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+
+        $created = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog', 'weight_kg' => '4,5']);
+        Assert::same(4.5, $created->weightKg);
+
+        $updated = $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => '4,5']);
+        Assert::same(4.5, $updated->weightKg);
+
+        Assert::same(4.5, $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => '4.50'])->weightKg);
+        Assert::same(12.0, $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => '12'])->weightKg);
+
+        $blank = $service->update($created->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => '']);
+        Assert::null($blank->weightKg);
+        Assert::null($service->findById($created->id)->weightKg);
+    }
+
+    public function testUpdateRejectsInvalidWeightAndKeepsStoredWeight(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog', 'weight_kg' => 4.5]);
+
+        foreach (['abc', '10000', '4,5kg', '-1', '1.234,5'] as $weight) {
+            try {
+                $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => $weight]);
+                throw new \RuntimeException("update() with weight_kg '{$weight}' should have thrown");
+            } catch (\InvalidArgumentException $e) {
+                Assert::same(PatientService::INVALID_WEIGHT_MESSAGE, $e->getMessage());
+            }
+
+            Assert::same(4.5, $service->findById($patient->id)->weightKg);
+        }
+
+        Assert::throws(
+            \InvalidArgumentException::class,
+            static fn () => $service->create(['tutor_id' => 1, 'name' => 'Mia', 'species' => 'cat', 'weight_kg' => 'abc']),
+        );
+        Assert::throws(
+            \InvalidArgumentException::class,
+            static fn () => $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => 10000.0]),
+        );
+    }
+
     public function testAttachPhotoStoresUnderTenantKeyAndPhotoReturnsBytes(): void
     {
         $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
