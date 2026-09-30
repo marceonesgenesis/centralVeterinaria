@@ -33,7 +33,13 @@ class BankAccountForm extends TPage
 
         $name->setMaxLength(120);
         $bank_name->setMaxLength(120);
-        $balance->setNumericMask(2, ',', '.', false, false, true);
+        // digitação livre ("1.234,56", "-50,00", "12"): sem máscara numérica,
+        // que normalizava texto para 0,00 no cliente e gravava saldo zero sem
+        // aviso. Conversão e recusa ("Invalid amount") ficam em toCents().
+        $balance->setProperty('placeholder', '0,00');
+        $balance->setProperty('inputmode', 'decimal');
+        $balance->setProperty('oninput', "this.value = this.value.replace(/[^0-9,.\\-]/g, '')");
+        $balance->setMaxLength(20);
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
         $active->setDefaultOption(false);
         $active->setValue(1);
@@ -73,6 +79,10 @@ class BankAccountForm extends TPage
 
             $this->form->validate();
 
+            // antes da transação: entrada inválida lança Invalid amount e
+            // nada é gravado.
+            $balance_cents = self::toCents($data->balance);
+
             TTransaction::open('permission');
 
             $tenant_context = self::resolveTenantContext();
@@ -81,7 +91,7 @@ class BankAccountForm extends TPage
             $input = [
                 'name'          => (string) $data->name,
                 'bank_name'     => trim((string) $data->bank_name) !== '' ? trim((string) $data->bank_name) : null,
-                'balance_cents' => self::toCents($data->balance),
+                'balance_cents' => $balance_cents,
             ];
             $is_active = ((string) $data->active) !== '0';
 
