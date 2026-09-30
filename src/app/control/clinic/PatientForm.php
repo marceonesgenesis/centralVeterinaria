@@ -38,6 +38,12 @@ class PatientForm extends TStandardForm
     /** @var \CentralVet\Domain\Patient|null paciente carregado para edição (null: não encontrado no tenant) */
     protected $viewPatient = null;
 
+    /** Extensão aceita no upload da foto → único Content-Type gravado (T-12). */
+    private const PHOTO_EXTENSIONS = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+
+    /** Content-Type servido por onPhoto → extensão do filename (whitelist). */
+    private const PHOTO_TYPES = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+
     /**
      * Class constructor
      * Creates the page: registration form (new) or the patient's record
@@ -486,10 +492,25 @@ class PatientForm extends TStandardForm
             exit;
         }
 
-        header('Content-Type: ' . $photo['content_type']);
+        // só um Content-Type da whitelist chega ao navegador; qualquer outro
+        // valor gravado vira download opaco (nunca documento ativo: SVG/HTML)
+        $extension = array_search($photo['content_type'], self::PHOTO_TYPES, true);
+        $file_name = 'patient-' . $id . '-photo.' . ($extension !== false ? $extension : 'bin');
+
+        if ($extension !== false)
+        {
+            header('Content-Type: ' . self::PHOTO_TYPES[$extension]);
+            header('Content-Disposition: inline; filename="' . $file_name . '"');
+        }
+        else
+        {
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . $file_name . '"');
+        }
         header('Content-Length: ' . strlen($photo['contents']));
         header('Cache-Control: private, max-age=300');
         header('X-Content-Type-Options: nosniff');
+        header('Content-Security-Policy: sandbox');
         echo $photo['contents'];
         exit;
     }
@@ -518,9 +539,17 @@ class PatientForm extends TStandardForm
             throw new InvalidArgumentException(_t('Uploaded file was not found'));
         }
 
-        $content_type = function_exists('mime_content_type')
-            ? ((string) (mime_content_type($path) ?: 'application/octet-stream'))
-            : 'application/octet-stream';
+        // whitelist fixa: a extensão define o tipo e getimagesize() confirma
+        // que os bytes são dessa imagem (SVG/HTML renomeado é recusado)
+        $extension = strtolower((string) pathinfo($file_name, PATHINFO_EXTENSION));
+        $content_type = self::PHOTO_EXTENSIONS[$extension] ?? null;
+        $image = $content_type !== null ? @getimagesize($path) : false;
+
+        if ($content_type === null || $image === false || ($image['mime'] ?? null) !== $content_type)
+        {
+            @unlink($path);
+            throw new InvalidArgumentException(_t('Photo must be a JPEG, PNG or WEBP image'));
+        }
 
         return [
             'name'         => $file_name,

@@ -252,10 +252,12 @@ final class PatientServiceTest
         $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
 
         foreach ([
-            'Photo must be a JPEG, PNG or WEBP image' => [$patient->id, 'doc.pdf', '%PDF', 'application/pdf'],
-            'Photo must be at most 2 MB' => [$patient->id, 'big.png', str_repeat('a', 2 * 1024 * 1024 + 1), 'image/png'],
-            'Patient 999 not found for this tenant' => [999, 'foto.png', 'png', 'image/png'],
-        ] as $message => $args) {
+            ['Photo must be a JPEG, PNG or WEBP image', [$patient->id, 'doc.pdf', '%PDF', 'application/pdf']],
+            ['Photo must be a JPEG, PNG or WEBP image', [$patient->id, 'x.svg', '<svg onload="alert(1)"/>', 'image/svg+xml']],
+            ['Photo must be a JPEG, PNG or WEBP image', [$patient->id, 'x.html', '<script>alert(1)</script>', 'text/html']],
+            ['Photo must be at most 2 MB', [$patient->id, 'big.png', str_repeat('a', 2 * 1024 * 1024 + 1), 'image/png']],
+            ['Patient 999 not found for this tenant', [999, 'foto.png', 'png', 'image/png']],
+        ] as [$message, $args]) {
             try {
                 $service->attachPhoto(...$args);
                 throw new \RuntimeException("attachPhoto() should have thrown '{$message}'");
@@ -264,6 +266,7 @@ final class PatientServiceTest
             }
         }
 
+        Assert::false($storage->exists("tenant/1/patient/{$patient->id}/photo-x.svg"));
         Assert::false($storage->exists("tenant/1/patient/{$patient->id}/photo-doc.pdf"));
         Assert::null($service->findById($patient->id)->photoObjectKey);
     }
