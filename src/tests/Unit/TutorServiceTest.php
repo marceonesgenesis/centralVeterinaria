@@ -124,6 +124,104 @@ final class TutorServiceTest
         ]));
     }
 
+    public function testUpdateChangesNameAndPhoneKeepingIdentity(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $updated = $service->update($a->id, [
+            'full_name' => '  Ana Souza Editada ',
+            'phone' => ' 85933334444 ',
+            'document' => '11122233344',
+            'email' => '',
+        ]);
+
+        Assert::same($a->id, $updated->id);
+        Assert::same($a->publicId, $updated->publicId);
+        Assert::same($a->tenantId, $updated->tenantId);
+        Assert::same('Ana Souza Editada', $updated->fullName);
+        Assert::same('85933334444', $updated->phone);
+        Assert::same('11122233344', $updated->document);
+        Assert::same(null, $updated->email);
+        Assert::same('85933334444', $service->findById($a->id)->phone);
+    }
+
+    public function testUpdateRejectsDocumentOfAnotherTutor(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $this->assertInvalidArgument('A tutor with this document already exists in this tenant', static fn () => $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'document' => '55566677788',
+        ]));
+    }
+
+    public function testUpdateRejectsUnknownTutor(): void
+    {
+        [$repository] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $this->assertInvalidArgument('Tutor 999 not found for this tenant', static fn () => $service->update(999, [
+            'full_name' => 'Ninguem',
+            'phone' => '85900000000',
+        ]));
+    }
+
+    public function testUpdateDoesNotFindAnotherTenantsTutor(): void
+    {
+        $other = $this->makeTutor(2, 'Carla Tenant Dois', document: '99988877766')->withId(50);
+        $repository = new FakeTutorRepository(1, $other);
+        $service = new TutorService($repository);
+
+        $this->assertInvalidArgument('Tutor 50 not found for this tenant', static fn () => $service->update(50, [
+            'full_name' => 'Invasor',
+            'phone' => '85900000000',
+        ]));
+    }
+
+    public function testUpdateRejectsMissingRequiredFields(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository);
+
+        $this->assertInvalidArgument('full_name is required', static fn () => $service->update($a->id, [
+            'full_name' => '   ',
+            'phone' => '85999990000',
+        ]));
+        $this->assertInvalidArgument('phone is required', static fn () => $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '',
+        ]));
+    }
+
+    /** @return array{0: FakeTutorRepository, 1: Tutor, 2: Tutor} */
+    private function seedTwoTutors(): array
+    {
+        $repository = new FakeTutorRepository(
+            1,
+            $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
+            $this->makeTutor(1, 'Bruno Lima', document: '55566677788', phone: '85988880000'),
+        );
+        $all = $repository->search('8');
+
+        return [$repository, $all[0], $all[1]];
+    }
+
+    private function assertInvalidArgument(string $message, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (InvalidArgumentException $e) {
+            Assert::same($message, $e->getMessage());
+
+            return;
+        }
+
+        throw new \RuntimeException("Expected InvalidArgumentException('{$message}')");
+    }
+
     private function makeTutor(int $tenantId, string $fullName, string $document = '', string $phone = '85900000000'): Tutor
     {
         return Tutor::register(
