@@ -49,4 +49,19 @@ final class AuthorizationRequestTest
             );
         }
     }
+
+    public function testMalformedActionMessageIsJsonEscaped(): void
+    {
+        $context = TenantContext::authenticated(101, 1, 5);
+        $message = null;
+
+        try {
+            new AuthorizationRequest(context: $context, action: "bad\naction");
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Invalid authorization action format: "bad\\naction"', $message);
+        Assert::false(str_contains((string) $message, "\n"), 'Message must not contain a raw line break');
+    }
 }
