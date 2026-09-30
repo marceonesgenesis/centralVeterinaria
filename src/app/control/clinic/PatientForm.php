@@ -314,6 +314,9 @@ class PatientForm extends TStandardForm
      */
     public function onSave($param = null)
     {
+        // key attachPhoto() wrote in this request, until the commit succeeds (T-58)
+        $new_photo_key = null;
+
         try
         {
             $data = $this->form->getData();
@@ -353,9 +356,11 @@ class PatientForm extends TStandardForm
             if ($photo_upload !== null)
             {
                 $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+                $new_photo_key = $patient->photoObjectKey;
             }
 
             TTransaction::close();
+            $new_photo_key = null; // committed: the new key is the patient's photo now
             self::discardUpload($photo_upload);
             self::discardPreviousPhoto($service, $patient);
 
@@ -380,17 +385,32 @@ class PatientForm extends TStandardForm
             // (missing or belongs to another tenant) — treated message,
             // never an uncaught exception / HTTP 500.
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             if (isset($data) && ($this->viewId !== null || self::isInvalidWeight($e)))
             {
                 // os dados digitados ficam no formulário
@@ -401,6 +421,11 @@ class PatientForm extends TStandardForm
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             if ($this->viewId !== null && isset($data))
             {
                 // edição: os dados digitados ficam no formulário
@@ -417,6 +442,9 @@ class PatientForm extends TStandardForm
      */
     private function saveExisting($data)
     {
+        // key attachPhoto() wrote in this request, until the commit succeeds (T-58)
+        $new_photo_key = null;
+
         try
         {
             if ($this->viewPatient === null)
@@ -444,9 +472,11 @@ class PatientForm extends TStandardForm
             if ($photo_upload !== null)
             {
                 $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+                $new_photo_key = $patient->photoObjectKey;
             }
 
             TTransaction::close();
+            $new_photo_key = null; // committed: the new key is the patient's photo now
             self::discardUpload($photo_upload);
             self::discardPreviousPhoto($service, $patient);
 
@@ -467,18 +497,33 @@ class PatientForm extends TStandardForm
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             $this->form->setData($data);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (InvalidArgumentException $e) // validation and domain (sex/weight); the "Record not found" above is a plain Exception
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             $this->form->setData($data);
             new TMessage('error', self::errorMessage($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             $this->form->setData($data);
             new TMessage('error', CvFormat::userError($e));
         }
