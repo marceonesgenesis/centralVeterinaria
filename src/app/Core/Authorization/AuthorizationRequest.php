@@ -40,7 +40,7 @@ final class AuthorizationRequest
         if (preg_match(self::ACTION_PATTERN, $action) !== 1) {
             throw new \InvalidArgumentException(
                 'Invalid authorization action format: '
-                . json_encode($action, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                . json_encode($action, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)
             );
         }
     }

@@ -52,11 +52,13 @@ final class TutorService
     public function create(array $data): Tutor
     {
         $tenantId = $data['tenant_id'] ?? null;
-        $fullName = isset($data['full_name']) ? trim((string) $data['full_name']) : '';
-        $phone = isset($data['phone']) ? trim((string) $data['phone']) : '';
-        $document = isset($data['document']) && $data['document'] !== '' ? (string) $data['document'] : null;
-        $email = isset($data['email']) && $data['email'] !== '' ? (string) $data['email'] : null;
-        $address = isset($data['address']) && $data['address'] !== '' ? (string) $data['address'] : null;
+        [
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'document' => $document,
+            'email' => $email,
+            'address' => $address,
+        ] = self::normalize($data);
 
         if (!is_int($tenantId) || $tenantId <= 0) {
             throw new InvalidArgumentException('tenant_id is required and must be a positive integer');
@@ -104,11 +106,13 @@ final class TutorService
      */
     public function update(int $id, array $data): Tutor
     {
-        $fullName = isset($data['full_name']) ? trim((string) $data['full_name']) : '';
-        $phone = isset($data['phone']) ? trim((string) $data['phone']) : '';
-        $document = isset($data['document']) && $data['document'] !== '' ? (string) $data['document'] : null;
-        $email = isset($data['email']) && $data['email'] !== '' ? (string) $data['email'] : null;
-        $address = isset($data['address']) && $data['address'] !== '' ? (string) $data['address'] : null;
+        [
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'document' => $document,
+            'email' => $email,
+            'address' => $address,
+        ] = self::normalize($data);
 
         if ($fullName === '') {
             throw new InvalidArgumentException('full_name is required');
@@ -142,6 +146,29 @@ final class TutorService
         ));
 
         return $saved;
+    }
+
+    /**
+     * Shared normalization of create()/update() input: full_name and phone
+     * are trimmed ('' when absent); document, email and address become null
+     * when absent or ''.
+     *
+     * @param array<string, mixed> $data
+     * @return array{full_name: string, phone: string, document: ?string, email: ?string, address: ?string}
+     */
+    private static function normalize(array $data): array
+    {
+        $optional = static fn (string $key): ?string => isset($data[$key]) && $data[$key] !== ''
+            ? (string) $data[$key]
+            : null;
+
+        return [
+            'full_name' => isset($data['full_name']) ? trim((string) $data['full_name']) : '',
+            'phone' => isset($data['phone']) ? trim((string) $data['phone']) : '',
+            'document' => $optional('document'),
+            'email' => $optional('email'),
+            'address' => $optional('address'),
+        ];
     }
 
     public function findById(int $id): ?Tutor
