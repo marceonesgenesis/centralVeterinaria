@@ -21,10 +21,29 @@ Total: 75, Passed: 75, Failed: 0, Skipped: 0
 
 ## Isolamento do Redis de teste
 
-O runner força `REDIS_DATABASE=15` para o próprio processo quando essa
-variável não está definida no ambiente, para nunca rodar por engano contra o
-banco `0` de desenvolvimento. Os testes usam apenas chaves sob o namespace
-`testing` e fazem limpeza ao final.
+As sessões do navegador (`SESSION_PREFIX`, padrão `centralvet:session:`) e o
+registro de sessão única ficam no banco Redis da aplicação, que o
+`docker-compose.yml` injeta no container `app` como `REDIS_DATABASE=0`. Para
+a suíte nunca dividir esse banco com a aplicação, `tests/run.php`:
+
+- sempre ignora o `REDIS_DATABASE` herdado e usa `TEST_REDIS_DATABASE`
+  (padrão `15`) para o próprio processo;
+- recusa rodar quando o banco de teste resultante é igual ao da aplicação:
+  imprime `Refusing to run: test Redis database equals the application
+  database (<n>)` e sai com código 1, antes de rodar qualquer teste.
+
+```bash
+# banco de teste alternativo
+docker compose run --rm --no-deps -T -e TEST_REDIS_DATABASE=14 app php tests/run.php
+# recusa (exit 1): banco de teste = banco da aplicação
+docker compose run --rm --no-deps -T -e TEST_REDIS_DATABASE=0 app php tests/run.php
+```
+
+Os testes usam só chaves sob o namespace `testing` (ou prefixos `cvtest:`),
+com nomes únicos por instância (fila `t11-queue-<hex>`, prefixo de sessão
+`cvtest:session:test:<uniqid>:`), e apagam no `tearDown` só as próprias
+chaves: nenhum `FLUSHDB`/`FLUSHALL` nem `SCAN` + `DEL`. Assim, duas suítes em
+paralelo não disputam a mesma fila nem a mesma chave.
 
 ## No host (sem ext-redis)
 
