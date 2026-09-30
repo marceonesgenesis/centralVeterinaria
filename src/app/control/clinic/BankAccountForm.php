@@ -33,12 +33,12 @@ class BankAccountForm extends TPage
 
         $name->setMaxLength(120);
         $bank_name->setMaxLength(120);
-        // digitação livre ("1.234,56", "-50,00", "12"): sem máscara numérica,
-        // que normalizava texto para 0,00 no cliente e gravava saldo zero sem
-        // aviso. Conversão e recusa ("Invalid amount") ficam em toCents().
+        // digitação livre ("1.234,56", "-50,00", "12"), sem máscara nem filtro
+        // no cliente: o texto chega ao servidor como foi digitado e
+        // MoneyInput::toCents() converte ou recusa ("Invalid amount" →
+        // "Valor inválido"), em vez de o valor sumir ou virar 0,00 sem aviso.
         $balance->setProperty('placeholder', '0,00');
         $balance->setProperty('inputmode', 'decimal');
-        $balance->setProperty('oninput', "this.value = this.value.replace(/[^0-9,.\\-]/g, '')");
         $balance->setMaxLength(20);
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
         $active->setDefaultOption(false);
@@ -81,7 +81,7 @@ class BankAccountForm extends TPage
 
             // antes da transação: entrada inválida lança Invalid amount e
             // nada é gravado.
-            $balance_cents = self::toCents($data->balance);
+            $balance_cents = \CentralVet\Presentation\MoneyInput::toCents((string) $data->balance, true);
 
             TTransaction::open('permission');
 
@@ -187,32 +187,6 @@ class BankAccountForm extends TPage
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
-    }
-
-    /**
-     * "1.234,56" / "-50,00" / "1234,5" → centavos inteiros (sinal
-     * preservado). Vazio → 0; qualquer outra entrada (texto, ponto decimal,
-     * mais de 2 casas) lança \InvalidArgumentException('Invalid amount'),
-     * traduzida por CvFormat::userError (catálogo de T-28).
-     */
-    private static function toCents($amount): int
-    {
-        $amount = trim((string) $amount);
-
-        if ($amount === '')
-        {
-            return 0;
-        }
-
-        if (!preg_match('/^-?\d{1,3}(\.\d{3})*(,\d{1,2})?$/', $amount) && !preg_match('/^-?\d+(,\d{1,2})?$/', $amount))
-        {
-            throw new \InvalidArgumentException('Invalid amount');
-        }
-
-        $normalized = str_replace('.', '', $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**
