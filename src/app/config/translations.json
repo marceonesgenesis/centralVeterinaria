@@ -368,6 +368,10 @@
     "pt": "Categoria"
   },
   {
+    "en": "category too long",
+    "pt": "categoria muito longa (máx. 60 caracteres)"
+  },
+  {
     "en": "Change Log",
     "pt": "Log de alterações"
   },
@@ -494,6 +498,10 @@
   {
     "en": "copy",
     "pt": "cópia"
+  },
+  {
+    "en": "Could not import the file. No service was created",
+    "pt": "Não foi possível importar o arquivo. Nenhum serviço foi criado"
   },
   {
     "en": "Could not load the exam catalog",
@@ -1350,6 +1358,10 @@
   {
     "en": "name is required",
     "pt": "nome obrigatório"
+  },
+  {
+    "en": "name too long",
+    "pt": "nome muito longo (máx. 190 caracteres)"
   },
   {
     "en": "Network devices",
@@ -2826,6 +2838,10 @@
   {
     "en": "Weight (kg)",
     "pt": "Peso (kg)"
+  },
+  {
+    "en": "weight_kg must be a number between 0 and 9999.99, e.g. 4,5",
+    "pt": "Peso inválido: informe um número entre 0 e 9999,99, ex.: 4,5"
   },
   {
     "en": "Welcome",

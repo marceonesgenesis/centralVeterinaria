@@ -26,6 +26,12 @@ final class PatientService
     /** Largest photo attachPhoto() accepts, in bytes (2 MB). */
     public const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 
+    /** Message of the InvalidArgumentException for an unparseable weight_kg (T-27). */
+    public const INVALID_WEIGHT_MESSAGE = 'weight_kg must be a number between 0 and 9999.99, e.g. 4,5';
+
+    /** Largest weight_kg the column patient.weight_kg decimal(6,2) holds. */
+    private const MAX_WEIGHT_KG = 9999.99;
+
     /**
      * $storage is optional so the existing 3-argument callers keep working;
      * only attachPhoto()/photo() need it (LogicException when absent).
@@ -81,7 +87,7 @@ final class PatientService
             breed: isset($data['breed']) ? (string) $data['breed'] : null,
             sex: isset($data['sex']) ? (string) $data['sex'] : null,
             birthDate: isset($data['birth_date']) ? (string) $data['birth_date'] : null,
-            weightKg: isset($data['weight_kg']) ? (float) $data['weight_kg'] : null,
+            weightKg: self::parseWeightKg($data['weight_kg'] ?? null),
             color: isset($data['color']) ? (string) $data['color'] : null,
             notes: isset($data['notes']) ? (string) $data['notes'] : null,
             allergies: self::optional($data, 'allergies'),
@@ -135,7 +141,7 @@ final class PatientService
             throw new \InvalidArgumentException('species is required');
         }
 
-        $weight = self::optional($data, 'weight_kg');
+        $weight = self::parseWeightKg($data['weight_kg'] ?? null);
 
         $patient = new Patient(
             id: $current->id,
@@ -146,7 +152,7 @@ final class PatientService
             breed: self::optional($data, 'breed'),
             sex: self::optional($data, 'sex'),
             birthDate: self::optional($data, 'birth_date'),
-            weightKg: $weight !== null ? (float) $weight : null,
+            weightKg: $weight,
             color: self::optional($data, 'color'),
             notes: self::optional($data, 'notes'),
             createdAt: $current->createdAt,
@@ -257,6 +263,42 @@ final class PatientService
         $safe = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $fileName);
 
         return $safe === '' ? '_' : $safe;
+    }
+
+    /**
+     * Single conversion of weight_kg for create() and update() (T-27):
+     * null/blank → null; int/float as is; a string of up to 4 digits with
+     * an optional 1–2 decimal part after '.' or ',' ("4,5", "4.50", "12").
+     * Anything else, or a value outside 0..9999.99, is rejected.
+     *
+     * @throws \InvalidArgumentException with INVALID_WEIGHT_MESSAGE
+     */
+    private static function parseWeightKg(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $weight = (float) $value;
+        } elseif (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return null;
+            }
+            if (preg_match('/^\d{1,4}([.,]\d{1,2})?$/', $value) !== 1) {
+                throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+            }
+            $weight = (float) str_replace(',', '.', $value);
+        } else {
+            throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+        }
+
+        if (!is_finite($weight) || $weight < 0 || $weight > self::MAX_WEIGHT_KG) {
+            throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+        }
+
+        return $weight;
     }
 
     /** Optional field of $data as a string, with null/'' (after trim) → null. */

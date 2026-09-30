@@ -138,6 +138,8 @@ class PatientForm extends TStandardForm
         $sex = new TRadioGroup('sex');
         $birth_date = new TDate('birth_date');
         $weight_kg = new TEntry('weight_kg');
+        // vírgula decimal na tela; o POST chega com ponto (T-27)
+        $weight_kg->setNumericMask(2, ',', '.', true);
         $color = new TEntry('color');
         $notes = new TText('notes');
         $allergies = new TText('allergies');
@@ -277,6 +279,7 @@ class PatientForm extends TStandardForm
             'breed'      => $patient->breed,
             'sex'        => $patient->sex,
             'birth_date' => $birth ? $birth->format('d/m/Y') : null,
+            // float: o TEntry com máscara numérica o exibe como "4,50"
             'weight_kg'  => $patient->weightKg,
             'color'      => $patient->color,
             'notes'      => $patient->notes,
@@ -368,6 +371,16 @@ class PatientForm extends TStandardForm
             TTransaction::rollback();
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            if (isset($data) && ($this->viewId !== null || self::isInvalidWeight($e)))
+            {
+                // os dados digitados ficam no formulário
+                $this->form->setData($data);
+            }
+            new TMessage('error', self::errorMessage($e));
+        }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
@@ -439,12 +452,30 @@ class PatientForm extends TStandardForm
             $this->form->setData($data);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
-        catch (Exception $e) // validation, domain (sex/weight), not found
+        catch (InvalidArgumentException $e) // validation, domain (sex/weight), not found
+        {
+            TTransaction::rollback();
+            $this->form->setData($data);
+            new TMessage('error', self::errorMessage($e));
+        }
+        catch (Exception $e)
         {
             TTransaction::rollback();
             $this->form->setData($data);
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /** True when $e is PatientService's rejection of weight_kg (T-27). */
+    private static function isInvalidWeight(InvalidArgumentException $e)
+    {
+        return $e->getMessage() === \CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE;
+    }
+
+    /** Screen text for an InvalidArgumentException: the weight one is translated, the others go as is. */
+    private static function errorMessage(InvalidArgumentException $e)
+    {
+        return self::isInvalidWeight($e) ? _t(\CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE) : $e->getMessage();
     }
 
     /**
