@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ProcedureCatalogForm
  *
@@ -116,7 +119,7 @@ class ProcedureCatalogForm extends TStandardForm
 
             $item = $catalog->create(
                 $data->name,
-                \CentralVet\Presentation\MoneyInput::toCents((string) $data->price, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $duration_minutes,
                 $preparation_text
             );

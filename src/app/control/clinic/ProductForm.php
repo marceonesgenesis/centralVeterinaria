@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ProductForm
  *
@@ -65,16 +68,10 @@ class ProductForm extends TPage
         );
 
         // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
-
         // MoneyInput::toCents() converte ou recusa ("Valor inválido").
-
         $unit_cost->setProperty('placeholder', 'ex.: 12,34');
-
         $unit_cost->setProperty('inputmode', 'decimal');
-
         $unit_cost->setMaxLength(16);
-        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
-        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
         $sale_price->setProperty('placeholder', 'ex.: 12,34');
         $sale_price->setProperty('inputmode', 'decimal');
         $sale_price->setMaxLength(16);
@@ -202,7 +199,7 @@ class ProductForm extends TPage
                     (string) $data->name,
                     $data->category ?: null,
                     (string) $data->unit_of_measure,
-                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->unit_cost, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                    MoneyInput::toCents((string) $data->unit_cost, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     (int) $data->minimum_stock_quantity,
                     $active,
                     self::toNullableCents($data->sale_price ?? null),
@@ -216,7 +213,7 @@ class ProductForm extends TPage
                     (string) $data->name,
                     $data->category ?: null,
                     (string) $data->unit_of_measure,
-                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->unit_cost, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                    MoneyInput::toCents((string) $data->unit_cost, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     (int) $data->minimum_stock_quantity,
                     self::toNullableCents($data->sale_price ?? null),
                     self::nullableString($data->code ?? null)
@@ -279,7 +276,7 @@ class ProductForm extends TPage
             return null;
         }
 
-        return \CentralVet\Presentation\MoneyInput::toCents((string) $amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
+        return MoneyInput::toCents((string) $amount, false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
     }
 
     /** Blank text field → null (Product::create() trims and nulls it too). */

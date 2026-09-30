@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * FinancialEntryForm
  *
@@ -179,7 +182,7 @@ class FinancialEntryForm extends TStandardForm
                 $tenant_context->requireUnitId(),
                 (string) $data->entry_type,
                 (string) $data->category,
-                \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                MoneyInput::toCents((string) $data->amount, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 null,
                 null,
                 $tenant_context->userId(),

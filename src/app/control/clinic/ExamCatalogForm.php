@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ExamCatalogForm
  *
@@ -104,7 +107,7 @@ class ExamCatalogForm extends TStandardForm
             $item = $catalog->create([
                 'name'         => $data->name,
                 'partner_name' => $data->partner_name,
-                'price_cents'  => \CentralVet\Presentation\MoneyInput::toCents((string) $data->price, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                'price_cents'  => MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
             ]);
 
             $data->id = $item->id();

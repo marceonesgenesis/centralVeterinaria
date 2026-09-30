@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * PayableForm
  *
@@ -129,7 +132,7 @@ class PayableForm extends TStandardForm
                     (int) $data->id,
                     (string) $data->description_text,
                     (string) $data->category,
-                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                    MoneyInput::toCents((string) $data->amount, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     !empty($data->due_date) ? (string) $data->due_date : null,
                     __CLASS__ . '::' . __FUNCTION__,
                 )
@@ -137,7 +140,7 @@ class PayableForm extends TStandardForm
                     $tenant_context->requireUnitId(),
                     (string) $data->description_text,
                     (string) $data->category,
-                    \CentralVet\Presentation\MoneyInput::toCents((string) $data->amount, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                    MoneyInput::toCents((string) $data->amount, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                     !empty($data->due_date) ? (string) $data->due_date : null,
                     $tenant_context->userId(),
                     __CLASS__ . '::' . __FUNCTION__,

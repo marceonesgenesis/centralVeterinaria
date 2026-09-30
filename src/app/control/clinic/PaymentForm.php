@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * PaymentForm
  *
@@ -320,7 +323,7 @@ class PaymentForm extends TPage
         {
             $receivableId = isset($param['receivable_id']) ? (int) $param['receivable_id'] : 0;
             $paymentMethod = isset($param['payment_method']) ? (string) $param['payment_method'] : '';
-            $amountCents = \CentralVet\Presentation\MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS);
+            $amountCents = MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
 
             if ($receivableId <= 0)
             {
@@ -339,6 +342,7 @@ class PaymentForm extends TPage
             {
                 TTransaction::close();
                 new TMessage('error', _t('There is no open cash session for this unit. Open a cash session before registering a payment.'));
+                $this->keepTypedData($this->form);
 
                 return;
             }
@@ -362,37 +366,57 @@ class PaymentForm extends TPage
         catch (\CentralVet\Domain\Exception\OverpaymentException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('You are not allowed to register a payment for this unit'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('An authenticated session with an active unit is required'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Depois de um erro, devolve ao formulário o que o usuário digitou
+     * (ex.: "abc" → "Valor inválido" sem perder os campos): a ação é de
+     * instância, então a página é redesenhada pelo construtor logo depois.
+     */
+    private function keepTypedData($form): void
+    {
+        if ($form instanceof BootstrapFormBuilder)
+        {
+            $form->setData($form->getData());
         }
     }
 

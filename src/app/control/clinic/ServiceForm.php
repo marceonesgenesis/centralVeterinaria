@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ServiceForm
  *
@@ -175,7 +178,7 @@ class ServiceForm extends TPage
                 'name'              => (string) $data->name,
                 'category'          => $data->category,
                 'duration_minutes'  => (int) $data->duration_minutes,
-                'price_cents'       => \CentralVet\Presentation\MoneyInput::toCents((string) $data->price, false, \CentralVet\Presentation\MoneyInput::MAX_UNSIGNED_INT_CENTS),
+                'price_cents'       => MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
             ];
 
             if (!empty($data->id))
