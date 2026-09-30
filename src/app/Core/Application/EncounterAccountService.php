@@ -314,7 +314,14 @@ final class EncounterAccountService
      * method ever calls `EncounterAccountRepositoryInterface::save()`.
      *
      * @throws CrossTenantReferenceException when the account does not
-     *         resolve within the authenticated tenant.
+     *         resolve within the authenticated tenant, or when the
+     *         authorizer (authorized_by_system_user_id) is not an active
+     *         user of the authenticated tenant.
+     * @throws InvalidArgumentException when the discount is invalid
+     *         (negative discount_cents, non-positive account_id or
+     *         authorized_by_system_user_id).
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied
+     *         when the policy denies $action for the account's unit.
      * @throws InvalidStatusTransitionException when the account is not
      *         currently 'open'.
      * @throws \CentralVet\Domain\Exception\DiscountExceedsSubtotalException
