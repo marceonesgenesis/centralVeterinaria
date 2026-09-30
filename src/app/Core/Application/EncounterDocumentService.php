@@ -20,7 +20,8 @@ use Throwable;
  * prefixed by tenant and by encounterId at this layer, mirroring the
  * segment-based convention already used by
  * CentralVet\Storage\ObjectKeyNamespace ("<root>/<env>/tenant/<id>/<ns>/<key>")
- * instead of inventing a new one: "tenant/<tenantId>/encounter/<encounterId>/<fileName>".
+ * instead of inventing a new one: "tenant/<tenantId>/encounter/<encounterId>/<12 hex>-<fileName>"
+ * (the random segment makes every attachment its own object, T-52).
  * This is on top of whatever tenant-scoping the concrete StorageInterface
  * implementation itself applies (e.g. S3CompatibleStorage, which further
  * wraps the key via ObjectKeyNamespace::tenantKey using the same
@@ -34,7 +35,8 @@ use Throwable;
  * and list()/download() read that index back. The link to the encounter is
  * the logical prefix "tenant/<tenantId>/encounter/<encounterId>/" inside
  * object_key — no new column or table. If the record fails, the object just
- * written is deleted and the error is rethrown.
+ * written (and only that one, thanks to the unique key) is deleted and the
+ * error is rethrown. The original file name is kept in original_name.
  *
  * Known limitation: without the repository (the 2-argument constructor, e.g.
  * ExamResultForm) there is still no index to read, so list() returns [] and
@@ -129,7 +131,10 @@ final class EncounterDocumentService
 
     private function key(int $encounterId, string $fileName): string
     {
-        return $this->prefix($encounterId) . self::sanitizeFileName($fileName);
+        // unique segment per attachment (same pattern as the patient photo,
+        // T-12/T-47): re-attaching a file with the same name never overwrites
+        // an object an earlier stored_object row still points to
+        return $this->prefix($encounterId) . bin2hex(random_bytes(6)) . '-' . self::sanitizeFileName($fileName);
     }
 
     private static function sanitizeFileName(string $fileName): string
