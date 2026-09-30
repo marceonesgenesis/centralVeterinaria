@@ -184,12 +184,15 @@ class SaleForm extends TPage
         ];
         if ($this->savedSaleId !== null)
         {
-            $headerActions[] = [
-                'label' => _t('Generate PDF'),
-                'href'  => 'index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=' . $this->savedSaleId,
-                'icon'  => 'fa:file-pdf',
-                'class' => 'btn btn-outline-secondary',
-            ];
+            // widget pronto (sem generator="adianti"): o PDF abre em nova aba
+            $pdfLink = new TElement('a');
+            $pdfLink->{'href'}   = CvFormat::e('index.php?class=SaleForm&method=onGenerateReceiptPdf&sale_id=' . $this->savedSaleId);
+            $pdfLink->{'target'} = '_blank';
+            $pdfLink->{'rel'}    = 'noopener';
+            $pdfLink->{'class'}  = 'btn btn-outline-secondary';
+            $pdfLink->add(new TImage('fa:file-pdf'));
+            $pdfLink->add(TElement::tag('span', CvFormat::e(_t('Generate PDF')), []));
+            $headerActions[] = $pdfLink;
         }
 
         $container->add(CvPage::header(_t('Sale'), null, $headerActions));

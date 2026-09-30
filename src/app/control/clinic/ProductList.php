@@ -20,13 +20,14 @@
 class ProductList extends TPage
 {
     private const LIMIT = 10;
-    private const STATUSES = ['normal', 'low', 'out'];
+    private const STATUSES = ['normal', 'low', 'out', 'attention'];
 
     protected $datagrid;
     protected $pageNavigation;
     protected $filterForm;
     protected $footerSlot;
     protected $loaded = false;
+    private bool $tenantErrorShown = false;
 
     private array $filters = ['search' => null, 'category' => null, 'status' => null];
     private ?\CentralVet\Application\StockSalesOverviewService $service = null;
@@ -55,6 +56,7 @@ class ProductList extends TPage
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->tenantErrorShown = true;
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e)
@@ -93,13 +95,23 @@ class ProductList extends TPage
         try
         {
             TTransaction::open('permission');
-            $rows = $this->service()->products($this->filters['search'], $this->filters['category'], $this->filters['status']);
+            // 'attention' is a filter, not a row status: low + out (same set as the low-stock card).
+            $attention = $this->filters['status'] === 'attention';
+            $rows = $this->service()->products($this->filters['search'], $this->filters['category'], $attention ? null : $this->filters['status']);
+            if ($attention)
+            {
+                $rows = array_values(array_filter($rows, static fn (array $row): bool => in_array($row['status'], ['low', 'out'], true)));
+            }
             TTransaction::close();
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
-            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+            if (!$this->tenantErrorShown)
+            {
+                $this->tenantErrorShown = true;
+                new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+            }
             return;
         }
         catch (Exception $e)
@@ -334,7 +346,7 @@ class ProductList extends TPage
         {
             $stock->add(TElement::tag('li', CvFormat::e(_t('No low stock products')), ['class' => 'text-muted py-2']));
         }
-        $side->add(CvCard::create(_t('Low stock products'), $stock, _t('View all'), 'index.php?class=ProductList&status=low'));
+        $side->add(CvCard::create(_t('Low stock products'), $stock, _t('View all'), 'index.php?class=ProductList&status=attention'));
 
         return $side;
     }
@@ -345,6 +357,7 @@ class ProductList extends TPage
             'normal' => _t('Normal'),
             'low'    => _t('Low stock'),
             'out'    => _t('Out of stock'),
+            'attention' => _t('Low or out of stock'),
         ];
     }
 
