@@ -19,7 +19,8 @@ use PDO;
  * listOpenBySystemUnit() orders by "due_date IS NULL, due_date ASC": bills
  * with a real due date come first, earliest first; bills with no due date
  * sort last, mirroring StockBatchRepository::listByProductOrderedByExpiry()'s
- * own null-last convention (Phase 4).
+ * own null-last convention (Phase 4). listBySystemUnitAndStatus() (T-28)
+ * shares that query and order; a null status lists every status.
  *
  * PENDING / DO NOT WIRE YET: this class depends on the `payable` table
  * created by the not-yet-applied migration
@@ -51,9 +52,16 @@ final class PayableRepository extends AbstractTenantRepository implements Payabl
 
     public function listOpenBySystemUnit(int $systemUnitId): array
     {
-        $query = $this->tenantQuery()
-            ->andEquals('system_unit_id', $systemUnitId)
-            ->andEquals('status', Payable::STATUS_OPEN);
+        return $this->listBySystemUnitAndStatus($systemUnitId, Payable::STATUS_OPEN);
+    }
+
+    public function listBySystemUnitAndStatus(int $systemUnitId, ?string $status): array
+    {
+        $query = $this->tenantQuery()->andEquals('system_unit_id', $systemUnitId);
+
+        if ($status !== null) {
+            $query = $query->andEquals('status', $status);
+        }
 
         $statement = $this->connection->prepare(
             "SELECT * FROM payable WHERE {$query->whereSql()} "

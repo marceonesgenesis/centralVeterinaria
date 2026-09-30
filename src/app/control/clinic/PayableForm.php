@@ -5,10 +5,16 @@
  * Registration screen for a Payable (T-09): a vendor/operational bill owed
  * by the tenant at the active system unit. Follows the TStandardForm
  * pattern used by ServiceForm (Fase 1) / ProcedureCatalogForm (T-08 da Fase
- * 4), but contains no business rule of its own: creation is delegated
- * entirely to CentralVet\Application\PayableService::create() (T-05) —
- * required fields, amount validation and the "created open" status all
- * live there.
+ * 4), but contains no business rule of its own. onSave() either creates or
+ * edits:
+ *   - without `id`: creates a new payable through
+ *     CentralVet\Application\PayableService::create() (T-05) — required
+ *     fields, amount validation and the "created open" status live there;
+ *   - with `id`: edits that existing payable through
+ *     CentralVet\Application\PayableService::update() (T-18) — tenant-scoped
+ *     lookup, unit authorization and the "only open payables" rule live
+ *     there; a paid/cancelled payable is refused with
+ *     _t('Only open payables can be edited') and nothing is written (T-28).
  *
  * onSave() is fully overridden (never calls the parent TStandardForm
  * onSave()/setActiveRecord()-driven flow), so CentralVet\Persistence\
@@ -158,7 +164,7 @@ class PayableForm extends TStandardForm
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', _t('Only open payables can be edited'));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {

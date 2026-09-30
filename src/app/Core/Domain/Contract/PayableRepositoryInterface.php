@@ -20,4 +20,13 @@ interface PayableRepositoryInterface extends TenantRepositoryInterface
      * @return list<TEntity>
      */
     public function listOpenBySystemUnit(int $systemUnitId): array;
+
+    /**
+     * Lists payables of a unit within the current tenant with the given
+     * status ('open', 'paid', 'cancelled'), or every status when $status
+     * is null. Same order as listOpenBySystemUnit().
+     *
+     * @return list<TEntity>
+     */
+    public function listBySystemUnitAndStatus(int $systemUnitId, ?string $status): array;
 }

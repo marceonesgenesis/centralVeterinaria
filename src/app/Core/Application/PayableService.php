@@ -191,4 +191,27 @@ final class PayableService
 
         return $payables;
     }
+
+    /**
+     * Lists the unit's payables with the given status (fase 10, T-28:
+     * filtro Em aberto/Pagas/Todas da PayableList); null lists every
+     * status. Tenant scoping stays in the repository (ADR 0002).
+     *
+     * @return list<Payable>
+     *
+     * @throws InvalidArgumentException when $status is not a Payable status
+     */
+    public function listByStatus(int $systemUnitId, ?string $status): array
+    {
+        $valid = [Payable::STATUS_OPEN, Payable::STATUS_PAID, Payable::STATUS_CANCELLED];
+
+        if ($status !== null && !in_array($status, $valid, true)) {
+            throw new InvalidArgumentException("Invalid payable status '{$status}'");
+        }
+
+        /** @var list<Payable> $payables */
+        $payables = $this->payables->listBySystemUnitAndStatus($systemUnitId, $status);
+
+        return $payables;
+    }
 }

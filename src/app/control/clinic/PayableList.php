@@ -2,12 +2,17 @@
 /**
  * PayableList
  *
- * Listing screen for open Payables (T-09). Mirrors ServiceList (Fase 1) /
+ * Listing screen for Payables (T-09). Mirrors ServiceList (Fase 1) /
  * ProcedureCatalogList (T-08 da Fase 4): this listing has no data-access
  * logic of its own — onReload() is overridden to source every row from
- * CentralVet\Application\PayableService::listOpen() (T-05) — the
+ * CentralVet\Application\PayableService::listByStatus() (T-28) — the
  * Persistence layer (CentralVet\Persistence\PayableRepository) is never
  * touched from here.
+ *
+ * Filtro de status (T-28): combo `status` Em aberto (padrão) / Pagas /
+ * Todas; o valor vem de $param['status'] (ou da URL) e fica na sessão
+ * `PayableList_filter_status`, então voltar pelo menu reabre o último
+ * filtro. Valor inválido cai em Em aberto.
  *
  * The "Pagar" row action calls CentralVet\Application\PayableService::pay()
  * (T-05) directly, never CentralVet\Domain\Payable/PayableRepository: a
@@ -31,6 +36,12 @@ class PayableList extends TStandardList
     /** @var \CentralVet\Domain\Payable|null conta recém-paga, exibida com badge Pago no recarregamento */
     private $justPaid = null;
 
+    /** @var TCombo filtro de status (open|paid|all) */
+    private $statusCombo;
+
+    /** valores do combo de status; 'all' lista todos os status */
+    private const STATUS_FILTERS = ['open', 'paid', 'all'];
+
     /**
      * Page constructor
      */
@@ -53,16 +64,27 @@ class PayableList extends TStandardList
         $description_text->placeholder = _t('Description');
         $description_text->setSize('100%');
 
+        $status = new TCombo('status');
+        $status->addItems([
+            'open' => _t('Open (filter)'),
+            'paid' => _t('Paid (filter)'),
+            'all'  => _t('All (filter)'),
+        ]);
+        $status->setDefaultOption(false);
+        $status->setSize('100%');
+        $this->statusCombo = $status;
+
         $find = new TButton('find');
         $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
         $find->setImage('fa:search');
         $find->{'class'} = 'btn btn-primary';
 
-        $this->form->add(CvPage::filterBar([$description_text, $find]));
-        $this->form->setFields([$description_text, $find]);
+        $this->form->add(CvPage::filterBar([$description_text, $status, $find]));
+        $this->form->setFields([$description_text, $status, $find]);
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue('Payable_filter_data') );
+        $status->setValue(self::sessionStatus());
 
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
@@ -140,14 +162,61 @@ class PayableList extends TStandardList
             return CvBadge::create(_t('Open (status)'), 'warning');
         }
 
+        if ($status === \CentralVet\Domain\Payable::STATUS_CANCELLED)
+        {
+            return CvBadge::create(_t('Canceled'), 'neutral');
+        }
+
         return CvBadge::create($status, 'neutral');
+    }
+
+    /**
+     * Filtro de status da sessão, ou 'open' quando ausente/inválido.
+     */
+    private static function sessionStatus(): string
+    {
+        $value = TSession::getValue(__CLASS__ . '_filter_status');
+
+        return in_array($value, self::STATUS_FILTERS, true) ? $value : 'open';
+    }
+
+    /**
+     * Resolve o filtro de status: $param['status'] (ou da URL) quando
+     * presente, senão o da sessão; valor inválido vira 'open'. O resultado
+     * fica na sessão PayableList_filter_status.
+     */
+    private static function resolveStatus($param): string
+    {
+        $value = $param['status'] ?? ($_REQUEST['status'] ?? null);
+
+        if ($value === null || $value === '')
+        {
+            return self::sessionStatus();
+        }
+
+        $value = in_array($value, self::STATUS_FILTERS, true) ? $value : 'open';
+        TSession::setValue(__CLASS__ . '_filter_status', $value);
+
+        return $value;
+    }
+
+    /**
+     * Busca: guarda o status escolhido no combo antes do fluxo padrão
+     * (descrição na sessão + onReload).
+     */
+    public function onSearch($param = null)
+    {
+        self::resolveStatus($param);
+
+        parent::onSearch($param);
     }
 
     /**
      * method onReload()
      * Loads the datagrid exclusively from
-     * CentralVet\Application\PayableService::listOpen() — the tenant
-     * scoping happens inside that service/repository, never here.
+     * CentralVet\Application\PayableService::listByStatus() com o filtro
+     * de status resolvido (open|paid|all → null) — the tenant scoping
+     * happens inside that service/repository, never here.
      */
     public function onReload($param = NULL)
     {
@@ -164,15 +233,19 @@ class PayableList extends TStandardList
             $tenant_context = self::resolveTenantContext();
             $service = self::buildPayableService($tenant_context);
 
+            $status = self::resolveStatus($param);
+            $this->statusCombo->setValue($status);
+
             // every row this listing can ever show comes from this call
-            $payables = $service->listOpen($tenant_context->requireUnitId());
+            $payables = $service->listByStatus($tenant_context->requireUnitId(), $status === 'all' ? null : $status);
 
             $description_filter = TSession::getValue('Payable_filter_description_text');
             $description_filter = !empty($description_filter) ? mb_strtolower((string) $description_filter) : null;
 
-            // listOpen() só traz contas em aberto: a recém-paga (onPay) entra
-            // no topo desta renderização com o status atualizado (Pago)
-            if ($this->justPaid instanceof \CentralVet\Domain\Payable)
+            // filtro Em aberto não traz contas pagas: a recém-paga (onPay)
+            // entra no topo desta renderização com o status atualizado (Pago);
+            // nos filtros Pagas/Todas ela já vem da consulta
+            if ($status === 'open' && $this->justPaid instanceof \CentralVet\Domain\Payable)
             {
                 array_unshift($payables, $this->justPaid);
             }
