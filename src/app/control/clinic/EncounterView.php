@@ -1883,6 +1883,9 @@ class EncounterView extends TPage
      */
     public function onAttachDocument($param)
     {
+        $documents = null;
+        $metadata = null;
+
         try
         {
             $id = self::encounterIdParam($param);
@@ -1909,8 +1912,10 @@ class EncounterView extends TPage
             $context = self::resolveTenantContext();
 
             $documents = self::makeEncounterDocumentService($context);
-            $documents->attach($id, $fileName, (string) $contents, $contentType);
+            $metadata = $documents->attach($id, $fileName, (string) $contents, $contentType);
             TTransaction::close();
+            // committed: from here on the object is referenced by stored_object
+            $metadata = null;
 
             @unlink($sourcePath);
 
@@ -1919,6 +1924,12 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
+            // T-56: the commit (or a step after attach) failed, so the row is
+            // gone and the object just written would be an orphan
+            if ($documents !== null && $metadata !== null)
+            {
+                $documents->discard($metadata);
+            }
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', self::screenError($e));
         }
@@ -1926,9 +1937,10 @@ class EncounterView extends TPage
 
     /**
      * Streams one attachment of the encounter (T-52): bytes of
-     * EncounterDocumentService::download() as a download, or 404 without a
-     * body when the public_id is unknown for the tenant or belongs to
-     * another encounter.
+     * EncounterDocumentService::download() as a download (T-56: ASCII filename
+     * plus filename*=UTF-8''), or 404 with the text _t('Attachment not found')
+     * when the public_id is unknown for the tenant or belongs to another
+     * encounter.
      */
     public static function onDownloadDocument($param)
     {
@@ -1961,14 +1973,19 @@ class EncounterView extends TPage
         if ($document === null)
         {
             http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo _t('Attachment not found');
             exit;
         }
 
         $fileName = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $document['original_name']);
         $fileName = trim($fileName, '.') === '' ? 'attachment' : $fileName;
+        // RFC 6266/5987: ASCII fallback plus the original UTF-8 name
+        $originalName = str_replace(["\r", "\n", "\0"], '', $document['original_name']);
+        $originalName = $originalName === '' ? $fileName : $originalName;
 
         header('Content-Type: ' . self::headerValue($document['content_type'], 'application/octet-stream'));
-        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"; filename*=UTF-8\'\'' . rawurlencode($originalName));
         header('Content-Length: ' . strlen($document['contents']));
         header('Cache-Control: private, no-store');
         header('Content-Security-Policy: sandbox');

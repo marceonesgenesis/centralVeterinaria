@@ -135,6 +135,8 @@ class ExamResultForm extends TPage
     public function onSave($param)
     {
         $sourcePath = null;
+        $documents = null;
+        $metadata = null;
 
         try
         {
@@ -196,6 +198,8 @@ class ExamResultForm extends TPage
             ], 'ExamResultForm::onSave');
 
             TTransaction::close();
+            // committed: from here on the object is referenced by stored_object and exam_result
+            $metadata = null;
 
             if ($sourcePath !== null)
             {
@@ -209,23 +213,40 @@ class ExamResultForm extends TPage
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            self::discardAttachment($documents, $metadata);
             new TMessage('error', _t('You are not allowed to record this exam result'));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
+            self::discardAttachment($documents, $metadata);
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
+            self::discardAttachment($documents, $metadata);
             new TMessage('error', $e->getMessage());
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
+            self::discardAttachment($documents, $metadata);
             new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * T-56: after a rollback, removes the object an attach() of this request
+     * wrote (the stored_object row went with the transaction), so a failed
+     * recordResult() or commit leaves no orphan. No-op without an attach.
+     */
+    private static function discardAttachment(?\CentralVet\Application\EncounterDocumentService $documents, ?object $metadata): void
+    {
+        if ($documents !== null && $metadata !== null)
+        {
+            $documents->discard($metadata);
         }
     }
 
@@ -269,14 +290,17 @@ class ExamResultForm extends TPage
      * Wires EncounterDocumentService (T-05) against the real S3-compatible
      * storage adapter (Fase 0), same
      * CentralVet\Storage\S3CompatibleStorage::fromEnvironment() factory
-     * EncounterView::makeEncounterDocumentService() already uses. Needs no
-     * PDO connection — StorageInterface never touches MySQL.
+     * EncounterView::makeEncounterDocumentService() already uses, plus the
+     * `stored_object` index (T-56) on the open TTransaction connection, so
+     * the result shows up in the origin encounter's attachment list.
+     * Callers must have TTransaction::open('permission') first.
      */
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
             \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
             $context,
+            new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
         );
     }
 

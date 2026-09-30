@@ -38,10 +38,11 @@ use Throwable;
  * written (and only that one, thanks to the unique key) is deleted and the
  * error is rethrown. The original file name is kept in original_name.
  *
- * Known limitation: without the repository (the 2-argument constructor, e.g.
- * ExamResultForm) there is still no index to read, so list() returns [] and
- * download() returns null. Objects uploaded before T-52 were never recorded
- * and are not listed.
+ * Without the repository (the 2-argument constructor) there is no index to
+ * read, so list() returns [] and download() returns null; EncounterView and
+ * ExamResultForm both pass it (T-56). Objects uploaded before T-52 were never
+ * recorded and are not listed. When the caller's transaction fails after
+ * attach(), discard() removes the object so it is not left orphaned.
  */
 final class EncounterDocumentService
 {
@@ -74,6 +75,28 @@ final class EncounterDocumentService
         }
 
         return $metadata;
+    }
+
+    /**
+     * Removes from the storage the object of an attach() whose surrounding
+     * transaction failed to commit (T-56), so no orphan is left behind. The
+     * metadata carries the key the storage returned, which may wrap the
+     * logical key in the storage's own namespace; delete() expects the
+     * logical key again. Runs inside a catch: a storage failure is logged
+     * and never thrown.
+     */
+    public function discard(object $metadata): void
+    {
+        $objectKey = (string) ($metadata->objectKey ?? '');
+        $marker = sprintf('tenant/%d/encounter/', $this->tenant->tenantId());
+        $position = strpos($objectKey, $marker);
+        $key = $position === false ? $objectKey : substr($objectKey, $position);
+
+        try {
+            $this->storage->delete($key);
+        } catch (Throwable $e) {
+            error_log(sprintf('%s: could not delete "%s": %s', __METHOD__, $key, $e->getMessage()));
+        }
     }
 
     /**
