@@ -6,10 +6,9 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterAccountService;
 use CentralVet\Application\ProcedureCatalogService;
-use CentralVet\Authorization\AuthorizationDecision;
-use CentralVet\Authorization\AuthorizationRequest;
 use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
+use CentralVet\Domain\Contract\EncounterAccountRepositoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccountItem;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
@@ -66,6 +65,7 @@ final class EncounterAccountServiceTest
     private function buildService(
         ?FakeTenantUserDirectory $tenantUsers = null,
         ?AuthorizationPolicyInterface $policy = null,
+        ?EncounterAccountRepositoryInterface $accounts = null,
     ): array
     {
         $context = TenantContext::authenticated(self::TENANT_ID, 1, self::UNIT_ID);
@@ -99,7 +99,7 @@ final class EncounterAccountServiceTest
         $examRequests = new FakeExamRequestRepository(self::TENANT_ID);
         $examCatalog = new FakeExamCatalogRepository(self::TENANT_ID);
 
-        $accounts = new FakeEncounterAccountRepository(self::TENANT_ID);
+        $accounts ??= new FakeEncounterAccountRepository(self::TENANT_ID);
         $items = new FakeEncounterAccountItemRepository(self::TENANT_ID);
         $receivables = new FakeReceivableRepository(self::TENANT_ID);
 
@@ -259,23 +259,77 @@ final class EncounterAccountServiceTest
      */
     public function testApplyDiscountDeniedByPolicyThrowsAuthorizationDeniedEvenForUnknownAuthorizer(): void
     {
-        $policy = new class implements AuthorizationPolicyInterface {
-            public bool $allowed = true;
+        $policy = new FakeAuthorizationPolicy(allowed: true);
+        $accounts = new class (self::TENANT_ID) implements EncounterAccountRepositoryInterface {
+            public int $saves = 0;
+            private FakeEncounterAccountRepository $inner;
 
-            public function decide(AuthorizationRequest $request): AuthorizationDecision
+            public function __construct(int $tenantId)
             {
-                return new AuthorizationDecision($this->allowed, $this->allowed ? 'granted' : 'denied', 'test-correlation-id');
+                $this->inner = new FakeEncounterAccountRepository($tenantId);
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                return $this->inner->findById($id);
+            }
+
+            public function findByEncounterId(int $encounterId): ?object
+            {
+                return $this->inner->findByEncounterId($encounterId);
+            }
+
+            public function save(object $entity): object
+            {
+                $this->saves++;
+
+                return $this->inner->save($entity);
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
             }
         };
-        [$service, $encounterId] = $this->buildService(new FakeTenantUserDirectory([]), $policy);
+        [$service, $encounterId, , $procedureExecutions, $procedureCatalogItems] = $this->buildService(new FakeTenantUserDirectory([]), $policy, $accounts);
+        $this->recordConsultation($encounterId, $procedureExecutions, $procedureCatalogItems);
 
         $account = $service->openOrGet($encounterId, self::ACTION);
-        $policy->allowed = false;
+        $service->syncAutomaticItems($account->id(), self::ACTION);
+        $savesBefore = $accounts->saves;
+        $policy->setAllowed(false);
 
         Assert::throws(
             AuthorizationDenied::class,
-            fn () => $service->applyDiscount($account->id(), 0, 999, self::ACTION),
+            fn () => $service->applyDiscount($account->id(), 500, 999, self::ACTION),
         );
+
+        Assert::same($savesBefore, $accounts->saves, 'a denied applyDiscount must not save the account');
+        Assert::same(0, $accounts->findById($account->id())?->discountCents(), 'discount_cents must remain 0 after a denied applyDiscount');
+    }
+
+    private function recordConsultation(
+        int $encounterId,
+        FakeProcedureExecutionRepository $procedureExecutions,
+        FakeProcedureCatalogRepository $procedureCatalogItems,
+    ): void {
+        $procedureItem = $procedureCatalogItems->save(
+            \CentralVet\Domain\ProcedureCatalogItem::create(self::TENANT_ID, 'Consulta', 10000, null, null)
+        );
+        $procedureExecutions->save(ProcedureExecution::record(
+            tenantId: self::TENANT_ID,
+            encounterId: $encounterId,
+            patientId: 7,
+            procedureCatalogItemId: $procedureItem->id(),
+            professionalSystemUserId: 10,
+            notesText: null,
+            executedAt: new DateTimeImmutable(),
+        ));
     }
 
     private function assertDiscountRefusedFor(FakeTenantUserDirectory $tenantUsers, int $authorizerId): void

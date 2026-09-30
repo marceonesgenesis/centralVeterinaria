@@ -97,6 +97,11 @@ final class ProductServiceTest
         Assert::null($repository->findByCode('T2-1'), 'Code of another tenant must not be visible');
         Assert::same([], $repository->findActive(), 'Rejected update must not store a product for tenant 1');
         Assert::null($repository->findByName('Invadido'), 'Rejected update must not persist the new name');
+
+        $stored = $repository->storedProduct(30);
+        Assert::same(2, $stored?->tenantId(), 'Product of tenant 2 must stay in the shared storage');
+        Assert::same('Outro', $stored?->name(), 'Rejected update must not overwrite the name of tenant 2 product');
+        Assert::same(500, $stored?->unitCostCents(), 'Rejected update must not overwrite the cost of tenant 2 product');
     }
 
     public function testCreateStoresSalePriceAndCode(): void
