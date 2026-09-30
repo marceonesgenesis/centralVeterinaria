@@ -6,6 +6,7 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\PatientService;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\Patient;
 use CentralVet\Domain\Tutor;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
@@ -107,5 +108,84 @@ final class PatientServiceTest
         $service = new PatientService($patients, $tutors, $context);
 
         Assert::same([], $service->search(' '));
+    }
+
+    public function testUpdateChangesFieldsAndKeepsTutorAndId(): void
+    {
+        $tutorA = Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000');
+        $tutorB = Tutor::register(tenantId: 1, fullName: 'Bruno Lima', phone: '85977770000');
+        $tutors = new FakeTutorRepository(1, $tutorA, $tutorB);
+        $patients = new FakePatientRepository(1);
+        $service = new PatientService($patients, $tutors, TenantContext::authenticated(1, 1));
+
+        $original = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog', 'color' => 'Preto']);
+
+        $updated = $service->update($original->id, [
+            'name' => '  Rex 2  ',
+            'species' => 'dog',
+            'tutor_id' => 2,
+            'color' => '',
+            'weight_kg' => '12.5',
+        ]);
+
+        Assert::same($original->id, $updated->id);
+        Assert::same(1, $updated->tutorId);
+        Assert::same(1, $updated->tenantId);
+        Assert::same('Rex 2', $updated->name);
+        Assert::null($updated->color);
+        Assert::same(12.5, $updated->weightKg);
+        Assert::same('Rex 2', $service->findById($original->id)->name);
+        Assert::same(1, $service->findById($original->id)->tutorId);
+    }
+
+    public function testUpdateRejectsUnknownId(): void
+    {
+        $service = new PatientService(new FakePatientRepository(1), new FakeTutorRepository(1), TenantContext::authenticated(1, 1));
+
+        try {
+            $service->update(999, ['name' => 'Rex', 'species' => 'dog']);
+            throw new \RuntimeException('update(999) should have thrown');
+        } catch (\InvalidArgumentException $e) {
+            Assert::same('Patient 999 not found for this tenant', $e->getMessage());
+        }
+    }
+
+    public function testUpdateDoesNotFindPatientFromAnotherTenant(): void
+    {
+        $foreign = new Patient(id: null, tenantId: 2, tutorId: 5, name: 'Estranho', species: 'cat');
+        $patients = new FakePatientRepository(1, $foreign);
+        $service = new PatientService($patients, new FakeTutorRepository(1), TenantContext::authenticated(1, 1));
+
+        try {
+            $service->update(1, ['name' => 'Invadido', 'species' => 'cat']);
+            throw new \RuntimeException('update() of another tenant patient should have thrown');
+        } catch (\InvalidArgumentException $e) {
+            Assert::same('Patient 1 not found for this tenant', $e->getMessage());
+        }
+    }
+
+    public function testUpdateValidatesRequiredFieldsAndSex(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        foreach ([
+            'name is required' => ['name' => '  ', 'species' => 'dog'],
+            'species is required' => ['name' => 'Rex', 'species' => ''],
+        ] as $message => $data) {
+            try {
+                $service->update($patient->id, $data);
+                throw new \RuntimeException("update() should have thrown '{$message}'");
+            } catch (\InvalidArgumentException $e) {
+                Assert::same($message, $e->getMessage());
+            }
+        }
+
+        Assert::throws(
+            \InvalidArgumentException::class,
+            static fn () => $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'sex' => 'X']),
+        );
+        Assert::same('Rex', $service->findById($patient->id)->name);
     }
 }
