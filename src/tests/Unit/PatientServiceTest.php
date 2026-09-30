@@ -9,6 +9,8 @@ use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Patient;
 use CentralVet\Domain\Tutor;
+use CentralVet\Storage\StorageInterface;
+use CentralVet\Storage\StoredObjectMetadata;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakePatientRepository;
@@ -369,7 +371,28 @@ final class PatientServiceTest
         Assert::null($service->photo(999999));
     }
 
-    public function testAttachPhotoTwiceWithSameNameUsesNewKeyAndDeletesPrevious(): void
+    public function testAttachPhotoTwiceKeepsPreviousObjectUntilDiscarded(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new FakeStorage();
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog']);
+
+        $first = $service->attachPhoto($patient->id, 'foto.png', 'first-bytes', 'image/png');
+        Assert::null($service->previousPhotoKey());
+
+        $second = $service->attachPhoto($patient->id, 'foto.png', 'second-bytes', 'image/png');
+
+        Assert::true($first->photoObjectKey !== $second->photoObjectKey, 'same file name must get a new key on each upload');
+        // T-47: the previous object survives attachPhoto(); the caller discards
+        // it only after the transaction commits.
+        Assert::true($storage->exists((string) $first->photoObjectKey));
+        Assert::true($storage->exists((string) $second->photoObjectKey));
+        Assert::same($first->photoObjectKey, $service->previousPhotoKey());
+        Assert::same(['contents' => 'second-bytes', 'content_type' => 'image/png'], $service->photo($patient->id));
+    }
+
+    public function testDiscardPhotoRemovesTheObject(): void
     {
         $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
         $storage = new FakeStorage();
@@ -379,11 +402,56 @@ final class PatientServiceTest
         $first = $service->attachPhoto($patient->id, 'foto.png', 'first-bytes', 'image/png');
         $second = $service->attachPhoto($patient->id, 'foto.png', 'second-bytes', 'image/png');
 
-        Assert::true($first->photoObjectKey !== $second->photoObjectKey, 'same file name must get a new key on each upload');
+        $service->discardPhoto((string) $service->previousPhotoKey());
+
         Assert::false($storage->exists((string) $first->photoObjectKey));
         Assert::true($storage->exists((string) $second->photoObjectKey));
         Assert::same(1, self::storedObjectCount($storage));
-        Assert::same(['contents' => 'second-bytes', 'content_type' => 'image/png'], $service->photo($patient->id));
+    }
+
+    public function testDiscardPhotoSwallowsStorageFailure(): void
+    {
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $storage = new class implements StorageInterface {
+            public int $deleteCalls = 0;
+
+            public function put(string $key, string $contents, string $contentType = 'application/octet-stream'): StoredObjectMetadata
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function get(string $key): string
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function exists(string $key): bool
+            {
+                return true;
+            }
+
+            public function delete(string $key): void
+            {
+                $this->deleteCalls++;
+                throw new \RuntimeException('storage down');
+            }
+
+            public function presignedUrl(string $key, int $ttlSeconds = 300): string
+            {
+                throw new \LogicException('not used');
+            }
+        };
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1), $storage);
+
+        // The failure goes to error_log; keep it out of the suite output.
+        $previousLog = ini_set('error_log', '/dev/null');
+        try {
+            $service->discardPhoto('tenant/1/patient/1/photo-aaaaaaaaaaaa-foto.png');
+        } finally {
+            ini_set('error_log', $previousLog === false ? '' : $previousLog);
+        }
+
+        Assert::same(1, $storage->deleteCalls);
     }
 
     public function testAttachPhotoRemovesNewObjectWhenSaveFails(): void
