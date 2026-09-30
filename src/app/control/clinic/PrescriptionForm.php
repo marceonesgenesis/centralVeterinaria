@@ -24,8 +24,7 @@
  * PrescriptionService::create(). Se o bloco de medicamento estiver preenchido
  * no momento do salvar, ele entra como último item.
  *
- * Profissional: TDBCombo de SystemUser sem filtro de tenant (system_user não
- * tem tenant_id; exceção documentada na fase 09, mesma de AppointmentForm).
+ * Profissional: combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save.
  *
  * PDF: após salvar, a tela oferece "Gerar PDF" (onGeneratePdf, dompdf).
  *
@@ -296,7 +295,7 @@ class PrescriptionForm extends TPage
 
             TTransaction::close();
         }
-        catch (Exception $e)
+        catch (\Throwable $e)
         {
             TTransaction::rollback();
         }

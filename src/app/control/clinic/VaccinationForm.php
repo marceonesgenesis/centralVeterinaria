@@ -59,8 +59,7 @@ class VaccinationForm extends TPage
         $expiry_date = new TDate('expiry_date');
         $dose_number = new TEntry('dose_number');
 
-        // system_user não tem tenant_id: combo sem filtro de tenant (mesma
-        // exceção documentada em PrescriptionForm)
+        // combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save
         $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
 
