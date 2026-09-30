@@ -260,6 +260,10 @@
     "pt": "Anexo"
   },
   {
+    "en": "Attachment not found",
+    "pt": "Anexo não encontrado"
+  },
+  {
     "en": "Attachments",
     "pt": "Anexos"
   },
@@ -550,6 +554,10 @@
   {
     "en": "copy",
     "pt": "cópia"
+  },
+  {
+    "en": "Could not complete the operation. Please try again",
+    "pt": "Não foi possível concluir a operação. Tente novamente"
   },
   {
     "en": "Could not import the file. No service was created",
@@ -1230,6 +1238,10 @@
   {
     "en": "Invalid command",
     "pt": "Comando inválido"
+  },
+  {
+    "en": "Invalid date and time",
+    "pt": "Data e hora inválidas"
   },
   {
     "en": "invalid duration_minutes",
@@ -2198,6 +2210,10 @@
   {
     "en": "Requested at",
     "pt": "Solicitado em"
+  },
+  {
+    "en": "Requested slot conflicts with an existing appointment",
+    "pt": "O horário solicitado conflita com um agendamento existente"
   },
   {
     "en": "Requests by day",
