@@ -766,6 +766,7 @@ class EncounterAccountForm extends TPage
             $examCatalog,
             $authorization,
             $context,
+            new \CentralVet\Persistence\TenantUserDirectory($context, $connection),
         );
     }
 
