@@ -300,6 +300,58 @@ final class AppointmentServiceTest
         Assert::same('2026-09-22 14:00', $service->findById($original->id)->scheduledAt->format('Y-m-d H:i'));
     }
 
+    /**
+     * T-53: "01/10/2026 11:00" (d/m/Y, como o formulário mostra) é 1º de
+     * outubro, não 10 de janeiro; texto fora dos formatos aceitos é recusado.
+     */
+    public function testScheduleReadsBrazilianDateAsDayMonth(): void
+    {
+        $service = $this->makeAppointmentService();
+
+        $appointment = $service->schedule([
+            'patient_id' => 1,
+            'service_id' => 1,
+            'professional_system_user_id' => 10,
+            'scheduled_at' => '01/10/2026 11:00',
+            'system_unit_id' => 1,
+        ], self::ACTION);
+
+        Assert::same('2026-10-01 11:00', $appointment->scheduledAt->format('Y-m-d H:i'));
+        Assert::same('2026-10-01 11:00', $service->findById($appointment->id)->scheduledAt->format('Y-m-d H:i'));
+    }
+
+    public function testScheduleRejectsMalformedDateTime(): void
+    {
+        $service = $this->makeAppointmentService();
+
+        try {
+            $service->schedule([
+                'patient_id' => 1,
+                'service_id' => 1,
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '13/13/2026 11:00',
+                'system_unit_id' => 1,
+            ], self::ACTION);
+            Assert::true(false, 'schedule() must reject 13/13/2026');
+        } catch (InvalidArgumentException $e) {
+            Assert::same('Invalid date and time', $e->getMessage());
+        }
+    }
+
+    public function testRescheduleReadsBrazilianDateAsDayMonth(): void
+    {
+        $service = $this->makeAppointmentService();
+        $original = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        $moved = $service->reschedule($original->id, [
+            'service_id' => 1,
+            'professional_system_user_id' => 10,
+            'scheduled_at' => '02/10/2026 11:00',
+        ], self::ACTION);
+
+        Assert::same('2026-10-02 11:00', $moved->scheduledAt->format('Y-m-d H:i'));
+    }
+
     public function testRescheduleRejectsSlotOfAnotherActiveAppointment(): void
     {
         $service = $this->makeAppointmentService();

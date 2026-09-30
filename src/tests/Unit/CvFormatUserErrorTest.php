@@ -84,6 +84,16 @@ namespace CentralVet\Tests\Unit {
             Assert::same('&lt;script&gt;x&lt;/script&gt;', CvFormat::userError(new RuntimeException('<script>x</script>')), 'unknown message must not go through _t()');
         }
 
+        public function testDatabaseErrorBecomesGenericText(): void
+        {
+            $generic = '[t]Could not complete the operation. Please try again';
+
+            Assert::same($generic, CvFormat::userError(new RuntimeException('x', 0, new \PDOException('SQLSTATE[23000]: Integrity constraint violation'))), 'PDOException as previous');
+            Assert::same($generic, CvFormat::userError(new \PDOException('connection lost')), 'PDOException itself');
+            Assert::same($generic, CvFormat::userError(new RuntimeException('SQLSTATE[42S22]: Column not found: 1054 foo')), 'SQLSTATE in the message');
+            Assert::same($generic, CvFormat::userError(new CrossTenantReferenceException('Tutor 1', 0, new \PDOException('SQLSTATE[HY000]'))), 'PDO rule comes before the others');
+        }
+
         public function testUserMessageAppliesTheSameRule(): void
         {
             Assert::same('[t]A service named "&lt;i&gt;" already exists', CvFormat::userMessage('A service named "<i>" already exists for this tenant'));

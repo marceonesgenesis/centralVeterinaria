@@ -55,6 +55,11 @@ final class UserMessageTest
         Assert::same(['key' => 'Requested slot conflicts with an existing appointment', 'params' => []], $resolved);
     }
 
+    public function testInvalidDateAndTimeIsCatalogued(): void
+    {
+        Assert::same(['key' => 'Invalid date and time', 'params' => []], UserMessage::resolve('Invalid date and time'));
+    }
+
     public function testUnknownMessageResolvesToNull(): void
     {
         Assert::null(UserMessage::resolve('qualquer outra'));
@@ -63,7 +68,7 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(13, UserMessage::STATIC);
+        Assert::count(14, UserMessage::STATIC);
         Assert::count(13, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
