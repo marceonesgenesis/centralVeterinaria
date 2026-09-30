@@ -255,6 +255,28 @@ final class PatientServiceTest
         );
     }
 
+    public function testFormatWeightKgShowsDecimalCommaAndRoundTripsThroughUpdate(): void
+    {
+        Assert::null(PatientService::formatWeightKg(null));
+        Assert::same('4,5', PatientService::formatWeightKg(4.5));
+        Assert::same('12', PatientService::formatWeightKg(12.0));
+        Assert::same('0,8', PatientService::formatWeightKg(0.8));
+        Assert::same('12,3', PatientService::formatWeightKg(12.30));
+        Assert::same('9999,99', PatientService::formatWeightKg(9999.99));
+
+        $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
+        $service = new PatientService(new FakePatientRepository(1), $tutors, TenantContext::authenticated(1, 1));
+        $patient = $service->create(['tutor_id' => 1, 'name' => 'Rex', 'species' => 'dog', 'weight_kg' => '0,8']);
+        Assert::same(0.8, $patient->weightKg);
+
+        // reopening and saving without touching the field keeps the weight
+        foreach ([0.8, 4.5, 12.3, 12.0] as $weight) {
+            $shown = PatientService::formatWeightKg($weight);
+            $saved = $service->update($patient->id, ['name' => 'Rex', 'species' => 'dog', 'weight_kg' => $shown]);
+            Assert::same($weight, $saved->weightKg);
+        }
+    }
+
     public function testAttachPhotoStoresUnderTenantKeyAndPhotoReturnsBytes(): void
     {
         $tutors = new FakeTutorRepository(1, Tutor::register(tenantId: 1, fullName: 'Ana Souza', phone: '85999990000'));
