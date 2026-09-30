@@ -257,10 +257,52 @@ final class QueueEntryServiceTest
         Assert::same(QueueEntry::STATUS_AGUARDANDO, $queueEntries->findById($entry->id())->status());
     }
 
-    private function makeQueueEntryService(FakePatientRepository $patients): QueueEntryService
+    /**
+     * T-29: an appointment can be checked in only once — the second
+     * checkIn() with the same appointment_id is refused before anything is
+     * saved, while walk-ins (no appointment_id) are never deduplicated.
+     */
+    public function testCheckInRejectsAppointmentAlreadyInTheQueue(): void
+    {
+        $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
+        $patients = new FakePatientRepository(1, $ownPatient);
+        $queueEntries = new FakeQueueEntryRepository(1);
+        $service = $this->makeQueueEntryService($patients, $queueEntries);
+        $data = ['patient_id' => 1, 'professional_system_user_id' => 10, 'system_unit_id' => 1, 'appointment_id' => 7];
+
+        $entry = $service->checkIn($data, self::ACTION);
+        Assert::same(7, $entry->appointmentId());
+        Assert::count(1, $queueEntries->listActiveByUnit(1));
+
+        $message = null;
+        try {
+            $service->checkIn($data, self::ACTION);
+        } catch (\DomainException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Appointment 7 is already in the queue', $message);
+        Assert::count(1, $queueEntries->listActiveByUnit(1));
+    }
+
+    public function testCheckInWithoutAppointmentIdTwiceCreatesTwoEntries(): void
+    {
+        $ownPatient = new Patient(id: null, tenantId: 1, tutorId: 1, name: 'Rex', species: 'canino');
+        $patients = new FakePatientRepository(1, $ownPatient);
+        $queueEntries = new FakeQueueEntryRepository(1);
+        $service = $this->makeQueueEntryService($patients, $queueEntries);
+        $data = ['patient_id' => 1, 'professional_system_user_id' => 10, 'system_unit_id' => 1];
+
+        $service->checkIn($data, self::ACTION);
+        $service->checkIn($data, self::ACTION);
+
+        Assert::count(2, $queueEntries->listActiveByUnit(1));
+    }
+
+    private function makeQueueEntryService(FakePatientRepository $patients, ?FakeQueueEntryRepository $queueEntries = null): QueueEntryService
     {
         $tutors = new FakeTutorRepository(1);
-        $queueEntries = new FakeQueueEntryRepository(1);
+        $queueEntries ??= new FakeQueueEntryRepository(1);
         $patientService = new PatientService($patients, $tutors, TenantContext::authenticated(1, 1, 1));
 
         return new QueueEntryService(
