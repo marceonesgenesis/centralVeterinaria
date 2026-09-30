@@ -180,5 +180,6 @@
   - Onda 4: BASE 62cc510 → HEAD 6db7e48 (6db7e48)
   - Onda 5: BASE 5b31c1d → HEAD 5b31c1d (sem commit de código; artefatos em reports/reviews)
   - Onda 6: BASE 5b31c1d → HEAD 2ae4334 (f63fe25, 2ae4334)
+  - Onda 7: BASE 7bf89d9 → HEAD 25565fb (761e485, 4641d50, c3cb77b, 984138a, 4e2bb3c, 25565fb)
 - Último status conhecido: onda 7 (T-26 [x], T-27 [x]) concluída; revisão final já feita antes da onda 7 (ver reviews/final.md § Pós-revisão final).
 - Próxima onda recomendada: nenhuma.
