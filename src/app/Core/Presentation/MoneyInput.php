@@ -15,18 +15,33 @@ namespace CentralVet\Presentation;
  *    milhar pt-BR sem centavos "1.234" (→ 123400);
  *  - vazio (depois de trim) → 0.
  *
+ * Contrato (consumido por T-50):
+ *
+ *   MoneyInput::toCents(string $raw, bool $allowNegative = false, ?int $maxCents = null): int
+ *
+ * - $raw precisa ser string: quem lê de getData() converte antes
+ *   ((string) $data->campo), porque null dá TypeError;
+ * - $maxCents: teto do valor absoluto em centavos, inclusivo. Colunas
+ *   `int unsigned` passam MoneyInput::MAX_UNSIGNED_INT_CENTS (4294967295,
+ *   R$ 42.949.672,95). null = sem teto além de MAX_INTEGER_DIGITS
+ *   (13 dígitos na parte inteira, zeros à esquerda não contam), que cabe
+ *   em bigint signed (bank_account.balance_cents).
+ *
  * Qualquer outra entrada, parte inteira com mais de MAX_INTEGER_DIGITS
- * dígitos ou sinal negativo sem $allowNegative lança
- * \InvalidArgumentException('Invalid amount') (traduzida pelo catálogo
- * UserMessage).
+ * dígitos significativos, valor absoluto acima de $maxCents ou sinal
+ * negativo sem $allowNegative lança \InvalidArgumentException('Invalid
+ * amount') (traduzida pelo catálogo UserMessage → "Valor inválido").
  */
 final class MoneyInput
 {
     public const MAX_INTEGER_DIGITS = 13;
 
+    /** Teto de uma coluna `int unsigned` do MySQL, em centavos. */
+    public const MAX_UNSIGNED_INT_CENTS = 4294967295;
+
     private const INVALID = 'Invalid amount';
 
-    public static function toCents(string $raw, bool $allowNegative = false): int
+    public static function toCents(string $raw, bool $allowNegative = false, ?int $maxCents = null): int
     {
         $raw = trim($raw);
 
@@ -57,11 +72,17 @@ final class MoneyInput
             $integer = substr($integer, 1);
         }
 
+        $integer = ltrim($integer, '0');
+
         if (strlen($integer) > self::MAX_INTEGER_DIGITS) {
             throw new \InvalidArgumentException(self::INVALID);
         }
 
         $cents = (int) $integer * 100 + (int) str_pad($fraction, 2, '0');
+
+        if ($maxCents !== null && $cents > $maxCents) {
+            throw new \InvalidArgumentException(self::INVALID);
+        }
 
         return $negative ? -$cents : $cents;
     }
