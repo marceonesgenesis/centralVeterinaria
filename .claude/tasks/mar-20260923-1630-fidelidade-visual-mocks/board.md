@@ -93,3 +93,4 @@ EOF
 - [T-28] i18n: All (filter) → Todas
 - [T-28] i18n: Only open payables can be edited → Só contas em aberto podem ser editadas
 - [T-28] PayableRepositoryInterface ganhou listBySystemUnitAndStatus(int, ?string) (listOpenBySystemUnit delega a ela); PayableService::listByStatus() pronto (ba02a97). No banco atual payable id 2 está 'open' e ids 1 e 3 'paid' (tenant 1/unidade 1): o gate que cita "conta paga id 2" deve usar id 1 ou 3.
+- [T-36] translations.json: saem `patients`/`results`/`services`/`tutors`/`Date/Time`; canônicas `Patients`/`Results`/`Services`/`Tutors`/`Date/time` (rodapés usam `mb_strtolower(_t(...))`). +7 chaves da onda 7. Total 685. Commit f1fda5f. Validação do diff por chave exige `git diff -U0` (sem -U0 conta contexto: 35).

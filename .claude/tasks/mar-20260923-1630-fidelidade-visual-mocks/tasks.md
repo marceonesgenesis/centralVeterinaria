@@ -46,7 +46,7 @@ Convenções usadas nos blocos Validação (definidas em `notes.md § Decisões 
 | T-33 | frontend | Onda 7 (C#9, T-11/T-16): link focável na linha de ServiceList; combos de catálogo mostram o item atual inativo | T-11, T-16, T-17 | sim | simples | Levi | [x] |
 | T-34 | backend | Onda 7 (C#9, T-17): ProductService::update() e ProductForm sem regra de edição no controller | T-17 | sim | média | Darwin | [x] |
 | T-35 | frontend | Onda 7 (C#9, C#4, T-10/T-17): "Ver tudo" de estoque baixo inclui sem estoque, erro de tenant uma vez só em ProductList, "Gerar PDF" do SaleForm em nova aba | T-10, T-17 | sim | simples | Darwin | [x] |
-| T-36 | frontend | Onda 8 (C#8): chaves i18n unificadas por par de caixa, com os `_t()` migrados, e chaves novas da onda 7 | T-26, T-28, T-29, T-33, T-35 | não | média | Platão | [ ] |
+| T-36 | frontend | Onda 8 (C#8): chaves i18n unificadas por par de caixa, com os `_t()` migrados, e chaves novas da onda 7 | T-26, T-28, T-29, T-33, T-35 | não | média | Platão | [x] |
 
 ## Detalhamento
 

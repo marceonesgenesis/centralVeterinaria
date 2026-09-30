@@ -106,6 +106,7 @@
 - [T-26] CvShellController: onContext agora devolve também `csrf_token` (TSession `cv_shell_csrf`) e `labels` {coming_soon, open_from_encounter, unit, error}; 500 genérico com error_log. onSwitchUnit só aceita POST com `csrf_token` (CentralVet\Security\CsrfToken) e responde só JSON: 403 {error} / 200 {switched:true}; o reload é do cv-shell.js. Menu desabilitado é neutralizado no init e recebe o se
 - [T-34] ProductService::update() pronto (1d4941c); ProductForm::updateProduct() removido. Id inexistente agora lança "Product <id> not found for this tenant" (antes _t('Record not found')).
 - [T-28] PayableRepositoryInterface ganhou listBySystemUnitAndStatus(int, ?string) (listOpenBySystemUnit delega a ela); PayableService::listByStatus() pronto (ba02a97). No banco atual payable id 2 está 'open' e ids 1 e 3 'paid' (tenant 1/unidade 1): o gate que cita "conta paga id 2" deve usar id 1 ou 3.
+- [T-36] O diff de translations.json por chave exige `git diff -U0` (sem ele o critério conta linhas de contexto: 35 em vez de 12). Total 685 chaves; 7 chaves da onda 7 gravadas (f1fda5f).
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
@@ -186,7 +187,6 @@
 - T-35: critério 1 (attention = low + out no navegador; clique em "Ver tudo" → URL com `status=attention`) segue sem evidência de runtime: o gate Playwright ficou `[não rodado]`. Pela leitura do código a equivalência vale: `products(null)` filtrado
 - Validador (onda 7): T-29 avanço recusado no navegador não rodado (sem caminho pela UI para criar entrada na fila; coberto por repro CLI e re-revisão).
 - Dados de teste no banco local pela UI (onda 7): payable id 2 marcada paga, venda sale_id 1715 (F10), atendimento 2189 (paciente 1452) em "Em atendimento", produto 946 com custo 3,01.
-- Chaves i18n novas de T-26/T-28/T-35 (7 entradas) pendentes para T-36 (onda 8).
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
@@ -211,5 +211,6 @@
   - Onda 6: BASE 0a72b8a → HEAD d006c24 (57eec6a, 851a947, 0df204b, d006c24)
   - Correção da revisão final (final-fix): BASE 720f185 → HEAD 12945fa (dbe7318, 12945fa)
   - Onda 7: BASE 2c7611d → HEAD e82a889 (ecbd0e3, 44576d9, 145b788, 2df282a, f56c67e, c7057f8, c2583b0, 700e761, 1d4941c, be2ed81, 4542605, e3478b3, 8e46e57, d264dcf, 645929e, ba02a97, e82a889)
-- Último status conhecido: T-01 a T-35 [x] (onda 7 aprovada; T-29 com 1 rodada de fix loop). [anterior: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.]
-- Próxima onda recomendada: onda 8 — T-36 (i18n, Platão; consome as 7 chaves novas de T-26/T-28/T-35).
+  - Onda 8: BASE c3e186e → HEAD f1fda5f (f1fda5f)
+- Último status conhecido: T-01 a T-36 [x] (onda 8 aprovada: T-36 i18n, gate e complemento do 403 aprovados; onda 7 aprovada; T-29 com 1 rodada de fix loop). [anterior: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.]
+- Próxima onda recomendada: nenhuma (T-36 é a última task; seguir para a revisão final).
