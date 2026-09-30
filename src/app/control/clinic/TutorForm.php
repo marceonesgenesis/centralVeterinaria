@@ -4,10 +4,11 @@
  *
  * Full-page quick registration of a new tutor (kit Cv*: CvPage header with
  * "back" to TutorList, CvForm 2-column grid). With key/id in the URL the
- * saved tutor is reopened read-only (TutorService has no update use case).
+ * saved tutor is reopened with editable fields and saved through
+ * TutorService::update().
  *
  * This controller only assembles the UI and forwards the submitted data to
- * CentralVet\Application\TutorService::create() (T-04). It carries no
+ * CentralVet\Application\TutorService::create()/update(). It carries no
  * validation/decision rule of its own — required-field marking is plain
  * Adianti form wiring (TRequiredValidator), and every business rule
  * (uniqueness, required data, normalization) lives in TutorService. The
@@ -21,13 +22,13 @@ class TutorForm extends TStandardForm
 {
     protected $form; // form
 
-    /** @var int|null tutor aberto em modo leitura (key/id na URL) */
+    /** @var int|null tutor aberto para edição (key/id na URL) */
     protected $viewId = null;
 
     /**
      * Class constructor
      * Creates the page: quick registration form (new) or the tutor's record
-     * opened read-only (key/id in the URL — TutorService has no update use case).
+     * opened for editing (key/id in the URL).
      */
     public function __construct($param = null)
     {
@@ -43,6 +44,7 @@ class TutorForm extends TStandardForm
         $this->form->enableClientValidation();
 
         // create the form fields
+        $id = new THidden('id');
         $full_name = new TEntry('full_name');
         $document = new TEntry('document');
         $phone = new TEntry('phone');
@@ -54,27 +56,27 @@ class TutorForm extends TStandardForm
         $this->form->addFields( [new TLabel(_t('Phone'))], [$phone], [new TLabel(_t('Email'))], [$email] );
         $this->form->addFields( [new TLabel(_t('Address'))], [$address] );
 
+        // id só para o fluxo editar/salvar, fora do layout visível
+        $hidden_row = $this->form->addFields( [$id] );
+        $hidden_row->style = 'display: none';
+
         $full_name->addValidation( _t('Full name'), new TRequiredValidator );
         $phone->addValidation( _t('Phone'), new TRequiredValidator );
 
         $back = ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['TutorList', 'onReload'])];
 
+        // create the form actions
+        $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
+        $btn->class = 'btn btn-sm btn-primary';
+
         if ($this->viewId === null)
         {
-            // create the form actions
-            $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-            $btn->class = 'btn btn-sm btn-primary';
             $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser');
 
             $header = CvPage::header(_t('New tutor'), null, [$back]);
         }
         else
         {
-            foreach ([$full_name, $document, $phone, $email, $address] as $field)
-            {
-                $field->setEditable(FALSE);
-            }
-
             $header = CvPage::header(_t('Tutor'), null, [
                 $back,
                 ['label' => _t('Patients'), 'icon' => 'fa:paw', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->viewId])],
@@ -97,7 +99,7 @@ class TutorForm extends TStandardForm
      * method onEdit()
      * Without key: clears the form for a fresh registration. With key/id:
      * loads the tutor through TutorService::findById() (tenant-scoped by the
-     * repository) and shows it read-only — there is no update use case.
+     * repository) and fills the editable fields, keeping its id in the form.
      */
     public function onEdit($param)
     {
@@ -129,6 +131,7 @@ class TutorForm extends TStandardForm
             }
 
             $this->form->setData((object) [
+                'id'        => $tutor->id,
                 'full_name' => $tutor->fullName,
                 'document'  => $tutor->document,
                 'phone'     => $tutor->phone,
@@ -152,13 +155,15 @@ class TutorForm extends TStandardForm
      * method onSave()
      * Collects the submitted data and delegates the whole registration
      * decision (required fields, duplicate document, persistence) to
-     * TutorService::create(). No rule is re-implemented here.
+     * TutorService::update() when the form carries an id, or
+     * TutorService::create() otherwise. No rule is re-implemented here.
      */
     public function onSave($param = null)
     {
+        $data = $this->form->getData();
+
         try
         {
-            $data = $this->form->getData();
             $this->form->validate();
 
             $tenant_context = self::resolveTenantContext();
@@ -169,14 +174,19 @@ class TutorForm extends TStandardForm
                 new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
             );
 
-            $tutor = $service->create([
-                'tenant_id' => $tenant_context->tenantId(),
+            $values = [
                 'full_name' => $data->full_name ?? '',
                 'phone'     => $data->phone ?? '',
                 'document'  => $data->document ?? null,
                 'email'     => $data->email ?? null,
                 'address'   => $data->address ?? null,
-            ]);
+            ];
+
+            $tutor_id = (isset($data->id) && is_numeric($data->id) && (int) $data->id > 0) ? (int) $data->id : null;
+
+            $tutor = $tutor_id !== null
+                ? $service->update($tutor_id, $values)
+                : $service->create(['tenant_id' => $tenant_context->tenantId()] + $values);
 
             TTransaction::close();
 
@@ -203,10 +213,12 @@ class TutorForm extends TStandardForm
         catch (\InvalidArgumentException $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data);
             new TMessage('error', $e->getMessage());
         }
         catch (Exception $e) // in case of exception
         {
+            $this->form->setData($data);
             new TMessage('error', $e->getMessage());
             TTransaction::rollback();
         }

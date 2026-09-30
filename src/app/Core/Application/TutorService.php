@@ -89,6 +89,61 @@ final class TutorService
         return $saved;
     }
 
+    /**
+     * Updates the registration data of an existing tutor of the current
+     * tenant. id, tenantId and publicId never change. A document is only a
+     * duplicate when it belongs to another tutor of the tenant.
+     *
+     * @param array{
+     *     full_name: string,
+     *     phone: string,
+     *     document?: string|null,
+     *     email?: string|null,
+     *     address?: string|null,
+     * } $data
+     */
+    public function update(int $id, array $data): Tutor
+    {
+        $fullName = isset($data['full_name']) ? trim((string) $data['full_name']) : '';
+        $phone = isset($data['phone']) ? trim((string) $data['phone']) : '';
+        $document = isset($data['document']) && $data['document'] !== '' ? (string) $data['document'] : null;
+        $email = isset($data['email']) && $data['email'] !== '' ? (string) $data['email'] : null;
+        $address = isset($data['address']) && $data['address'] !== '' ? (string) $data['address'] : null;
+
+        if ($fullName === '') {
+            throw new InvalidArgumentException('full_name is required');
+        }
+
+        if ($phone === '') {
+            throw new InvalidArgumentException('phone is required');
+        }
+
+        $tutor = $this->findById($id);
+
+        if ($tutor === null) {
+            throw new InvalidArgumentException("Tutor {$id} not found for this tenant");
+        }
+
+        if ($document !== null) {
+            $holder = $this->repository->findByDocument($document);
+
+            if ($holder instanceof Tutor && $holder->id !== $tutor->id) {
+                throw new InvalidArgumentException('A tutor with this document already exists in this tenant');
+            }
+        }
+
+        /** @var Tutor $saved */
+        $saved = $this->repository->save($tutor->withDetails(
+            fullName: $fullName,
+            phone: $phone,
+            document: $document,
+            email: $email,
+            address: $address,
+        ));
+
+        return $saved;
+    }
+
     public function findById(int $id): ?Tutor
     {
         /** @var Tutor|null $tutor */
