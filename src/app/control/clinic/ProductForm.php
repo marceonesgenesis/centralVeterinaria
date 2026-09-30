@@ -64,8 +64,20 @@ class ProductForm extends TPage
             [new TLabel(_t('Status'))], [$active]
         );
 
-        $unit_cost->setNumericMask(2, ',', '.');
-        $sale_price->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+
+        $unit_cost->setProperty('placeholder', 'ex.: 12,34');
+
+        $unit_cost->setProperty('inputmode', 'decimal');
+
+        $unit_cost->setMaxLength(16);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $sale_price->setProperty('placeholder', 'ex.: 12,34');
+        $sale_price->setProperty('inputmode', 'decimal');
+        $sale_price->setMaxLength(16);
         $code->setMaxLength(60);
         $minimum_stock_quantity->setNumericMask(0, '', '');
         $minimum_stock_quantity->setProperty('pattern', '[0-9]*');

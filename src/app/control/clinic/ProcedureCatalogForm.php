@@ -57,7 +57,11 @@ class ProcedureCatalogForm extends TStandardForm
         $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $price->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $price->setProperty('placeholder', 'ex.: 12,34');
+        $price->setProperty('inputmode', 'decimal');
+        $price->setMaxLength(16);
         $duration_minutes->setNumericMask(0, '', '');
         $duration_minutes->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
         $preparation_text->setSize('100%', 80);

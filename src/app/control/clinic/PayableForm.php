@@ -66,7 +66,11 @@ class PayableForm extends TStandardForm
         // id só para o fluxo editar/salvar, fora do layout visível
         $hidden_row = $this->form->addFields( [$id] );
         $hidden_row->style = 'display: none';
-        $amount->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $amount->setProperty('placeholder', 'ex.: 12,34');
+        $amount->setProperty('inputmode', 'decimal');
+        $amount->setMaxLength(16);
 
         $description_text->addValidation( _t('Description'), new TRequiredValidator );
         $category->addValidation( _t('Category'), new TRequiredValidator );

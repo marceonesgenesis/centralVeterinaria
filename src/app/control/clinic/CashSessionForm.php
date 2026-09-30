@@ -128,7 +128,11 @@ class CashSessionForm extends TPage
         CvForm::decorate($form, 2);
 
         $opening_balance = new TEntry('opening_balance');
-        $opening_balance->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $opening_balance->setProperty('placeholder', 'ex.: 12,34');
+        $opening_balance->setProperty('inputmode', 'decimal');
+        $opening_balance->setMaxLength(16);
         $opening_balance->addValidation(_t('Opening balance'), new TRequiredValidator);
 
         $form->addFields( [new TLabel(_t('Opening balance'))], [$opening_balance] );
@@ -194,7 +198,11 @@ class CashSessionForm extends TPage
         CvForm::decorate($form, 2);
 
         $closing_balance = new TEntry('closing_balance');
-        $closing_balance->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $closing_balance->setProperty('placeholder', 'ex.: 12,34');
+        $closing_balance->setProperty('inputmode', 'decimal');
+        $closing_balance->setMaxLength(16);
         $closing_balance->addValidation(_t('Closing balance'), new TRequiredValidator);
 
         $form->addFields( [new TLabel(_t('Closing balance'))], [$closing_balance] );

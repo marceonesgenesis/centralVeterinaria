@@ -341,7 +341,11 @@ class EncounterAccountForm extends TPage
         $description_text->addValidation(_t('Description'), new TRequiredValidator);
 
         $amount_cents = new TEntry('amount_cents');
-        $amount_cents->setNumericMask(2, ',', '.', false);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $amount_cents->setProperty('placeholder', 'ex.: 12,34');
+        $amount_cents->setProperty('inputmode', 'decimal');
+        $amount_cents->setMaxLength(16);
         $amount_cents->setSize('100%');
         $amount_cents->addValidation(_t('Amount'), new TRequiredValidator);
 
@@ -369,7 +373,11 @@ class EncounterAccountForm extends TPage
         $discountForm->add($account_id);
 
         $discount_cents = new TEntry('discount_cents');
-        $discount_cents->setNumericMask(2, ',', '.', false);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $discount_cents->setProperty('placeholder', 'ex.: 12,34');
+        $discount_cents->setProperty('inputmode', 'decimal');
+        $discount_cents->setMaxLength(16);
         $discount_cents->setSize('100%');
         $discount_cents->addValidation(_t('Discount'), new TRequiredValidator);
 
