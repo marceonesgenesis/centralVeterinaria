@@ -37,7 +37,7 @@ final class UploadedTmpFileTest
             return;
         }
 
-        foreach (['ok.pdf', 'link.pdf'] as $name) {
+        foreach (['ok.pdf', 'link.pdf', 'dump.zip', 'abc-ok.pdf'] as $name) {
             $path = $this->dir . DIRECTORY_SEPARATOR . $name;
             if (is_link($path) || is_file($path)) {
                 unlink($path);
@@ -128,6 +128,96 @@ final class UploadedTmpFileTest
         }
 
         Assert::true(is_file($outside), 'nothing is deleted by the validation');
+    }
+
+    public function testResolveForSessionOnlyAcceptsNamesUploadedByThisSession(): void
+    {
+        file_put_contents($this->dir . DIRECTORY_SEPARATOR . 'dump.zip', 'dump de admin');
+        file_put_contents($this->dir . DIRECTORY_SEPARATOR . 'abc-ok.pdf', '%PDF-1.4 abc');
+
+        $this->assertInvalidForSession('dump.zip', []);
+        $this->assertInvalidForSession('dump.zip', ['outro.pdf']);
+        $this->assertInvalidForSession('../dump.zip', ['../dump.zip']);
+        $this->assertInvalidForSession('nao-existe.pdf', ['nao-existe.pdf']);
+        $this->assertInvalidForSession('abc-ok.pdf', ['ABC-OK.PDF']);
+
+        Assert::same(
+            realpath($this->dir . DIRECTORY_SEPARATOR . 'abc-ok.pdf'),
+            UploadedTmpFile::resolveForSession('abc-ok.pdf', ['abc-ok.pdf'], $this->dir)
+        );
+    }
+
+    public function testGeneratedNamesAreUnpredictableSanitizedAndKeepTheExtension(): void
+    {
+        $first = UploadedTmpFile::generateName('laudo ção.pdf');
+        $second = UploadedTmpFile::generateName('laudo ção.pdf');
+
+        Assert::true(preg_match('/^[0-9a-f]{32}-laudo_+o_?\.pdf$/', $first) === 1, "unexpected name {$first}");
+        Assert::true(str_ends_with($first, '.pdf'), 'extension kept');
+        Assert::true($first !== $second, 'two calls give different names');
+
+        Assert::true(preg_match('/^[0-9a-f]{32}-upload$/', UploadedTmpFile::generateName('')) === 1, 'empty name');
+        Assert::true(preg_match('/^[0-9a-f]{32}-upload$/', UploadedTmpFile::generateName('...')) === 1, 'only dots');
+        Assert::true(preg_match('/^[0-9a-f]{32}-passwd$/', UploadedTmpFile::generateName('../../etc/passwd')) === 1, 'basename only');
+
+        $long = UploadedTmpFile::generateName(str_repeat('a', 300) . '.csv');
+        Assert::same(33 + 120, strlen($long), 'sanitized part has at most 120 chars');
+        Assert::true(str_ends_with($long, '.csv'), 'extension kept after truncation');
+
+        foreach (['a..b.pdf', 'x/../y.pdf', " sp .pdf", "nul\0.pdf"] as $raw) {
+            $name = UploadedTmpFile::generateName($raw);
+            file_put_contents($this->dir . DIRECTORY_SEPARATOR . $name, 'x');
+            try {
+                Assert::same(
+                    realpath($this->dir . DIRECTORY_SEPARATOR . $name),
+                    UploadedTmpFile::resolveForSession($name, [$name], $this->dir),
+                    'generated name is accepted by resolve()'
+                );
+            } finally {
+                unlink($this->dir . DIRECTORY_SEPARATOR . $name);
+            }
+        }
+    }
+
+    public function testDisplayNameDropsTheRandomPrefix(): void
+    {
+        Assert::same('laudo.pdf', UploadedTmpFile::displayName(str_repeat('ab', 16) . '-laudo.pdf'));
+        Assert::same('laudo.pdf', UploadedTmpFile::displayName('laudo.pdf'));
+        Assert::same('ABCDEF-x.pdf', UploadedTmpFile::displayName('ABCDEF-x.pdf'));
+    }
+
+    public function testNewUploadItemsWithSessionListRejectsNamesFromOtherSessions(): void
+    {
+        $item = urlencode(json_encode(['idFile' => '', 'fileName' => 'tmp/ok.pdf', 'newFile' => 'tmp/ok.pdf']));
+
+        Assert::same([$item], UploadedTmpFile::newUploadItems([$item, ''], $this->dir, ['ok.pdf']));
+
+        foreach ([[], ['outro.pdf']] as $uploads) {
+            try {
+                UploadedTmpFile::newUploadItems([$item], $this->dir, $uploads);
+            } catch (InvalidArgumentException $e) {
+                Assert::same('Invalid file', $e->getMessage());
+
+                continue;
+            }
+
+            Assert::true(false, 'newUploadItems must reject a name outside the session list');
+        }
+    }
+
+    private function assertInvalidForSession(string $name, array $uploads): void
+    {
+        $label = json_encode([$name, $uploads]);
+
+        try {
+            UploadedTmpFile::resolveForSession($name, $uploads, $this->dir);
+        } catch (InvalidArgumentException $e) {
+            Assert::same('Invalid file', $e->getMessage(), "message for {$label}");
+
+            return;
+        }
+
+        Assert::true(false, "resolveForSession({$label}) must throw InvalidArgumentException('Invalid file')");
     }
 
     private function assertInvalid(string $name, ?string $dir = null): void
