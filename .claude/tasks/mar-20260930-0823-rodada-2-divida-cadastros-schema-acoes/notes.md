@@ -144,6 +144,9 @@
 - 2026-10-01 · T-63 · onda 14 — Bloqueante plano-mandou (nome original UTF-8 em vez do saneado) corrigido no fix loop: cv_uploads guarda nome em disco → original (3027da8 RED, 7562bc6).
 - 2026-10-01 · T-63 · onda 14 — XSS armazenado no Drive (corpo e tooltip tippy allowHTML) corrigido com escape próprio por sink e CvFormat::forHtmlSink (e98708a RED, c778b7c, c9afa47); aceito como extensão de escopo. RED e98708a em CvFormatHtmlSinkTest.php, fora do bloco RED original, aceito.
 - 2026-10-01 · T-63 · onda 14 — A sugestão de alta prioridade do revisor (CvAvatar title com escape simples) virou a onda 15 (T-64).
+- 2026-10-01 · T-65 · onda 16 — SystemMessageForm:33 (TDBMultiSearch com nome de SystemUser editável pelo próprio usuário) aprovado como `caminho autorizado` (correção 1, 9350db9).
+- 2026-10-01 · T-65 · onda 16 — Desvio aceito: máscara `<span>{name_safe}</span>`, porque o select2 reescapa texto sem tag. Os 4 TDBCombo nativos ficam sem mudança (já recebem htmlspecialchars).
+- 2026-10-01 · orquestrador · onda 16 — Login admin no Playwright feito pelo orquestrador com autorização do usuário para ler a senha do .env, sem registrar a credencial; rebuild e recreate do centralvet-app-1 antes do GATE UI (o container rodava imagem anterior à T-65; o Complemento 1 vale como evidência da imagem antiga).
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
@@ -212,6 +215,7 @@
 - Onda 14: Uploads de tmp/ só pela sessão que os enviou: CvUploaderService (tmp/<32hex>-<nome saneado>), TSession 'cv_uploads' mapa nome em disco → original UTF-8 (máx 50), UploadedTmpFile::resolveForSession; SystemPermission libera CvUploaderService só para ''/show; 9 handlers usam setService('CvUploaderService') (01aa3d0 RED, 5fd81ed, 3027da8 RED, 7562bc6).
 - Onda 14: CvFormat::forHtmlSink = e(e($text)) para atributos lidos pelo tippy allowHTML; SystemDriveList escapa por sink (título, pasta, breadcrumb, toast, painel) e o preview txt/html/sql vai em <pre> (e98708a RED, c778b7c, c9afa47).
 - Onda 15: T-64: CvAvatar::titleFor(string) = CvFormat::forHtmlSink; placeholder usa titleFor; CvPage::header grava o title da ação com forHtmlSink (aria-label segue e()); cv-shell.js cvEscapeTitle(s) em select.title e no title do menu desabilitado (a66befb RED, acd1b09). Sinks de framework (TMultiEntry/TSelect option title, adianti.js tippy) só registrados.
+- Onda 16: T-65: CvSafeLabelTrait (app/lib/widget): safeLabel=CvFormat::e, safeSearchMask(attr)='<span>{attr}</span>'; get_<attr>_safe em 7 models; TDBUniqueSearch de clinic, TDBCombo+enableSearch (EncounterAccountForm) e SystemMessageForm:33 usam a máscara (d639d44 RED, d979c10, 9350db9). Dados R2: tutor 10862 `R2 João & Cia`, serviço 364 e produto 8545 `<img src=x onerror=alert(1)> R2 Serv/Prod`, agendamento 360 (paciente 9179).
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -328,6 +332,9 @@
 - T-64: a suíte não prende placeholder→titleFor (reverter CvAvatar.php:16 mantém CvAvatarTitleTest verde); CvPage::header e cvEscapeTitle sem teste automatizado.
 - T-64: gate sem hover na sidebar e no seletor de unidade (cv-shell.js:152,258); títulos gravados após o fetch do onContext, rótulos `_t` hoje sem & ' " < > (sem efeito).
 - T-64: itens [não rodado] do gate (EncounterView/PrescriptionForm com paciente R2; hover em SaleForm, VaccinationCardView picker, TMultiEntry/TSelect) aceitos; combos passam pelo gate da T-65.
+- T-65: [sugestão] EncounterAccountForm (autorizador, TDBCombo enableSearch com máscara no 5º arg), `procedure_id` do SaleForm e SystemMessageForm com nome com markup não passaram pelo GATE UI (só o Administrator existe); provado no servidor.
+- T-65: framework: o hash do AdiantiMultiSearchService não cobre `mask`, então o cliente pode trocar a máscara (anterior à task, não editável).
+- T-65: defesa na entrada (recusar `<`/`>` em nomes) aprovada pelo usuário e planejada na rodada 3 (T-14 de mar-20261001-1520-rodada-3-divida-tecnica).
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -371,5 +378,6 @@
   - Onda 13: BASE 77a2fb1 → HEAD 6c970fe (7093dd9, 84f8295, c79e81b, 6c970fe)
   - Onda 14: BASE 6c970fe → HEAD c9afa47 (01aa3d0, 5fd81ed, 3027da8, 7562bc6, e98708a, c778b7c, c9afa47)
   - Onda 15: BASE c9afa47 → HEAD acd1b09 (a66befb, acd1b09)
-- Último status conhecido: onda 15 (T-64 [x]) concluída e fechada; XSS por atributo title (tooltip allowHTML) corrigido em CvAvatar, CvPage e cv-shell.js.
-- Próxima onda recomendada: 16 — T-65.
+  - Onda 16: BASE 7a353fe → HEAD 9350db9 (d639d44, d979c10, 9350db9)
+- Último status conhecido: onda 16 (T-65 [x]) concluída e fechada; XSS armazenado nas options dos combos de busca (select2) corrigido com CvSafeLabelTrait.
+- Próxima onda recomendada: revisão final das ondas 13–16.
