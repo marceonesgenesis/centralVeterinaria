@@ -81,7 +81,7 @@ final class FakeStoredObjectRepository implements StoredObjectRepositoryInterfac
     public function findByPublicId(string $publicId): ?array
     {
         foreach ($this->rowsByTenant[$this->tenantId] ?? [] as $row) {
-            if ($row['public_id'] === $publicId) {
+            if ($row['public_id'] === $publicId && $row['status'] === 'available' && $row['deleted_at'] === null) {
                 return $row;
             }
         }

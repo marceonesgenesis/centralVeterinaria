@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Application;
 
+use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\StoredObjectRepositoryInterface;
 use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
@@ -43,6 +44,11 @@ use Throwable;
  * ExamResultForm both pass it (T-56). Objects uploaded before T-52 were never
  * recorded and are not listed. When the caller's transaction fails after
  * attach(), discard() removes the object so it is not left orphaned.
+ *
+ * download() (rodada 3, T-03) also needs the EncounterRepositoryInterface
+ * (4th argument) and a selected unit: the encounter must exist in that unit
+ * and the row's system_unit_id, when set, must be that unit. ExamResultForm
+ * only attaches, so it does not pass the encounter repository.
  */
 final class EncounterDocumentService
 {
@@ -50,6 +56,7 @@ final class EncounterDocumentService
         private readonly StorageInterface $storage,
         private readonly TenantContext $tenant,
         private readonly ?StoredObjectRepositoryInterface $objects = null,
+        private readonly ?EncounterRepositoryInterface $encounters = null,
     ) {
     }
 
@@ -114,19 +121,29 @@ final class EncounterDocumentService
 
     /**
      * Bytes of an attachment of this encounter, or null when the public_id is
-     * unknown for the tenant or belongs to another encounter.
+     * unknown (or not available) for the tenant, belongs to another encounter
+     * or to another unit, when the encounter does not exist in the selected
+     * unit, when no unit is selected, or without either repository.
      *
      * @return array{contents: string, content_type: string, original_name: string}|null
      */
     public function download(int $encounterId, string $publicId): ?array
     {
-        if ($this->objects === null) {
+        $unitId = $this->tenant->unitId();
+
+        if ($this->objects === null || $this->encounters === null || $unitId === null) {
+            return null;
+        }
+
+        $encounter = $this->encounters->findById($encounterId);
+
+        if ($encounter === null || $encounter->systemUnitId() !== $unitId) {
             return null;
         }
 
         $row = $this->objects->findByPublicId($publicId);
 
-        if ($row === null) {
+        if ($row === null || ($row['system_unit_id'] !== null && (int) $row['system_unit_id'] !== $unitId)) {
             return null;
         }
 
