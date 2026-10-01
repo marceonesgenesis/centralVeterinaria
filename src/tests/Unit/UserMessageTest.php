@@ -60,6 +60,14 @@ final class UserMessageTest
         Assert::same(['key' => 'Invalid date and time', 'params' => []], UserMessage::resolve('Invalid date and time'));
     }
 
+    public function testExamRequestTransitionDropsIdAndStatus(): void
+    {
+        $key = ['key' => 'This exam request cannot move to this status', 'params' => []];
+
+        Assert::same($key, UserMessage::resolve('Exam request 312 cannot move to "result_available" from status "result_available"'));
+        Assert::same($key, UserMessage::resolve('Exam request (new) cannot move to "result_available" from status "cancelled"'));
+    }
+
     public function testUnknownMessageResolvesToNull(): void
     {
         Assert::null(UserMessage::resolve('qualquer outra'));
@@ -69,7 +77,7 @@ final class UserMessageTest
     public function testCatalogHasExactlyTheContractEntries(): void
     {
         Assert::count(14, UserMessage::STATIC);
-        Assert::count(13, UserMessage::PATTERNS);
+        Assert::count(14, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
