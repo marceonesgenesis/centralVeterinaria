@@ -31,15 +31,24 @@ final class RedisConnectionFactory
     /**
      * @throws \RuntimeException when the connection, AUTH or SELECT fails, or
      *         when $database is outside 0..15 — never falls back silently to
-     *         DB 0, where the application's sessions live.
+     *         DB 0, where the application's sessions live. When AUTH or
+     *         SELECT fails the connection is closed before throwing.
+     *
+     * @param \Redis|null $client pre-built client (tests); null builds a new \Redis
      */
-    public static function connect(string $host, int $port, int $database, ?string $password, float $timeout): \Redis
-    {
+    public static function connect(
+        string $host,
+        int $port,
+        int $database,
+        ?string $password,
+        float $timeout,
+        ?\Redis $client = null
+    ): \Redis {
         if ($database < 0 || $database > self::MAX_DATABASE) {
             throw new \RuntimeException("Unable to select Redis database {$database}");
         }
 
-        $redis = new \Redis();
+        $redis = $client ?? new \Redis();
 
         if (!$redis->connect($host, $port, $timeout)) {
             throw new \RuntimeException('Unable to connect to the Redis backend');
@@ -47,11 +56,13 @@ final class RedisConnectionFactory
 
         if (!empty($password)) {
             if (!$redis->auth($password)) {
+                $redis->close();
                 throw new \RuntimeException('Unable to authenticate with the Redis backend');
             }
         }
 
         if ($database > 0 && $redis->select($database) !== true) {
+            $redis->close();
             throw new \RuntimeException("Unable to select Redis database {$database}");
         }
 
