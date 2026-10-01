@@ -60,6 +60,11 @@ final class UserMessageTest
         Assert::same(['key' => 'Invalid date and time', 'params' => []], UserMessage::resolve('Invalid date and time'));
     }
 
+    public function testInvalidFileIsCatalogued(): void
+    {
+        Assert::same(['key' => 'Invalid file', 'params' => []], UserMessage::resolve('Invalid file'));
+    }
+
     public function testExamRequestTransitionDropsIdAndStatus(): void
     {
         $key = ['key' => 'This exam request cannot move to this status', 'params' => []];
@@ -76,7 +81,7 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(14, UserMessage::STATIC);
+        Assert::count(15, UserMessage::STATIC);
         Assert::count(14, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
