@@ -3,7 +3,7 @@
  * ServiceImportForm
  *
  * Importação do catálogo de serviços por CSV (rodada 2, T-10). O TFile envia
- * o arquivo para tmp/ (AdiantiUploaderService, extensão csv, até 1 MB);
+ * o arquivo para tmp/ (CvUploaderService, extensão csv, até 1 MB);
  * onImport lê o arquivo e delega tudo a
  * CentralVet\Application\ServiceCatalogService::importCsv() — cabeçalho
  * `name;category;duration_minutes;price`, separador `;`, linhas inválidas ou

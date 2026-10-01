@@ -26,6 +26,9 @@ final class UploadedTmpFile
 {
     private const INVALID = 'Invalid file';
     private const MAX_SANITIZED = 120;
+    private const MAX_ORIGINAL = 255;
+    public const MAX_SESSION_UPLOADS = 50;
+    private const UTF8_CHAR = '/[\x09\x0A\x0D\x20-\x7E]|[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF]{2}|[\xF1-\xF3][\x80-\xBF]{3}|\xF4[\x80-\x8F][\x80-\xBF]{2}/';
     private const PREFIX_PATTERN = '/^[0-9a-f]{32}-/';
 
     private function __construct()
@@ -77,6 +80,75 @@ final class UploadedTmpFile
     public static function displayName(string $name): string
     {
         return (string) preg_replace(self::PREFIX_PATTERN, '', $name);
+    }
+
+    /**
+     * Nome original de um upload como texto puro (T-63, correção 1): só o
+     * basename (`/` e `\\`), sem bytes UTF-8 inválidos nem caracteres de
+     * controle, aparado e com no máximo 255 caracteres. Pode voltar vazio.
+     * Serve para exibição (com escape) e para original_name/Content-Disposition,
+     * nunca para caminho.
+     */
+    public static function cleanOriginalName(string $raw): string
+    {
+        $base = basename(str_replace('\\', '/', $raw));
+        preg_match_all(self::UTF8_CHAR, $base, $chars);
+        $text = str_replace(["\t", "\n", "\r"], '', implode('', $chars[0]));
+        // controles C1 e marcas de direção (U+202A–202E, U+2066–2069) não entram
+        $text = (string) preg_replace('/[\x{80}-\x{9F}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', $text);
+
+        return mb_substr(trim($text), 0, self::MAX_ORIGINAL, 'UTF-8');
+    }
+
+    /**
+     * Registro da sessão (T-63, correção 1): nome em disco → nome original.
+     * Acrescenta o par no fim; acima de $max, o mais antigo sai. Entradas que
+     * não são par string → string (lista antiga) são descartadas.
+     *
+     * @param array<mixed, mixed> $uploads
+     *
+     * @return array<string, string>
+     */
+    public static function rememberUpload(array $uploads, string $diskName, string $originalName, int $max = self::MAX_SESSION_UPLOADS): array
+    {
+        $map = self::sessionMap($uploads);
+        unset($map[$diskName]);
+        $map[$diskName] = $originalName;
+
+        return array_slice($map, -$max, null, true);
+    }
+
+    /**
+     * Nome original de um nome em disco do registro; fora dele (ou vazio),
+     * o próprio nome sem o prefixo hex.
+     *
+     * @param array<mixed, mixed> $uploads
+     */
+    public static function originalName(string $diskName, array $uploads): string
+    {
+        $original = self::sessionMap($uploads)[$diskName] ?? '';
+
+        return $original !== '' ? $original : self::displayName($diskName);
+    }
+
+    /**
+     * Só os pares string → string do registro.
+     *
+     * @param array<mixed, mixed> $uploads
+     *
+     * @return array<string, string>
+     */
+    public static function sessionMap(array $uploads): array
+    {
+        $map = [];
+
+        foreach ($uploads as $disk => $original) {
+            if (is_string($disk) && is_string($original)) {
+                $map[$disk] = $original;
+            }
+        }
+
+        return $map;
     }
 
     /**

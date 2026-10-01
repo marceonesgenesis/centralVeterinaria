@@ -1877,7 +1877,7 @@ class EncounterView extends TPage
             // CvUploaderService; anything else throws 'Invalid file'
             $sourcePath = CvUpload::resolve($fileName);
             $uploadName = trim($fileName);
-            $fileName = CvUpload::displayName($uploadName);
+            $fileName = CvUpload::originalName($uploadName);
 
             $contents = file_get_contents($sourcePath);
             $contentType = function_exists('mime_content_type')

@@ -180,7 +180,7 @@ class ExamResultForm extends TPage
                 // CvUploaderService; anything else throws 'Invalid file' before attach()
                 $sourcePath = CvUpload::resolve($fileName);
                 $uploadName = trim($fileName);
-                $fileName = CvUpload::displayName($uploadName);
+                $fileName = CvUpload::originalName($uploadName);
 
                 $contents = (string) file_get_contents($sourcePath);
                 $contentType = function_exists('mime_content_type')

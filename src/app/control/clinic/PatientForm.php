@@ -667,7 +667,7 @@ class PatientForm extends TStandardForm
         }
 
         return [
-            'name'         => CvUpload::displayName($file_name),
+            'name'         => CvUpload::originalName($file_name),
             'upload'       => $file_name,
             'path'         => $path,
             'contents'     => (string) file_get_contents($path),

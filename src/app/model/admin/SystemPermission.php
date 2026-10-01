@@ -24,8 +24,8 @@ class SystemPermission
         
         // T-63: o uploader da aplicação vale para qualquer usuário logado
         // (como AdiantiUploaderService em engine.php::hasDefaultPermissions).
-        // Allowlist de uma única classe; nunca público para anônimo.
-        if ($class === 'CvUploaderService' && TSession::getValue('logged'))
+        // Allowlist de uma única classe (e só o show()); nunca público para anônimo.
+        if ($class === 'CvUploaderService' && in_array((string) $method, ['', 'show'], true) && TSession::getValue('logged'))
         {
             return true;
         }

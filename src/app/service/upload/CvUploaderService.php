@@ -15,14 +15,12 @@ use CentralVet\Presentation\UploadedTmpFile;
  * Difere em três pontos:
  *  - só atende sessão logada (SystemPermission libera esta classe só para logado);
  *  - grava em tmp/<UploadedTmpFile::generateName()>, um nome imprevisível;
- *  - registra o nome gerado em TSession 'cv_uploads', que CvUpload::resolve()
- *    exige. tmp/ é compartilhado e o nome de outra sessão é recusado.
+ *  - registra o par nome gerado → nome original (UTF-8, texto puro) em
+ *    TSession 'cv_uploads' (CvUpload::remember). CvUpload::resolve() exige o
+ *    nome nesse registro: tmp/ é compartilhado e o nome de outra sessão é recusado.
  */
 class CvUploaderService implements AdiantiController
 {
-    public const SESSION_KEY = 'cv_uploads';
-    public const MAX_UPLOADS = 50;
-
     private const BLOCK_EXTENSIONS = ['php', 'php3', 'php4', 'phtml', 'pl', 'py', 'jsp', 'asp', 'htm', 'shtml', 'sh', 'cgi', 'htaccess'];
 
     public function show($param)
@@ -90,20 +88,8 @@ class CvUploaderService implements AdiantiController
             return;
         }
 
-        self::remember($generated);
+        CvUpload::remember($generated, UploadedTmpFile::cleanOriginalName($original));
         self::reply(['type' => 'success', 'fileName' => $generated]);
-    }
-
-    /**
-     * Acrescenta o nome à lista da sessão; o mais antigo sai acima de MAX_UPLOADS.
-     */
-    public static function remember(string $generated): void
-    {
-        $uploads = TSession::getValue(self::SESSION_KEY);
-        $uploads = is_array($uploads) ? array_values(array_filter($uploads, 'is_string')) : [];
-        $uploads[] = $generated;
-
-        TSession::setValue(self::SESSION_KEY, array_slice($uploads, -self::MAX_UPLOADS));
     }
 
     private static function reply(array $response): void

@@ -80,7 +80,13 @@ class SystemDriveDocumentUploadForm extends TWindow
             {
                 $source_file = CvUpload::resolve((string) $param['filename']);
                 $upload_name = trim((string) $param['filename']);
+                // no disco (e no caminho): o nome saneado sem prefixo; o
+                // original UTF-8 vira o título quando o usuário não deu um
                 $param['filename'] = CvUpload::displayName($upload_name);
+                if (trim((string) ($param['title'] ?? '')) === '')
+                {
+                    $param['title'] = CvUpload::originalName($upload_name);
+                }
             }
             
             $object = new SystemDocument;

@@ -88,7 +88,7 @@ class SystemSupportForm extends TPage
                 foreach ($data->attachments as $attach)
                 {
                     $path = CvUpload::resolve((string) $attach);
-                    $list[] = [ $path, CvUpload::displayName(basename($path)), trim((string) $attach) ];
+                    $list[] = [ $path, CvUpload::originalName((string) $attach), trim((string) $attach) ];
                 }
             }
             
