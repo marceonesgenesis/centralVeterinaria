@@ -2736,6 +2736,10 @@
     "pt": "Esta entrada não pode avançar agora: ^1"
   },
   {
+    "en": "This exam request cannot move to this status",
+    "pt": "Este pedido de exame não pode mudar para este status"
+  },
+  {
     "en": "This folder already exists",
     "pt": "Esta pasta já existe"
   },

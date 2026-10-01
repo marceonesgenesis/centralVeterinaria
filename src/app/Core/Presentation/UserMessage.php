@@ -46,6 +46,7 @@ final class UserMessage
         '/^Appointment (\d+) cannot be rescheduled from status (\S+)$/' => 'Appointment ^1 cannot be rescheduled from status ^2',
         '/^Appointment (\d+) is already in the queue$/' => 'This appointment is already in the queue',
         '/^Requested slot .+ conflicts with an existing appointment for professional_system_user_id \d+$/' => 'Requested slot conflicts with an existing appointment',
+        '/^Exam request (?:\d+|\(new\)) cannot move to "[^"]+" from status "[^"]*"$/' => 'This exam request cannot move to this status',
     ];
 
     private function __construct()
