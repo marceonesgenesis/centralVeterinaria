@@ -379,5 +379,5 @@
   - Onda 14: BASE 6c970fe → HEAD c9afa47 (01aa3d0, 5fd81ed, 3027da8, 7562bc6, e98708a, c778b7c, c9afa47)
   - Onda 15: BASE c9afa47 → HEAD acd1b09 (a66befb, acd1b09)
   - Onda 16: BASE 7a353fe → HEAD 9350db9 (d639d44, d979c10, 9350db9)
-- Último status conhecido: onda 16 (T-65 [x]) concluída e fechada; XSS armazenado nas options dos combos de busca (select2) corrigido com CvSafeLabelTrait.
-- Próxima onda recomendada: revisão final das ondas 13–16.
+- Último status conhecido: revisão final das ondas 13–16 concluída (aprovada, sem bloqueante); rodada encerrada. Onda 16 (T-65 [x]) concluída e fechada; XSS armazenado nas options dos combos de busca (select2) corrigido com CvSafeLabelTrait.
+- Próxima onda recomendada: nenhuma (rodada 2 encerrada; seguir para a rodada 3).

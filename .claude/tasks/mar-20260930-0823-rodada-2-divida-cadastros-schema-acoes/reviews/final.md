@@ -262,3 +262,69 @@ Verificações rodadas:
   - QueueEntryRepository.php (tradução do 23000);
   - AgendaView.php, AppointmentForm.php, PrescriptionForm.php, ServiceList.php, CashSessionForm.php, PaymentForm.php, EncounterAccountForm.php, PatientForm.php (exceto onPhoto), translations.json;
   - conteúdo dos testes novos.
+
+# Revisão final — ondas 13 a 16
+Branch feat/rodada-2-cadastros-schema-acoes (39de5ef) contra feat/fidelidade-visual-mocks (d6dce7a): 330 arquivos, +26353/-781. Esta seção cobre só as ondas 13–16 (77a2fb1..HEAD, T-62..T-65): 41 arquivos fora de .claude, +1279/-75.
+Verificações rodadas:
+- SUITE (src montado ro), rodada uma vez: `Total: 409, Passed: 409, Failed: 0, Skipped: 0`, EXIT=0. PASS em todos os métodos de UploadedTmpFileTest (13), CvFormatHtmlSinkTest (4), CvAvatarTitleTest (3) e CvSafeLabelTraitTest (4);
+- `grep -rnE "['\"]tmp/" src/app --include='*.php'`: só sobram CvUploaderService:35, SystemDocumentUploaderService:81 e um docblock. Nenhum handler monta mais `tmp/` com entrada da requisição, e todos os exports de admin usam `bin2hex(random_bytes(16))`;
+- docker/nginx/default.conf:39-45 devolve 404 para /tmp e /files: arquivo enviado não é servido direto;
+- tooltip: adianti.js:445-454 passa `attr('title')` (já decodificado) ao tippy com allowHTML. Por isso o escape duplo no servidor (forHtmlSink) e o escape simples no setAttribute do JS estão corretos;
+- select2: TSelect::renderItems aplica htmlspecialchars ao texto da option. Com a máscara `<span>{x_safe}</span>`, o valor inicial e o AJAX chegam ao template HTML de tdbmultisearch.js/tcombo.js com o nome escapado uma vez.
+
+## Triagem
+- [aberta] T-62: envio positivo do SystemMessageForm com anexo não exercitado; o catch de InvalidArgumentException não faz setData → SystemMessageForm.php:208-212
+- [resolvida] T-62: tmp/ compartilhado com exports de nome previsível → T-63: CvUpload::resolve → resolveForSession em todos os handlers (UploadedTmpFile.php resolveForSession); exports com prefixo de 32 hex (SystemTableList.php:129-131,184-186; SystemDatabaseExplorer.php:221,249-250,307,334-335; SystemSQLPanel.php:223-225)
+- [aberta] T-62: a parte de `..` legítimo foi resolvida, porque generateName junta pontos repetidos e o nome em disco nunca tem `..`. Seguem abertos: a chave órfã `Uploaded file was not found` (translations.json:2867, sem uso em .php), o `\0` sem teste e o `$table` possivelmente indefinido sem rollback no catch → SystemDatabaseExplorer.php:496-501
+- [aberta] T-63: o Drive perdeu a checagem finfo/MIME, e o `extensions` só é conferido se vier na query → CvUploaderService.php:60, SystemDriveDocumentUploadForm.php:42-45. Não agravou: /files dá 404 e o preview de txt/html/sql sai em <pre> escapado
+- [aberta] T-63: corrida em cv_uploads (falha fechada), cv_uploads mantido em login sem logout, tmp/ sem limpeza → ApplicationAuthenticationService.php:93. A parte do docblock foi resolvida (ServiceImportForm.php:6 cita CvUploaderService)
+- [aberta] T-63: TMultiEntry com tag crua em <option title> → framework
+- [aberta] T-64: theme.js:352 fora da tabela de sinks → framework
+- [aberta] T-64: CvAvatarTitleTest testa só titleFor, e reverter placeholder (CvAvatar.php:16) não quebra a suíte; CvPage::header e cvEscapeTitle sem teste → tests/Unit/CvAvatarTitleTest.php (nenhuma chamada a placeholder)
+- [aberta] T-64: gate sem hover na sidebar nem no seletor de unidade → cv-shell.js:152,258
+- [aberta] T-64: itens [não rodado] do gate. A parte dos combos (SaleForm, picker do VaccinationCardView) passou pelo gate de T-65. Seguem sem hover os avatares de EncounterView e PrescriptionForm com o paciente R2
+- [aberta] T-65: EncounterAccountForm, procedure_id do SaleForm e SystemMessageForm não passaram pelo GATE UI → provados só no servidor
+- [aberta] T-65: o hash do AdiantiMultiSearchService não cobre `mask` → framework, anterior à branch
+- [aberta] T-65: defesa na entrada (recusar `<`/`>` em nomes) → planejada na rodada 3 (T-14 de mar-20261001-1520-rodada-3-divida-tecnica)
+- Nenhuma pendência promovida.
+
+## Rulings
+- plano (revisão) · onda 13 — T-62: helper único UploadedTmpFile::resolve nos 4 handlers de clinic/ e nos 4 do template; quem gera o próprio nome fica fora.
+- plano (revisão) · onda 14 — T-63: CvUploaderService via setService, cv_uploads na TSession, exports com nome aleatório; apagar depois do download fica fora.
+- plano (revisão) · onda 15 — T-64: forHtmlSink em todo [title] com texto de usuário, cvEscapeTitle no cv-shell.js e varredura no relatório.
+- plano (revisão) · onda 16 — T-65: atributo virtual _safe nos models via CvSafeLabelTrait; defesa na entrada fica para decisão do usuário.
+- T-62 · onda 13 — plano-mandou: SystemMessageForm/saveFilesByComma corrigido no fix loop (c79e81b RED, 6c970fe) e aceito como extensão de escopo.
+- T-62 · onda 13 — GATE dos 4 handlers do template aceito; foto (2772) e CSV válidos provados na Re-validação 1.
+- T-63 · onda 14 — plano-mandou: cv_uploads guarda nome em disco → original UTF-8 (3027da8 RED, 7562bc6).
+- T-63 · onda 14 — XSS do Drive (corpo e tooltip) corrigido por sink (e98708a RED, c778b7c, c9afa47); extensão de escopo aceita; RED em CvFormatHtmlSinkTest aceito.
+- T-63 · onda 14 — Sugestão do title do CvAvatar virou a onda 15 (T-64).
+- T-64 · onda 15 — Achado do select2 vira a onda 16 (T-65); itens [não rodado] aceitos como pendência.
+- T-65 · onda 16 — SystemMessageForm:33 aprovado como caminho autorizado (9350db9).
+- T-65 · onda 16 — Desvio aceito: máscara `<span>{name_safe}</span>`; os 4 TDBCombo nativos ficam sem mudança.
+- orquestrador · onda 16 — Login admin com a senha do .env, com autorização do usuário; rebuild antes do GATE UI.
+
+## Decisões que tomei
+- Pendência com várias partes ficou classificada pela parte que segue aberta, com nota da parte resolvida (T-62 `..`, T-63 docblock, T-64 itens não rodados).
+- As pendências de framework (TMultiEntry, theme.js, hash do mask) ficaram `aberta` sem reavaliar o mérito, porque o framework não é editável (plan.md § Excluído).
+- A classificação errada do SystemWikiPagePicker no relatório de T-65 entrou como sugestão, e não como bloqueante. O plano manda deixar fora os combos de admin/communication cujo rótulo não é nome de usuário, e o título de wiki é editado por perfil com acesso ao módulo.
+- Rodei a SUITE uma vez, como pedido.
+
+## Achados
+- [sugestão] O relatório de T-65 classifica SystemWikiPagePicker:24 como "select nativo", mas a linha 25 chama `enableSearch()`. É TDBCombo com select2, e tcombo.js renderiza como HTML o título com tag. Um título de wiki com markup executa no picker. Fica fora pela regra do plano (rótulo de conteúdo do módulo, não nome de usuário), mas a justificativa da tabela está errada → src/app/control/communication/pages/SystemWikiPagePicker.php:24-25, reports/T-65.md:60
+- [sugestão] O docblock de resolve() ficou acima de generateName(), e há dois docblocks seguidos: resolve() aparece sem documentação e generateName() com @param/@return que não são dele → src/app/Core/Presentation/UploadedTmpFile.php:38-53
+- [sugestão] resolveForSession compara o `$name` cru com a lista, mas resolve() apara o nome. Um nome com espaço nas pontas é recusado (falha fechada, sem risco), e os handlers chamam forget(trim(...)). Vale aparar uma vez só, na entrada → UploadedTmpFile.php resolveForSession; CvUpload.php:19-21
+- [sugestão] SystemProfileForm faz forget sem unlink quando a foto não é JPEG pelo finfo, e o arquivo fica em tmp/ → src/app/control/admin/SystemProfileForm.php:169-181
+- [sugestão] O escape duplo deixa entidades visíveis (`&amp;`) no tooltip nativo quando o [title] é gravado depois do __adianti_process_tooltips (seletor e menu do cv-shell.js). É cosmético: os rótulos `_t` atuais não têm `& < > " '` → cv-shell.js:152,258
+- Conferido, sem achado:
+  - travessia: resolve() exige basename, recusa `..`/separadores/`\0` e o realpath fica preso a tmpDir com is_file. resolveForSession amarra o nome à sessão. newUploadItems recusa delFile, fileName ≠ newFile e nome fora de tmp/ antes do AdiantiFileSaveTrait;
+  - CvUploaderService: só para sessão logada (no show e na allowlist de SystemPermission, que só libera ''/show), extensões bloqueadas, hash com seed, unserialize com allowed_classes=false, nome com 128 bits aleatórios;
+  - os 9 handlers fazem unlink do caminho validado + forget, e o original_name vem de cleanOriginalName (sem controles C1/bidi, até 255);
+  - forHtmlSink = e(e()), coerente com adianti.js:445-454; CvAvatar, CvPage (aria-label com e simples) e SystemDriveList (label/title/data-title por sink, breadcrumb, toast, painel, preview em <pre>);
+  - CvSafeLabelTrait nos 7 models e máscara nos TDBUniqueSearch de clinic/, no TDBCombo+enableSearch do EncounterAccountForm e no TDBMultiSearch do SystemMessageForm; a busca e a ordem continuam na coluna real; os TDBCombo sem enableSearch saem por htmlspecialchars nativo; TCheckList/TDataGrid escapam por padrão (TDataGrid.php:1031).
+- Não revisado (limite de turnos):
+  - diff dos models Tutor, Service, Product, ProcedureCatalogItem e VaccineCatalogItem, além do padrão visto em Patient e SystemUser;
+  - conteúdo de UploadedTmpFileTest, CvFormatHtmlSinkTest e CvSafeLabelTraitTest, além das linhas PASS;
+  - RED e conformidade commit a commit (feitos nas revisões por task, reviews/T-62..T-65.md);
+  - LINT dos 41 arquivos (a SUITE carrega os do Core e do widget);
+  - translations.json (dup/casefold de `Invalid file`) e UserMessage.php/UserMessageTest;
+  - ApplicationAuthenticationService (cv_uploads no login).

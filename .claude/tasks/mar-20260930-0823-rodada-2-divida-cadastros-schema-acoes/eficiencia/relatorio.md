@@ -1,23 +1,23 @@
 # Eficiência — mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes
 
-- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T20:28:34-03:00 · última onda medida 10
-- Sessões: 72051bcd-769a-4db4-bb19-021f9565544c (encontrada)
+- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-10-01T16:17:07-03:00 · última onda medida 16
+- Sessões: 72051bcd-769a-4db4-bb19-021f9565544c (encontrada), ce4d9a4f-5d35-46ec-a771-8ef03d42a254 (encontrada)
 - Base: sem base (nenhum plano da versão anterior no acervo)
 
 ## Indicadores
 
 | Indicador | Este plano | Base |
 |---|---|---|
-| Tokens retidos por onda (mediana) | 51.240 | sem base |
-| Contexto máximo | 614.652 | sem base |
+| Tokens retidos por onda (mediana) | 42.594 | sem base |
+| Contexto máximo | 811.269 | sem base |
 | Compactações | 0 | sem base |
-| Correções por implementador | 0,31 | sem base |
-| Retornos acima do limite (%) | 12 | sem base |
-| Validador acima da meta (%) | 52 | sem base |
+| Correções por implementador | 0,36 | sem base |
+| Retornos acima do limite (%) | 14 | sem base |
+| Validador acima da meta (%) | 57 | sem base |
 | Aprovadas de primeira (%) | 92 | sem base |
 | Precisão do mapa de arquivos (%) | 100 | sem base |
-| Rodadas de fix loop | 11 | sem base |
-| Tasks de correção pós-Fase 5 (%) | 54 | sem base |
+| Rodadas de fix loop | 19 | sem base |
+| Tasks de correção pós-Fase 5 (%) | 63 | sem base |
 
 ## Tasks
 
@@ -75,6 +75,19 @@
 | T-50 | 10 | correcao | média | [x] | sem teste | 0 | 2 | 1/3 | 0 | 3 | — |
 | T-51 | 10 | correcao | simples | [ ] | ok | 0 | 0 | 0/2 | 0 | 1 | — |
 | T-52 | 10 | correcao | alta | [ ] | ok | 0 | 1 | 1/3 | 0 | 5 | — |
+| T-53 | 11 | correcao | alta | [x] | ok | 1 | 2 | 1/2 | 0 | 2 | src/tests/Integration/AppointmentFormPostIntegrationTest.php, src/tests/Unit/UserMessageTest.php |
+| T-54 | 11 | correcao | média | [x] | ausente | 0 | 0 | 0/2 | 0 | 2 | — |
+| T-55 | 11 | correcao | alta | [x] | sem teste | 0 | 0 | 0/2 | 0 | 4 | — |
+| T-56 | 11 | correcao | média | [x] | ok | 0 | 0 | 0/4 | 0 | 2 | — |
+| T-57 | 11 | correcao | simples | [x] | ok | 0 | 0 | 0/2 | 0 | 0 | — |
+| T-58 | 11 | correcao | simples | [x] | ok | 0 | 0 | 0/3 | 0 | 0 | — |
+| T-59 | 11 | correcao | simples | [x] | sem teste | 0 | 0 | 0/0 | 0 | 1 | — |
+| T-60 | 12 | correcao | simples | [x] | ok | 0 | 1 | 0/1 | 0 | 2 | src/app/Core/Presentation/UserMessage.php, src/app/config/translations.json, src/tests/Unit/UserMessageTest.php |
+| T-61 | 12 | correcao | simples | [x] | ok | 0 | 0 | 0/2 | 0 | 2 | — |
+| T-62 | 13 | correcao | alta | [x] | ok | 0 | 1 | 2/8 | 0 | 5 | src/app/control/communication/messages/SystemMessageForm.php, src/tests/Unit/UserMessageTest.php |
+| T-63 | 14 | correcao | alta | [ ] | ok | 1 | 3 | 2/8 | 2 | 5 | src/app/control/communication/documents/SystemDriveList.php, src/app/control/communication/messages/SystemMessageForm.php, src/app/lib/widget/CvFormat.php, src/app/model/admin/SystemPermission.php, src/app/resources/system/docs/file_item.html, src/tests/Unit/CvFormatHtmlSinkTest.php |
+| T-64 | 15 | correcao | média | [x] | ok | 0 | 0 | 0/3 | 0 | 1 | — |
+| T-65 | 16 | correcao | alta | [x] | ok | 0 | 1 | 0/3 | 0 | 1 | src/app/control/communication/messages/SystemMessageForm.php |
 
 ## Causas
 
@@ -118,3 +131,13 @@
 - T-49: Prova de RED por sabotagem no checkout compartilhado; refeita em worktree isolada; storedProduct() só de teste
 - T-50: Máscara numérica trocava "abc" por 0,00 e 3 formulários perdiam o valor após erro de valor inválido; sem máscara e com setData.
 - T-52: Reanexo com o mesmo nome sobrescrevia o objeto; chave passou a ter segmento único de 12 hex e o rollback apaga só o novo.
+- T-53: Parser estrito d/m/Y; widget TDateTime e picker reescreviam data inválida no cliente, 2 fix loops até TEntry com máscara
+- T-54: Sem RED (MoneyInput já passava); commits com Task: fora do bloco de trailers; edição recusada por desenho
+- T-55: Sem correção de código: queda de sessão era localhost x 127.0.0.1; navegador proibido ao implementador
+- T-56: discard recorta a chave lógica porque o S3 embrulha a chave duas vezes; anexo do ExamResultForm sem prova no navegador
+- T-59: Seeds do construtor não entram no contador de save do Fake
+- T-60: Gate: pedido de exame em result_available mostrava transição inválida em inglês com id; ampliou escopo para UserMessage e translations.json
+- T-62: SystemMessageForm::onSend usava saveFilesByComma (unlink/rename do trait) fora do inventário; corrigido com newUploadItems no fix loop
+- T-63: Nome original UTF-8 saneado e XSS armazenado no Drive (corpo e tooltip allowHTML) exigiram dois ciclos de correção.
+- T-64: Gate achou XSS em combos select2 (framework, fora do escopo) virou T-65; sugestões do revisor sobre cobertura de teste e sinks.
+- T-65: SystemMessageForm:33 (TDBMultiSearch com nome de SystemUser) ficou fora das Arquivos prováveis; exigiu correção 1 como caminho autorizado.
