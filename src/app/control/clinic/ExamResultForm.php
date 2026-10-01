@@ -227,13 +227,15 @@ class ExamResultForm extends TPage
         {
             TTransaction::rollback();
             self::discardAttachment($documents, $metadata);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             self::discardAttachment($documents, $metadata);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

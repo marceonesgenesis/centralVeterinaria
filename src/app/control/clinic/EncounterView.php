@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\DateTimeInput;
+
 /**
  * EncounterView
  *
@@ -1256,7 +1259,15 @@ class EncounterView extends TPage
 
         $followUpForm = new BootstrapFormBuilder('form_EncounterFollowUp_' . $encounter->id());
 
-        $followUpDate = new TDateTime('followup_scheduled_at');
+        // TEntry com máscara, sem TDateTime: o datetimepicker reescrevia no
+        // cliente a data inválida (31/02 → 03/03) e o setDatabaseMask
+        // convertia sem validar. O texto digitado (dd/mm/aaaa hh:mm) vai cru
+        // a onScheduleFollowUp, que o lê com DateTimeInput::parse (T-60, como T-53).
+        $followUpDate = new TEntry('followup_scheduled_at');
+        $followUpDate->setMask('99/99/9999 99:99');
+        $followUpDate->placeholder = 'dd/mm/aaaa hh:mm';
+        $followUpDate->setProperty('inputmode', 'numeric');
+        $followUpDate->setProperty('autocomplete', 'off');
         $followUpDate->setSize('100%');
         $followUpDate->addValidation(_t('Date/time'), new TRequiredValidator);
 
@@ -1577,39 +1588,6 @@ class EncounterView extends TPage
     }
 
     /**
-     * Follow-up date/time posted by TDateTime → normalized 'Y-m-d H:i:s',
-     * or null when it is not a real date/time inside the DATETIME range the
-     * database accepts (e.g. a mask glitch producing '0110-08-26 11:00').
-     * Validated here so a malformed value never reaches the SQL layer.
-     */
-    private static function parseFollowUpScheduledAt(string $raw): ?string
-    {
-        $raw = trim($raw);
-
-        foreach (['!Y-m-d H:i', '!Y-m-d H:i:s', '!d/m/Y H:i', '!d/m/Y H:i:s'] as $format)
-        {
-            $parsed = \DateTimeImmutable::createFromFormat($format, $raw);
-            $errors = \DateTimeImmutable::getLastErrors();
-
-            if ($parsed === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)))
-            {
-                continue;
-            }
-
-            $year = (int) $parsed->format('Y');
-
-            if ($year < 1900 || $year > 2100)
-            {
-                return null;
-            }
-
-            return $parsed->format('Y-m-d H:i:s');
-        }
-
-        return null;
-    }
-
-    /**
      * Error text for the screen: database/driver failures (PDOException or
      * any message carrying an SQLSTATE) become a generic translated text, so
      * no SQL detail leaks; everything else follows CvFormat::userError().
@@ -1815,14 +1793,10 @@ class EncounterView extends TPage
                 throw new InvalidArgumentException(_t('Date/time and service id are required to schedule a follow-up'));
             }
 
-            $scheduledAtNormalized = self::parseFollowUpScheduledAt($scheduledAt);
-
-            if ($scheduledAtNormalized === null)
-            {
-                throw new InvalidArgumentException(_t('Invalid date and time'));
-            }
-
-            $scheduledAt = $scheduledAtNormalized;
+            // estrito (d/m/Y H:i[:s] ou Y-m-d H:i[:s], ano 1900–2100); fora
+            // disso InvalidArgumentException('Invalid date and time'), que o
+            // catch final mostra por CvFormat::userError ("Data e hora inválidas")
+            $scheduledAt = DateTimeInput::parse($scheduledAt);
 
             $context = self::resolveTenantContext();
 
