@@ -94,9 +94,15 @@ final class UserMessageTest
         Assert::same(['key' => 'Bank account must belong to the current unit', 'params' => []], UserMessage::resolve('Bank account must belong to the current unit 3'));
     }
 
+    public function testNameMarkupMessageIsCatalogued(): void
+    {
+        // Rodada 3, T-14: NameText::MARKUP_MESSAGE.
+        Assert::same(['key' => 'Name must not contain < or >', 'params' => []], UserMessage::resolve('Name must not contain < or >'));
+    }
+
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(17, UserMessage::STATIC);
+        Assert::count(18, UserMessage::STATIC);
         Assert::count(20, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
