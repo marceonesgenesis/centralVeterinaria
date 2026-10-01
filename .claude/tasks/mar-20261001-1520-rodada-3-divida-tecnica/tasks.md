@@ -2,17 +2,17 @@
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
 |---|---|---|---|---|---|---|---|
-| T-01 | backend | Catálogo UserMessage: modificador D em todas as regex e mensagens de domínio que hoje saem em inglês | — | sim | média | Platão | [ ] |
-| T-02 | backend | DateTimeInput em camada neutra (`CentralVet\Support`), sem import de Presentation no Core | — | sim | simples | Darwin | [ ] |
-| T-03 | backend | Anexos: findByPublicId só devolve objeto disponível; download confere unidade e existência do atendimento | — | sim | média | Jaspion | [ ] |
-| T-04 | backend | TutorService com TenantContext injetado (tenant não vem mais de `$data`) | — | sim | média | Athena | [ ] |
-| T-05 | qa | Testes MySQL: guarda contra commit fora da transação, `TestDatabase::resolveName` e script de criação do `centralvet_test` | — | sim | média | Naruto | [ ] |
-| T-06 | qa | RedisQueueIntegrationTest estável sob suítes simultâneas | — | sim | simples | Naruto | [ ] |
-| T-07 | backend | RedisConnectionFactory fecha a conexão antes de lançar; ramo select() falso com teste | — | sim | simples | Saitama | [ ] |
-| T-08 | backend | Lista única de formas de pagamento (`Payment::METHODS` público, `FinancialEntry::PAYMENT_METHODS` derivada) | — | sim | simples | Arquimedes | [ ] |
-| T-09 | qa | Lacunas de teste: reschedule com chave ausente, CvAvatar placeholder→titleFor, prescription.valid_until no banco | — | sim | simples | Sherlock | [ ] |
-| T-20 | backend | Uploads: extensão conferida sem `extensions` na URL, MIME no Drive, trim e docblock de tmp/ | — | sim | alta | Kratos | [ ] |
-| T-21 | frontend | SystemWikiPagePicker: título de wiki escapado no select2 (CvSafeLabelTrait) | — | sim | simples | Aang | [ ] |
+| T-01 | backend | Catálogo UserMessage: modificador D em todas as regex e mensagens de domínio que hoje saem em inglês | — | sim | média | Platão | [x] |
+| T-02 | backend | DateTimeInput em camada neutra (`CentralVet\Support`), sem import de Presentation no Core | — | sim | simples | Darwin | [x] |
+| T-03 | backend | Anexos: findByPublicId só devolve objeto disponível; download confere unidade e existência do atendimento | — | sim | média | Jaspion | [x] |
+| T-04 | backend | TutorService com TenantContext injetado (tenant não vem mais de `$data`) | — | sim | média | Athena | [x] |
+| T-05 | qa | Testes MySQL: guarda contra commit fora da transação, `TestDatabase::resolveName` e script de criação do `centralvet_test` | — | sim | média | Naruto | [x] |
+| T-06 | qa | RedisQueueIntegrationTest estável sob suítes simultâneas | — | sim | simples | Naruto | [x] |
+| T-07 | backend | RedisConnectionFactory fecha a conexão antes de lançar; ramo select() falso com teste | — | sim | simples | Saitama | [x] |
+| T-08 | backend | Lista única de formas de pagamento (`Payment::METHODS` público, `FinancialEntry::PAYMENT_METHODS` derivada) | — | sim | simples | Arquimedes | [x] |
+| T-09 | qa | Lacunas de teste: reschedule com chave ausente, CvAvatar placeholder→titleFor, prescription.valid_until no banco | — | sim | simples | Sherlock | [x] |
+| T-20 | backend | Uploads: extensão conferida sem `extensions` na URL, MIME no Drive, trim e docblock de tmp/ | — | sim | alta | Kratos | [x] |
+| T-21 | frontend | SystemWikiPagePicker: título de wiki escapado no select2 (CvSafeLabelTrait) | — | sim | simples | Aang | [x] |
 | T-10 | frontend | Escape dos catches: financeiro e vendas (30 catches) e PaymentForm com `Payment::METHODS` | T-01, T-08 | sim | média | Levi | [ ] |
 | T-11 | frontend | Escape dos catches: clínico, vacinas, exames e procedimentos (25 catches) e "%s days" | T-01 | sim | média | Kratos | [ ] |
 | T-12 | frontend | Escape dos catches: cadastros, produtos, serviços e busca (15 catches) | T-01, T-04 | sim | simples | Thanos | [ ] |
