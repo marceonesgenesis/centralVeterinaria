@@ -9,9 +9,9 @@ use CentralVet\Tests\Support\TestDatabase;
 
 final class TestDatabaseTest
 {
-    public function testFallsBackToApplicationDatabaseWhenNoTestDatabaseIsSet(): void
+    public function testDefaultIsTheDedicatedTestDatabase(): void
     {
-        Assert::same('centralvet', TestDatabase::resolveName(['DB_DATABASE' => 'centralvet']));
+        Assert::same('centralvet_test', TestDatabase::resolveName(['DB_DATABASE' => 'centralvet']));
     }
 
     public function testUsesTestDatabaseWhenSet(): void
