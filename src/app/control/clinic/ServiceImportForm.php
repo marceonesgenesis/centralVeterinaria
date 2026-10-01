@@ -67,19 +67,16 @@ class ServiceImportForm extends TPage
 
         try
         {
-            $fileName = is_array($param) && isset($param['csv_file']) ? basename(urldecode((string) $param['csv_file'])) : '';
+            $fileName = is_array($param) && isset($param['csv_file']) ? trim(urldecode((string) $param['csv_file'])) : '';
 
             if ($fileName === '')
             {
                 throw new InvalidArgumentException(_t('Choose a CSV file to import'));
             }
 
-            $sourcePath = 'tmp/' . $fileName;
-
-            if (!is_file($sourcePath))
-            {
-                throw new InvalidArgumentException(_t('Uploaded file was not found'));
-            }
+            // T-62: only a regular file inside tmp/ (no ../, separators or
+            // symlink out); anything else throws 'Invalid file'
+            $sourcePath = \CentralVet\Presentation\UploadedTmpFile::resolve($fileName);
 
             if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) !== 'csv' || filesize($sourcePath) > self::MAX_BYTES)
             {
@@ -125,7 +122,9 @@ class ServiceImportForm extends TPage
         {
             // Cabeçalho inválido ou problema no arquivo: a mensagem é do domínio/do form.
             TTransaction::rollback();
-            new TMessage('error', CvFormat::e($e->getMessage()));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            // T-62: 'Invalid file' → "Arquivo inválido"; outros textos já vêm de _t() e são escapados
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {

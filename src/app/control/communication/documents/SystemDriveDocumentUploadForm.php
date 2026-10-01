@@ -68,6 +68,15 @@ class SystemDriveDocumentUploadForm extends TWindow
         {
             TTransaction::open('communication');
             
+            // T-62: the uploaded name must be a regular file inside tmp/
+            // (no ../, separators or symlink out), checked before store()
+            $source_file = null;
+            if (!empty($param['filename']))
+            {
+                $source_file = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $param['filename']);
+                $param['filename'] = trim((string) $param['filename']);
+            }
+            
             $object = new SystemDocument;
             $object->fromArray( $param );
             $object->submission_date = date('Y-m-d H:i:s');
@@ -75,11 +84,10 @@ class SystemDriveDocumentUploadForm extends TWindow
             $object->title = $object->title ? $object->title : $object->filename;
             $object->store();
             
-            $source_file   = 'tmp/' . $object->filename;
             $target_path   = 'files/system/documents/' . $object->id;
             $target_file   =  $target_path . '/' . $object->filename;
             
-            if (file_exists($source_file))
+            if ($source_file !== null)
             {
                 if (!file_exists($target_path))
                 {
@@ -112,6 +120,11 @@ class SystemDriveDocumentUploadForm extends TWindow
                 'path' => TSession::getValue('SystemDriveListpath'),
                 'filter' => 'my'
             ]);
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e)
         {

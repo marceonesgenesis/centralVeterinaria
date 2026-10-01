@@ -405,7 +405,8 @@ class SystemDatabaseExplorer extends TPage
         
         try
         {
-            $file = 'tmp/'.$param['file'];
+            // T-62: only a regular file inside tmp/ (no ../, separators or symlink out)
+            $file = \CentralVet\Presentation\UploadedTmpFile::resolve((string) ($param['file'] ?? ''));
             if (file_exists($file))
             {
                 $dbinfo = TConnection::getDatabaseInfo($param['database']);
@@ -473,6 +474,15 @@ class SystemDatabaseExplorer extends TPage
                 TTransaction::close();
                 new TMessage('info', _t('Records imported successfully'));
             }
+        }
+        catch (InvalidArgumentException $e)
+        {
+            if ($e->getMessage() !== 'Invalid file')
+            {
+                new TMessage('error', $e->getMessage() . ' in <b>' . $table . '</b>');
+                return;
+            }
+            new TMessage('error', _t('Invalid file'));
         }
         catch (Exception $e)
         {

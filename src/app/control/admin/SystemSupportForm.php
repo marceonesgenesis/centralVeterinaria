@@ -77,27 +77,32 @@ class SystemSupportForm extends TPage
                 throw new Exception(_t('No support e-mail configured'));
             }
             
+            // T-62: each attachment name must be a regular file inside tmp/
+            // (no ../, separators or symlink out); resolved before sending
             $list = [];
             if ($data->attachments)
             {
                 foreach ($data->attachments as $attach)
                 {
-                    $list[] = [ 'tmp/'.$attach, $attach ];
+                    $path = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $attach);
+                    $list[] = [ $path, basename($path) ];
                 }
             }
             
             MailService::send( $preferences['mail_support'], $data->subject, $data->message, 'html', $list );
             
-            if ($data->attachments)
+            foreach ($list as $item)
             {
-                foreach ($data->attachments as $attach)
-                {
-                    unlink('tmp/'.$attach);
-                }
+                @unlink($item[0]);
             }
             
             // shows the success message
             new TMessage('info', _t('Message sent successfully'));
+        }
+        catch (InvalidArgumentException $e)
+        {
+            $this->form->setData($this->form->getData());
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception
         {

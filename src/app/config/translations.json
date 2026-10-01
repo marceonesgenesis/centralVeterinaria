@@ -1260,6 +1260,10 @@
     "pt": "Id de atendimento inválido"
   },
   {
+    "en": "Invalid file",
+    "pt": "Arquivo inválido"
+  },
+  {
     "en": "Invalid exam request id",
     "pt": "Id de solicitação de exame inválido"
   },

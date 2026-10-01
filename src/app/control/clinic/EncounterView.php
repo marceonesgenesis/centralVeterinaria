@@ -1,6 +1,7 @@
 <?php
 
 use CentralVet\Presentation\DateTimeInput;
+use CentralVet\Presentation\UploadedTmpFile;
 
 /**
  * EncounterView
@@ -1870,12 +1871,10 @@ class EncounterView extends TPage
                 throw new InvalidArgumentException(_t('Choose a file to attach'));
             }
 
-            $sourcePath = 'tmp/' . $fileName;
-
-            if (!file_exists($sourcePath))
-            {
-                throw new InvalidArgumentException(_t('Uploaded file was not found'));
-            }
+            // T-62: only a regular file inside tmp/ (no ../, separators or
+            // symlink out); anything else throws 'Invalid file'
+            $sourcePath = UploadedTmpFile::resolve($fileName);
+            $fileName = trim($fileName);
 
             $contents = file_get_contents($sourcePath);
             $contentType = function_exists('mime_content_type')

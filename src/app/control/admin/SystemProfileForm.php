@@ -164,7 +164,8 @@ class SystemProfileForm extends TPage
             
             if ($object->photo)
             {
-                $source_file   = 'tmp/'.$object->photo;
+                // T-62: only a regular file inside tmp/ (no ../, separators or symlink out)
+                $source_file   = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $object->photo);
                 $target_file   = 'app/images/photos/' . TSession::getValue('login') . '.jpg';
                 $finfo         = new finfo(FILEINFO_MIME_TYPE);
                 
@@ -182,6 +183,11 @@ class SystemProfileForm extends TPage
             TScript::create("Template.closeRightPanel()");
             
             TTransaction::close();
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e)
         {

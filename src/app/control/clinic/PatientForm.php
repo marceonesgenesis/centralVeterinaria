@@ -416,6 +416,7 @@ class PatientForm extends TStandardForm
                 // os dados digitados ficam no formulário
                 $this->form->setData($data);
             }
+            error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', self::errorMessage($e));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
@@ -514,6 +515,7 @@ class PatientForm extends TStandardForm
                 $service->discardPhoto($new_photo_key);
             }
             $this->form->setData($data);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', self::errorMessage($e));
         }
         catch (Exception $e)
@@ -637,19 +639,16 @@ class PatientForm extends TStandardForm
      */
     private static function uploadedPhoto($data)
     {
-        $file_name = isset($data->photo) ? basename((string) $data->photo) : '';
+        $file_name = isset($data->photo) ? trim((string) $data->photo) : '';
 
         if ($file_name === '')
         {
             return null;
         }
 
-        $path = 'tmp/' . $file_name;
-
-        if (!is_file($path))
-        {
-            throw new InvalidArgumentException(_t('Uploaded file was not found'));
-        }
+        // T-62: only a regular file inside tmp/ (no ../, separators or
+        // symlink out); anything else throws 'Invalid file'
+        $path = \CentralVet\Presentation\UploadedTmpFile::resolve($file_name);
 
         // whitelist fixa: a extensão define o tipo e getimagesize() confirma
         // que os bytes são dessa imagem (SVG/HTML renomeado é recusado)

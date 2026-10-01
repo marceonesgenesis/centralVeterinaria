@@ -173,12 +173,10 @@ class ExamResultForm extends TPage
 
             if ($fileName !== '')
             {
-                $sourcePath = 'tmp/' . $fileName;
-
-                if (!file_exists($sourcePath))
-                {
-                    throw new InvalidArgumentException(_t('Uploaded file was not found'));
-                }
+                // T-62: only a regular file inside tmp/ (no ../, separators or
+                // symlink out); anything else throws 'Invalid file' before attach()
+                $sourcePath = \CentralVet\Presentation\UploadedTmpFile::resolve($fileName);
+                $fileName = trim($fileName);
 
                 $contents = (string) file_get_contents($sourcePath);
                 $contentType = function_exists('mime_content_type')

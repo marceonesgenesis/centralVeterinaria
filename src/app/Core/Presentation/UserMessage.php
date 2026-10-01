@@ -29,6 +29,7 @@ final class UserMessage
         'A tutor with this document already exists in this tenant' => 'A tutor with this document already exists in this tenant',
         'Invalid amount' => 'Invalid amount',
         'Invalid date and time' => 'Invalid date and time',
+        'Invalid file' => 'Invalid file',
     ];
 
     /** Regex ancorada → chave de tradução; cada grupo capturado vira ^1, ^2. */
