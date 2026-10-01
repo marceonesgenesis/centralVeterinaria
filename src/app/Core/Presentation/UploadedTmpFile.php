@@ -77,6 +77,25 @@ final class UploadedTmpFile
     }
 
     /**
+     * Tipo real (finfo) do arquivo é um dos tipos da extensão (minúscula) do
+     * nome original (T-20, correção 1): `.pdf` com conteúdo HTML é recusado
+     * mesmo que text/html seja aceito para `.html`. Extensão fora do mapa,
+     * nome sem extensão ou arquivo ilegível = false.
+     *
+     * @param array<string, list<string>> $mimesByExtension extensão minúscula → tipos aceitos
+     */
+    public static function mimeMatchesExtension(string $path, string $originalName, array $mimesByExtension): bool
+    {
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($ext === '' || !isset($mimesByExtension[$ext]) || !is_array($mimesByExtension[$ext])) {
+            return false;
+        }
+
+        return self::mimeAllowed($path, $mimesByExtension[$ext]);
+    }
+
+    /**
      * Nome imprevisível para gravar um upload em tmp/ (T-63):
      * `<32 hex aleatórios>-<basename saneado>`. O saneamento troca cada byte
      * fora de `[A-Za-z0-9_.-]` por `_`, junta pontos repetidos (resolve()
