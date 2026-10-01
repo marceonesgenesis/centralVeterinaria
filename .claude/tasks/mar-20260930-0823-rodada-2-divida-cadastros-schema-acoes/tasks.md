@@ -65,7 +65,7 @@
 | T-61 | backend | Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha | — | sim | simples | Naruto | [x] |
 | T-62 | backend | Onda 13: travessia de caminho nos uploads em tmp/ (UploadedTmpFile) | — | não | alta | Jaspion | [x] |
 | T-63 | backend | Onda 14: upload vinculado à sessão e nomes imprevisíveis em tmp/ | T-62 | não | alta | Jaspion | [x] |
-| T-64 | frontend | Onda 15: XSS armazenado via atributo title (tooltip allowHTML) | T-63 | não | média | Levi | [ ] |
+| T-64 | frontend | Onda 15: XSS armazenado via atributo title (tooltip allowHTML) | T-63 | não | média | Levi | [x] |
 | T-65 | frontend | Onda 16: XSS armazenado nas options dos combos de busca (select2) | T-64 | não | alta | Sherlock | [ ] |
 
 ## Convenções (valem para todas as tasks)

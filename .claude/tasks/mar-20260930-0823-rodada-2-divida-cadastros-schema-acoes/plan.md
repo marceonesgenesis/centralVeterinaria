@@ -203,13 +203,13 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/Core/Persistence/ClinicalSummaryReader.php` | atendimento anterior por `started_at` | modificar | T-03 |
 | `src/tests/Integration/ClinicalSummaryIntegrationTest.php` ⚠ | atendimento anterior (RED); onda 8 (T-37) | modificar | T-03, T-37 |
 | `src/app/control/clinic/CvShellController.php` | 403 x 500 em `onSwitchUnit` | modificar | T-04 |
-| `src/app/templates/adminbs5/js/cv-shell.js` ⚠ | fallback de rótulos, unidade única; onda 8 (T-39) | modificar | T-04, T-39 |
+| `src/app/templates/adminbs5/js/cv-shell.js` ⚠ | fallback de rótulos, unidade única; onda 8 (T-39); onda 15 (T-64) | modificar | T-04, T-39, T-64 |
 | `src/app/templates/adminbs5/layout.html` | botão de ajuda com `aria-disabled` | modificar | T-04 |
 | `src/app/templates/adminbs5/custom.css` | estilo do ícone desabilitado sem `pointer-events: none` | modificar | T-04 |
-| `src/app/lib/widget/CvPage.php` ⚠ | spec `'target' => '_blank'` e `data-cv-label` no slot de unidade; onda 8 (T-39) | modificar | T-04, T-39 |
+| `src/app/lib/widget/CvPage.php` ⚠ | spec `'target' => '_blank'` e `data-cv-label` no slot de unidade; onda 8 (T-39); onda 15 (T-64) | modificar | T-04, T-39, T-64 |
 | `src/app/lib/widget/CvCatalog.php` | critério "ativos + o atual" dos combos de catálogo | criar | T-05 |
-| `src/app/control/clinic/ProcedureInputForm.php` ⚠ | usar `CvCatalog` (T-05); mensagem de tenant (T-23) | modificar | T-05, T-23 |
-| `src/app/control/clinic/VaccineProtocolForm.php` ⚠ | usar `CvCatalog` (T-05); mensagem de tenant (T-23) | modificar | T-05, T-23 |
+| `src/app/control/clinic/ProcedureInputForm.php` ⚠ | usar `CvCatalog` (T-05); mensagem de tenant (T-23); onda 16 (T-65) | modificar | T-05, T-23, T-65 |
+| `src/app/control/clinic/VaccineProtocolForm.php` ⚠ | usar `CvCatalog` (T-05); mensagem de tenant (T-23); onda 16 (T-65) | modificar | T-05, T-23, T-65 |
 | `src/app/control/clinic/PendingExamResultList.php` | comentário com `ExamRequest::STATUS_REQUESTED` | modificar | T-05 |
 | `src/app/control/clinic/PayableList.php` | docblock de `resolveStatus` | modificar | T-05 |
 | `src/app/Core/Application/TutorService.php` ⚠ | `update()`; onda 8 (T-36) | modificar | T-06, T-36 |
@@ -217,10 +217,10 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/control/clinic/TutorForm.php` | edição com `key` | modificar | T-06 |
 | `src/app/Core/Application/PatientService.php` ⚠ | `update()` (T-07); alergia/foto (T-12); peso (T-27); onda 8 (T-32); onda 9 (T-47) | modificar | T-07, T-12, T-27, T-32, T-47 |
 | `src/tests/Unit/PatientServiceTest.php` ⚠ | testes de `update()` (T-07), foto/alergia (T-12) e peso (T-27) (RED); onda 8 (T-32); onda 9 (T-47); onda 11 (T-58) | modificar | T-07, T-12, T-27, T-32, T-47, T-58 |
-| `src/app/control/clinic/PatientForm.php` ⚠ | edição (T-07); alergia/foto/`onPhoto` (T-12); mensagem (T-23); máscara e erro de peso (T-27); onda 8 (T-32); onda 9 (T-47); onda 11 (T-58) | modificar | T-07, T-12, T-23, T-27, T-32, T-47, T-58 |
+| `src/app/control/clinic/PatientForm.php` ⚠ | edição (T-07); alergia/foto/`onPhoto` (T-12); mensagem (T-23); máscara e erro de peso (T-27); onda 8 (T-32); onda 9 (T-47); onda 11 (T-58); onda 13 (T-62); onda 14 (T-63); onda 16 (T-65) | modificar | T-07, T-12, T-23, T-27, T-32, T-47, T-58, T-62, T-63, T-65 |
 | `src/app/Core/Application/AppointmentService.php` ⚠ | `reschedule()` e docblock; onda 11 (T-53) | modificar | T-08, T-53 |
 | `src/tests/Unit/AppointmentServiceTest.php` ⚠ | testes de `reschedule()` (RED); onda 8 (T-36); onda 11 (T-53) | modificar | T-08, T-36, T-53 |
-| `src/app/control/clinic/AppointmentForm.php` ⚠ | edição (T-08); mensagem (T-23); onda 8 (T-29); onda 10 (T-51); onda 11 (T-53) | modificar | T-08, T-23, T-29, T-51, T-53 |
+| `src/app/control/clinic/AppointmentForm.php` ⚠ | edição (T-08); mensagem (T-23); onda 8 (T-29); onda 10 (T-51); onda 11 (T-53); onda 16 (T-65) | modificar | T-08, T-23, T-29, T-51, T-53, T-65 |
 | `src/app/Core/Application/ServiceCatalogService.php` ⚠ | `create` com `active`, `duplicate`, `delete`, `importCsv` (T-09); limites por linha (T-26); onda 8 (T-33) | modificar | T-09, T-26, T-33 |
 | `src/app/Core/Domain/Contract/ServiceRepositoryInterface.php` | `hasAppointments()` | modificar | T-09 |
 | `src/app/Core/Persistence/ServiceRepository.php` | `hasAppointments()` | modificar | T-09 |
@@ -228,7 +228,7 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/tests/Unit/ServiceCatalogServiceTest.php` ⚠ | testes das ações (T-09); limites (T-26) (RED); onda 8 (T-33) | modificar | T-09, T-26, T-33 |
 | `src/app/control/clinic/ServiceList.php` ⚠ | Importar, Duplicar, Excluir; onda 8 (T-33); onda 9 (T-43) | modificar | T-10, T-33, T-43 |
 | `src/app/control/clinic/ServiceForm.php` ⚠ | create em um write; onda 10 (T-50); onda 11 (T-54) | modificar | T-10, T-50, T-54 |
-| `src/app/control/clinic/ServiceImportForm.php` ⚠ | upload do CSV (T-10); erro de banco sem mensagem crua (T-26); onda 8 (T-28) | criar/modificar | T-10, T-26, T-28 |
+| `src/app/control/clinic/ServiceImportForm.php` ⚠ | upload do CSV (T-10); erro de banco sem mensagem crua (T-26); onda 8 (T-28); onda 13 (T-62); onda 14 (T-63) | criar/modificar | T-10, T-26, T-28, T-62, T-63 |
 | `src/app/Core/Domain/Product.php` | `salePriceCents`, `code` | modificar | T-11 |
 | `src/app/Core/Domain/Contract/ProductRepositoryInterface.php` | `findByCode()` | modificar | T-11 |
 | `src/app/Core/Persistence/ProductRepository.php` | colunas novas | modificar | T-11 |
@@ -273,7 +273,7 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/Core/Application/EncounterService.php` | `pause()`/`resume()` | modificar | T-16 |
 | `src/tests/Unit/EncounterServiceTest.php` ⚠ | testes de pausa (RED); onda 8 (T-37) | modificar | T-16, T-37 |
 | `src/app/control/clinic/QueueEntryView.php` ⚠ | ações Editar paciente/agendamento; onda 8 (T-29) | modificar | T-17, T-29 |
-| `src/app/control/clinic/EncounterView.php` ⚠ | Pausar/Retomar, alergia/foto, `onInlineAction`, vazio após Finalizar (T-18); mensagem (T-23); onda 8 (T-31); onda 9 (T-45); onda 10 (T-52); onda 11 (T-56); onda 12 (T-60) | modificar | T-18, T-23, T-31, T-45, T-52, T-56, T-60 |
+| `src/app/control/clinic/EncounterView.php` ⚠ | Pausar/Retomar, alergia/foto, `onInlineAction`, vazio após Finalizar (T-18); mensagem (T-23); onda 8 (T-31); onda 9 (T-45); onda 10 (T-52); onda 11 (T-56); onda 12 (T-60); onda 13 (T-62); onda 14 (T-63); onda 16 (T-65) | modificar | T-18, T-23, T-31, T-45, T-52, T-56, T-60, T-62, T-63, T-65 |
 | `src/app/control/clinic/PrescriptionForm.php` ⚠ | validade, modelos, estilos e `onEdit` (T-19); mensagem (T-23); onda 8 (T-30); onda 9 (T-44) | modificar | T-19, T-23, T-30, T-44 |
 | `src/app/templates/adminbs5/cv-components.css` ⚠ | classes que substituem os estilos inline da prescrição; onda 8 (T-31) | modificar | T-19, T-31 |
 | `src/app/control/clinic/FinancialOverview.php` ⚠ | saldo bancário, Exportar, recentes no período, rótulo; onda 8 (T-35); onda 9 (T-46) | modificar | T-20, T-35, T-46 |
@@ -285,20 +285,20 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/app/control/clinic/BankAccountList.php` ⚠ | lista de contas; onda 8 (T-34) | criar | T-22, T-34 |
 | `src/app/control/clinic/BankAccountForm.php` ⚠ | formulário e saldo; onda 8 (T-34); onda 9 (T-48) | criar | T-22, T-34, T-48 |
 | `src/app/lib/widget/CvNav.php` | aba `bank_accounts` no grupo finance | modificar | T-22 |
-| `src/app/config/translations.json` ⚠ | chaves do board (T-23); chaves de T-26/T-27 (T-27); onda 8 (T-28); onda 9 (T-43); onda 10 (T-51); onda 11 (T-54) | modificar | T-23, T-27, T-28, T-43, T-51, T-54 |
+| `src/app/config/translations.json` ⚠ | chaves do board (T-23); chaves de T-26/T-27 (T-27); onda 8 (T-28); onda 9 (T-43); onda 10 (T-51); onda 11 (T-54); onda 13 (T-62); onda 14 (T-63); onda 15 (T-64); onda 16 (T-65) | modificar | T-23, T-27, T-28, T-43, T-51, T-54, T-62, T-63, T-64, T-65 |
 | `src/app/lib/widget/CvFormat.php` ⚠ | `userError()`; onda 8 (T-28); onda 11 (T-53) | modificar | T-23, T-28, T-53 |
-| `src/app/control/clinic/EncounterAccountForm.php` ⚠ | mensagem de tenant; onda 10 (T-50); onda 11 (T-54) | modificar | T-23, T-50, T-54 |
-| `src/app/control/clinic/ExamResultForm.php` ⚠ | mensagem de tenant; onda 11 (T-56); onda 12 (T-60) | modificar | T-23, T-56, T-60 |
+| `src/app/control/clinic/EncounterAccountForm.php` ⚠ | mensagem de tenant; onda 10 (T-50); onda 11 (T-54); onda 16 (T-65) | modificar | T-23, T-50, T-54, T-65 |
+| `src/app/control/clinic/ExamResultForm.php` ⚠ | mensagem de tenant; onda 11 (T-56); onda 12 (T-60); onda 13 (T-62); onda 14 (T-63) | modificar | T-23, T-56, T-60, T-62, T-63 |
 | `src/app/control/clinic/ProcedureExecutionForm.php` | mensagem de tenant | modificar | T-23 |
 | `src/app/control/clinic/VaccinationForm.php` | mensagem de tenant | modificar | T-23 |
 | `src/app/control/clinic/ExamRequestForm.php` | mensagem de tenant | modificar | T-23 |
-| `src/app/control/clinic/StockBatchForm.php` | mensagem de tenant | modificar | T-23 |
-| `src/app/control/clinic/SaleForm.php` | mensagem de tenant | modificar | T-23 |
+| `src/app/control/clinic/StockBatchForm.php` ⚠ | mensagem de tenant; onda 16 (T-65) | modificar | T-23, T-65 |
+| `src/app/control/clinic/SaleForm.php` ⚠ | mensagem de tenant; onda 16 (T-65) | modificar | T-23, T-65 |
 | `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/reports/T-24.md` | relatório da validação final | criar | T-24 |
 | `src/app/Core/Application/AgendaSlots.php` | horário → slot da grade da agenda | criar | T-25 |
 | `src/tests/Unit/AgendaSlotsTest.php` | testes do mapeamento (RED) | criar | T-25 |
 | `src/app/control/clinic/AgendaView.php` ⚠ | grade agrupada por `slotFor()`; horário exato no bloco; onda 8 (T-29); onda 10 (T-41); onda 11 (T-57) | modificar | T-25, T-29, T-41, T-57 |
-| `src/app/Core/Presentation/UserMessage.php` ⚠ | ver T-28 (onda 8); onda 10 (T-51); onda 11 (T-53) | criar | T-28, T-51, T-53 |
+| `src/app/Core/Presentation/UserMessage.php` ⚠ | ver T-28 (onda 8); onda 10 (T-51); onda 11 (T-53); onda 13 (T-62) | criar | T-28, T-51, T-53, T-62 |
 | `src/tests/Unit/UserMessageTest.php` ⚠ | ver T-28 (onda 8); onda 10 (T-51) | criar | T-28, T-51 |
 | `src/tests/Unit/CvFormatUserErrorTest.php` ⚠ | ver T-28 (onda 8); onda 9 (T-49); onda 11 (T-53) | criar | T-28, T-49, T-53 |
 | `src/app/Core/Application/QueueEntryService.php` ⚠ | ver T-29 (onda 8); onda 10 (T-41) | modificar | T-29, T-41 |
@@ -341,6 +341,30 @@ Fechar as sugestões `[aberta]` corrigíveis da revisão final da fase 10 (`mar-
 | `src/tests/Support/FakeEncounterAccountRepository.php` | ver T-59 (onda 11) | modificar | T-59 |
 | `src/app/Core/Redis/RedisConnectionFactory.php` | ver T-61 (onda 12) | modificar | T-61 |
 | `src/tests/Integration/RedisConnectionFactoryIntegrationTest.php` | ver T-61 (onda 12) | criar | T-61 |
+| `src/app/Core/Presentation/UploadedTmpFile.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | criar | T-62, T-63 |
+| `src/tests/Unit/UploadedTmpFileTest.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | criar | T-62, T-63 |
+| `src/app/control/admin/SystemSupportForm.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | modificar | T-62, T-63 |
+| `src/app/control/communication/documents/SystemDriveDocumentUploadForm.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | modificar | T-62, T-63 |
+| `src/app/control/admin/SystemProfileForm.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | modificar | T-62, T-63 |
+| `src/app/control/admin/SystemDatabaseExplorer.php` ⚠ | ver T-62 (onda 13); onda 14 (T-63) | modificar | T-62, T-63 |
+| `src/app/service/upload/CvUploaderService.php` | ver T-63 (onda 14) | criar | T-63 |
+| `src/app/lib/widget/CvUpload.php` | ver T-63 (onda 14) | criar | T-63 |
+| `src/app/control/admin/SystemTableList.php` | ver T-63 (onda 14) | modificar | T-63 |
+| `src/app/control/admin/SystemSQLPanel.php` | ver T-63 (onda 14) | modificar | T-63 |
+| `src/app/lib/widget/CvAvatar.php` | ver T-64 (onda 15) | modificar | T-64 |
+| `src/tests/Unit/CvAvatarTitleTest.php` | ver T-64 (onda 15) | criar | T-64 |
+| `src/app/lib/widget/CvCard.php` | ver T-64 (onda 15) | modificar | T-64 |
+| `src/app/lib/widget/TAccordion.php` | ver T-64 (onda 15) | modificar | T-64 |
+| `src/app/lib/widget/CvSafeLabelTrait.php` | ver T-65 (onda 16) | criar | T-65 |
+| `src/tests/Unit/CvSafeLabelTraitTest.php` | ver T-65 (onda 16) | criar | T-65 |
+| `src/app/model/clinic/Patient.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/clinic/Tutor.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/clinic/Service.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/clinic/Product.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/clinic/ProcedureCatalogItem.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/clinic/VaccineCatalogItem.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/model/admin/SystemUser.php` | ver T-65 (onda 16) | modificar | T-65 |
+| `src/app/control/clinic/VaccinationCardView.php` | ver T-65 (onda 16) | modificar | T-65 |
 | banco `centralvet` (schema e `system_program`/`system_group_program`) | aplicar 0007 e o DML de T-01 | DDL/DML pelo orquestrador, com aprovação | T-01 |
 
 Os 15 arquivos com ⚠ são serializados em ondas diferentes: T-03, T-05, T-07, T-08 e T-09 (onda 1), T-10, T-11 e T-12 (onda 2), T-26 e T-27 (onda 7, disjuntos entre si), T-18 e T-19 (onda 3), T-23 (onda 4). Em cada onda, cada arquivo está numa só task. `translations.json` tem escritor único (T-23). `FakeStorage.php` e os Fakes de Patient, Prescription, FinancialEntry e Encounter só são tocados pela task dona da entidade. `CvPage.php` só por T-04, `CvKpiCard.php` só por T-20 e `CvNav.php` só por T-22.
@@ -378,6 +402,10 @@ Onda 10 — correção (usuário): T-41 (T-40) UNIQUE no check-in + badge "Na fi
         T-51 conflito de agendamento em pt + i18n da onda | T-52 anexos em stored_object
 Onda 11 — correção (usuário): T-53 data/hora + PDO genérico | T-54 lançamento append-only + MoneyInput + i18n | T-55 sessão pós-suíte
         T-56 anexos ExamResult/órfão/UTF-8 | T-57 badge Na fila | T-58 foto órfã no commit | T-59 Fake com saveCount
+Onda 16 — correção (revisão final): T-65 (T-64) rótulos escapados nos combos de busca
+Onda 15 — correção (revisão final): T-64 (T-63) title/tooltip com escape duplo
+Onda 14 — correção (revisão final): T-63 (T-62) upload por sessão + exports com nome aleatório
+Onda 13 — correção (revisão final): T-62 UploadedTmpFile nos 8 handlers de upload
 Onda 12 — correção (usuário): T-60 (T-53, T-56) retorno pelo DateTimeInput + catches do ExamResultForm | T-61 Redis select estrito
 Onda 8 — correção (usuário): T-28 mensagens/i18n | T-29 check-in | T-30 prescrição | T-31 atendimento | T-32 paciente/foto | T-33 serviços
         T-34 contas | T-35 financeiro/estoque | T-36 authz/tutor/agenda | T-37 integração | T-38 modelos/produto | T-39 CvPage/seletor
@@ -438,16 +466,28 @@ Onda 8 — correção (usuário): T-28 mensagens/i18n | T-29 check-in | T-30 pre
 - T-60 — retorno do `EncounterView` pelo `DateTimeInput` e os 2 catches restantes do `ExamResultForm` (ruling do orquestrador). Consome o parser da onda 11, e os dois arquivos foram de outra task na onda 11.
 - T-61 — `RedisConnectionFactory` recusa DB fora de 0..15 e SELECT com falha. Achado de produção de T-55, com ruling do orquestrador. Os arquivos não colidem com T-60. Depois da onda 12 vem a revisão final (Fase 5) da branch inteira contra `feat/fidelidade-visual-mocks`.
 
+### Onda 13 — correção (revisão final)
+- T-62 — BLOQUEANTE de segurança da revisão final (`reviews/final.md § Revisão final — ondas 8 a 12`): travessia de caminho nos uploads em `tmp/`. Task única da onda, escritora única de `translations.json`. Sem schema novo; mutação de prova só em worktree isolada.
+
+### Onda 14 — correção (revisão final)
+- T-63 — achado explorável da re-revisão de T-62 (`reviews/T-62.md § Rodada 2`): `tmp/` compartilhado entre sessões permite anexar e baixar arquivo de outro usuário ou export de admin com nome previsível. A correção é um uploader próprio (`CvUploaderService`, ponto de extensão `setService` do `TFile`, sem tocar o framework) com nomes aleatórios registrados na `TSession`, `resolveForSession` em todos os handlers e exports de admin com nome imprevisível. Task única da onda, dona única de `translations.json`. Sem schema novo; mutação de prova só em worktree isolada.
+
+### Onda 15 — correção (revisão final)
+- T-64 — achado da re-revisão de T-63 (`reviews/T-63.md § Rodada 3`): XSS armazenado pelo `title` de `CvAvatar` (e demais sinks de `title`/tooltip com texto de usuário), porque o tippy do framework usa `allowHTML`. A correção é `CvFormat::forHtmlSink` no servidor e um escape equivalente no JS do projeto, sem tocar o framework nem o schema. Task única da onda, dona única de `translations.json` se precisar.
+
+### Onda 16 — correção (revisão final)
+- T-65 — XSS crítico achado no gate de T-64: as options do select2 dos combos de busca (`TDBUniqueSearch`/`TDBCombo`) com rótulo de usuário são renderizadas como HTML. A correção é um atributo virtual escapado nos models (`get_<campo>_safe()`, por `CvSafeLabelTrait`) usado como máscara dos combos, sem tocar o framework nem o schema. Task única da onda, dona única de `translations.json` se precisar.
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
 |---|---|---|---|
 | Sun Tzu — orquestrador | — | — | todas |
-| Jaspion | general-purpose | inherit | T-01, T-40 |
+| Jaspion | general-purpose | inherit | T-01, T-40, T-62, T-63 |
 | Arquimedes | general-purpose | inherit | T-02, T-14, T-36, T-49, T-59 |
-| Sherlock | general-purpose | inherit | T-03, T-25, T-37, T-52, T-56 |
+| Sherlock | general-purpose | inherit | T-03, T-25, T-37, T-52, T-56, T-65 |
 | Aang | general-purpose | inherit | T-04, T-17, T-29, T-41, T-57 |
-| Levi | general-purpose | inherit | T-05, T-10, T-26, T-33, T-43 |
+| Levi | general-purpose | inherit | T-05, T-10, T-26, T-33, T-43, T-64 |
 | Thanos | general-purpose | inherit | T-06, T-39, T-46 |
 | Naruto | general-purpose | inherit | T-07, T-27, T-32, T-42, T-55, T-61 |
 | Kratos | general-purpose | inherit | T-08, T-19, T-30, T-44, T-53 |
@@ -456,14 +496,14 @@ Onda 8 — correção (usuário): T-28 mensagens/i18n | T-29 check-in | T-30 pre
 | Tesla | general-purpose | inherit | T-12, T-20, T-35, T-47, T-58 |
 | Athena | general-purpose | inherit | T-15, T-22, T-34, T-48 |
 | Yoda | general-purpose | inherit | T-16, T-18, T-31, T-45, T-60 |
-| Spock — validador | geduc:validador | sonnet | T-24, gates das ondas 1–12 |
+| Spock — validador | geduc:validador | sonnet | T-24, gates das ondas 1–16 |
 
 ## Review Focus
+- "R2 Pet" digitado no combo de paciente do `AppointmentForm` (e nos demais combos de busca) → option com texto literal, 0 dialogs e nenhum `img[src="x"]` no DOM; "R2 João & Cia" legível → T-65
+- Tutor/paciente com nome `<img src=x onerror=alert(1)> R2`, hover no avatar ou tooltip em listas, busca, fila, agenda e atendimento → texto literal, 0 dialogs → T-64
+- Nome previsível já em `tmp/` (canária ou export de admin) passado no anexo por outra sessão → "Arquivo inválido", nenhum `stored_object` novo → T-63
+- POST de anexo com `filename=../app/config/application.php` (EncounterView e ExamResultForm) → "Arquivo inválido", nenhum `stored_object` novo e `application.php` continua no servidor → T-62
 - "01/10/2026 11:00" no `AppointmentForm` → agendamento em 1º de outubro (não 10 de janeiro); editar reabre a mesma data → T-53
-- POST do `FinancialEntryForm` com o `id` de um lançamento existente → aviso de imutável, nenhum registro novo nem alterado → T-54
-- SUITE rodada com o navegador logado → a sessão sobrevive e as medições da causa ficam iguais antes e depois → T-55
-- Resultado de exame com PDF anexado pelo `ExamResultForm` → linha em `stored_object` e anexo listado no `EncounterView` do atendimento de origem → T-56
-- Erro de banco (PDOException) em `AppointmentForm` → texto genérico "Não foi possível concluir a operação…", sem SQLSTATE na tela → T-53
 
 ## Critérios gerais de aceite
 - SUITE termina com `Failed: 0` e `Total` ≥ 205 + os testes novos de cada onda, no gate de cada onda.
@@ -477,6 +517,10 @@ Onda 8 — correção (usuário): T-28 mensagens/i18n | T-29 check-in | T-30 pre
   - Onda 4: todas as telas das linhas `i18n:` do board, sem "Message not found";
   - Onda 5 (T-24): todas as telas acima e as do `menu.xml`.
   - Onda 11 — correção (usuário) (T-53..T-59): `AppointmentForm` (novo, editar, remarcar), `AgendaView` (badge), `FinancialEntryForm` (key existente, novo), os 9 formulários de moeda (abrir; salvar só `ServiceForm`), `ExamResultForm` (anexo), `EncounterView` (download UTF-8, 404), `PatientForm` (troca de foto); SUITE com o navegador logado. Também as evidências de gate que ficaram pendentes: diálogo de modelo repetido em `PrescriptionForm` (T-44), os 4 itens de `PatientForm` (T-47: foto, `key=999999` com 0 inputs, sexo X em pt, console), `BankAccountForm` com `<b>R2</b>` e `SELECT MAX(balance_cents)` (T-48), `CashSessionForm` abrir caixa com "abc" (T-50) e resumo de IA do `EncounterView`, se visível (T-45).
+  - Onda 16 — correção (revisão final) (T-65): combos de busca de `AppointmentForm`, `PatientForm`, `SaleForm`, `VaccinationCardView`, `StockBatchForm`, `EncounterView` (retorno), `EncounterAccountForm` (autorizador), `VaccineProtocolForm` e `ProcedureInputForm`, com os registros R2 de payload (tutor 10626, pacientes 9179/9180 e os criados no gate), o dropdown aberto e depois da seleção.
+  - Onda 15 — correção (revisão final) (T-64): `TutorList`, `PatientList`, `GlobalSearchController`, `QueueEntryView`, `AgendaView`, `EncounterView`, `PrescriptionForm` e `VaccinationCardView` com o tutor e o paciente `<img src=x onerror=alert(1)> R2`, com hover nos avatares e tooltips (0 dialogs); sidebar e seletor de unidade (`cv-shell.js`).
+  - Onda 14 — correção (revisão final) (T-63): canária `r2-canaria.csv` e export do `SystemTableList` recusados no anexo do `EncounterView`; uploads legítimos nos 4 handlers da clínica; export do `SystemTableList` com nome amigável no download; `SystemProfileForm` com foto (admin); `SystemSupportForm`, `SystemDriveDocumentUploadForm` e o import do `SystemDatabaseExplorer` só abrir (enviar só se houver ambiente, senão `[não rodado]` com o motivo).
+  - Onda 13 — correção (revisão final) (T-62): `EncounterView` e `ExamResultForm` (POST forçado com `../`, upload válido), `PatientForm` (foto válida), `ServiceImportForm` (CSV válido), `SystemProfileForm` (abrir e salvar sem foto), `SystemSupportForm` e `SystemDriveDocumentUploadForm` (só abrir; enviar só se houver ambiente de e-mail/drive, senão `[não rodado]` com o motivo), `SystemDatabaseExplorer` (só abrir).
   - Onda 12 — correção (usuário) (T-60, T-61): retorno do `EncounterView` (data válida e "abc"), `ExamResultForm` (arquivo inválido), login depois do rebuild (T-61).
   - Onda 9 — correção (usuário) (T-40, T-42..T-49): `ServiceList` (confirmações com nome), `PrescriptionForm` (modelo repetido, guarda sem patient_id), `EncounterView` (anexo, retorno, resumo de IA), `FinancialOverview` (export, header único), `PatientForm` (troca de foto, key 999999, sexo X), `BankAccountForm`/`BankAccountList` (teto, "abc", nome duplicado com tags, "Itaú & Cia"); SUITE sem derrubar o login do navegador.
   - Onda 10 — correção (usuário) (T-41, T-50, T-51, T-52): `AgendaView` (badge "Na fila", corrida de check-in), `AppointmentForm` e retorno do `EncounterView` (conflito em pt), anexos do `EncounterView` (lista e download) e os 9 formulários de moeda (os 6 com gravação `R2 varredura`; `PaymentForm`, `CashSessionForm` e `EncounterAccountForm` só abertos).

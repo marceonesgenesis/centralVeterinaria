@@ -124,3 +124,141 @@ Depois desta revisão (aprovada sem bloqueantes), o usuário rodou o /code-revie
 - `ServiceCatalogService::importCsv` não validava tamanhos de coluna (nome 190, categoria 60, duração `int unsigned`), e uma linha acima do limite dava rollback da importação inteira. T-26 (Levi): validação por linha, linhas inválidas viram `skipped`, e `ServiceImportForm` não mostra mais erro cru de banco (commits 761e485 RED, 4641d50).
 - Peso do paciente com vírgula decimal era truncado ("4,5" gravado como 4), com risco de dose clínica. T-27 (Naruto): `PatientService` aceita vírgula e recusa texto com `INVALID_WEIGHT_MESSAGE`. O gate reprovou a primeira solução (máscara numérica transformava "4,5" em 0,45); o fix loop trocou por digitação livre com filtro (commits c3cb77b RED, 984138a, 4e2bb3c RED, 25565fb).
 - Ambas aprovadas na revisão (rodada 1, com sugestões); suíte 296/296 na re-validação no HEAD final. Sugestões abertas em notes.md § Pendências.
+
+# Revisão final — ondas 8 a 12
+Branch feat/rodada-2-cadastros-schema-acoes (77a2fb1) contra feat/fidelidade-visual-mocks (d6dce7a): 128 commits, 295 arquivos, +23922/-725. Só as ondas 8–12 (cbd7ad1..HEAD): 181 arquivos, +10618/-607.
+Verificações rodadas:
+- SUITE com src montado: `Total: 384, Passed: 384, Failed: 0, Skipped: 0`, EXIT=0;
+- `sha256sum` da 0007 = 9ef0242d…d679 e da 0008 = 0929db34…a8ad6, os mesmos de notes.md § Bloqueios;
+- `grep -rn SABOTAGEM src docker` não acha nada; `git log -S SABOTAGEM` só aponta f56cb01 e 87a40c6, que são chore(tasks) de artefatos do plano;
+- no container, `is_readable("tmp/../app/config/application.php")` = true (base do achado bloqueante abaixo).
+
+## Triagem
+- [aberta] Fora do escopo (6 itens: SaleForm, gestão de modelos, conciliação, foto nas listas, exportar/importar outras telas, TutorService sem TenantContext) → plan.md § Excluído
+- [aberta] T-01: "4 UNIQUE" no cabeçalho e ids fixos 106–108 → excluídos na onda 8, porque o checksum amarra o arquivo
+- [resolvida] T-01: ORDER BY ordinal_position no .verify.sql → T-37, 0007.verify.sql (diff de 4 linhas)
+- [resolvida] T-02: json_encode com UTF-8 inválido → T-36, AuthorizationRequest.php:41-44 e AuthorizationRequestTest
+- [resolvida] T-03: testes de outro tenant e de empate → T-37, ClinicalSummaryIntegrationTest (+63)
+- [resolvida] T-04: docblock, `target` restrito e unidade única → T-39, CvPage.php
+- [resolvida] T-06: normalização e testes → T-36, TutorService.php, TutorServiceTest (+51)
+- [resolvida] T-07: create/update normalizam igual; weight com vírgula → T-27/T-32, PatientService.php
+- [resolvida] T-08: testes de reschedule; key inexistente → T-36/T-29, AppointmentServiceTest (+163)
+- [resolvida] T-09: limites do importCsv → T-26/T-33, ServiceCatalogService.php
+- [aberta] Validador onda 1: datepicker desfaz o `fill` → comportamento do widget, excluído
+- [resolvida] Validador onda 1 / T-23 / T-24: "Patient sex" e mensagens de BankAccount em inglês → UserMessage.php:18-22, aplicado por CvFormat::userError
+- [aberta] Validadores das ondas 1 e 2: PatientForm key=999999 com radios editáveis → reports T-32 dão o item do GATE como sem evidência
+- [aberta] Validador onda 1: contagem de `<option>` de T-05; T-24: screenshot da BASE de T-19 → evidência histórica, excluída
+- [aberta] T-10: fallback de tenant_user copiado 3 vezes → excluído; Duplicar por GET e mensagens resolvidos em T-33
+- [resolvida] T-11: testes de INSERT/findByCode e asserção vazia → T-37/T-38, ProductRepositoryIntegrationTest (+120), ProductServiceTest
+- [aberta] T-12: UPDATE grava sempre as colunas da foto → ruling de T-12. nosniff duplicado (T-32/T-46) e foto órfã (T-47/T-58) resolvidos
+- [resolvida] T-13: varchar, duplicado e N+1 → T-38, PrescriptionTemplate.php, PrescriptionTemplateRepository.php
+- [resolvida] T-14: teste de integração de payment_method → T-37, FinancialEntryRepositoryIntegrationTest (+113)
+- [resolvida] T-16: paused_* contra o banco e clamp → T-37, EncounterRepositoryIntegrationTest (+134), EncounterServiceTest (+18)
+- [resolvida] T-17 / Validador onda 2 / T-24: menu da fila não rodado → gate de T-29 (check-in pela Agenda), QueueEntryView.php:92
+- [resolvida] T-18: style inline e `id` nos retornos → T-31, EncounterView.php, cv-components.css
+- [resolvida] T-19 / T-24: combo, rascunho e PrescriptionForm sem patient_id → T-30, PrescriptionForm.php
+- [resolvida] T-20: onExport sem error_log; link do KPI → T-35, FinancialOverview.php. O link nos dois estados ficou como decisão.
+- [resolvida] T-21: RECENT_SALES_LIMIT → T-35, ProductList.php
+- [resolvida] T-22 / T-34: getMessage cru e toCents → T-34/T-48, BankAccountForm.php:84 (MoneyInput) e userError
+- [aberta] T-23: chaves "%s days" e "This entry cannot advance…" → não conferidas no diff (a cruzada da onda 8 deu missing=0, mas não reproduzi)
+- [resolvida] T-23: CvFormat::userError sem teste → CvFormatUserErrorTest, 6 casos PASS na SUITE
+- [aberta] T-23 / T-28: chaves órfãs (26 herdadas) → excluídas na onda 9
+- [aberta] T-24: mensagens de domínio das telas fora da triagem → excluídas; cerca de 40 `new TMessage(..., $e->getMessage())` continuam (ver Achados)
+- [aberta] T-25: span.agenda-block-time sem ms-1 → AgendaView.php não revisado
+- [resolvida] T-26: ramo create() → skipped e asserção no limite → T-33, ServiceCatalogServiceTest (+55)
+- [aberta] T-26: reason dinâmica em inglês → ServiceImportForm.php:105 não conferido
+- [aberta] T-27: formato de reabertura "4,5", filtro sem teste, comentário do catch → ruling e exclusão (onda 8)
+- [aberta] Onda 7 e ondas 8–12: dados R2 no banco → decisão do usuário
+- [resolvida] UNIQUE em queue_entry.appointment_id → 0008:49 `ADD UNIQUE KEY queue_entry_appointment_uq`; sha256 do arquivo igual ao de notes; T-41 traduz a violação para 23000
+- [resolvida] Confirmação de Excluir/Duplicar sem o nome → T-43, ServiceList.php
+- [resolvida] Suíte limpando sessões; queda de sessão das ondas 8, 9 e 10 → T-55: era localhost × 127.0.0.1, e o Redis dos testes ficou isolado (T-42)
+- [resolvida] RedisQueueIntegrationTest flaky → T-42; SUITE 384/384 nesta revisão
+- [resolvida] T-28: testCatalogMessageGoesThroughTranslationKey passava sem a implementação → T-49 (testes mais fortes de T-28, T-36 e T-38)
+- [aberta] T-28: orphan=0 não reproduz; plan.md:361 → documental, excluído
+- [resolvida] T-29 / T-41: Check-in continua após o check-in; badge para qualquer status → T-41/T-57, AgendaView.php:416-421
+- [resolvida] T-30: catches de PrescriptionForm → T-44
+- [resolvida] T-31: catches com getMessage cru no EncounterView → T-45 (screenError) e T-53 (PDO em userError)
+- [resolvida] T-32: nosniff do FinancialOverview e foto anterior apagada antes do commit → T-46, T-47
+- [aberta] T-33: RED que falha por método de Fake inexistente → histórico, excluído
+- [resolvida] T-34: valor fora de int e as 8 cópias de toCents → T-48/T-50, MoneyInput.php e 9 formulários com MAX_UNSIGNED_INT_CENTS
+- [aberta] T-35 e T-37: decisão do link e evidências só no relatório → excluídas
+- [resolvida] T-36 / T-38: teste de negação sem conferir persistência; asserções de outro tenant → T-49, T-59 (FakeEncounterAccountRepository::$saveCount)
+- [aberta] T-38: comentário de collation, consulta única e save() sem transação → excluídos na onda 9
+- [aberta] T-40: índice redundante, updated_at e premissa de 1 duplicata → excluídos na onda 11
+- [aberta] T-41: teste de `[]` sem consulta → excluído (exigiria instrumentar o PDO)
+- [resolvida] T-41: ordem do Fake → T-57, FakeQueueEntryRepository.php
+- [resolvida] T-42: intervalo de TEST_REDIS_DATABASE → T-55, tests/run.php
+- [aberta] T-44, T-47 e T-48: evidências de gate → excluídas; varredura da onda 11
+- [resolvida] T-47: órfão se close() lançar → T-58
+- [aberta] T-49: decorador anônimo e storedProduct() → aceito em Desvios
+- [resolvida] T-50: comentário duplicado, FQCN e placeholder fora do i18n → T-54
+- [aberta] T-50: CashSessionForm onOpen "abc" não testado no navegador → leitura do código (CashSessionForm.php:251)
+- [resolvida] T-51: catch-all com PDO cru; 01/10 gravado como 10/01 → T-53, CvFormat.php:82-88 e DateTimeInput.php:28
+- [resolvida] T-52: chave órfã "Attachment not found" → usada em EncounterView.php:1951
+- [resolvida] T-52: ExamResultForm fora do stored_object; filename*=UTF-8'' → T-56, ExamResultForm.php:303-306 e EncounterView.php:1962
+- [resolvida] FinancialEntryForm criando registro novo ao editar → T-54 (append-only, edição recusada)
+- [aberta] T-53: Application → Presentation (AppointmentService importa DateTimeInput) → AppointmentService.php:98,201
+- [aberta] T-54, T-55, T-56, T-57, T-58 e Onda 11 (validador sem navegador) → sugestões de teste e de evidência, sem agravamento
+- [aberta] T-60: screenError redundante → EncounterView.php:1596-1606
+- [aberta] T-61: close() antes de lançar, constante e ramo select() sem teste → RedisConnectionFactory.php:54-55
+- Nenhuma pendência promovida.
+
+## Rulings
+- plano (revisão) · onda 8 — T-28..T-39 com arquivos disjuntos; T-28 é o único escritor de translations.json; check-in na AgendaView; nosniff só no nginx.
+- T-29 · onda 8 — O check-in cobre o menu da fila de T-17; a corrida ficou para a UNIQUE (0008).
+- T-36 · onda 8 — plano-mandou: RBAC antes de isActiveMember; plan.md § Excluído corrigido.
+- T-34 · onda 8 — Digitação livre, inválido recusado em pt; CvFormat::e mantido na coluna Banco.
+- T-32 · onda 8 — URL da foto com &v=; escopo estendido ao EncounterView só na URL (5ce5d1f).
+- T-30 · onda 8 — valid_until com evidência CLI.
+- T-39 · onda 8 — Seletor de unidade única vale pelo diff e pelo render.
+- T-28 · onda 8 — As 26 chaves órfãs são herdadas; o critério não exige orphan = 0.
+- T-35 · onda 8 — Link de Contas bancárias nos dois estados aceito como decisão.
+- plano (revisão) · onda 9 — 0008 com dedupe pelo menor id; MoneyInput como parser único; T-42 confirma a causa antes de corrigir.
+- T-40 · onda 9 / entre as ondas 9 e 10 — 0008 aplicada com aprovação SQL (checksum 0929db34…, 0 grupos duplicados).
+- T-42 · onda 9 — Testes Redis fora dos prováveis aceitos; desvio `false`/'' no lugar de `?:` aceito.
+- T-45 · onda 9 — Data malformada corrigida em 16307b5; chaves passadas para T-51.
+- T-48 · onda 9 — plano-mandou: teto por coluna via $maxCents/MAX_UNSIGNED_INT_CENTS.
+- T-49 · onda 9 — Sabotagem no checkout compartilhado parada; prova refeita em worktree isolada.
+- plano (revisão) · onda 10 — T-51 (catálogo de conflito e i18n) e T-52 (stored_object sem schema novo).
+- T-41 · onda 10 — Violação da UNIQUE → "Este agendamento já está na fila".
+- T-50 · onda 10 — Sem máscara nem filtro (inputmode=decimal); setData sem reload; CashSessionForm onOpen vale pela leitura do código.
+- T-52 · onda 10 — Chave única `<hex12>-<nome>`; o rollback apaga só o objeto novo.
+- plano (revisão) · onda 11 — T-53..T-59; financial_entry é append-only; T-55 mede em worktree.
+- T-53 · onda 11 — Fix loops 1 e 2: TEntry com máscara, sem TDateTime nem picker; AppointmentFormPostIntegrationTest aceito.
+- T-54 · onda 11 — RED ausente aceito; trailers `Task:` fora do bloco aceitos sem reescrita.
+- T-55 · onda 11 — Causa: localhost × 127.0.0.1; o gate roda sempre em 127.0.0.1.
+- T-56 / T-57 · onda 11 — ExamResultForm e o caso cancelado valem pelo teste unitário.
+- plano (revisão) · onda 12 — T-61 corrige o select() ignorado; T-60 inclui os 2 catches do ExamResultForm.
+- T-60 · onda 12 — Escopo ampliado: InvalidStatusTransition do pedido de exame em pt (0f354f8 RED, f598c82).
+- T-61 · onda 12 — O ramo "SELECT recusado com DB válido" vale só pela leitura do código.
+
+## Decisões que tomei
+- Pendência com várias partes ficou classificada pela parte que segue aberta, com nota da parte resolvida (T-10, T-12).
+- Pendências que plan.md § Premissas exclui com motivo nas ondas 8, 9 e 11 ficaram `aberta`, sem reavaliar o mérito.
+- A travessia de caminho no anexo existe na BASE (d6dce7a). Ela não estava em § Pendências, por isso entra como achado novo, e não como `promovida`. É `[bloqueante]` porque T-52 e T-56 abriram o canal de leitura: antes da branch, o objeto gravado não era listado nem baixado.
+- Não rodei SELECT em schema_migrations. Conferi o sha256 dos arquivos contra o registrado em notes.md.
+- Rodei a SUITE uma vez, como pedido.
+
+## Achados
+- [bloqueante] Travessia de caminho no anexo vira leitura arbitrária de arquivo do servidor. `filename` vem do POST sem `basename` (TFile::getPostData não sanitiza, lib/adianti/widget/form/TFile.php:174-181). O arquivo `tmp/<filename>` é lido, gravado no storage, registrado em stored_object com original_name e baixado por onDownloadDocument. O `@unlink($sourcePath)` ainda apaga o arquivo de origem. Exemplo: `tmp/../app/config/application.php` é legível no container → EncounterView.php:1866-1873,1893,1919-1967; ExamResultForm.php:174-176. O mesmo vale para ExamResultForm::onSave. PatientForm.php:640 e ServiceImportForm.php:70 já usam basename.
+- [sugestão] findByPublicId não filtra status='available' nem deleted_at, ao contrário de listByObjectKeyFragment → StoredObjectRepository.php:91-100
+- [sugestão] O download confere tenant e o prefixo do atendimento, mas não confere system_unit_id nem a existência do atendimento → EncounterDocumentService.php:121-148
+- [sugestão] Cerca de 40 catches ainda fazem `new TMessage(..., $e->getMessage())` sem escape. Exemplo: ProductForm.php:169, com o nome do produto (self-XSS, o mesmo padrão do achado anterior de BankAccount). Excluídos por plan.md § Premissas (onda 8).
+- [sugestão] As regex de UserMessage::PATTERNS usam `$` sem o modificador `D` e aceitam um `\n` final → UserMessage.php:36-49
+- Conferido, sem achado:
+  - CvFormat::userError/userMessage escapam os parâmetros e o fallback com e(); PDO vira texto genérico em qualquer elo da cadeia → CvFormat.php:78-113;
+  - onPhoto continua com whitelist, attachment para os demais tipos e CSP sandbox; nosniff vem só do nginx (fastcgi_hide_header; o location .php não tem add_header que anule o do server) → PatientForm.php:551-612, default.conf:11,59;
+  - o download do anexo força attachment, com no-store e CSP sandbox; o filename é sanitizado e o filename* codificado → EncounterView.php:1955-1965;
+  - T-15: o escopo por unidade não mudou nas ondas 8–12 → BankAccountService.php:45,135,151,168, BankAccountRepository.php:145-147;
+  - stored_object filtrado por TenantQuery do contexto, com tenant_id gravado do contexto e LIKE escapado → StoredObjectRepository.php;
+  - SABOTAGEM sem resquício em src/docker;
+  - MoneyInput sem float, com teto por coluna (int unsigned → MAX_UNSIGNED_INT_CENTS nos 8 formulários; bank_account bigint sem teto além de 13 dígitos);
+  - DateTimeInput estrito, com `!`, getLastErrors e sem m/d;
+  - RedisConnectionFactory recusa SELECT com falha.
+- Não revisado (limite de turnos):
+  - SELECT de schema_migrations (checksum no banco);
+  - tests/run.php (isolamento do Redis de T-42/T-55) linha a linha, além de a SUITE ter passado;
+  - RedisConnectionFactory acima da linha 40 (faixa 0..15);
+  - QueueEntryRepository.php (tradução do 23000);
+  - AgendaView.php, AppointmentForm.php, PrescriptionForm.php, ServiceList.php, CashSessionForm.php, PaymentForm.php, EncounterAccountForm.php, PatientForm.php (exceto onPhoto), translations.json;
+  - conteúdo dos testes novos.

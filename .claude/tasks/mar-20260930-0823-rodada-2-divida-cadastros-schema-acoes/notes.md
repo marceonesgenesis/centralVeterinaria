@@ -149,6 +149,8 @@
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
 - Resolvido (entre as ondas 9 e 10): 0008 (T-40) aplicada com aprovação SQL do usuário; backup var/backups/centralvet-20260930T203813Z.sql.gz, checksum 0929db346e0bd5c9d0ab680152de7cf544b22be9cc7da9f5e27d324d4efa8ad6; queue_entry_appointment_uq criado, 0 grupos duplicados, queue_entry_rows=1.
+- 2026-10-01 · T-64 · onda 15 — O achado [framework] do gate (TDBUniqueSearch/select2 renderiza option como HTML, alert disparado no AppointmentForm) fica fora da T-64 e vira a onda 16 (T-65), já planejada em tasks.md.
+- 2026-10-01 · T-64 · onda 15 — Itens [não rodado] do gate (EncounterView/PrescriptionForm com paciente R2; hover em SaleForm, VaccinationCardView picker, TMultiEntry/TSelect) aceitos como pendência; os combos passam pelo gate da T-65.
 
 ## Descobertas
 - Não há CLAUDE.md no projeto. As regras estão em `src/app/Core/README.md`, `docs/runbooks/*.md` e `src/app/database/migrations/README.md`.
@@ -209,6 +211,7 @@
 - Onda 13: registros R2 criados: patient 2772 com photo_object_key novo (photo-c91f8e6704fc-r2-foto3.png); service 252 (CSV de revalidação); nenhum system_message.
 - Onda 14: Uploads de tmp/ só pela sessão que os enviou: CvUploaderService (tmp/<32hex>-<nome saneado>), TSession 'cv_uploads' mapa nome em disco → original UTF-8 (máx 50), UploadedTmpFile::resolveForSession; SystemPermission libera CvUploaderService só para ''/show; 9 handlers usam setService('CvUploaderService') (01aa3d0 RED, 5fd81ed, 3027da8 RED, 7562bc6).
 - Onda 14: CvFormat::forHtmlSink = e(e($text)) para atributos lidos pelo tippy allowHTML; SystemDriveList escapa por sink (título, pasta, breadcrumb, toast, painel) e o preview txt/html/sql vai em <pre> (e98708a RED, c778b7c, c9afa47).
+- Onda 15: T-64: CvAvatar::titleFor(string) = CvFormat::forHtmlSink; placeholder usa titleFor; CvPage::header grava o title da ação com forHtmlSink (aria-label segue e()); cv-shell.js cvEscapeTitle(s) em select.title e no title do menu desabilitado (a66befb RED, acd1b09). Sinks de framework (TMultiEntry/TSelect option title, adianti.js tippy) só registrados.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -321,6 +324,10 @@
 - T-63: SystemDriveDocumentUploadForm perdeu a checagem finfo/MIME; o `extensions` do CvUploaderService é pulado sem `extensions` na query (`.xhtml` passa) (SystemDriveDocumentUploadForm.php:44-45, CvUploaderService.php:62).
 - T-63: corrida no cv_uploads com RedisSessionHandler sem lock (falha fechada: "Arquivo inválido"); login sem logout mantém cv_uploads do usuário anterior (ApplicationAuthenticationService.php:93); nomes além do limite de 50 e uploads abandonados ficam em tmp/ sem limpeza; docblock desatualizado em ServiceImportForm.php:5.
 - T-63: TMultiEntry põe a tag crua em <option title> (TMultiEntry.php:118-122; SystemWikiForm, SystemPostForm, SystemMessageTagForm); framework, baixa explorabilidade.
+- T-64: theme.js:352 (`btn.attr('title', ...)`, rótulo de menu de 1º nível, framework_hashes.php:416) fora da tabela de sinks registrados.
+- T-64: a suíte não prende placeholder→titleFor (reverter CvAvatar.php:16 mantém CvAvatarTitleTest verde); CvPage::header e cvEscapeTitle sem teste automatizado.
+- T-64: gate sem hover na sidebar e no seletor de unidade (cv-shell.js:152,258); títulos gravados após o fetch do onContext, rótulos `_t` hoje sem & ' " < > (sem efeito).
+- T-64: itens [não rodado] do gate (EncounterView/PrescriptionForm com paciente R2; hover em SaleForm, VaccinationCardView picker, TMultiEntry/TSelect) aceitos; combos passam pelo gate da T-65.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -363,5 +370,6 @@
   - Onda 12: BASE cea793b → HEAD f598c82 (f876cc6, 94a786e, b726942, 0f354f8, f598c82)
   - Onda 13: BASE 77a2fb1 → HEAD 6c970fe (7093dd9, 84f8295, c79e81b, 6c970fe)
   - Onda 14: BASE 6c970fe → HEAD c9afa47 (01aa3d0, 5fd81ed, 3027da8, 7562bc6, e98708a, c778b7c, c9afa47)
-- Último status conhecido: onda 14 (T-63 [x]) fechada; 2 ciclos de correção (nome original; XSS do Drive). Onda 15 (T-64) executada e revisada, ainda sem fechamento.
-- Próxima onda recomendada: fechar a 15 (T-64); depois a 16 (T-65).
+  - Onda 15: BASE c9afa47 → HEAD acd1b09 (a66befb, acd1b09)
+- Último status conhecido: onda 15 (T-64 [x]) concluída e fechada; XSS por atributo title (tooltip allowHTML) corrigido em CvAvatar, CvPage e cv-shell.js.
+- Próxima onda recomendada: 16 — T-65.
