@@ -135,7 +135,8 @@ class SystemDriveList extends TPage
                 arsort($items);
                 foreach($items as $key => $name)
                 {
-                    $breadcrumb->addItem($name, $key == 0);
+                    // T-63: nome da pasta (usuário) vira HTML no TBreadCrumb
+                    $breadcrumb->addItem(CvFormat::e((string) $name), $key == 0);
                 }
                 TTransaction::close();
             }
@@ -218,7 +219,7 @@ class SystemDriveList extends TPage
         $folder = SystemFolder::find($folder_target_id);
         
         TScript::create("$('#{$param['source_id']}').remove()");
-        TToast::show('success', _t('Sent to ^1', $folder->name), 'bottom right');
+        TToast::show('success', _t('Sent to ^1', CvFormat::e((string) $folder->name)), 'bottom right');
     }
 
     /**
@@ -253,7 +254,7 @@ class SystemDriveList extends TPage
         $folder = SystemFolder::find($folder_id);
         
         TScript::create("$('#{$param['source_id']}').remove()");
-        TToast::show('success', _t('Sent to ^1', $folder->name), 'bottom right');
+        TToast::show('success', _t('Sent to ^1', CvFormat::e((string) $folder->name)), 'bottom right');
     }
 
     /**
@@ -475,7 +476,8 @@ class SystemDriveList extends TPage
                     
                     if (in_array($extension, ['txt', 'html', 'sql']))
                     {
-                        self::showContent($object, file_get_contents($file), basename($file));
+                        // T-63: conteúdo de arquivo enviado é texto, não HTML
+                        self::showContent($object, '<pre style="white-space:pre-wrap;margin:0">' . CvFormat::e((string) file_get_contents($file)) . '</pre>', basename($file));
                     }
                     else if ($extension == 'pdf' && !TPage::isMobile())
                     {
@@ -536,7 +538,8 @@ class SystemDriveList extends TPage
         $page->setProperty('override', 'true');
         $page->setPageName(__CLASS__);
         
-        $panel = new TPanelGroup($title);
+        // T-63: título (do usuário ou do nome do arquivo) é texto
+        $panel = new TPanelGroup(CvFormat::e((string) $title));
         $panel->class = 'card noborder';
         $btn_close = new TButton('closeCurtain');
         $btn_close->onClick = "Template.closeRightPanel();";
@@ -838,7 +841,7 @@ class SystemDriveList extends TPage
             $object = new stdClass;
             $object->{'icon'} = 'fas fa-chevron-left';
             $object->{'info'} = '';
-            $object->{'title'} = _t('Back');
+            $object->{'title'} = CvFormat::e(_t('Back'));
             $object->{'connector'} = '';
             $object->{'type'} = 'folder_back';
             $object->{'id'} = 'folder_back_'.TSession::getValue(__CLASS__. 'path');
@@ -964,7 +967,8 @@ class SystemDriveList extends TPage
                 }
 
                 $object = new stdClass;
-                $object->{'title'} = AdiantiStringConversion::assureUnicode($folder->name);
+                // T-63: nome da pasta vem do usuário; {title} sai sem escape no TIconView
+                $object->{'title'} = CvFormat::e(AdiantiStringConversion::assureUnicode($folder->name));
                 $object->{'type'} = 'folder';
                 $object->{'id'} = 'system_folder_' . $folder->id;
                 $object->{'icon'} = 'far fa-folder orange';
@@ -1080,7 +1084,9 @@ class SystemDriveList extends TPage
             foreach ($documents as $document)
             {
                 $object = new stdClass;
-                $object->{'title'} = AdiantiStringConversion::assureUnicode($document->title);
+                // T-63: o título vem do usuário (e do nome original do upload);
+                // o TIconView interpola {title} no HTML sem escape
+                $object->{'title'} = CvFormat::e(AdiantiStringConversion::assureUnicode($document->title));
                 $object->{'type'} = 'file';
                 $object->{'system_user_id'} = $document->system_user_id;
                 $object->{'id'} = 'system_document_' . $document->id;
