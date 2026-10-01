@@ -205,6 +205,46 @@ final class UploadedTmpFileTest
         }
     }
 
+    public function testSessionRegistryKeepsTheOriginalUtf8NameNextToTheSanitizedDiskName(): void
+    {
+        $disk = UploadedTmpFile::generateName('Relatório.pdf');
+        Assert::true(preg_match('/^[0-9a-f]{32}-Relat_+rio\.pdf$/', $disk) === 1, "disk name stays sanitized: {$disk}");
+
+        $uploads = UploadedTmpFile::rememberUpload([], $disk, 'Relatório.pdf');
+
+        Assert::same([$disk => 'Relatório.pdf'], $uploads);
+        Assert::same('Relatório.pdf', UploadedTmpFile::originalName($disk, $uploads));
+        Assert::same([$disk], array_keys($uploads), 'the keys are the names accepted by resolveForSession');
+
+        // nome fora do registro: cai no nome em disco sem o prefixo
+        Assert::same('outro.pdf', UploadedTmpFile::originalName(str_repeat('0', 32) . '-outro.pdf', $uploads));
+    }
+
+    public function testOriginalNameIsPlainTextNeverAPath(): void
+    {
+        Assert::same('passwd', UploadedTmpFile::cleanOriginalName('../../etc/passwd'));
+        Assert::same('laudo.pdf', UploadedTmpFile::cleanOriginalName('C:\\docs\\laudo.pdf'));
+        Assert::same('ab.pdf', UploadedTmpFile::cleanOriginalName("a\r\nb\0.pdf"));
+        Assert::same('Exame ção.pdf', UploadedTmpFile::cleanOriginalName('  Exame ção.pdf  '));
+        Assert::same('', UploadedTmpFile::cleanOriginalName("\xff\xfe"));
+        Assert::same(255, mb_strlen(UploadedTmpFile::cleanOriginalName(str_repeat('é', 300))));
+    }
+
+    public function testSessionRegistryKeepsAtMostFiftyEntriesDroppingTheOldest(): void
+    {
+        $uploads = [];
+        for ($i = 0; $i < 61; $i++) {
+            $uploads = UploadedTmpFile::rememberUpload($uploads, "n{$i}", "original {$i}");
+        }
+
+        Assert::same(50, count($uploads));
+        Assert::same('n11', array_key_first($uploads));
+        Assert::same('n60', array_key_last($uploads));
+
+        // lista antiga (só nomes, sem par) é descartada
+        Assert::same(['x' => 'y'], UploadedTmpFile::rememberUpload(['legado.pdf', 3 => 'z'], 'x', 'y'));
+    }
+
     private function assertInvalidForSession(string $name, array $uploads): void
     {
         $label = json_encode([$name, $uploads]);
