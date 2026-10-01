@@ -141,6 +141,9 @@
   - O Review Focus troca o item de T-54 pelo de T-65.
 - 2026-10-01 · T-62 · onda 13 — Bloqueante plano-mandou (SystemMessageForm/saveFilesByComma fora do inventário) corrigido no fix loop (c79e81b RED, 6c970fe); aceito como extensão de escopo.
 - 2026-10-01 · T-62 · onda 13 — GATE dos 4 handlers do template aceito pelo orquestrador; foto válida no PatientForm (2772) e CSV válido no ServiceImportForm provados na Re-validação 1.
+- 2026-10-01 · T-63 · onda 14 — Bloqueante plano-mandou (nome original UTF-8 em vez do saneado) corrigido no fix loop: cv_uploads guarda nome em disco → original (3027da8 RED, 7562bc6).
+- 2026-10-01 · T-63 · onda 14 — XSS armazenado no Drive (corpo e tooltip tippy allowHTML) corrigido com escape próprio por sink e CvFormat::forHtmlSink (e98708a RED, c778b7c, c9afa47); aceito como extensão de escopo. RED e98708a em CvFormatHtmlSinkTest.php, fora do bloco RED original, aceito.
+- 2026-10-01 · T-63 · onda 14 — A sugestão de alta prioridade do revisor (CvAvatar title com escape simples) virou a onda 15 (T-64).
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
@@ -204,6 +207,8 @@
 - Onda 12: registro R2 criado: appointment 193.
 - Onda 13: UploadedTmpFile::resolve(name, ?tmpDir) e newUploadItems(array, ?tmpDir) recusam fora de tmp/, separador, '..', byte nulo, inexistente e symlink para fora com InvalidArgumentException('Invalid file'); UserMessage::STATIC com 15 entradas; i18n Invalid file → Arquivo inválido; SystemMessageForm::onSend valida antes do store()/saveFilesByComma (c79e81b RED, 6c970fe).
 - Onda 13: registros R2 criados: patient 2772 com photo_object_key novo (photo-c91f8e6704fc-r2-foto3.png); service 252 (CSV de revalidação); nenhum system_message.
+- Onda 14: Uploads de tmp/ só pela sessão que os enviou: CvUploaderService (tmp/<32hex>-<nome saneado>), TSession 'cv_uploads' mapa nome em disco → original UTF-8 (máx 50), UploadedTmpFile::resolveForSession; SystemPermission libera CvUploaderService só para ''/show; 9 handlers usam setService('CvUploaderService') (01aa3d0 RED, 5fd81ed, 3027da8 RED, 7562bc6).
+- Onda 14: CvFormat::forHtmlSink = e(e($text)) para atributos lidos pelo tippy allowHTML; SystemDriveList escapa por sink (título, pasta, breadcrumb, toast, painel) e o preview txt/html/sql vai em <pre> (e98708a RED, c778b7c, c9afa47).
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -313,6 +318,9 @@
 - T-62: o envio positivo do SystemMessageForm com anexo não foi exercitado (só unit); o catch InvalidArgumentException do SystemMessageForm não faz setData (SystemMessageForm.php:196-200).
 - T-62: tmp/ compartilhado com exports de admin de nome previsível (SystemDatabaseExplorer/SystemTableList); fechado em parte pela onda 14 (T-63).
 - T-62: `..` no meio do nome recusa nomes legítimos (laudo..final.pdf); chave `Uploaded file was not found` órfã em translations.json; `\0` nas pontas sem teste; no catch do SystemDatabaseExplorer o ramo com outra mensagem usa $table possivelmente indefinido e sem rollback (:478-486).
+- T-63: SystemDriveDocumentUploadForm perdeu a checagem finfo/MIME; o `extensions` do CvUploaderService é pulado sem `extensions` na query (`.xhtml` passa) (SystemDriveDocumentUploadForm.php:44-45, CvUploaderService.php:62).
+- T-63: corrida no cv_uploads com RedisSessionHandler sem lock (falha fechada: "Arquivo inválido"); login sem logout mantém cv_uploads do usuário anterior (ApplicationAuthenticationService.php:93); nomes além do limite de 50 e uploads abandonados ficam em tmp/ sem limpeza; docblock desatualizado em ServiceImportForm.php:5.
+- T-63: TMultiEntry põe a tag crua em <option title> (TMultiEntry.php:118-122; SystemWikiForm, SystemPostForm, SystemMessageTagForm); framework, baixa explorabilidade.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -354,5 +362,6 @@
   - Onda 11: BASE f56cb01 → HEAD 63de67e (d755bef, 10ddafb, 178577d, b37c79c, f9db627, 34b1a68, ffe2824, 52a882d, 0046013, 7edbc12, fde5e1d, cf869f6, 9ff456b, 28cae09, 9fe0571, 63de67e)
   - Onda 12: BASE cea793b → HEAD f598c82 (f876cc6, 94a786e, b726942, 0f354f8, f598c82)
   - Onda 13: BASE 77a2fb1 → HEAD 6c970fe (7093dd9, 84f8295, c79e81b, 6c970fe)
-- Último status conhecido: onda 13 (T-62 [x]) concluída; 1 correção por extensão de escopo (SystemMessageForm); Re-validação 1 ok. Ondas 14–15 executadas e revisadas, ainda sem fechamento.
-- Próxima onda recomendada: fechar a 14 (T-63) e a 15 (T-64); depois a 16 (T-65).
+  - Onda 14: BASE 6c970fe → HEAD c9afa47 (01aa3d0, 5fd81ed, 3027da8, 7562bc6, e98708a, c778b7c, c9afa47)
+- Último status conhecido: onda 14 (T-63 [x]) fechada; 2 ciclos de correção (nome original; XSS do Drive). Onda 15 (T-64) executada e revisada, ainda sem fechamento.
+- Próxima onda recomendada: fechar a 15 (T-64); depois a 16 (T-65).
