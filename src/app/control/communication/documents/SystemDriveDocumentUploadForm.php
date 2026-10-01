@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\UploadedTmpFile;
+
 /**
  * SystemDriveDocumentUploadForm
  *
@@ -13,6 +16,37 @@ class SystemDriveDocumentUploadForm extends TWindow
 {
     protected $form;
     protected $folder_path;
+
+    /**
+     * T-20: tipos (finfo) aceitos no Drive, copiados de
+     * SystemDocumentUploaderService::show ($content_type_list), que o
+     * CvUploaderService substituiu (T-63) sem a checagem de MIME.
+     */
+    private const ALLOWED_MIMES = [
+        'text/plain',
+        'text/html',
+        'text/csv',
+        'application/pdf',
+        'application/rtf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.oasis.opendocument.spreadsheet',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/svg+xml',
+        'application/xml',
+        'application/zip',
+        'application/x-rar-compressed',
+        'application/x-bzip',
+        'application/x-bzip2',
+        'application/x-tar',
+    ];
     
     /**
      * Form constructor
@@ -80,6 +114,14 @@ class SystemDriveDocumentUploadForm extends TWindow
             {
                 $source_file = CvUpload::resolve((string) $param['filename']);
                 $upload_name = trim((string) $param['filename']);
+                // T-20: o tipo real (finfo) precisa estar na lista do Drive;
+                // recusado, o arquivo sai de tmp/ e do registro da sessão
+                if (!UploadedTmpFile::mimeAllowed($source_file, self::ALLOWED_MIMES))
+                {
+                    @unlink($source_file);
+                    CvUpload::forget($upload_name);
+                    throw new InvalidArgumentException('Invalid file');
+                }
                 // no disco (e no caminho): o nome saneado sem prefixo; o
                 // original UTF-8 vira o título quando o usuário não deu um
                 $param['filename'] = CvUpload::displayName($upload_name);

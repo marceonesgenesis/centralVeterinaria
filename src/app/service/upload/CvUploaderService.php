@@ -12,7 +12,8 @@ use CentralVet\Presentation\UploadedTmpFile;
  * `->setService('CvUploaderService')`. Repete as checagens de
  * AdiantiUploaderService::show (framework, não editável): extensões
  * bloqueadas, hash com o mesmo seed e `extensions`, e as mesmas mensagens.
- * Difere em três pontos:
+ * Difere em quatro pontos:
+ *  - sem `extensions` na URL, aceita só UploadedTmpFile::DEFAULT_EXTENSIONS (T-20);
  *  - só atende sessão logada (SystemPermission libera esta classe só para logado);
  *  - grava em tmp/<UploadedTmpFile::generateName()>, um nome imprevisível;
  *  - registra o par nome gerado → nome original (UTF-8, texto puro) em
@@ -57,6 +58,10 @@ class CvUploaderService implements AdiantiController
             }
         }
 
+        // T-20: a extensão é conferida sempre. Com `extensions` + hash válidos,
+        // vale a lista da URL; sem `extensions`, UploadedTmpFile::DEFAULT_EXTENSIONS.
+        $requested = null;
+
         if (!empty($param['extensions'])) {
             $name = $param['name'] ?? '';
             $extensions = unserialize(base64_decode((string) $param['extensions']), ['allowed_classes' => false]);
@@ -67,12 +72,12 @@ class CvUploaderService implements AdiantiController
                 return;
             }
 
-            $ext = pathinfo($original, PATHINFO_EXTENSION);
+            $requested = is_array($extensions) ? array_values(array_filter($extensions, 'is_string')) : [];
+        }
 
-            if (!is_array($extensions) || !in_array(strtolower($ext), $extensions)) {
-                self::reply(['type' => 'error', 'msg' => AdiantiCoreTranslator::translate('Extension not allowed')]);
-                return;
-            }
+        if (!UploadedTmpFile::extensionAllowed($original, $requested)) {
+            self::reply(['type' => 'error', 'msg' => AdiantiCoreTranslator::translate('Extension not allowed')]);
+            return;
         }
 
         $generated = UploadedTmpFile::generateName($original);

@@ -17,7 +17,7 @@ use InvalidArgumentException;
  * Lança \InvalidArgumentException('Invalid file') (catálogo UserMessage →
  * "Arquivo inválido") quando:
  *  - o tmpDir não existe (realpath falso);
- *  - o nome aparado é vazio, `.` ou `..`, contém `..`, `/`, `\` ou byte nulo,
+ *  - o nome aparado (espaços; o byte nulo não é aparado) é vazio, `.` ou `..`, contém `..`, `/`, `\` ou byte nulo,
  *    ou difere de basename();
  *  - o arquivo não existe, não é arquivo regular ou o caminho real fica fora
  *    de tmpDir (symlink para fora).
@@ -30,17 +30,52 @@ final class UploadedTmpFile
     public const MAX_SESSION_UPLOADS = 50;
     private const UTF8_CHAR = '/[\x09\x0A\x0D\x20-\x7E]|[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF]{2}|[\xF1-\xF3][\x80-\xBF]{3}|\xF4[\x80-\x8F][\x80-\xBF]{2}/';
     private const PREFIX_PATTERN = '/^[0-9a-f]{32}-/';
+    // espaços das pontas saem; o byte nulo não (fica no nome e é recusado)
+    private const TRIM_CHARS = " \t\n\r\x0B";
+
+    /** Extensões aceitas pelo uploader quando a URL não traz `extensions` (T-20). */
+    public const DEFAULT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'txt', 'csv'];
 
     private function __construct()
     {
     }
 
     /**
-     * @param string      $name   nome vindo da requisição (só o nome, sem diretório)
-     * @param string|null $tmpDir diretório base; null = realpath('tmp') do diretório de trabalho (src/)
+     * Extensão (minúscula) do nome original está em $requested (T-20).
+     * $requested null (sem `extensions` na URL) = DEFAULT_EXTENSIONS.
      *
-     * @return string caminho real absoluto do arquivo dentro de tmpDir
+     * @param list<string>|null $requested
      */
+    public static function extensionAllowed(string $originalName, ?array $requested): bool
+    {
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($ext === '') {
+            return false;
+        }
+
+        $allowed = array_map(static fn ($e): string => strtolower((string) $e), $requested ?? self::DEFAULT_EXTENSIONS);
+
+        return in_array($ext, $allowed, true);
+    }
+
+    /**
+     * Tipo real do arquivo (finfo FILEINFO_MIME_TYPE) está em $allowedMimes (T-20).
+     * Arquivo ilegível ou inexistente = false.
+     *
+     * @param list<string> $allowedMimes
+     */
+    public static function mimeAllowed(string $path, array $allowedMimes): bool
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            return false;
+        }
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+
+        return is_string($mime) && in_array($mime, $allowedMimes, true);
+    }
+
     /**
      * Nome imprevisível para gravar um upload em tmp/ (T-63):
      * `<32 hex aleatórios>-<basename saneado>`. O saneamento troca cada byte
@@ -160,15 +195,24 @@ final class UploadedTmpFile
      */
     public static function resolveForSession(string $name, array $sessionUploads, ?string $tmpDir = null): string
     {
+        // aparado uma vez: o mesmo nome vai a resolve() e à comparação
+        $name = trim($name, self::TRIM_CHARS);
         $real = self::resolve($name, $tmpDir);
+        $session = array_map(static fn ($n): string => trim((string) $n, self::TRIM_CHARS), $sessionUploads);
 
-        if (!in_array($name, $sessionUploads, true)) {
+        if (!in_array($name, $session, true)) {
             throw new InvalidArgumentException(self::INVALID);
         }
 
         return $real;
     }
 
+    /**
+     * @param string      $name   nome vindo da requisição (só o nome, sem diretório)
+     * @param string|null $tmpDir diretório base; null = realpath('tmp') do diretório de trabalho (src/)
+     *
+     * @return string caminho real absoluto do arquivo dentro de tmpDir
+     */
     public static function resolve(string $name, ?string $tmpDir = null): string
     {
         $base = realpath($tmpDir ?? 'tmp');
@@ -177,7 +221,7 @@ final class UploadedTmpFile
             throw new InvalidArgumentException(self::INVALID);
         }
 
-        $name = trim($name);
+        $name = trim($name, self::TRIM_CHARS);
 
         if (
             $name === ''
