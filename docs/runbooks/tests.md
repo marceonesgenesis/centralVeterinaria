@@ -135,13 +135,26 @@ linhas ficavam no banco. Prova: `Integration\MysqlIsolationGuardIntegrationTest`
 **Nome do banco.** O DSN usa `CentralVet\Tests\Support\TestDatabase::resolveName(getenv())`:
 
 - `TEST_DB_DATABASE`, quando não vazio;
-- senão `TestDatabase::DEFAULT_NAME`. Enquanto ela for `null`, vale o
-  `DB_DATABASE` herdado (o banco da aplicação, `centralvet`), como antes;
-- recusa `TEST_DB_DATABASE` igual a `DB_DATABASE`:
+- senão `TestDatabase::DEFAULT_NAME = 'centralvet_test'`, o banco dedicado
+  criado por `scripts/test-db/provision.sh` (abaixo). A SUITE não roda mais no
+  banco da aplicação;
+- recusa nome igual a `DB_DATABASE`:
   `Refusing to run: test MySQL database equals the application database (<nome>)`.
 
+**Checagens do `tests/run.php`.** Antes de rodar qualquer teste, como já faz
+com o Redis, o runner:
+
+- chama `TestDatabase::resolveName(getenv())`; na exceção, imprime a mensagem
+  e sai com 1;
+- com o MySQL acessível e o banco resolvido inexistente
+  (`information_schema.SCHEMATA`), imprime `Refusing to run: test MySQL
+  database <nome> not found (see docs/runbooks/tests.md)` e sai com 1. Nesse
+  caso, provisione o `centralvet_test` (abaixo). MySQL inacessível não é erro
+  aqui: os testes MySQL saem `SKIP`.
+
 ```bash
-docker compose run --rm --no-deps -T -e TEST_DB_DATABASE=centralvet_test app php tests/run.php
+docker compose run --rm --no-deps -T app php tests/run.php                                  # centralvet_test
+docker compose run --rm --no-deps -T -e TEST_DB_DATABASE=centralvet app php tests/run.php   # recusa, exit 1
 ```
 
 **Pré-requisito: base Adianti em `var/sql-bootstrap/`.** Os SQL do template

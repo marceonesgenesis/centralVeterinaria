@@ -7,14 +7,14 @@ namespace CentralVet\Tests\Support;
 /**
  * Resolves the MySQL database the integration tests connect to.
  *
- * TEST_DB_DATABASE wins when set (and must differ from DB_DATABASE, the
- * application's database). Otherwise DEFAULT_NAME is used; while it is null
- * the suite keeps running on the application database (DB_DATABASE), inside
- * the per-test transaction that MysqlIntegrationTestCase rolls back.
+ * TEST_DB_DATABASE wins when set; otherwise DEFAULT_NAME, the dedicated
+ * centralvet_test database (provisioned by scripts/test-db/provision.sh).
+ * The resolved name must differ from DB_DATABASE, the application's
+ * database: the suite never runs there.
  */
 final class TestDatabase
 {
-    public const DEFAULT_NAME = null;
+    public const DEFAULT_NAME = 'centralvet_test';
 
     private function __construct()
     {
@@ -25,17 +25,17 @@ final class TestDatabase
     {
         $testName = (string) ($env['TEST_DB_DATABASE'] ?? '');
 
-        if ($testName !== '') {
-            if ($testName === ($env['DB_DATABASE'] ?? null)) {
-                throw new \RuntimeException(sprintf(
-                    'Refusing to run: test MySQL database equals the application database (%s)',
-                    $testName,
-                ));
-            }
-
-            return $testName;
+        if ($testName === '') {
+            $testName = self::DEFAULT_NAME;
         }
 
-        return self::DEFAULT_NAME ?? ($env['DB_DATABASE'] ?? 'centralvet');
+        if ($testName === ($env['DB_DATABASE'] ?? null)) {
+            throw new \RuntimeException(sprintf(
+                'Refusing to run: test MySQL database equals the application database (%s)',
+                $testName,
+            ));
+        }
+
+        return $testName;
     }
 }
