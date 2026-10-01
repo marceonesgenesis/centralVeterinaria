@@ -268,6 +268,24 @@ final class UploadedTmpFileTest
         }
     }
 
+    public function testMimeMustMatchTheExtension(): void
+    {
+        $map = ['pdf' => ['application/pdf'], 'html' => ['text/html'], 'txt' => ['text/plain']];
+        $html = $this->dir . DIRECTORY_SEPARATOR . 'falso-html.bin';
+        file_put_contents($html, "<html><body><script>alert(1)</script></body></html>\n");
+
+        try {
+            Assert::false(UploadedTmpFile::mimeMatchesExtension($html, 'r3-falso.pdf', $map), 'html named .pdf: text/html is accepted for .html only');
+            Assert::true(UploadedTmpFile::mimeMatchesExtension($html, 'pagina.html', $map), 'html named .html');
+            Assert::true(UploadedTmpFile::mimeMatchesExtension($this->dir . DIRECTORY_SEPARATOR . 'ok.pdf', 'Laudo.PDF', $map), 'real pdf, upper-case extension');
+            Assert::false(UploadedTmpFile::mimeMatchesExtension($this->dir . DIRECTORY_SEPARATOR . 'ok.pdf', 'ok.txt', $map), 'pdf named .txt');
+            Assert::false(UploadedTmpFile::mimeMatchesExtension($html, 'pagina.xhtml', $map), 'extension outside the map');
+            Assert::false(UploadedTmpFile::mimeMatchesExtension($html, 'sem-extensao', $map), 'no extension');
+        } finally {
+            unlink($html);
+        }
+    }
+
     public function testResolveForSessionTrimsTheNameOnce(): void
     {
         $expected = UploadedTmpFile::resolveForSession('ok.pdf', ['ok.pdf'], $this->dir);
