@@ -76,6 +76,8 @@ class ExamResultForm extends TPage
 
         $file = new TFile('filename');
         $file->setAllowedExtensions(['pdf', 'jpg', 'jpeg', 'png', 'txt', 'csv']);
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $file->setService('CvUploaderService');
 
         $pending_review = new TCombo('pending_review');
         $pending_review->addItems([1 => _t('Yes'), 0 => _t('No')]);
@@ -173,10 +175,12 @@ class ExamResultForm extends TPage
 
             if ($fileName !== '')
             {
-                // T-62: only a regular file inside tmp/ (no ../, separators or
-                // symlink out); anything else throws 'Invalid file' before attach()
-                $sourcePath = \CentralVet\Presentation\UploadedTmpFile::resolve($fileName);
-                $fileName = trim($fileName);
+                // T-62/T-63: only a regular file inside tmp/ (no ../, separators
+                // or symlink out) uploaded by this session through
+                // CvUploaderService; anything else throws 'Invalid file' before attach()
+                $sourcePath = CvUpload::resolve($fileName);
+                $uploadName = trim($fileName);
+                $fileName = CvUpload::displayName($uploadName);
 
                 $contents = (string) file_get_contents($sourcePath);
                 $contentType = function_exists('mime_content_type')
@@ -202,6 +206,7 @@ class ExamResultForm extends TPage
             if ($sourcePath !== null)
             {
                 @unlink($sourcePath);
+                CvUpload::forget($uploadName);
             }
 
             TToast::show('success', _t('Exam result recorded successfully') . ' (#' . $result->id() . ')');

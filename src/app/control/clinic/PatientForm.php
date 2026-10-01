@@ -150,6 +150,8 @@ class PatientForm extends TStandardForm
         $allergies = new TText('allergies');
         $photo = new TFile('photo');
         $photo->setAllowedExtensions(['jpg', 'jpeg', 'png', 'webp']);
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $photo->setService('CvUploaderService');
 
         $species->addItems( ['Canino' => _t('Dog'), 'Felino' => _t('Cat'), 'Outro' => _t('Other')] );
         $species->setLayout('horizontal');
@@ -635,7 +637,7 @@ class PatientForm extends TStandardForm
      * file was chosen; type and size are validated by
      * PatientService::attachPhoto().
      *
-     * @return array{name: string, path: string, contents: string, content_type: string}|null
+     * @return array{name: string, upload: string, path: string, contents: string, content_type: string}|null
      */
     private static function uploadedPhoto($data)
     {
@@ -646,9 +648,10 @@ class PatientForm extends TStandardForm
             return null;
         }
 
-        // T-62: only a regular file inside tmp/ (no ../, separators or
-        // symlink out); anything else throws 'Invalid file'
-        $path = \CentralVet\Presentation\UploadedTmpFile::resolve($file_name);
+        // T-62/T-63: only a regular file inside tmp/ (no ../, separators or
+        // symlink out) uploaded by this session through CvUploaderService;
+        // anything else throws 'Invalid file'
+        $path = CvUpload::resolve($file_name);
 
         // whitelist fixa: a extensão define o tipo e getimagesize() confirma
         // que os bytes são dessa imagem (SVG/HTML renomeado é recusado)
@@ -659,11 +662,13 @@ class PatientForm extends TStandardForm
         if ($content_type === null || $image === false || ($image['mime'] ?? null) !== $content_type)
         {
             @unlink($path);
+            CvUpload::forget($file_name);
             throw new InvalidArgumentException(_t('Photo must be a JPEG, PNG or WEBP image'));
         }
 
         return [
-            'name'         => $file_name,
+            'name'         => CvUpload::displayName($file_name),
+            'upload'       => $file_name,
             'path'         => $path,
             'contents'     => (string) file_get_contents($path),
             'content_type' => $content_type,
@@ -676,6 +681,7 @@ class PatientForm extends TStandardForm
         if ($upload !== null)
         {
             @unlink($upload['path']);
+            CvUpload::forget($upload['upload']);
         }
     }
 

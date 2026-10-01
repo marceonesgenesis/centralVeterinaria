@@ -43,6 +43,8 @@ class SystemProfileForm extends TPage
         $password2 = new TPassword('password2');
         $login->setEditable(FALSE);
         $photo->setAllowedExtensions( ['jpg'] );
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $photo->setService('CvUploaderService');
         
         $name->setSize('80%');
         $login->setSize('80%');
@@ -164,8 +166,9 @@ class SystemProfileForm extends TPage
             
             if ($object->photo)
             {
-                // T-62: only a regular file inside tmp/ (no ../, separators or symlink out)
-                $source_file   = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $object->photo);
+                // T-62/T-63: only a regular file inside tmp/ (no ../, separators
+                // or symlink out) uploaded by this session through CvUploaderService
+                $source_file   = CvUpload::resolve((string) $object->photo);
                 $target_file   = 'app/images/photos/' . TSession::getValue('login') . '.jpg';
                 $finfo         = new finfo(FILEINFO_MIME_TYPE);
                 
@@ -174,6 +177,8 @@ class SystemProfileForm extends TPage
                     // move to the target directory
                     rename($source_file, $target_file);
                 }
+                
+                CvUpload::forget((string) $object->photo);
             }
             
             $this->form->setData($object);

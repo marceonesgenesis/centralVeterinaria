@@ -1,7 +1,6 @@
 <?php
 
 use CentralVet\Presentation\DateTimeInput;
-use CentralVet\Presentation\UploadedTmpFile;
 
 /**
  * EncounterView
@@ -1236,6 +1235,8 @@ class EncounterView extends TPage
         $docForm = new BootstrapFormBuilder('form_EncounterDocument_' . $encounter->id());
 
         $docFile = new TFile('filename');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $docFile->setService('CvUploaderService');
         $docForm->addFields([new TLabel(_t('File'))]);
         $docForm->addFields([$docFile]);
 
@@ -1871,10 +1872,12 @@ class EncounterView extends TPage
                 throw new InvalidArgumentException(_t('Choose a file to attach'));
             }
 
-            // T-62: only a regular file inside tmp/ (no ../, separators or
-            // symlink out); anything else throws 'Invalid file'
-            $sourcePath = UploadedTmpFile::resolve($fileName);
-            $fileName = trim($fileName);
+            // T-62/T-63: only a regular file inside tmp/ (no ../, separators
+            // or symlink out) uploaded by this session through
+            // CvUploaderService; anything else throws 'Invalid file'
+            $sourcePath = CvUpload::resolve($fileName);
+            $uploadName = trim($fileName);
+            $fileName = CvUpload::displayName($uploadName);
 
             $contents = file_get_contents($sourcePath);
             $contentType = function_exists('mime_content_type')
@@ -1891,6 +1894,7 @@ class EncounterView extends TPage
             $metadata = null;
 
             @unlink($sourcePath);
+            CvUpload::forget($uploadName);
 
             new TMessage('info', _t('Document attached successfully'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }

@@ -25,6 +25,8 @@ use InvalidArgumentException;
 final class UploadedTmpFile
 {
     private const INVALID = 'Invalid file';
+    private const MAX_SANITIZED = 120;
+    private const PREFIX_PATTERN = '/^[0-9a-f]{32}-/';
 
     private function __construct()
     {
@@ -36,6 +38,65 @@ final class UploadedTmpFile
      *
      * @return string caminho real absoluto do arquivo dentro de tmpDir
      */
+    /**
+     * Nome imprevisível para gravar um upload em tmp/ (T-63):
+     * `<32 hex aleatórios>-<basename saneado>`. O saneamento troca cada byte
+     * fora de `[A-Za-z0-9_.-]` por `_`, junta pontos repetidos (resolve()
+     * recusa `..`) e tira os pontos das pontas. A parte saneada tem no
+     * máximo 120 caracteres, e a extensão é preservada. Se não sobra nada,
+     * o nome vira `upload`.
+     */
+    public static function generateName(string $originalName): string
+    {
+        $base = basename(str_replace('\\', '/', $originalName));
+        $clean = (string) preg_replace('/[^A-Za-z0-9_.\-]/', '_', $base);
+        $clean = trim((string) preg_replace('/\.{2,}/', '.', $clean), '.');
+
+        if ($clean === '') {
+            $clean = 'upload';
+        }
+
+        if (strlen($clean) > self::MAX_SANITIZED) {
+            $dot = strrpos($clean, '.');
+            $ext = $dot === false ? '' : substr($clean, $dot);
+
+            if ($ext === '' || strlen($ext) >= self::MAX_SANITIZED) {
+                $clean = substr($clean, 0, self::MAX_SANITIZED);
+            } else {
+                $clean = rtrim(substr($clean, 0, self::MAX_SANITIZED - strlen($ext)), '.') . $ext;
+            }
+        }
+
+        return bin2hex(random_bytes(16)) . '-' . $clean;
+    }
+
+    /**
+     * Nome para mostrar ao usuário e gravar como nome original: tira o
+     * prefixo `<32 hex>-` de generateName().
+     */
+    public static function displayName(string $name): string
+    {
+        return (string) preg_replace(self::PREFIX_PATTERN, '', $name);
+    }
+
+    /**
+     * resolve() restrito aos nomes que a própria sessão enviou (T-63):
+     * tmp/ é compartilhado, e um nome previsível de outra sessão (dump ou
+     * export de admin) não pode ser anexado.
+     *
+     * @param list<string> $sessionUploads nomes gerados pelo CvUploaderService nesta sessão
+     */
+    public static function resolveForSession(string $name, array $sessionUploads, ?string $tmpDir = null): string
+    {
+        $real = self::resolve($name, $tmpDir);
+
+        if (!in_array($name, $sessionUploads, true)) {
+            throw new InvalidArgumentException(self::INVALID);
+        }
+
+        return $real;
+    }
+
     public static function resolve(string $name, ?string $tmpDir = null): string
     {
         $base = realpath($tmpDir ?? 'tmp');
@@ -77,11 +138,15 @@ final class UploadedTmpFile
      * trait faz unlink() do delFile e rename() do fileName sem contenção.
      * Qualquer outro item lança 'Invalid file' antes de o trait rodar.
      *
+     * Com $sessionUploads (T-63), o nome também precisa estar na lista da
+     * sessão (resolveForSession()).
+     *
      * @param array<int|string, mixed> $items
+     * @param list<string>|null        $sessionUploads
      *
      * @return list<string>
      */
-    public static function newUploadItems(array $items, ?string $tmpDir = null): array
+    public static function newUploadItems(array $items, ?string $tmpDir = null, ?array $sessionUploads = null): array
     {
         $kept = [];
 
@@ -114,7 +179,12 @@ final class UploadedTmpFile
                 throw new InvalidArgumentException(self::INVALID);
             }
 
-            self::resolve($name, $tmpDir);
+            if ($sessionUploads === null) {
+                self::resolve($name, $tmpDir);
+            } else {
+                self::resolveForSession($name, $sessionUploads, $tmpDir);
+            }
+
             $kept[] = $item;
         }
 

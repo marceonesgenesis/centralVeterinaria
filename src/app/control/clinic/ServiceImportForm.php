@@ -29,6 +29,8 @@ class ServiceImportForm extends TPage
         $csv_file = new TFile('csv_file');
         $csv_file->setAllowedExtensions(['csv']);
         $csv_file->setLimitUploadSize(1);
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $csv_file->setService('CvUploaderService');
         $csv_file->setSize('100%');
 
         $this->form->addFields([new TLabel(_t('CSV file'))], [$csv_file]);
@@ -74,9 +76,10 @@ class ServiceImportForm extends TPage
                 throw new InvalidArgumentException(_t('Choose a CSV file to import'));
             }
 
-            // T-62: only a regular file inside tmp/ (no ../, separators or
-            // symlink out); anything else throws 'Invalid file'
-            $sourcePath = \CentralVet\Presentation\UploadedTmpFile::resolve($fileName);
+            // T-62/T-63: only a regular file inside tmp/ (no ../, separators
+            // or symlink out) uploaded by this session through
+            // CvUploaderService; anything else throws 'Invalid file'
+            $sourcePath = CvUpload::resolve($fileName);
 
             if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) !== 'csv' || filesize($sourcePath) > self::MAX_BYTES)
             {
@@ -92,6 +95,7 @@ class ServiceImportForm extends TPage
             TTransaction::close();
 
             @unlink($sourcePath);
+            CvUpload::forget($fileName);
 
             $message = CvFormat::e(_t('Services created: ^1', (string) (int) $result['created']));
 

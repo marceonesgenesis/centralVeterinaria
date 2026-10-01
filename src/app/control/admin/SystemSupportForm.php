@@ -36,6 +36,8 @@ class SystemSupportForm extends TPage
         $subject = new TEntry('subject');
         $message = new THtmlEditor('message');
         $attachments = new TMultiFile('attachments');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $attachments->setService('CvUploaderService');
         $message->setSize('100%', 300);
         
         // add the fields
@@ -77,15 +79,16 @@ class SystemSupportForm extends TPage
                 throw new Exception(_t('No support e-mail configured'));
             }
             
-            // T-62: each attachment name must be a regular file inside tmp/
-            // (no ../, separators or symlink out); resolved before sending
+            // T-62/T-63: each attachment name must be a regular file inside
+            // tmp/ (no ../, separators or symlink out) uploaded by this
+            // session through CvUploaderService; resolved before sending
             $list = [];
             if ($data->attachments)
             {
                 foreach ($data->attachments as $attach)
                 {
-                    $path = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $attach);
-                    $list[] = [ $path, basename($path) ];
+                    $path = CvUpload::resolve((string) $attach);
+                    $list[] = [ $path, CvUpload::displayName(basename($path)), trim((string) $attach) ];
                 }
             }
             
@@ -94,6 +97,7 @@ class SystemSupportForm extends TPage
             foreach ($list as $item)
             {
                 @unlink($item[0]);
+                CvUpload::forget($item[2]);
             }
             
             // shows the success message

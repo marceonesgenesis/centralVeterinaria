@@ -39,7 +39,10 @@ class SystemDriveDocumentUploadForm extends TWindow
         $file  = new TFile('filename');
         $description = new TText('description');
         
-        $file->setService('SystemDocumentUploaderService');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload).
+        // As extensões espelham os tipos do SystemDocumentUploaderService.
+        $file->setService('CvUploaderService');
+        $file->setAllowedExtensions(['txt', 'html', 'csv', 'pdf', 'rtf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'jpeg', 'jpg', 'png', 'gif', 'svg', 'xml', 'zip', 'rar', 'bz', 'bz2', 'tar']);
         
         $this->form->addFields([$id]);
         $this->form->addFields([$folder_path]);
@@ -68,13 +71,16 @@ class SystemDriveDocumentUploadForm extends TWindow
         {
             TTransaction::open('communication');
             
-            // T-62: the uploaded name must be a regular file inside tmp/
-            // (no ../, separators or symlink out), checked before store()
+            // T-62/T-63: the uploaded name must be a regular file inside tmp/
+            // (no ../, separators or symlink out) uploaded by this session
+            // through CvUploaderService, checked before store()
             $source_file = null;
+            $upload_name = null;
             if (!empty($param['filename']))
             {
-                $source_file = \CentralVet\Presentation\UploadedTmpFile::resolve((string) $param['filename']);
-                $param['filename'] = trim((string) $param['filename']);
+                $source_file = CvUpload::resolve((string) $param['filename']);
+                $upload_name = trim((string) $param['filename']);
+                $param['filename'] = CvUpload::displayName($upload_name);
             }
             
             $object = new SystemDocument;
@@ -110,6 +116,8 @@ class SystemDriveDocumentUploadForm extends TWindow
                     // move to the target directory
                     rename($source_file, $target_file);
                 }
+                
+                CvUpload::forget($upload_name);
             }
             
             TTransaction::close();
