@@ -75,6 +75,6 @@
 - Branch de trabalho: feat/rodada-3-divida-tecnica (base: feat/rodada-2-cadastros-schema-acoes)
 - BASE da onda 1: b75d7cc
 - Commits por onda:
-  - Onda 1: BASE b75d7cc → HEAD {HEAD} (7687d16, 75a411c, 2fb13d0, c0fd1b1, 374028d, 0a74522, 317dac1, 6731313, 9f3c639, 662c637, 9e025c9, 5e058b0, 6d57324, c592905, f301e70, 916c57c, 551f2cc, 7e2d2ef, 52b46ba, 9c29731, 4b30140, 57f0b41, 04ddd61, b44bd6e)
+  - Onda 1: BASE b75d7cc → HEAD 7687d16 (7687d16, 75a411c, 2fb13d0, c0fd1b1, 374028d, 0a74522, 317dac1, 6731313, 9f3c639, 662c637, 9e025c9, 5e058b0, 6d57324, c592905, f301e70, 916c57c, 551f2cc, 7e2d2ef, 52b46ba, 9c29731, 4b30140, 57f0b41, 04ddd61, b44bd6e)
 - Último status conhecido: onda 1 fechada com T-01..T-09, T-20 e T-21 [x]; bloqueio entre as ondas 1 e 2: provisionamento do centralvet_test pelo orquestrador, com aprovação SQL do usuário.
 - Próxima onda recomendada: onda 2 (T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-19) depois do provisionamento do centralvet_test
