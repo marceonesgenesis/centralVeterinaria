@@ -68,6 +68,17 @@ class CvFormat
     }
 
     /**
+     * Escapa duas vezes, para atributo HTML cujo valor decodificado volta a
+     * ser interpretado como HTML (ex.: [title], que o Adianti transforma em
+     * tooltip tippy com allowHTML). O navegador decodifica o atributo uma
+     * vez e o tooltip recebe texto escapado, não marcação.
+     */
+    public static function forHtmlSink(?string $text): string
+    {
+        return self::e(self::e($text));
+    }
+
+    /**
      * Mensagem de erro para a tela, já segura para TMessage (HTML).
      * PDOException ou SQLSTATE[ em $e ou em qualquer getPrevious() vira o
      * texto genérico traduzido (regra antes das demais, T-53).
