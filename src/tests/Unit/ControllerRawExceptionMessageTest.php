@@ -8,7 +8,7 @@ use CentralVet\Tests\Support\Assert;
 
 /**
  * Rodada 3, T-17: trava de regressão contra `new TMessage(…, $e->getMessage())`
- * nos controllers do produto. Os catches mostram `CvFormat::userError($e)`;
+ * e `new TAlert(…, $e->getMessage())` nos controllers do produto. Os catches mostram `CvFormat::userError($e)`;
  * a mensagem crua da exceção vai só para o error_log.
  *
  * Lê cada arquivo inteiro com o tokenizer, então pega também a chamada
@@ -37,7 +37,7 @@ final class ControllerRawExceptionMessageTest
         Assert::same(
             [],
             $offenders,
-            'new TMessage(...) must not receive getMessage(); use CvFormat::userError($e): ' . implode(', ', $offenders)
+            'new TMessage(...)/new TAlert(...) must not receive getMessage(); use CvFormat::userError($e): ' . implode(', ', $offenders)
         );
     }
 
@@ -65,7 +65,7 @@ final class ControllerRawExceptionMessageTest
     }
 
     /**
-     * Linhas de cada `new TMessage(` cujo argumento, até o `;`, chama getMessage().
+     * Linhas de cada `new TMessage(` ou `new TAlert(` cujo argumento, até o `;`, chama getMessage().
      *
      * @return list<int>
      */
@@ -79,7 +79,7 @@ final class ControllerRawExceptionMessageTest
         $count = count($tokens);
 
         for ($i = 0; $i < $count - 1; $i++) {
-            if (!is_array($tokens[$i]) || $tokens[$i][0] !== T_NEW || !$this->isTMessage($tokens[$i + 1])) {
+            if (!is_array($tokens[$i]) || $tokens[$i][0] !== T_NEW || !$this->isDialog($tokens[$i + 1])) {
                 continue;
             }
             for ($j = $i + 2; $j < $count && $tokens[$j] !== ';'; $j++) {
@@ -93,12 +93,12 @@ final class ControllerRawExceptionMessageTest
         return $lines;
     }
 
-    private function isTMessage(mixed $token): bool
+    private function isDialog(mixed $token): bool
     {
         if (!is_array($token)) {
             return false;
         }
 
-        return in_array(ltrim($token[1], '\\'), ['TMessage', 'Adianti\\Widget\\Dialog\\TMessage'], true);
+        return in_array(ltrim($token[1], '\\'), ['TMessage', 'TAlert', 'Adianti\\Widget\\Dialog\\TMessage', 'Adianti\\Widget\\Dialog\\TAlert'], true);
     }
 }
