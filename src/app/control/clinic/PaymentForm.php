@@ -210,7 +210,8 @@ class PaymentForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         return null;
@@ -275,13 +276,13 @@ class PaymentForm extends TPage
         $this->form->add($receivable_id);
 
         $payment_method = new TCombo('payment_method');
-        $payment_method->addItems([
-            \CentralVet\Domain\Payment::METHOD_CASH => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CASH),
-            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_DEBIT_CARD),
-            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CREDIT_CARD),
-            \CentralVet\Domain\Payment::METHOD_PIX => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_PIX),
-            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_BANK_TRANSFER),
-        ]);
+        // lista única de formas (T-08): Payment::METHODS, rótulos de CvFormat::paymentMethod()
+        $payment_items = [];
+        foreach (\CentralVet\Domain\Payment::METHODS as $method)
+        {
+            $payment_items[$method] = CvFormat::paymentMethod($method);
+        }
+        $payment_method->addItems($payment_items);
         $payment_method->setSize('100%');
         $payment_method->addValidation(_t('Payment method'), new TRequiredValidator);
 
@@ -367,13 +368,15 @@ class PaymentForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->form);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
             $this->keepTypedData($this->form);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -403,7 +406,8 @@ class PaymentForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->form);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

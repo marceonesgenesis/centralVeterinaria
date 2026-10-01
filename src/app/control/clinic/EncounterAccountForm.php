@@ -203,7 +203,8 @@ class EncounterAccountForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         return null;
@@ -321,7 +322,8 @@ class EncounterAccountForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
 
             return [];
         }
@@ -466,7 +468,8 @@ class EncounterAccountForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->form);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
@@ -491,7 +494,8 @@ class EncounterAccountForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->form);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -547,13 +551,15 @@ class EncounterAccountForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->discountForm);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
             $this->keepTypedData($this->discountForm);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
@@ -578,7 +584,8 @@ class EncounterAccountForm extends TPage
         {
             TTransaction::rollback();
             $this->keepTypedData($this->discountForm);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -650,7 +657,8 @@ class EncounterAccountForm extends TPage
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
@@ -671,7 +679,8 @@ class EncounterAccountForm extends TPage
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
