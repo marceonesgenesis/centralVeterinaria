@@ -118,3 +118,62 @@ tempo de build, não em runtime:
 docker compose build app worker && docker compose up -d
 docker compose exec app php tests/run.php
 ```
+
+## Banco MySQL de teste
+
+Os testes que estendem `tests/Support/MysqlIntegrationTestCase.php` abrem uma
+transação no `setUp` e fazem rollback no `tearDown`, então nada que inserem
+fica gravado.
+
+**Guarda.** Se o `setUp` abriu a transação e ela não está mais ativa no
+`tearDown` (um `COMMIT` explícito ou implícito, como DDL, no meio do teste), o
+`tearDown` lança `RuntimeException('Integration test left the test
+transaction; writes may have been committed to the development database')` e
+o teste sai `FAIL`. Sem a guarda, o rollback era pulado em silêncio e as
+linhas ficavam no banco. Prova: `Integration\MysqlIsolationGuardIntegrationTest`.
+
+**Nome do banco.** O DSN usa `CentralVet\Tests\Support\TestDatabase::resolveName(getenv())`:
+
+- `TEST_DB_DATABASE`, quando não vazio;
+- senão `TestDatabase::DEFAULT_NAME`. Enquanto ela for `null`, vale o
+  `DB_DATABASE` herdado (o banco da aplicação, `centralvet`), como antes;
+- recusa `TEST_DB_DATABASE` igual a `DB_DATABASE`:
+  `Refusing to run: test MySQL database equals the application database (<nome>)`.
+
+```bash
+docker compose run --rm --no-deps -T -e TEST_DB_DATABASE=centralvet_test app php tests/run.php
+```
+
+**Provisionamento do `centralvet_test`.** `scripts/test-db/provision.sh` cria
+o banco a partir dos arquivos em disco. Ele só roda com autorização SQL
+específica do usuário no momento (é escrita no MySQL) e depois de um backup
+do dev (`scripts/backup.sh`), a partir de `/var/www/html/centralvet`:
+
+1. com o root do container `mysql`: `CREATE DATABASE centralvet_test
+   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` e `GRANT ALL PRIVILEGES
+   ON centralvet_test.*` para `MIGRATION_DB_USER` e `MYSQL_USER` (o usuário de
+   migration só tem privilégio em `centralvet`.*, ver
+   `src/app/database/migrations/README.md`);
+2. com o usuário de migration, em ordem e parando no primeiro erro:
+   `permission.sql`, `communication.sql`, `log.sql` (base Adianti, que também
+   semeia `system_users` e `system_unit`),
+   `20260919_add_missing_adianti_foreign_keys.sql` e as migrations
+   `0001`…`0008`, sem os `.verify.sql`.
+
+O script recusa (exit 1) quando `centralvet_test` já existe. Depois dele,
+rode `scripts/test-db/verify.sql` (só `SELECT`):
+
+```bash
+bash scripts/test-db/provision.sh
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -t' < scripts/test-db/verify.sql
+```
+
+Esperado: nenhuma tabela de `centralvet` ausente em `centralvet_test`,
+`system_users`/`system_unit` maiores que zero e as 8 linhas de
+`schema_migrations` (0001…0008).
+
+**Checksum de zeros.** Algumas migrations (ex.: a 0006) trazem no arquivo o
+placeholder de checksum (`000…0`), que só no dev foi trocado pelo SHA-256
+aprovado na hora de aplicar. Como o `centralvet_test` nasce dos arquivos em
+disco, essas linhas de `centralvet_test.schema_migrations` ficam com zeros.
+Isso é esperado e não indica falha do provisionamento.
