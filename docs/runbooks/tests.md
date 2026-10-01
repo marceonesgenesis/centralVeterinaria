@@ -144,29 +144,69 @@ linhas ficavam no banco. Prova: `Integration\MysqlIsolationGuardIntegrationTest`
 docker compose run --rm --no-deps -T -e TEST_DB_DATABASE=centralvet_test app php tests/run.php
 ```
 
+**Pré-requisito: base Adianti em `var/sql-bootstrap/`.** Os SQL do template
+(`src/app/database/permission.sql`, `communication.sql`, `log.sql`) usam
+cabeçalhos `--- ` no estilo SQLite, que o MySQL recusa (`ERROR 1064 ... near
+'-\nCREATE TABLE system_group'`). O provisionamento aplica as cópias que
+`scripts/prepare-adianti-bootstrap.sh` gerou para o dev em `var/sql-bootstrap/`
+(gitignored): `01-permission.mysql.sql`, `02-communication.mysql.sql` e
+`03-log.mysql.sql`, com os comentários normalizados, sem o usuário demo e com
+o hash do admin local. Se elas não existirem, o script para antes de qualquer
+SQL e aponta o `prepare-adianti-bootstrap.sh`. Não rode esse script de novo
+num ambiente já montado sem necessidade: ele recusa quando o `manifest.txt`
+existe e, com `FORCE_PREPARE=1`, troca a senha do admin no `.env`.
+
 **Provisionamento do `centralvet_test`.** `scripts/test-db/provision.sh` cria
 o banco a partir dos arquivos em disco. Ele só roda com autorização SQL
 específica do usuário no momento (é escrita no MySQL) e depois de um backup
 do dev (`scripts/backup.sh`), a partir de `/var/www/html/centralvet`:
 
+0. preflight, sem docker e sem SQL: todos os arquivos abaixo existem e nenhum
+   tem linha começando com `---`. Qualquer falha sai com exit 1 antes do
+   passo 1, sem criar nada;
 1. com o root do container `mysql`: `CREATE DATABASE centralvet_test
    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` e `GRANT ALL PRIVILEGES
    ON centralvet_test.*` para `MIGRATION_DB_USER` e `MYSQL_USER` (o usuário de
    migration só tem privilégio em `centralvet`.*, ver
    `src/app/database/migrations/README.md`);
 2. com o usuário de migration, em ordem e parando no primeiro erro:
-   `permission.sql`, `communication.sql`, `log.sql` (base Adianti, que também
-   semeia `system_users` e `system_unit`),
-   `20260919_add_missing_adianti_foreign_keys.sql` e as migrations
-   `0001`…`0008`, sem os `.verify.sql`.
+   `var/sql-bootstrap/01-permission.mysql.sql`, `02-communication.mysql.sql`,
+   `03-log.mysql.sql` (base Adianti, que também semeia `system_users` e
+   `system_unit`), `20260919_add_missing_adianti_foreign_keys.sql` e as
+   migrations `0001`…`0008` de `src/app/database/migrations/`, sem os
+   `.verify.sql`.
 
-O script recusa (exit 1) quando `centralvet_test` já existe. Depois dele,
-rode `scripts/test-db/verify.sql` (só `SELECT`):
+O script recusa (exit 1) quando `centralvet_test` já existe. Antes de pedir
+a aprovação, confira os arquivos sem tocar no banco (`--check` roda só o
+preflight) e o teste do próprio script (um `docker` falso no PATH garante que
+nada chega ao MySQL):
 
 ```bash
-bash scripts/test-db/provision.sh
+sh scripts/test-db/provision.sh --check        # "provision: check ok (no SQL executed)"
+bash scripts/test-db/provision-check.test.sh   # "Failed: 0"
+```
+
+Com a aprovação, aplique e rode `scripts/test-db/verify.sql` (só `SELECT`):
+
+```bash
+sh scripts/test-db/provision.sh
 docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -t' < scripts/test-db/verify.sql
 ```
+
+**Banco parcial.** DDL MySQL não é transacional: se o passo 2 falhar no meio,
+o `centralvet_test` fica com parte das tabelas (ou vazio, só com o `CREATE` e
+os `GRANT`). Não tente completar à mão nem reaplicar só o arquivo que faltou.
+Corrija a causa, rode `--check` e, com nova autorização SQL específica do
+usuário, apague o banco de teste (nunca o `centralvet`) e rode o script de
+novo:
+
+```bash
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "DROP DATABASE centralvet_test"'
+sh scripts/test-db/provision.sh
+```
+
+Os `GRANT` em `centralvet_test.*` sobrevivem ao `DROP DATABASE` (ficam em
+`mysql.db`), e o passo 1 os reaplica sem erro.
 
 Esperado: nenhuma tabela de `centralvet` ausente em `centralvet_test`,
 `system_users`/`system_unit` maiores que zero e as 8 linhas de
