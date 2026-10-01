@@ -147,8 +147,10 @@ class PatientList extends TPage
                 $service = $this->buildPatientService();
                 $patients = $service->findByTutor($this->tutor_id);
 
+                $tutor_context = self::resolveTenantContext();
                 $tutor_service = new \CentralVet\Application\TutorService(
-                    new \CentralVet\Persistence\TutorRepository(self::resolveTenantContext(), TTransaction::get())
+                    new \CentralVet\Persistence\TutorRepository($tutor_context, TTransaction::get()),
+                    $tutor_context
                 );
                 $tutor = $tutor_service->findById($this->tutor_id);
                 $tutor_name = $tutor !== null ? $tutor->fullName : null;

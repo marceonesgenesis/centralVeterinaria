@@ -156,7 +156,7 @@ class GlobalSearchController extends TPage
             $tutor_repository = new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get());
             $patient_repository = new \CentralVet\Persistence\PatientRepository($tenant_context, TTransaction::get());
 
-            $tutor_service = new \CentralVet\Application\TutorService($tutor_repository);
+            $tutor_service = new \CentralVet\Application\TutorService($tutor_repository, $tenant_context);
             $patient_service = new \CentralVet\Application\PatientService(
                 $patient_repository,
                 $tutor_repository,

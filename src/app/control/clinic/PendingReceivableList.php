@@ -299,7 +299,7 @@ class PendingReceivableList extends TStandardList
     {
         $tutors = new \CentralVet\Persistence\TutorRepository($context, $connection);
 
-        return new \CentralVet\Application\TutorService($tutors);
+        return new \CentralVet\Application\TutorService($tutors, $context);
     }
 
     /**

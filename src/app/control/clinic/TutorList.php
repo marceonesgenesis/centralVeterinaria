@@ -143,7 +143,8 @@ class TutorList extends TPage
             TTransaction::open('permission');
 
             $service = new \CentralVet\Application\TutorService(
-                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
+                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get()),
+                $tenant_context
             );
 
             $tutors = $service->search($term);

@@ -90,7 +90,6 @@ final class TutorServiceTest
         $service = new TutorService($repository, self::context());
 
         Assert::throws(InvalidArgumentException::class, static fn () => $service->create([
-            'tenant_id' => 1,
             'full_name' => 'Outro Nome',
             'phone' => '85911112222',
             'document' => '11122233344',
@@ -103,7 +102,6 @@ final class TutorServiceTest
         $service = new TutorService($repository, self::context());
 
         $tutor = $service->create([
-            'tenant_id' => 1,
             'full_name' => 'Novo Tutor',
             'phone' => '85911112222',
         ]);
@@ -119,7 +117,6 @@ final class TutorServiceTest
         $service = new TutorService($repository, self::context());
 
         Assert::throws(InvalidArgumentException::class, static fn () => $service->create([
-            'tenant_id' => 1,
             'full_name' => '',
             'phone' => '85911112222',
         ]));
@@ -233,7 +230,6 @@ final class TutorServiceTest
         $service = new TutorService($repository, self::context());
 
         $tutor = $service->create([
-            'tenant_id' => 1,
             'full_name' => '  Novo Tutor ',
             'phone' => ' 85911112222 ',
             'document' => '',
