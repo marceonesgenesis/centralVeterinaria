@@ -79,10 +79,25 @@ final class UserMessageTest
         Assert::null(UserMessage::resolve('Encounter 3408 is finished and cannot be paused!'));
     }
 
+    public function testPatternsRejectTrailingNewline(): void
+    {
+        // Rodada 3, T-01: sem /D, `$` aceita um "\n" final e a mensagem cairia no catálogo.
+        Assert::null(UserMessage::resolve("Encounter 5 is not paused\n"));
+    }
+
+    public function testDomainMessagesOutsideTheCatalogResolve(): void
+    {
+        Assert::same(['key' => 'Record not found', 'params' => []], UserMessage::resolve('Patient 12 not found for this tenant'));
+        Assert::same(['key' => '^1 is required', 'params' => ['scheduled_at']], UserMessage::resolve('scheduled_at is required'));
+        Assert::same(['key' => 'Encounter ^1 is already paused', 'params' => ['(new)']], UserMessage::resolve('Encounter (new) is already paused'));
+        Assert::same(['key' => 'Fill in ^1 on every item', 'params' => ['dosage']], UserMessage::resolve('items[].dosage is required'));
+        Assert::same(['key' => 'Bank account must belong to the current unit', 'params' => []], UserMessage::resolve('Bank account must belong to the current unit 3'));
+    }
+
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(15, UserMessage::STATIC);
-        Assert::count(14, UserMessage::PATTERNS);
+        Assert::count(17, UserMessage::STATIC);
+        Assert::count(20, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
