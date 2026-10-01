@@ -152,6 +152,13 @@ class SystemMessageForm extends TPage
             // validate data
             $this->form->validate();
             
+            // T-62: AdiantiFileSaveTrait faz unlink(delFile) e rename(fileName)
+            // com o JSON do POST; só passam uploads novos em tmp/ (sem delFile),
+            // senão 'Invalid file' antes de qualquer store() ou do trait
+            $data->attachments = \CentralVet\Presentation\UploadedTmpFile::newUploadItems(
+                is_array($data->attachments ?? null) ? $data->attachments : (empty($data->attachments) ? [] : [$data->attachments])
+            );
+            
             if ($data->system_user_to_id)
             {
                 foreach ($data->system_user_to_id as $target)
@@ -185,6 +192,11 @@ class SystemMessageForm extends TPage
             TScript::create('Template.closeRightPanel()');
             
             return $object;
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception
         {

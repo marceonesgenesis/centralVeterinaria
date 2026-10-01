@@ -67,4 +67,57 @@ final class UploadedTmpFile
 
         return $real;
     }
+
+    /**
+     * Itens de um TMultiFile com enableFileHandling() (JSON urlencoded, como
+     * o AdiantiFileSaveTrait os lê) de um formulário que só envia uploads
+     * novos (T-62, correção 1). Remove os itens vazios e devolve os demais sem
+     * alteração. Cada item precisa ter `fileName` igual a `newFile`, no formato
+     * `tmp/<nome>`, com `<nome>` aceito por resolve(), e nenhum `delFile`. O
+     * trait faz unlink() do delFile e rename() do fileName sem contenção.
+     * Qualquer outro item lança 'Invalid file' antes de o trait rodar.
+     *
+     * @param array<int|string, mixed> $items
+     *
+     * @return list<string>
+     */
+    public static function newUploadItems(array $items, ?string $tmpDir = null): array
+    {
+        $kept = [];
+
+        foreach ($items as $item) {
+            if (!is_string($item)) {
+                throw new InvalidArgumentException(self::INVALID);
+            }
+
+            if (trim($item) === '') {
+                continue;
+            }
+
+            $data = json_decode(urldecode($item));
+
+            if (
+                !is_object($data)
+                || !empty($data->delFile)
+                || !isset($data->fileName, $data->newFile)
+                || !is_string($data->fileName)
+                || $data->fileName !== $data->newFile
+                || !str_starts_with($data->fileName, 'tmp/')
+            ) {
+                throw new InvalidArgumentException(self::INVALID);
+            }
+
+            $name = substr($data->fileName, 4);
+
+            // o trait usa o fileName literal: sem espaços nas pontas
+            if ($name !== trim($name)) {
+                throw new InvalidArgumentException(self::INVALID);
+            }
+
+            self::resolve($name, $tmpDir);
+            $kept[] = $item;
+        }
+
+        return $kept;
+    }
 }
