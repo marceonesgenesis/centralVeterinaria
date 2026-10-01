@@ -13,7 +13,7 @@ class CvAvatar
     {
         $avatar = new TElement('span');
         $avatar->{'class'} = 'cv-avatar';
-        $avatar->{'title'} = CvFormat::e($name);
+        $avatar->{'title'} = self::titleFor($name);
         $avatar->{'aria-hidden'} = 'true';
 
         if ($species !== null && trim($species) !== '')
@@ -27,6 +27,16 @@ class CvAvatar
         $avatar->add($initial !== '' ? CvFormat::e($initial) : new TImage('fa:paw'));
 
         return $avatar;
+    }
+
+    /**
+     * Valor do [title] do avatar. O framework transforma todo [title] em
+     * tooltip tippy com allowHTML, e o navegador decodifica o atributo uma
+     * vez: por isso o nome sai escapado duas vezes (CvFormat::forHtmlSink).
+     */
+    public static function titleFor(string $name): string
+    {
+        return CvFormat::forHtmlSink($name);
     }
 
     public static function speciesIcon(string $species): string

@@ -171,7 +171,8 @@ class CvPage
         $title = !empty($spec['title']) ? (string) $spec['title'] : ($label === '' && $icon === 'fa:arrow-left' ? _t('Back') : '');
         if ($title !== '')
         {
-            $link->{'title'} = CvFormat::e($title);
+            // [title] vira tooltip tippy com allowHTML (framework): escape duplo
+            $link->{'title'} = CvFormat::forHtmlSink($title);
             if ($label === '')
             {
                 $link->{'aria-label'} = CvFormat::e($title);

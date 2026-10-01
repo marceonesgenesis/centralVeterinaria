@@ -32,6 +32,18 @@ var CvShell = (function () {
         encounter: 'open_from_encounter'
     };
 
+    // [title] vira tooltip tippy com allowHTML (__adianti_process_tooltips).
+    // No DOM o atributo não é decodificado: o texto escapado uma vez chega ao
+    // tippy como texto, não marcação (equivale ao CvFormat::forHtmlSink).
+    function cvEscapeTitle(s) {
+        return String(s === null || s === undefined ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function parseJson(text) {
         var start = text.indexOf('{');
         var end = text.lastIndexOf('}');
@@ -137,7 +149,7 @@ var CvShell = (function () {
         select.className = 'form-select form-select-sm cv-unit-switch__select';
         var unitLabel = labelsOf(context).unit || slot.getAttribute('data-cv-label') || '';
         select.setAttribute('aria-label', unitLabel);
-        select.title = unitLabel;
+        select.title = cvEscapeTitle(unitLabel);
 
         // unidade única sem current: ela fica selecionada (o select segue disabled), sem placeholder
         var single = context.units.length === 1;
@@ -243,7 +255,7 @@ var CvShell = (function () {
         var text = label ? label.textContent.trim() : link.textContent.trim();
         var hintKey = MENU_HINT_LABELS[queryParam(link.getAttribute('data-cv-disabled-href'), 'hint')];
         var hint = hintKey ? (labels[hintKey] || '') : '';
-        link.setAttribute('title', text + ' — ' + (hint || soon));
+        link.setAttribute('title', cvEscapeTitle(text + ' — ' + (hint || soon)));
 
         var badge = link.querySelector('.cv-menu-soon');
         if (!badge) {
