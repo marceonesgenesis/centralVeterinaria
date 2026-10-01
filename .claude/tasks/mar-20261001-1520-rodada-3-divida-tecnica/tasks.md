@@ -13,15 +13,15 @@
 | T-09 | qa | Lacunas de teste: reschedule com chave ausente, CvAvatar placeholder→titleFor, prescription.valid_until no banco | — | sim | simples | Sherlock | [x] |
 | T-20 | backend | Uploads: extensão conferida sem `extensions` na URL, MIME no Drive, trim e docblock de tmp/ | — | sim | alta | Kratos | [x] |
 | T-21 | frontend | SystemWikiPagePicker: título de wiki escapado no select2 (CvSafeLabelTrait) | — | sim | simples | Aang | [x] |
-| T-10 | frontend | Escape dos catches: financeiro e vendas (30 catches) e PaymentForm com `Payment::METHODS` | T-01, T-08 | sim | média | Levi | [ ] |
-| T-11 | frontend | Escape dos catches: clínico, vacinas, exames e procedimentos (25 catches) e "%s days" | T-01 | sim | média | Kratos | [ ] |
-| T-12 | frontend | Escape dos catches: cadastros, produtos, serviços e busca (15 catches) | T-01, T-04 | sim | simples | Thanos | [ ] |
-| T-13 | frontend | EncounterView sem screenError (CvFormat::userError direto) | T-03 | sim | simples | Yoda | [ ] |
-| T-14 | backend | Defesa na entrada: recusar `<`/`>` em nomes de Patient, Tutor, Service e Product (aprovado pelo usuário) | T-01, T-04 | sim | média | Jaspion | [ ] |
-| T-15 | frontend | Pequenos: SystemMessageForm mantém dados no erro, SystemDatabaseExplorer sem `$table` indefinido, cv_uploads limpo no login | — | sim | simples | Maquiavel | [ ] |
+| T-10 | frontend | Escape dos catches: financeiro e vendas (30 catches) e PaymentForm com `Payment::METHODS` | T-01, T-08 | sim | média | Levi | [x] |
+| T-11 | frontend | Escape dos catches: clínico, vacinas, exames e procedimentos (25 catches) e "%s days" | T-01 | sim | média | Kratos | [x] |
+| T-12 | frontend | Escape dos catches: cadastros, produtos, serviços e busca (15 catches) | T-01, T-04 | sim | simples | Thanos | [x] |
+| T-13 | frontend | EncounterView sem screenError (CvFormat::userError direto) | T-03 | sim | simples | Yoda | [x] |
+| T-14 | backend | Defesa na entrada: recusar `<`/`>` em nomes de Patient, Tutor, Service e Product (aprovado pelo usuário) | T-01, T-04 | sim | média | Jaspion | [x] |
+| T-15 | frontend | Pequenos: SystemMessageForm mantém dados no erro, SystemDatabaseExplorer sem `$table` indefinido, cv_uploads limpo no login | — | sim | simples | Maquiavel | [x] |
 | T-16 | frontend | translations.json (escritor único): chaves novas, "^1 days" e remoção da chave órfã | T-01, T-11, T-14 | sim | simples | Platão | [ ] |
 | T-17 | qa | Trava de regressão: nenhum `new TMessage(... getMessage())` cru nos controllers da clínica | T-10, T-11, T-12 | sim | simples | Levi | [ ] |
-| T-19 | qa | SUITE passa a usar o banco `centralvet_test` por padrão e recusa o banco da aplicação | T-05 | sim | simples | Naruto | [ ] |
+| T-19 | qa | SUITE passa a usar o banco `centralvet_test` por padrão e recusa o banco da aplicação | T-05 | sim | simples | Naruto | [x] |
 | T-18 | qa | Validação final: varredura Playwright e i18n das telas tocadas | T-13, T-15, T-16, T-17, T-19, T-20, T-21 | não | média | Spock | [ ] |
 
 ## Detalhamento

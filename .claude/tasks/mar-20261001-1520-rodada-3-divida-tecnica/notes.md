@@ -26,10 +26,17 @@
 - 2026-10-01 · T-01 · onda 1 — o grep do PATH é ugrep; o comando do critério vale com `grep -F` (20).
 - 2026-10-01 · orquestrador · onda 1 — Validação cruzada pós-correção: a SUITE da Re-validação 2 (T-20) rodou no HEAD final, árvore parada: 436/436.
 - 2026-10-01 · orquestrador · onda 1 — Rebuild e recreate do centralvet-app-1 antes de cada gate; sessão admin no Playwright mantida pelo orquestrador.
+- 2026-10-01 · orquestrador · entre as ondas 1 e 2 — Provisionamento do centralvet_test com aprovação SQL explícita do usuário; backup var/backups/centralvet-20261001T195153Z.sql.gz (gzip -t ok; sha256 a18818f9d75b4687aaf57c8c45640fda73d19e5aa959ae4c904e3baedfa0c021). 1ª execução do provision.sh: CREATE DATABASE + GRANTs ok, passo 2 falhou em permission.sql (cabeçalhos `---` inválidos no MySQL), centralvet_test vazio. Correção da T-05 (provision.sh aplica a base Adianti de var/sql-bootstrap); 2ª execução, com nova aprovação: DROP DATABASE centralvet_test (vazio) + provision.sh completo + verify.sql: nenhuma tabela faltando, system_users=1, system_unit=2, tenant=1, schema_migrations 0001..0008 (0006..0008 com checksum zerado, como no dev).
+- 2026-10-01 · T-14 · onda 2 — RED cdcfd37 tocar UserMessageTest.php (além de NameTextTest.php) aceito: o teste do catálogo conta as entradas.
+- 2026-10-01 · T-05 · onda 2 — 669a3ac criar scripts/test-db/provision-check.test.sh, fora dos Arquivos prováveis, aceito (pedido na correção).
+- 2026-10-01 · T-10 · onda 2 — correção do TAlert com getMessage() cru no CashSessionForm, fora do pedido, aceita.
+- 2026-10-01 · T-13 · onda 2 — alerta automático de "Information Disclosure" por remover screenError: falso positivo (CvFormat::userError já filtra PDOException/SQLSTATE[ em toda a cadeia; teste cobre exceção que embrulha PDO).
+- 2026-10-01 · T-15 · onda 2 — o descarte de cv_uploads em loadSessionVars também roda no "Reload" do menu do usuário (LoginForm::reloadPermissions), que já leva à WelcomeView e descarta o form; perder o upload pendente nesse caso é aceito.
+- 2026-10-01 · orquestrador · onda 2 — Rebuild e recreate do centralvet-app-1 antes do gate; sessão admin no Playwright mantida pelo orquestrador.
 
 ## Bloqueios
 - (resolvido) Pré-requisito da rodada 2 cumprido: T-62..T-65 `[x]`, HEAD `39de5ef` de `feat/rodada-2-cadastros-schema-acoes` e revisão final das ondas 13–16 aprovada. O orquestrador cria `feat/rodada-3-divida-tecnica` a partir de `39de5ef`.
-- Entre as ondas 1 e 2: provisionamento do `centralvet_test` (`scripts/test-db/provision.sh` + `verify.sql`, de T-05). Desbloqueio: aprovação SQL específica do usuário no momento; o orquestrador registra aqui comandos, contagens e `schema_migrations`. Sem ela, T-19 fica `[!]` e a SUITE segue no banco de dev.
+- (resolvido) Entre as ondas 1 e 2: provisionamento do `centralvet_test` (`scripts/test-db/provision.sh` + `verify.sql`, de T-05). Desbloqueio: aprovação SQL específica do usuário no momento; o orquestrador registra aqui comandos, contagens e `schema_migrations`. Sem ela, T-19 fica `[!]` e a SUITE segue no banco de dev. Resolvido: aprovação concedida; 2 execuções (a 1ª falhou em permission.sql, corrigida na T-05); centralvet_test provisionado e verificado (ver Decisões tomadas, entre as ondas 1 e 2).
 
 ## Descobertas
 - Já resolvidos na rodada 2 e confirmados na exploração (sem task): `json_encode` com `JSON_INVALID_UTF8_SUBSTITUTE` (`AuthorizationRequest.php:43`); N+1 de `PrescriptionTemplateService::listAll` e validação de item vazio e tamanhos (`PrescriptionTemplate.php:84,91-92,175-176`); `MAX_DATABASE` constante (`RedisConnectionFactory.php:29`); `ms-1` em `span.agenda-block-time` (`AgendaView.php:404`); docblock do `ServiceImportForm`; `FinancialEntryForm` já itera `FinancialEntry::PAYMENT_METHODS` (a lista à mão está em `PaymentForm.php:278-284`).
@@ -48,6 +55,13 @@
 - [T-03] EncounterDocumentService::__construct ganhou o 4º argumento opcional ?EncounterRepositoryInterface; sem ele (e sem unidade selecionada) download() devolve null. EncounterView já o passa (317dac1); ExamResultForm (só attach) segue com 3 argumentos.
 - [T-05] MysqlIntegrationTestCase::tearDown() lança RuntimeException se o teste encerrou a transação; subclasse que sobrescreve tearDown deve chamar parent::tearDown(). DSN vem de TestDatabase::resolveName(getenv()) (DEFAULT_NAME = null até a T-19).
 - [T-06] RedisQueue::recoverDue usa sprintf('%.17g', microtime(true)) como limite do zRangeByScore (assinatura inalterada).
+- [T-14] NameText::assertNoMarkup (CentralVet\Domain) é chamado em PatientService/TutorService/ProductService create+update e ServiceCatalogService create+update; linha de CSV com < ou > vira skipped com reason 'Name must not contain < or >'. UserMessage::STATIC tem 18 entradas.
+- [T-10] 10 controllers de financeiro/vendas com error_log + CvFormat::userError; CashSessionForm também tinha TAlert com getMessage() cru (corrigido); PaymentForm monta o combo de Payment::METHODS. T-17 pode incluir TAlert na trava.
+- [T-11] i18n: ^1 days → ^1 dias (T-16 grava a chave; até lá a tela mostra o texto sem tradução).
+- [T-14] i18n: Name must not contain < or > → O nome não pode conter < ou >
+- [T-19] SUITE usa centralvet_test desde 946709c (TestDatabase::DEFAULT_NAME = 'centralvet_test'); run.php sai com 1 se o nome resolvido = DB_DATABASE ou se o banco não existir.
+- [T-05] Correção 1: provision.sh aplica a base Adianti de var/sql-bootstrap com preflight e --check (4242dd8); scripts/test-db/provision-check.test.sh checa os arquivos sem banco (669a3ac).
+- [T-13] EncounterView usa CvFormat::userError direto (14 chamadas) e não tem mais screenError (d7b8c1e).
 
 ## Pendências
 - T-02: sugestão: trava de camadas não pega `use CentralVet\Presentation;` nem import agrupado; Core/README.md não cita a camada Support.
@@ -61,6 +75,16 @@
 - Validador (onda 1): escopo não verificável: T-02 (GATE do AppointmentForm "01/10/2026 11:00") e T-08 (GATE do PaymentForm) não rodados no navegador, vão para a varredura da T-18; T-06 critério de 5 rodadas x 4 SUITEs só medido pelo orquestrador.
 - Ambiente: deadlock MySQL 1213 em PrescriptionTemplateRepositoryIntegrationTest sob SUITEs simultâneas no banco de dev (2 de 20 saídas); deve reduzir com o centralvet_test (T-19).
 - Registros R3 criados no banco de dev: tutor 13876 `R3 tutor contexto`; wiki id 1 `<img src=x onerror=alert(1)> R3 wiki`; system_document 5–7; anexos r3-real.pdf e r3.png no atendimento 4304; 2 r3.docx em tmp/.
+- T-05 (rodada 2): mesmas sugestões acima; a Correção 1 resolveu o provisionamento.
+- T-10: sugestão: GATE de navegador de PaymentForm (pagar acima do saldo), SaleForm (estoque) e EncounterAccountForm (desconto) não rodado; vai para a varredura da T-18.
+- T-11: sugestão: até a T-16 a chave `^1 days` não existe em translations.json; GATE das telas QueueEntryView, VaccinationForm, ExamRequestForm, ProcedureExecutionForm e "<n> dias" do VaccineProtocolForm não rodado (T-18).
+- T-12: sugestão: GATE de nome repetido com `<b>` em ProductForm/ServiceForm/TutorForm e do catch novo do ProductForm não rodado (T-18); AgendaView.php:94 passa `$e->getMessage()` cru a TAlert (T-17 deve incluir TAlert na trava).
+- T-13: sugestão: GATE de navegador (retorno "abc" → "Data e hora inválidas", pausa do atendimento 3408 em pt) sem evidência (T-18).
+- T-14: sugestões: update de Tutor/Patient/Product/Service e PatientService::create sem teste de recusa; leitura de registro antigo com < > sem teste automatizado (GATE pós-T-16); PatientService::create checa o nome sem trim (PatientService.php:85 vs :140-145).
+- T-15: sugestões: SystemDatabaseExplorer catch Exception genérico segue com `$table` sem isset e sem rollback (SystemDatabaseExplorer.php:507-510); GATE (POST forçado no SystemMessageForm; segundo login sem logout) não rodado, vai para a T-18.
+- T-19: sugestões: sem teste unitário de resolveName(['DB_DATABASE' => 'centralvet_test']) nem do ramo "not found" do preflight; prepare/execute do preflight fora do try (PDOException vira fatal 255); docblock defasado em MysqlIntegrationTestCase.php:10-15.
+- Validador (onda 2): mensagens novas em inglês até a T-16 ("Name must not contain < or >"); OverpaymentException em inglês com centavos ("Payment of … cent(s) would raise paid_cents …"), fora do catálogo UserMessage, para depois; GATEs de navegador (T-10 SaleForm/EncounterAccountForm, T-11 demais telas, T-12 nome repetido, T-15 POST forçado e segundo login) passam para a T-18.
+- Registros R3 criados no banco de dev no gate da onda 2 (ver reviews/T-NN.md § Gate).
 
 ## Riscos
 - A rodada 2 pode mudar arquivos deste plano ao fechar (T-65 mexe em `PatientForm`, `AppointmentForm`, `EncounterView`, `SaleForm` e models). Mitigação: o orquestrador confere `git -C /var/www/html/centralvet diff --stat <HEAD de hoje>..<HEAD de partida>` antes da onda 1 e, se um arquivo do Mapa mudou, as linhas citadas nas tasks são conferidas pelo implementador antes de editar.
@@ -76,5 +100,6 @@
 - BASE da onda 1: b75d7cc
 - Commits por onda:
   - Onda 1: BASE b75d7cc → HEAD 7687d16 (7687d16, 75a411c, 2fb13d0, c0fd1b1, 374028d, 0a74522, 317dac1, 6731313, 9f3c639, 662c637, 9e025c9, 5e058b0, 6d57324, c592905, f301e70, 916c57c, 551f2cc, 7e2d2ef, 52b46ba, 9c29731, 4b30140, 57f0b41, 04ddd61, b44bd6e)
-- Último status conhecido: onda 1 fechada com T-01..T-09, T-20 e T-21 [x]; bloqueio entre as ondas 1 e 2: provisionamento do centralvet_test pelo orquestrador, com aprovação SQL do usuário.
-- Próxima onda recomendada: onda 2 (T-10, T-11, T-12, T-13, T-14, T-15, T-16, T-17, T-19) depois do provisionamento do centralvet_test
+  - Onda 2: BASE ae45458 → HEAD 39005ff (39005ff, 946709c, cdcfd37, a928701, 3fb5787, af5899f, 3feb3a8, d7b8c1e, a093a02, 4242dd8, 669a3ac)
+- Último status conhecido: onda 2 fechada com T-10..T-15 e T-19 [x] (T-05 com Correção 1 aprovada); centralvet_test provisionado; falta T-16, T-17 e T-18.
+- Próxima onda recomendada: onda 3 (T-16, T-17), depois T-18 (validação final)

@@ -32,3 +32,8 @@ EOF
 - [T-06] medição com 4 SUITEs simultâneas concluída; RedisQueue::recoverDue passa a usar sprintf('%.17g', microtime(true)) como limite do zRangeByScore (assinatura inalterada)
 - [T-20] Correção 1: Drive usa SystemDriveDocumentUploadForm::MIMES_BY_EXTENSION + UploadedTmpFile::mimeMatchesExtension (finfo tem de casar com a extensão); ALLOWED_MIMES foi removida.
 - [T-20] Correção 2 (ruling): SystemMessageForm e SystemSupportForm declaram ATTACHMENT_EXTENSIONS (DEFAULT_EXTENSIONS + doc, docx, xls, xlsx, odt, ods, gif, zip) via setAllowedExtensions; EncounterView segue com DEFAULT_EXTENSIONS.
+- [T-11] i18n: ^1 days → ^1 dias
+- [T-19] SUITE passa a usar centralvet_test a partir de 946709c (TestDatabase::DEFAULT_NAME = 'centralvet_test'; run.php sai com 1 se o nome resolvido = DB_DATABASE ou se o banco não existir)
+- [T-10] commit a928701: 10 controllers de financeiro/vendas com error_log + CvFormat::userError; CashSessionForm.php também tinha `new TAlert('danger', $e->getMessage())` (fora do regex de TMessage), corrigido — T-17 pode incluir TAlert na trava. PaymentForm monta o combo a partir de Payment::METHODS.
+- [T-14] i18n: Name must not contain < or > → O nome não pode conter < ou >
+- [T-14] NameText::assertNoMarkup (CentralVet\Domain) chamado em PatientService/TutorService/ProductService create+update e ServiceCatalogService create+update (duplicate e importCsv passam por create; linha de CSV com < ou > vira skipped com reason 'Name must not contain < or >'). UserMessage::STATIC tem 18 entradas.
