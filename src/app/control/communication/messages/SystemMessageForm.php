@@ -31,6 +31,8 @@ class SystemMessageForm extends TPage
         
         // create the form fields
         $system_user_to_id = new TDBMultiSearch('system_user_to_id', 'permission', 'SystemUser', 'id', 'name');
+        // T-65: nome do usuário (autoeditável) escapado no select2; busca/ordem seguem em name
+        $system_user_to_id->setMask(SystemUser::safeSearchMask('name_safe'));
         $subject = new TEntry('subject');
         $message = new THtmlEditor('message');
         $attachments = new TMultiFile('attachments');
