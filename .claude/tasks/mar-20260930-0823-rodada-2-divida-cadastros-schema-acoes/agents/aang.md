@@ -11,6 +11,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-17: Fila: Editar paciente e Editar agendamento
 - T-29: Onda 8: check-in da fila pela Agenda, menu da fila e agendamento inexistente
 - T-41: Onda 10: check-in traduz a violação de UNIQUE; Agenda troca Check-in por "Na fila"
+- T-57: Onda 11: badge "Na fila" só para agendamento ativo e ordem do Fake da fila
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -37,6 +38,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-57 (onda 11): só `AgendaView.php`, `FakeQueueEntryRepository.php` e `QueueEntryServiceTest.php`.
 - Onda 10: chave i18n nova vai só no board (`- [T-xx] i18n: <en> → <pt>`); quem grava `translations.json` é T-51 (Platão).
 - T-41 (onda 10): só comece depois de confirmar o índice `SHOW INDEX FROM queue_entry WHERE Key_name = 'queue_entry_appointment_uq'`; sem ele, pare com `Status: bloqueado`. Não edite `translations.json` (a chave `In queue` foi gravada por T-43).
 - T-29 (onda 8): não edite `translations.json` (é de T-28); as chaves de check-in estão fixadas na Interface de T-28. Pode editar `AgendaView.php`, `AppointmentForm.php`, `QueueEntryView.php` e `QueueEntryService.php` (+ teste).

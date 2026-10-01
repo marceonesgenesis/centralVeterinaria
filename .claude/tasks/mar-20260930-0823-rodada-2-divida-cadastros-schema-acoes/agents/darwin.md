@@ -11,6 +11,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-21: ProductList: constantes, overview(), preço/código, Gerar relatório PDF
 - T-38: Onda 8: modelos de prescrição (varchar, duplicado, N+1) e testes de produto
 - T-50: Onda 10: MoneyInput nos 9 formulários com toCents
+- T-54: Onda 11: FinancialEntryForm append-only, MoneyInput com zeros à esquerda, limpeza de T-50, i18n
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -37,6 +38,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-54 (onda 11): você é o escritor único de `translations.json` na onda (grave também as linhas `i18n:` das outras tasks da onda 11 no board e releia o board antes do commit final). Troque só o `use`/FQCN e o placeholder nos 9 formulários, sem outra mudança de comportamento.
 - Onda 10: chave i18n nova vai só no board (`- [T-xx] i18n: <en> → <pt>`); quem grava `translations.json` é T-51 (Platão).
 - T-50 (onda 10): nos gates, não grave em `PaymentForm`, `CashSessionForm` nem `EncounterAccountForm`.
 - T-38 (onda 8): `StockSalesOverviewService.php` só no docblock `@return`; não edite `ProductService.php`.

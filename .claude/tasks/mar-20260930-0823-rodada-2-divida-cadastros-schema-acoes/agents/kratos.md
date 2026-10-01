@@ -11,6 +11,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-19: PrescriptionForm: validade, Salvar como modelo, Aplicar modelo, estilos, onEdit
 - T-30: Onda 8: PrescriptionForm sem patient_id, combo de modelos e remoção de item
 - T-44: Onda 9: PrescriptionForm com userError nos catches restantes
+- T-53: Onda 11: data/hora do agendamento sem troca dia/mês; PDO com texto genérico
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -37,6 +38,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-53 (onda 11, BASE `f56cb01`): confirme a causa antes de corrigir. Qualquer `var_dump` ou sabotagem só numa worktree isolada (`git -C /var/www/html/centralvet worktree add /tmp/claude-1000/wt-T-53 HEAD`), removida ao fim. Pode editar `CvFormat.php`, `UserMessage.php` e os testes listados; não edite `translations.json` (é de T-54; as chaves usadas já existem).
 - T-44 (onda 9): só `PrescriptionForm.php`.
 - T-30 (onda 8): não edite `translations.json` nem `cv-components.css` (são de T-28 e T-31).
 - Pré-requisito da onda 2 em diante: migration `20260930_0007_rodada2_cadastros_financeiro` e `sql/T-01-programs.sql` aplicados pelo orquestrador (conferir em `notes.md § Bloqueios`). Se `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '<tabela>'` não mostrar a coluna da sua task, pare com `Status: bloqueado`. (vale para T-19; T-08 é da onda 1).

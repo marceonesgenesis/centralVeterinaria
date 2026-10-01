@@ -100,6 +100,27 @@
 - 2026-09-30 · onda 10 — A sessão do navegador caiu de novo depois da suíte no gate (na onda 9 não caiu); causa desconhecida, não é o Redis de sessão (T-42). Pendência.
 - 2026-09-30 · onda 10 — Validação cruzada final: LINT 26/26, SUITE 365/365, i18n sem dup/missing, índice UNIQUE presente (reviews/cruzada-onda-10.md).
 
+- 2026-09-30 · plano (revisão) · onda 11 — O usuário pediu que as pendências restantes fossem executadas e a rodada fechada: `### Onda 11 — correção (usuário)` (T-53..T-59, BASE `f56cb01`) e `### Onda 12 — correção (usuário)` (T-60).
+  - Data do agendamento (T-53): a causa provável é o `TDateTime` sem máscara em `AppointmentForm:78` + `new DateTimeImmutable('01/10/2026')`, que o PHP lê como `m/d/Y`. A correção é o parser estrito `CentralVet\Presentation\DateTimeInput` e as máscaras. `CvFormat::userError` passa a dar texto genérico para PDO, a regra que estava em `EncounterView::screenError`.
+  - `financial_entry` é append-only por desenho: T-54 recusa a edição, em vez de suportá-la.
+  - A queda da sessão (T-55) é investigada por medição antes e depois de cada hipótese, em worktree isolada. Se a causa for de produção, fica registrada sem edição.
+  - Anexos (T-56): `ExamResultForm` passa a gravar em `stored_object`, sem schema novo.
+  - Depois da onda 12 vem a revisão final (Fase 5) contra `feat/fidelidade-visual-mocks`.
+- 2026-09-30 · T-42 · onda 9 — O desvio `false`/'' no lugar de `?:` em `run.php` foi aceito: o literal transformaria `'0'` em 15 e quebraria a recusa (sugestão do revisor de T-42).
+
+- 2026-09-30 · T-55 · onda 11 — Causa provada da "queda de sessão depois da suíte" (ondas 8–10): o validador navegava em `localhost:8081` com o login feito em `127.0.0.1:8081`. São hosts diferentes, com cookie jar diferente, e a sessão nunca caiu. A suíte não tem culpa, e T-42 já tinha provado que o Redis de sessão também não. Regra operacional: o gate de navegador roda sempre em `http://127.0.0.1:8081`, no mesmo contexto do Playwright (plan.md § Premissas).
+- 2026-09-30 · plano (revisão) · onda 12 — Ruling do orquestrador:
+  - T-61 (Naruto) corrige em produção o `select()` ignorado de `RedisConnectionFactory` (`reports/T-55.md:87`);
+  - T-60 passa a incluir os 2 catches de `ExamResultForm` (:230, :236) com `getMessage()` cru, deixados de fora por T-56.
+- 2026-09-30 · T-53 · onda 11 — Causa: `new DateTimeImmutable("01/10/2026")` interpreta m/d. Fix loop 1: o `setDatabaseMask` do TDateTime convertia data inválida no cliente, então saiu; o `AppointmentFormPostIntegrationTest.php`, fora do bloco RED, foi aceito. Fix loop 2: o picker malot também reescrevia data inválida (31/02 → 03/03) e cobria o botão Agendar, sem `useStrict`/`keepInvalid`; o campo virou `TEntry` com máscara 99/99/9999 99:99. Provado: 31/02 e 13/13 são recusados em pt, e 01/10 grava outubro.
+- 2026-09-30 · T-54 · onda 11 — `financial_entry` é só de inclusão por desenho: editar agora é recusado com aviso. RED ausente aceito (testes de MoneyInput já passavam; a correção no controller foi provada no navegador).
+- 2026-09-30 · T-54 · onda 11 — Os commits ffe2824 e 7edbc12 têm `Task:` fora do bloco de trailers; aceito, sem reescrita de histórico.
+- 2026-09-30 · T-56 · onda 11 — O anexo do ExamResultForm não rodou no navegador (não havia exame R2 sem resultado); vale o teste unitário. Os 2 catches com `getMessage` cru do ExamResultForm foram para T-60.
+- 2026-09-30 · T-57 · onda 11 — O caso cancelado não rodou no navegador (não há UI de cancelamento); vale o teste unitário.
+- 2026-09-30 · onda 11 — Varredura: T-44 (modelo repetido), T-45 (resumo de IA) e T-50 (abertura de caixa) seguem com a evidência das ondas anteriores ou da leitura do código.
+- 2026-09-30 · onda 11 — T-55 deixou o problema de produção de `RedisConnectionFactory` (ignora o `false` de `select()`) para T-61 na onda 12. O `fe.yml`, snapshot do Playwright deixado na raiz por um validador, foi movido para `.playwright-mcp/`.
+- 2026-09-30 · onda 11 — Validação cruzada coberta: gate LINT 31/31, SUITE 377/377 e i18n ok; após os fix loops de T-53, re-validação 2 com LINT e SUITE 380/380 no HEAD.
+
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
@@ -153,6 +174,11 @@
 - Onda 10: stored_object: StoredObjectRepository (record/listByObjectKeyFragment/findByPublicId); anexo com chave `tenant/<t>/encounter/<id>/<12 hex>-<nome>`; download por EncounterView::onDownloadDocument (404 sem corpo fora do atendimento).
 - Onda 10: UserMessage::PATTERNS com 13 padrões (conflito de horário em pt); AppointmentForm com todos os catches em CvFormat::userError; translations.json +4 chaves.
 - Onda 10: registros R2 criados: queue_entry 30 (agendamento 5) e a do agendamento 4; financial_entry 13835 e 14014; agendamento 38 (data errada); stored_object 705, 722, 723; exam_catalog_item 1608; procedure_catalog_item 1608; service 3 e product 946 editados e restaurados.
+- Onda 11: DateTimeInput::parse (estrito, Y-m-d H:i[:s] | d/m/Y H:i[:s], ano 1900–2100) usado por AppointmentService; CvFormat::userError devolve texto genérico para PDOException; AppointmentForm.scheduled_at é TEntry com máscara (sem TDateTime). T-60 deve evitar TDateTime/setDatabaseMask no followup_scheduled_at.
+- Onda 11: FinancialEntryForm só inclui (id/key recusados com aviso); placeholder 'ex.: 12,34' e a chave de recusa no i18n.
+- Onda 11: queda de sessão = host localhost × 127.0.0.1; gate de navegador sempre em http://127.0.0.1:8081. run.php recusa TEST_REDIS_DATABASE fora de 0..15 e SELECT recusado.
+- Onda 11: EncounterDocumentService::discard(object); ExamResultForm grava anexo em stored_object; PatientForm descarta a foto nova se o commit falha; badge 'In queue' só para agendado/confirmado/em_atendimento; FakeEncounterAccountRepository::$saveCount.
+- Onda 11: registros R2 criados: appointments 144, 155 (2026-03-03, efeito do bug do picker, antes da correção 2), 156 e 167; financial_entry 15706; service 151; bank_account 776; foto do paciente 2772 trocada.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -249,6 +275,13 @@
 - T-52: ExamResultForm fora do stored_object (EncounterView não lista esses anexos); objeto órfão se TTransaction::close() falhar; falta filename*=UTF-8'' no Content-Disposition.
 - FinancialEntryForm: salvar com id existente criou um registro novo em vez de editar (observado no gate de T-50).
 - Onda 10: queda da sessão do navegador depois da suíte no gate, causa desconhecida.
+- T-53: AppointmentService (Core/Application) importa CentralVet\Presentation\DateTimeInput, única dependência Application→Presentation; avaliar camada neutra.
+- T-54: sem SELECT amount_cents/category antes e depois no gate (só COUNT e MAX(id)); recusa de edição sem teste unitário (requestsExistingEntry é puro).
+- T-55: preflight de run.php não confere o retorno de auth() (NOAUTH aparece como "refused SELECT"); queda da sessão da onda 8 (19:31 UTC) sem prova direta.
+- T-56: discard() sem marcador passa a chave embrulhada ao delete() sem log; ligação ExamResultForm→stored_object e catches de órfão sem teste de controller; anexo do ExamResultForm sem prova no navegador.
+- T-57: nenhum teste cobre a regra do badge (premissa do ruling corrigida: vale leitura do diff); $active_statuses poderia ser constante da classe (AgendaView.php:417-421).
+- T-58: se o rollback lançar (conexão morta), discardPhoto não roda; bloco de discard copiado 7 vezes no PatientForm; caminho close() lança sem teste.
+- Onda 11: validador sem navegador para T-55 e T-56; GATE de navegador de T-56/T-57 (cancelado) não rodou.
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -268,7 +301,7 @@
 - Registros da onda 7: serviço 11 "R2 varredura Import 1"; serviço 12 (nome de 190 caracteres); paciente 2772 com weight_kg 4.50.
 - Onda 8: `docker/nginx/default.conf` (T-32) só vale depois de `docker compose restart nginx` pelo orquestrador no gate; se o `nginx -t` falhar, o gate da onda para antes do navegador.
 - Onda 8: com 12 agentes no checkout compartilhado, o `index.lock` pode ser disputado. O agente repete o commit depois de alguns segundos, sem apagar o lock.
-- Ondas 9–10: a SUITE hoje derruba o login do navegador (sessões no DB 0). Até T-42 fechar, o orquestrador refaz o login admin depois de cada SUITE de gate.
+- Ondas 9–10: a SUITE hoje derruba o login do navegador (sessões no DB 0). Até T-42 fechar, o orquestrador refaz o login admin depois de cada SUITE de gate. [Superado: T-55 provou que a causa era `localhost` × `127.0.0.1`; ver § Decisões.]
 - Ondas 9–10: a 0008 altera `queue_entry`. Se o `.verify.sql` não mostrar `non_unique = 0` e 0 grupos duplicados, a onda 10 não abre (T-41 depende do índice).
 
 ## Retomada
@@ -287,5 +320,6 @@
   - Onda 8: BASE cbd7ad1 → HEAD 5ce5d1f (0b05a04, 5732895, 1ec7bbd, 529567f, 0a8bc71, 507bba8, d613598, 4ca0940, 0c4c5f0, 97c6997, fb4aaac, e641320, 56dddb8, 5963715, c2a0629, 8593c4b, 2f93b0e, 28df8c4, 549b131, eb217f6, 3d96eff, 5ce5d1f)
   - Onda 9: BASE c03e1b2 → HEAD bbda807 (bbda807, 17b0770, 16307b5, 73600c2, cc00614, 7ec6808, 32f1bb2, 884b0c5, cb1e945, 72a0020, 08a26f4, e197d51, b2a403d, 4cbc575)
   - Onda 10: BASE 87a40c6 → HEAD f6f4538 (f6f4538, b32af91, fd3b889, 0833a40, 8a4e93a, 6fa5958, d9defc8, f2ff511, 6021755, a64fc14, 281e9d4, fc7151f)
-- Último status conhecido: onda 10 (T-41, T-50, T-51, T-52 [x]) concluída; validação cruzada LINT 26/26, SUITE 365/365. A 0008 (T-40) está aplicada.
-- Próxima onda recomendada: nenhuma; revisão final.
+  - Onda 11: BASE f56cb01 → HEAD 63de67e (d755bef, 10ddafb, 178577d, b37c79c, f9db627, 34b1a68, ffe2824, 52a882d, 0046013, 7edbc12, fde5e1d, cf869f6, 9ff456b, 28cae09, 9fe0571, 63de67e)
+- Último status conhecido: onda 11 (T-53..T-59 [x]) concluída; T-53 com 2 fix loops; re-validação 2 LINT e SUITE 380/380 no HEAD.
+- Próxima onda recomendada: onda 12 (T-60, T-61); depois revisão final.

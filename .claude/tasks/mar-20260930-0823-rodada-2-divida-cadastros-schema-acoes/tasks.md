@@ -54,6 +54,15 @@
 | T-50 | frontend | Onda 10: MoneyInput nos 9 formulários com toCents | T-48 | sim | média | Darwin | [x] |
 | T-51 | frontend | Onda 10: mensagens de agendamento em pt e i18n da onda 10 | — | sim | simples | Platão | [x] |
 | T-52 | backend | Onda 10: anexos do atendimento registrados em stored_object e listados | — | sim | alta | Sherlock | [x] |
+| T-53 | backend | Onda 11: data/hora do agendamento sem troca dia/mês; PDO com texto genérico | — | sim | alta | Kratos | [x] |
+| T-54 | frontend | Onda 11: FinancialEntryForm append-only, MoneyInput com zeros à esquerda, limpeza de T-50, i18n | — | sim | média | Darwin | [x] |
+| T-55 | qa | Onda 11: queda da sessão do navegador depois da suíte e intervalo de TEST_REDIS_DATABASE | — | sim | alta | Naruto | [x] |
+| T-56 | backend | Onda 11: anexos do ExamResultForm em stored_object, sem órfão e com nome UTF-8 | — | sim | média | Sherlock | [x] |
+| T-57 | frontend | Onda 11: badge "Na fila" só para agendamento ativo e ordem do Fake da fila | — | sim | simples | Aang | [x] |
+| T-58 | backend | Onda 11: foto nova apagada se o commit falhar e teste do error_log | — | sim | simples | Tesla | [x] |
+| T-59 | backend | Onda 11: contador de save no FakeEncounterAccountRepository | — | sim | simples | Arquimedes | [x] |
+| T-60 | frontend | Onda 12: retorno do EncounterView pelo DateTimeInput e catches do ExamResultForm | T-53, T-56 | não | simples | Yoda | [ ] |
+| T-61 | backend | Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha | — | sim | simples | Naruto | [ ] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
@@ -2111,6 +2120,379 @@ Achado do gate da onda 9 (`reviews/T-45.md § Complemento`, `reports/T-45.md`): 
 - LINT dos 6 PHP (evidência: 6 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
 - GATE → os fluxos do critério (evidência: `SELECT COUNT(*)` antes e depois, snapshot da lista, `browser_network_requests` do download 200 e do 404, console 0 `error`)
 - Review Focus: `onDownloadDocument` de um anexo do atendimento A pedido com `encounter_id` de B → 404, sem bytes (evidência: status da requisição)
+
+### T-53 — Onda 11: data e hora do agendamento sem troca de dia/mês e erros de banco com texto genérico
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Kratos
+
+Achado do gate da onda 10 (`reviews/T-51.md § Complemento`): no `AppointmentForm`, "01/10/2026 11:00" foi gravado como 10/01/2026 (agendamento R2 id 38). Causa provável, a confirmar antes de corrigir:
+- `AppointmentForm.php:78` cria `new TDateTime('scheduled_at')` sem `setMask`/`setDatabaseMask`, ao contrário dos outros campos de data do projeto (`VaccinationForm:69-70`, `PayableForm:59-60`, `PatientForm:162-163`);
+- o texto postado chega a `AppointmentService` (:97, :200), que faz `new DateTimeImmutable((string) $data['scheduled_at'])`;
+- o PHP lê `01/10/2026` como `m/d/Y`.
+Reprodução exigida em `## RED`:
+- `php -r 'echo (new DateTimeImmutable("01/10/2026 11:00"))->format("Y-m-d");'` no container (evidência: `2026-01-10`);
+- o valor postado pelo formulário, lido do relatório de T-51 ou de um `var_dump` temporário numa cópia em worktree isolada, nunca no checkout compartilhado.
+Se for artefato da automação (fill fora do formato do widget), o implementador prova com o teste de parse, registra no relatório e aplica mesmo assim a validação estrita do serviço.
+Também entram:
+- T-51: o catch-all de `onSave`/`onReschedule` mostra o texto cru de exceções fora do catálogo, inclusive `PDOException` (`AppointmentForm.php:255-259`, `303-308`);
+- a mesma regra de "texto genérico para PDO", que hoje só existe em `EncounterView::screenError` (T-45).
+Auditoria dos demais campos de data e hora: `VaccinationForm`, `StockBatchForm`, `PatientForm`, `PayableForm`, `FinancialEntryList` e `FinancialOverview` já usam `setMask('dd/mm/yyyy')` + `setDatabaseMask('yyyy-mm-dd')` ou parse próprio; `PrescriptionForm` (`prescription_date`, `valid_until`) usa só `setMask`. O resultado entra no relatório com a evidência por campo, e campo quebrado fora desta lista vira pendência.
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/DateTimeInput.php`
+- `src/tests/Unit/DateTimeInputTest.php`
+- `src/app/Core/Application/AppointmentService.php`
+- `src/tests/Unit/AppointmentServiceTest.php`
+- `src/app/control/clinic/AppointmentForm.php`
+- `src/app/lib/widget/CvFormat.php`
+- `src/tests/Unit/CvFormatUserErrorTest.php`
+- `src/app/Core/Presentation/UserMessage.php`
+
+**Interface**
+- Produz: `CentralVet\Presentation\DateTimeInput::parse(string $raw): DateTimeImmutable` (final, estático, sem Adianti): aceita, aparado e estrito (`createFromFormat` com `!` + `getLastErrors()` sem warning nem erro), os formatos `Y-m-d H:i`, `Y-m-d H:i:s`, `d/m/Y H:i` e `d/m/Y H:i:s`; ano fora de 1900..2100 ou qualquer outro texto → `\InvalidArgumentException('Invalid date and time')`.
+  É a mesma regra de `EncounterView::parseFollowUpScheduledAt`, que T-60 passa a usar.
+- Produz: `AppointmentService::schedule()` e `reschedule()` convertem `scheduled_at` string por `DateTimeInput::parse`, no lugar de `new DateTimeImmutable((string) …)`; `DateTimeImmutable` recebido continua aceito.
+- Produz: `AppointmentForm`: `scheduled_at` com `setMask('dd/mm/yyyy hh:ii')` e `setDatabaseMask('yyyy-mm-dd hh:ii')`; `onEdit` preenche o campo no formato do banco (`Y-m-d H:i`); os catch-all de `onSave` e `onReschedule` usam `error_log` + `TMessage('error', CvFormat::userError($e))`.
+- Produz: `CvFormat::userError(\Throwable $e): string` (assinatura mantida) devolve `CvFormat::e(_t('Could not complete the operation. Please try again'))` quando `$e` ou qualquer `getPrevious()` é `\PDOException` ou tem `SQLSTATE[` na mensagem. É a regra de `EncounterView::screenError`, antes das demais.
+- Produz: `UserMessage::STATIC` ganha `Invalid date and time`, com a chave igual à mensagem (pt já gravado por T-51: "Data e hora inválidas").
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/DateTimeInputTest.php`, `src/tests/Unit/AppointmentServiceTest.php`, `src/tests/Unit/CvFormatUserErrorTest.php` — falha antes da correção porque a classe não existe, o serviço lê 10/jan e o `userError` devolve o SQLSTATE (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`): `parse('01/10/2026 11:00')` → `2026-10-01 11:00`; `parse('2026-10-01 11:00')` → o mesmo; `parse('10/01/2026 11:00')` → `2026-01-10`; `parse('13/13/2026 11:00')`, `parse('01/10/2026')`, `parse('abc')` e `parse('01/10/2300 11:00')` lançam `Invalid date and time`; `schedule([... 'scheduled_at' => '01/10/2026 11:00'])` grava `scheduledAt` `2026-10-01 11:00`; `userError(new \RuntimeException('x', 0, new \PDOException('SQLSTATE[23000] …')))` devolve o texto genérico.
+
+**Critério de aceite**
+- SUITE: `PASS` em todos os métodos de `Unit\DateTimeInputTest`, `Unit\AppointmentServiceTest`, `Unit\CvFormatUserErrorTest` e `Unit\UserMessageTest`, `Failed: 0`.
+- `grep -n "new DateTimeImmutable((string) \$data\['scheduled_at'\])" src/app/Core/Application/AppointmentService.php` vazio.
+- GATE:
+  - `AppointmentForm` novo `R2 varredura` com "01/10/2026 11:00" (digitado no widget) faz `SELECT scheduled_at FROM appointment ORDER BY id DESC LIMIT 1` dar `2026-10-01 11:00:00`, e a Agenda de 01/10 o mostra;
+  - editar esse agendamento reabre "01/10/2026 11:00", e remarcar para "02/10/2026 11:00" grava `2026-10-02 11:00:00`;
+  - o agendamento id 38 (10/01/2026) fica como está (dado R2);
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 6 PHP de Core/widget/controller (evidência: 6 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- GATE → os fluxos do critério (evidência: `SELECT scheduled_at` depois de cada um, snapshot da Agenda, console 0 `error`)
+- Review Focus: "01/10/2026 11:00" gravado como 1º de outubro, pela tela e pelo serviço (evidência: `SELECT` e o RED)
+
+### T-54 — Onda 11: FinancialEntryForm append-only, MoneyInput com zeros à esquerda e limpeza de T-50, i18n da onda 11
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Darwin
+
+Achado do gate de T-50: salvar o `FinancialEntryForm` com um id existente criou um registro novo em vez de editar. `financial_entry` é append-only por desenho: o docblock do form diz, em :27 e :134, "não há edição por key"; o repositório tem um UPDATE só de `category`, inalcançável por `record()`; o domínio é imutável. Reprodução exigida em `## RED`: a URL ou o POST que carregou o id no formulário, com `SELECT COUNT(*) FROM financial_entry` antes e depois. A correção é recusar a edição, não suportá-la. Também entram:
+- T-48: zeros à esquerda contam para o teto de 13 dígitos (`MoneyInput.php:77`);
+- T-50: comentário duplicado e linhas em branco em `ProductForm.php:67-75`, FQCN `\CentralVet\Presentation\MoneyInput` repetido 12 vezes (um `use` por arquivo) e placeholder `ex.: 12,34` fora do i18n.
+Escritor único de `translations.json` na onda 11.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/FinancialEntryForm.php`
+- `src/app/Core/Presentation/MoneyInput.php`
+- `src/tests/Unit/MoneyInputTest.php`
+- `src/app/control/clinic/ServiceForm.php`
+- `src/app/control/clinic/ProductForm.php`
+- `src/app/control/clinic/PaymentForm.php`
+- `src/app/control/clinic/ProcedureCatalogForm.php`
+- `src/app/control/clinic/ExamCatalogForm.php`
+- `src/app/control/clinic/CashSessionForm.php`
+- `src/app/control/clinic/PayableForm.php`
+- `src/app/control/clinic/EncounterAccountForm.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `FinancialEntryForm`: com `id`/`key` na requisição (`onEdit` ou `onSave` com `$data->id`/`$param['key']` > 0), mostra `TMessage('warning', _t('Financial entries cannot be edited. Register a new entry to correct it'))` e não chama `record()`; `onEdit` com `key` limpa o formulário e mostra o mesmo aviso; o campo `id` oculto, se existir, sai; Novo e Salvar sem id seguem como hoje.
+- Produz: `MoneyInput::toCents(...)` (assinatura mantida) descarta os zeros à esquerda da parte inteira antes de comparar com `MAX_INTEGER_DIGITS` (`00000000000000,50` → 50), e `0,50` e `0` continuam válidos.
+- Produz: nos 9 formulários de T-50 (`ServiceForm`, `ProductForm`, `PaymentForm`, `ProcedureCatalogForm`, `ExamCatalogForm`, `CashSessionForm`, `PayableForm`, `EncounterAccountForm` e o próprio `FinancialEntryForm`): `use CentralVet\Presentation\MoneyInput;` no topo e chamadas `MoneyInput::toCents(...)`, sem mudança de comportamento; o placeholder `_t('e.g. 12,34')`; o `ProductForm` sem o comentário duplicado.
+- Produz: `translations.json` com `Financial entries cannot be edited. Register a new entry to correct it` → `Lançamentos não podem ser editados. Registre um novo lançamento para corrigir` e `e.g. 12,34` → `ex.: 12,34`, mais toda linha `i18n:` que T-53, T-55, T-56, T-57, T-58 ou T-59 registrarem no board, sem duplicata exata nem por `casefold()`.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/MoneyInputTest.php` — `toCents('00000000000000,50')` → 50 e `toCents('0000000000000012,34')` → 1234; `toCents('99999999999999,00')` (14 dígitos significativos) segue lançando `Invalid amount`; falha antes da correção porque hoje os zeros contam para o teto (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\MoneyInputTest::` em todos os métodos, `Failed: 0`.
+- `grep -c "\\\\CentralVet\\\\Presentation\\\\MoneyInput::" ` nos 9 formulários = 0, e `grep -c "use CentralVet\\\\Presentation\\\\MoneyInput;"` = 1 em cada; `grep -rn "'ex.: 12,34'" src/app/control` vazio.
+- Script python: `dup=0 dupcase=0` e as chaves desta Interface presentes.
+- GATE:
+  - `FinancialEntryForm&method=onEdit&key=<id de um lançamento R2>` mostra "Lançamentos não podem ser editados…";
+  - Salvar nesse estado (POST com `id` forçado por `browser_evaluate`) deixa `SELECT COUNT(*) FROM financial_entry` igual;
+  - Novo lançamento "R2 varredura" R$ 1,00 faz `COUNT(*)` +1;
+  - `ServiceForm` salva "12,34" como `1234`;
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 10 PHP (evidência: 10 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\MoneyInputTest::`, `Failed: 0`)
+- `python3 -c "import json;…"` (evidência: `dup=0 dupcase=0 missing=0`)
+- GATE → os fluxos do critério (evidência: aviso no snapshot, `COUNT(*)` antes e depois, `SELECT price_cents`, console 0 `error`)
+- Review Focus: POST do `FinancialEntryForm` com `id` de lançamento existente → nenhum registro novo nem alterado (evidência: `COUNT(*)` e `SELECT amount_cents, category FROM financial_entry WHERE id=<id>` iguais)
+
+### T-55 — Onda 11: queda da sessão do navegador depois da suíte e intervalo de TEST_REDIS_DATABASE
+
+**Camada:** qa
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Naruto
+
+Pendência das ondas 8–10: a sessão admin do navegador cai depois de cada SUITE, e T-42 provou que o Redis de sessão não é a causa. Hipóteses a medir:
+- testes de integração que mexem em `system_users`, `system_access_log`, `system_user_unit` ou na sessão no MySQL, fora da transação com rollback (DDL implícito faz commit);
+- o `SessionRegistry` (sessão única por usuário) registrando uma sessão nova para o usuário 1;
+- o `docker compose run app` recriando ou compartilhando `tmp/` ou arquivos de sessão com o container `app`;
+- o handler de sessão ativo (`SessionHandlerFactory`, variável de ambiente) ser `files`.
+Também entra a sugestão de T-42: `run.php` não valida o intervalo de `TEST_REDIS_DATABASE` (99 ou -1 rodam no DB 0 sem recusar, `run.php:48-`).
+
+Medição exigida em `## RED`, antes e depois de uma SUITE, com o navegador logado. Por hipótese:
+- `SELECT id, login, active, frontpage_id, updated_at FROM system_users WHERE id = 1`, `SELECT COUNT(*) FROM system_access_log` e `SELECT MAX(id) FROM system_access_log`;
+- no DB 0: `redis-cli -n 0 --scan --pattern '*registry*'`, `redis-cli -n 0 --scan --pattern 'centralvet:session:*'` e o TTL da chave de sessão do navegador;
+- `docker compose exec app ls -la /var/www/html/src/tmp` e o diretório de `session.save_path`;
+- `printenv | grep -i session` no `app` e no `run`.
+Depois, isolar a hipótese rodando só a classe suspeita: copiar `tests/run.php` para um runner temporário na **worktree isolada** (`git worktree add` em `/tmp/claude-1000/wt-T-55`), nunca no checkout compartilhado, e remover a worktree ao fim.
+Se a causa estiver em arquivo de teste fora dos "Arquivos prováveis", o implementador para e devolve `precisa de contexto` com o caminho. Se estiver em produção, registra a causa provada e a correção proposta em Pendências, sem editar.
+
+**Arquivos prováveis**
+- `src/tests/run.php`
+- `src/tests/Support/MysqlIntegrationTestCase.php`
+- `src/tests/Support/RedisIntegrationTestCase.php`
+- `src/tests/Integration/SessionRedisIntegrationTest.php`
+- `src/tests/Integration/Phase1TenantIsolationIntegrationTest.php`
+- `src/tests/Integration/TenantIsolationMysqlIntegrationTest.php`
+- `docs/runbooks/tests.md`
+
+**Interface**
+- Produz: a causa provada, no relatório, com a medição antes e depois que a isola, e a correção nos arquivos acima: o que a hipótese confirmada exigir (ex.: `SessionRegistry` com prefixo de teste, teste que usa usuário `R2 teste` e não o id 1, ou isolamento do `tmp/`).
+- Produz: `run.php` recusa `TEST_REDIS_DATABASE` que não seja `ctype_digit` ou esteja fora de `0..15` com `Refusing to run: TEST_REDIS_DATABASE must be an integer between 0 and 15`, exit 1; e confere o retorno de `select()`, abortando se for `false`.
+- Produz: `docs/runbooks/tests.md` com a causa e a regra.
+- Consome: nada
+
+**Teste RED**
+- sem teste: infraestrutura do runner e isolamento entre a suíte e a sessão do navegador. A prova é a medição antes e depois em `## RED` e, depois da correção, a mesma medição sem mudança e o navegador logado
+
+**Critério de aceite**
+- Com o navegador logado (admin), depois de uma SUITE a próxima navegação do validador abre uma página interna sem voltar ao login, e as medições da hipótese confirmada ficam iguais antes e depois.
+- `TEST_REDIS_DATABASE=99` e `TEST_REDIS_DATABASE=-1` saem com código 1 e a mensagem `Refusing to run`; `TEST_REDIS_DATABASE=15` roda com `Failed: 0`.
+- A worktree de prova não existe mais ao fim (`git -C /var/www/html/centralvet worktree list` sem `/tmp/claude-1000/wt-T-55`).
+
+**Validação**
+- LINT dos PHP tocados (evidência: `No syntax errors detected` em cada)
+- SUITE com o navegador logado + navegação do validador depois (evidência: página interna no snapshot, medições iguais)
+- `docker compose run --rm --no-deps -T -e TEST_REDIS_DATABASE=99 -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php; echo $?` e o mesmo com `-1` (evidência: `Refusing to run` e `1` nos dois)
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem a worktree de prova)
+
+### T-56 — Onda 11: anexos em stored_object também no ExamResultForm, sem órfão e com nome UTF-8
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Sherlock
+
+Pendências de T-52:
+- `ExamResultForm` monta `EncounterDocumentService` com 2 argumentos (:277), então o resultado anexado não vai para `stored_object` e não aparece na lista do `EncounterView`;
+- `onAttachDocument` faz `put()` e o INSERT e só depois `TTransaction::close()`: se o commit falhar, o objeto fica órfão (`EncounterView.php:1911-1913`);
+- o `Content-Disposition` troca todo caractere não ASCII por `_`;
+- a chave `Attachment not found` não tem uso.
+Sem schema novo: `stored_object` já existe, e o vínculo com o atendimento é o fragmento `tenant/<t>/encounter/<id>/` do `object_key`.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/EncounterDocumentService.php`
+- `src/tests/Unit/EncounterDocumentServiceTest.php`
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/control/clinic/ExamResultForm.php`
+
+**Interface**
+- Produz: `EncounterDocumentService::discard(object $metadata): void` apaga do storage o objeto de um `attach` cujo commit falhou (`$storage->delete($metadata->objectKey)`). Falha do storage → `error_log`, sem exceção.
+- Produz: `EncounterView::onAttachDocument` e o upload do `ExamResultForm`: se `TTransaction::close()` (ou qualquer passo depois do `attach`) lançar, o catch faz `rollback` e `discard($metadata)` antes da mensagem de erro.
+- Produz: `ExamResultForm` constrói `EncounterDocumentService` com `new StoredObjectRepository($context, TTransaction::get())` (3 argumentos) e anexa sob o atendimento de origem do pedido de exame (`encounter_id` do `exam_request`). O `stored_object_key` do resultado continua gravado como hoje, e o anexo passa a aparecer na lista do `EncounterView` desse atendimento.
+- Produz: `EncounterView::onDownloadDocument` envia `Content-Disposition: attachment; filename="<nome ASCII saneado>"; filename*=UTF-8''<rawurlencode(nome original)>`. O 404 responde o corpo em texto `_t('Attachment not found')`, que era a chave órfã.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/EncounterDocumentServiceTest.php` — com `FakeStorage` e `FakeStoredObjectRepository`: `attach` seguido de `discard($metadata)` deixa o `FakeStorage` sem o objeto; `discard` com um storage cujo `delete` lança não propaga exceção; falha antes da correção porque `discard` não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\EncounterDocumentServiceTest::` e `PASS  Integration\StoredObjectRepositoryIntegrationTest::` em todos os métodos, `Failed: 0`.
+- GATE:
+  - `ExamResultForm` de um pedido `R2 varredura` com um PDF faz `SELECT COUNT(*) FROM stored_object WHERE object_key LIKE '%/encounter/<id de origem>/%'` ficar +1, e o anexo aparece na lista do `EncounterView` desse atendimento;
+  - baixar um anexo `laudo-ção.pdf` traz `content-disposition` com `filename*=UTF-8''laudo-%C3%A7%C3%A3o.pdf`;
+  - `onDownloadDocument` de outro atendimento responde 404 com o texto "Anexo não encontrado";
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 3 PHP (evidência: 3 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- GATE → os 3 fluxos do critério (evidência: `COUNT(*)` antes e depois, `browser_network_requests` com o header e o 404, snapshot da lista, console 0 `error`)
+- Caminho do órfão (sem reprodução pela UI): o diff mostra `discard($metadata)` nos catches depois de `attach` nos dois controllers (evidência: trecho citado no relatório)
+
+### T-57 — Onda 11: badge "Na fila" só para agendamento ativo e ordem do Fake da fila
+
+**Camada:** frontend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Aang
+
+Pendências de T-41:
+- o badge "Na fila" aparece para qualquer status, inclusive cancelado ou finalizado (`AgendaView.php:416-421`);
+- o Fake devolve os ids na ordem das entradas, e o repositório ordena por `appointment_id` (`FakeQueueEntryRepository.php:75-89` × `QueueEntryRepository.php:204`).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/AgendaView.php`
+- `src/tests/Support/FakeQueueEntryRepository.php`
+- `src/tests/Unit/QueueEntryServiceTest.php`
+
+**Interface**
+- Produz: o badge "Na fila" só aparece quando o agendamento está na fila **e** tem status `Appointment::STATUS_SCHEDULED`, `STATUS_CONFIRMED` ou `STATUS_IN_PROGRESS`; nos demais status, o bloco mostra só o badge de status, sem Check-in. O link Check-in segue a regra de T-29/T-41.
+- Produz: `FakeQueueEntryRepository::listAppointmentIdsInQueue` devolve os ids em ordem crescente e sem repetição, como o repositório.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/QueueEntryServiceTest.php`, `src/tests/Support/FakeQueueEntryRepository.php` — com entradas dos agendamentos 9, 7 e 8 gravadas nessa ordem, `appointmentIdsInQueue([9, 7, 8])` devolve `[7, 8, 9]`; falha antes da correção porque o Fake devolve `[9, 7, 8]` (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\QueueEntryServiceTest::` em todos os métodos, `Failed: 0`.
+- GATE:
+  - na Agenda, um agendamento `R2 varredura` na fila e `cancelado` não mostra "Na fila" (se não houver, o validador cancela um agendamento R2 que já esteja na fila pela UI de remarcação/status existente; se a UI não permitir, fica `[não rodado]` com o motivo e vale a leitura do diff);
+  - um `agendado` na fila mostra "Na fila";
+  - console 0 `error`.
+
+**Validação**
+- LINT de `AgendaView.php` (evidência: `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\QueueEntryServiceTest::`, `Failed: 0`)
+- GATE → os 2 casos do critério (evidência: snapshot dos blocos, `SELECT status FROM appointment WHERE id=<id>`, console 0 `error`)
+
+### T-58 — Onda 11: foto nova apagada se o commit falhar e teste do error_log do discardPhoto
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Tesla
+
+Pendências de T-47:
+- se `TTransaction::close()` lançar depois de um `attachPhoto` bem-sucedido, o objeto da chave nova fica órfão, porque nenhum catch de `onSave`/`saveExisting` chama `discardPhoto($patient->photoObjectKey)` (`PatientForm.php:358,449`, catches a partir de :376 e :471);
+- `testDiscardPhotoSwallowsStorageFailure` não assere o `error_log` (`PatientServiceTest.php:444-455`).
+
+**Arquivos prováveis**
+- `src/app/control/clinic/PatientForm.php`
+- `src/tests/Unit/PatientServiceTest.php`
+
+**Interface**
+- Produz: em `PatientForm::onSave`/`saveExisting`, quando houve `attachPhoto` na requisição e um passo posterior (inclusive `TTransaction::close()`) lança, o catch faz `rollback` e `discardPhoto(<chave nova>)` antes da mensagem, e a chave anterior não é apagada. O caminho de sucesso (`discardPreviousPhoto` depois do commit) não muda.
+- Produz: `testDiscardPhotoSwallowsStorageFailure` aponta `error_log` para um arquivo temporário (`ini_set('error_log', <tmp>)`, restaurado no fim) e assere que ele contém a chave e a mensagem da falha.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/PatientServiceTest.php` — o teste reforçado, com a asserção do `error_log`, falha contra uma versão sabotada de `discardPhoto` sem `error_log` (sabotagem feita e desfeita numa worktree isolada em `/tmp/claude-1000/wt-T-58`, diff colado no relatório) e passa no HEAD (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\PatientServiceTest::` em todos os métodos, `Failed: 0`.
+- O diff de `PatientForm.php` mostra `discardPhoto(` nos catches posteriores ao `attachPhoto` de `onSave` e `saveExisting` (trecho citado no relatório).
+- GATE: trocar a foto do paciente 2772 pelo caminho feliz segue com a foto nova, e a chave antiga some do bucket depois do commit; console 0 `error`.
+
+**Validação**
+- LINT de `PatientForm.php` (evidência: `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\PatientServiceTest::`, `Failed: 0`)
+- GATE → troca de foto (evidência: `SELECT photo_object_key` antes e depois, console 0 `error`)
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem `/tmp/claude-1000/wt-T-58` ao fim)
+
+### T-59 — Onda 11: contador de save no FakeEncounterAccountRepository
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Arquimedes
+
+Sugestão de T-49: o decorador anônimo de `EncounterAccountRepositoryInterface` (cerca de 40 linhas, só para contar `save`) em `EncounterAccountServiceTest.php:263-298` poderia ser um contador no Fake compartilhado.
+
+**Arquivos prováveis**
+- `src/tests/Support/FakeEncounterAccountRepository.php`
+- `src/tests/Unit/EncounterAccountServiceTest.php`
+
+**Interface**
+- Produz: `FakeEncounterAccountRepository::$saveCount` (`public int`, começa em 0 e soma 1 a cada `save`). O teste de negação por política usa o Fake e assere `saveCount === 0`, e o decorador anônimo sai.
+- Consome: nada
+
+**Teste RED**
+- sem teste: refatoração de teste (troca do decorador pelo contador do Fake) sem mudança de comportamento; a prova é a SUITE verde com a asserção equivalente e o diff sem a classe anônima
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\EncounterAccountServiceTest::` em todos os métodos, `Failed: 0`; `grep -c "new class" src/tests/Unit/EncounterAccountServiceTest.php` menor que na BASE.
+
+**Validação**
+- LINT dos 2 PHP (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\EncounterAccountServiceTest::`, `Failed: 0`)
+
+### T-60 — Onda 12: retorno do EncounterView pelo DateTimeInput e catches do ExamResultForm
+
+**Camada:** frontend
+**Dependências:** T-53, T-56
+**Paralelizável:** não
+**Complexidade:** simples
+**Agente:** Yoda
+
+Sugestão de T-45: `parseFollowUpScheduledAt` é privado e fica sem teste (`EncounterView.php:1585-1610`). A regra passa a ser a de `DateTimeInput::parse` (T-53), coberta por `DateTimeInputTest`. Fica na onda 12 porque consome T-53 e porque `EncounterView.php` é de T-56 na onda 11. Por ruling do orquestrador, entram também os 2 catches de `ExamResultForm` que ainda fazem `new TMessage('error', $e->getMessage())` (`ExamResultForm.php:230`, `:236`), deixados de fora por T-56. Nenhuma task da onda 12 edita esse arquivo.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/control/clinic/ExamResultForm.php`
+
+**Interface**
+- Produz: `onScheduleFollowUp` converte `followup_scheduled_at` por `DateTimeInput::parse`, e `InvalidArgumentException` vira `TMessage('error', CvFormat::userError($e))` ("Data e hora inválidas"). `parseFollowUpScheduledAt` sai. O campo ganha `setMask('dd/mm/yyyy hh:ii')` + `setDatabaseMask('yyyy-mm-dd hh:ii')`, como em T-53.
+- Produz: os 2 catches de `ExamResultForm` (:230, :236) passam a `error_log(__METHOD__ . ': ' . $e->getMessage())` + `TMessage('error', CvFormat::userError($e))`, e nenhum `TMessage` de `ExamResultForm` recebe `$e->getMessage()` direto.
+- Consome: T-53 `CentralVet\Presentation\DateTimeInput::parse(string $raw): DateTimeImmutable`
+
+**Teste RED**
+- sem teste: controller Adianti fora de `tests/run.php`; a regra está coberta pelo RED de T-53
+
+**Critério de aceite**
+- `grep -c "parseFollowUpScheduledAt" src/app/control/clinic/EncounterView.php` = 0; SUITE com `PASS  Integration\EncounterTimelineIntegrationTest::`.
+- `grep -n "TMessage('error', \$e->getMessage())" src/app/control/clinic/ExamResultForm.php` vazio.
+- GATE (atendimento `R2 varredura` em andamento):
+  - retorno em "01/10/2026 15:00" faz `SELECT scheduled_at FROM appointment ORDER BY id DESC LIMIT 1` dar `2026-10-01 15:00:00`;
+  - retorno "abc" (forçado) mostra "Data e hora inválidas";
+  - console 0 `error`.
+
+**Validação**
+- LINT de `EncounterView.php` e `ExamResultForm.php` (evidência: 2 `No syntax errors detected`) + SUITE (evidência: `PASS  Integration\EncounterTimelineIntegrationTest::`, `Failed: 0`)
+- GATE → os 2 fluxos do critério (evidência: `SELECT scheduled_at`, texto da mensagem, console 0 `error`); `ExamResultForm` de um pedido `R2 varredura` com arquivo inválido (extensão fora da lista, forçada por `browser_evaluate`) mostra a mensagem em pt, sem texto em inglês (evidência: snapshot, console 0 `error`)
+
+### T-61 — Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Naruto
+
+Achado de produção de T-55 (`reports/T-55.md:52-54`, `:87`). Em `src/app/Core/Redis/RedisConnectionFactory.php:42-44`, `connect()` ignora o `false` de `select()`: com `db=99`, `getDbNum()` segue `0`. Com `$database <= 0`, o SELECT é pulado, e `db=-1` também cai no DB 0. Um `REDIS_DATABASE` fora de 0..15 na aplicação cai calado no DB 0, onde ficam as sessões. Ruling do orquestrador: corrigir em produção. Os arquivos não colidem com T-60.
+
+**Arquivos prováveis**
+- `src/app/Core/Redis/RedisConnectionFactory.php`
+- `src/tests/Integration/RedisConnectionFactoryIntegrationTest.php`
+
+**Interface**
+- Produz: `RedisConnectionFactory::connect(string $host, int $port, int $database, ?string $password, float $timeout): \Redis` (assinatura mantida):
+  - `$database` fora de `0..15` → `\RuntimeException("Unable to select Redis database {$database}")`, antes de qualquer comando depois do `connect`;
+  - `$database > 0` e `select($database)` devolvendo `false` → a mesma exceção;
+  - `$database === 0` segue sem `select`.
+  `fromEnvironment()` herda a regra, e as mensagens de conexão e autenticação não mudam.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Integration/RedisConnectionFactoryIntegrationTest.php` — estende `RedisIntegrationTestCase` (pula sem Redis): `connect(<host>, <port>, 99, <senha>, 1.0)` e `connect(..., -1, ...)` lançam `RuntimeException` com as mensagens exatas `Unable to select Redis database 99` e `Unable to select Redis database -1`; `connect(..., 15, ...)` devolve conexão com `getDbNum() === 15`. Falha antes da correção porque hoje as duas primeiras voltam conectadas no DB 0 (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Integration\RedisConnectionFactoryIntegrationTest::`, `PASS  Integration\RedisCacheIntegrationTest::`, `PASS  Integration\RedisQueueIntegrationTest::` e `PASS  Integration\SessionRedisIntegrationTest::` em todos os métodos, `Failed: 0`.
+- A aplicação no ar com o `REDIS_DATABASE` atual (0) segue logando: depois do rebuild, o login admin em `http://127.0.0.1:8081` abre o painel.
+
+**Validação**
+- LINT de `RedisConnectionFactory.php` e do teste (evidência: 2 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'chdir("/var/www/html/src"); require "vendor/autoload.php"; try { CentralVet\Redis\RedisConnectionFactory::connect(getenv("REDIS_HOST"), (int) getenv("REDIS_PORT"), 99, getenv("REDIS_PASSWORD") ?: null, 1.0); echo "sem erro"; } catch (RuntimeException $e) { echo $e->getMessage(); }'` (evidência: `Unable to select Redis database 99`)
+- GATE → login em `http://127.0.0.1:8081` depois do rebuild (evidência: painel aberto, console 0 `error`)
+- Review Focus: `REDIS_DATABASE=99` falha alto, sem conexão silenciosa no DB 0 (evidência: a mensagem do `php -r`)
 
 ## Legenda
 

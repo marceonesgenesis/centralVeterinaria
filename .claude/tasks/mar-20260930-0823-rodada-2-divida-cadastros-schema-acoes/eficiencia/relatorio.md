@@ -1,6 +1,6 @@
 # Eficiência — mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes
 
-- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T16:53:20-03:00 · última onda medida 8
+- Plano: `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes` · projeto `/var/www/html/centralvet` · versão 2.5.1? · gerado em 2026-09-30T20:28:34-03:00 · última onda medida 10
 - Sessões: 72051bcd-769a-4db4-bb19-021f9565544c (encontrada)
 - Base: sem base (nenhum plano da versão anterior no acervo)
 
@@ -8,16 +8,16 @@
 
 | Indicador | Este plano | Base |
 |---|---|---|
-| Tokens retidos por onda (mediana) | 33.034 | sem base |
-| Contexto máximo | 442.488 | sem base |
+| Tokens retidos por onda (mediana) | 51.240 | sem base |
+| Contexto máximo | 614.652 | sem base |
 | Compactações | 0 | sem base |
-| Correções por implementador | 0,18 | sem base |
+| Correções por implementador | 0,31 | sem base |
 | Retornos acima do limite (%) | 12 | sem base |
-| Validador acima da meta (%) | 48 | sem base |
+| Validador acima da meta (%) | 52 | sem base |
 | Aprovadas de primeira (%) | 92 | sem base |
 | Precisão do mapa de arquivos (%) | 100 | sem base |
-| Rodadas de fix loop | 6 | sem base |
-| Tasks de correção pós-Fase 5 (%) | 38 | sem base |
+| Rodadas de fix loop | 11 | sem base |
+| Tasks de correção pós-Fase 5 (%) | 54 | sem base |
 
 ## Tasks
 
@@ -62,6 +62,19 @@
 | T-37 | 8 | correcao | média | [ ] | sem teste | 0 | 0 | 0/2 | 0 | 2 | — |
 | T-38 | 8 | correcao | média | [ ] | ok | 0 | 0 | 0/4 | 0 | 2 | — |
 | T-39 | 8 | correcao | simples | [ ] | sem teste | 0 | 0 | 0/0 | 0 | 0 | — |
+| T-40 | 9 | correcao | média | [x] | sem teste | 0 | 0 | 0/3 | 0 | 1 | — |
+| T-41 | 10 | correcao | média | [x] | ok | 0 | 0 | 0/3 | 0 | 0 | — |
+| T-42 | 9 | correcao | média | [x] | sem teste | 0 | 0 | 0/2 | 2 | 3 | src/tests/Integration/RedisCacheIntegrationTest.php, src/tests/Integration/TenantIsolationRedisIntegrationTest.php |
+| T-43 | 9 | correcao | simples | [x] | sem teste | 0 | 0 | 0/0 | 0 | 0 | — |
+| T-44 | 9 | correcao | simples | [x] | sem teste | 0 | 0 | 0/1 | 0 | 0 | — |
+| T-45 | 9 | correcao | média | [x] | sem teste | 0 | 1 | 0/3 | 0 | 1 | — |
+| T-46 | 9 | correcao | simples | [x] | sem teste | 1 | 0 | 0/0 | 0 | 0 | — |
+| T-47 | 9 | correcao | média | [x] | ok | 0 | 0 | 0/4 | 0 | 1 | — |
+| T-48 | 9 | correcao | média | [x] | ok | 0 | 1 | 1/4 | 0 | 0 | — |
+| T-49 | 9 | correcao | simples | [x] | ok | 0 | 0 | 0/2 | 0 | 3 | — |
+| T-50 | 10 | correcao | média | [x] | sem teste | 0 | 2 | 1/3 | 0 | 3 | — |
+| T-51 | 10 | correcao | simples | [ ] | ok | 0 | 0 | 0/2 | 0 | 1 | — |
+| T-52 | 10 | correcao | alta | [ ] | ok | 0 | 1 | 1/3 | 0 | 5 | — |
 
 ## Causas
 
@@ -96,3 +109,12 @@
 - T-36: Suíte global com 2 falhas alheias (UserMessageTest, RedisQueue); plan.md:119 ainda citava a guarda antiga
 - T-37: Teste extra de um só limite de período e verify.sql com ORDER BY de coluna não selecionada
 - T-38: Fake de produto corrigido na implementação e validação só em create(), reconstitute() intacto
+- T-42: Chaves fixas em RedisCache e TenantIsolation geravam flaky em paralelo; TEST_REDIS_DATABASE falso/vazio vira 15 em vez de ?:
+- T-44: Linhas citadas na task com nomes de método trocados; o conjunto dos 5 catch-all era o mesmo
+- T-45: Data malformada no retorno mostrava SQLSTATE cru; fix loop com validação prévia e screenError; 5 catches extras
+- T-46: Grep do critério acha comentário em PatientForm.php:563, fora do escopo de T-46
+- T-47: Título citava deleteQuietly, mas a Interface renomeou o método para discardPhoto
+- T-48: Teto fixo de 13 dígitos não cabia em int unsigned; fix loop com maxCents e MAX_UNSIGNED_INT_CENTS
+- T-49: Prova de RED por sabotagem no checkout compartilhado; refeita em worktree isolada; storedProduct() só de teste
+- T-50: Máscara numérica trocava "abc" por 0,00 e 3 formulários perdiam o valor após erro de valor inválido; sem máscara e com setData.
+- T-52: Reanexo com o mesmo nome sobrescrevia o objeto; chave passou a ter segmento único de 12 hex e o rollback apaga só o novo.

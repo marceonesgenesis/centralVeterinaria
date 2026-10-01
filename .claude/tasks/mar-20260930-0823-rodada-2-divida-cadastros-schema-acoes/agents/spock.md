@@ -8,7 +8,7 @@ Rodada 2 do CentralVet. Spock roda o gate de cada onda e a validação final T-2
 
 ## Tasks atribuídas
 - T-24: Validação final — suíte, varredura Playwright, Review Focus, dados preservados
-- Gate de cada onda (1–10; nas ondas 9–10, BASE `c03e1b2`, conferindo a 0008 aplicada antes da onda 10 e, até T-42 fechar, pedindo ao orquestrador novo login depois de cada SUITE; na onda 8, BASE `cbd7ad1`, incluindo o menu da fila de T-17 pelo check-in de T-29 e o header `nosniff` único de T-32): blocos Validação das tasks da onda + varredura Playwright da onda (`plan.md § Critérios gerais de aceite`)
+- Gate de cada onda (1–12; na onda 11, BASE `f56cb01`, com as evidências pendentes de T-44/T-45/T-47/T-48/T-50 listadas em `plan.md § Critérios gerais de aceite`; nas ondas 9–10, BASE `c03e1b2`, conferindo a 0008 aplicada antes da onda 10 e, até T-42 fechar, pedindo ao orquestrador novo login depois de cada SUITE; na onda 8, BASE `cbd7ad1`, incluindo o menu da fila de T-17 pelo check-in de T-29 e o header `nosniff` único de T-32): blocos Validação das tasks da onda + varredura Playwright da onda (`plan.md § Critérios gerais de aceite`)
 
 Leia a especificação completa de cada task na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -22,10 +22,10 @@ Leia a especificação completa de cada task na seção correspondente de `/var/
 ## Ambiente
 - Repositório único `/var/www/html/centralvet`, branch `feat/rodada-2-cadastros-schema-acoes` (base `feat/fidelidade-visual-mocks` @ `d6dce7a`). Você não commita.
 - Commits da onda: confira por `git -C /var/www/html/centralvet log --format='%h %s%n%b' <BASE da onda>..HEAD`. Todo commit tem trailer `Task: T-xx` de uma task da onda; `chore(tasks)` restritos a `.claude/tasks/` são isentos. `git show --stat <hash>` só lista caminhos de "Arquivos prováveis" da task.
-- RED (T-02, T-03, T-06, T-07, T-08, T-09, T-11, T-12, T-13, T-14, T-15, T-16, T-20, T-25, T-26, T-27, T-28, T-29, T-32, T-33, T-36, T-38, T-41, T-47, T-48, T-49, T-51, T-52): o commit `Task: T-xx (RED)` toca só os arquivos do bloco Teste RED e é anterior a todo commit `Task: T-xx` da implementação.
+- RED (T-02, T-03, T-06, T-07, T-08, T-09, T-11, T-12, T-13, T-14, T-15, T-16, T-20, T-25, T-26, T-27, T-28, T-29, T-32, T-33, T-36, T-38, T-41, T-47, T-48, T-49, T-51, T-52, T-53, T-54, T-56, T-57, T-58, T-61): o commit `Task: T-xx (RED)` toca só os arquivos do bloco Teste RED e é anterior a todo commit `Task: T-xx` da implementação.
 - Lint: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo>` (baseline `baseline/php-lint.txt`, 0 linhas). Suíte: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` (BASE 205/205; critério `Failed: 0`).
 - Banco: só SELECT/SHOW (skill `sql-write-approval`).
-- Navegador: Playwright MCP em `http://127.0.0.1:8081`, com a sessão admin logada pelo orquestrador. Screenshots e arquivos de teste (CSV de importação) só em `/var/www/html/centralvet/.playwright-mcp/r2-<Tela>.png`. Use o navegador só depois que o orquestrador confirmar o rebuild.
+- Navegador: Playwright MCP **sempre** em `http://127.0.0.1:8081`, nunca `localhost:8081`, que tem outro cookie jar e se confunde com queda de sessão (causa provada por T-55), com a sessão admin logada pelo orquestrador. Screenshots e arquivos de teste (CSV de importação) só em `/var/www/html/centralvet/.playwright-mcp/r2-<Tela>.png`. Use o navegador só depois que o orquestrador confirmar o rebuild.
 - Proibido: editar arquivos do projeto, commitar, `git checkout/switch/reset/stash/restore`, `docker compose build/up/restart` e SQL que escreva. Gravações pela UI só em registros `R2 varredura`; nunca excluir, estornar, fechar caixa ou finalizar atendimento que não seja da varredura.
 
 Falha de ambiente (conexão recusada, sessão do navegador caída, container fora do ar) não é falha da task: relate-a com o comando e a linha do erro, sem contornar.
