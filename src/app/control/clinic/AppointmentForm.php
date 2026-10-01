@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\DateTimeInput;
+
 /**
  * AppointmentForm
  *
@@ -76,10 +79,11 @@ class AppointmentForm extends TPage
         // the only precedent (SystemUserForm.php's frontpage_id search).
         $professional_system_user_id = new TDBUniqueSearch('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
         $scheduled_at = new TDateTime('scheduled_at');
-        // d/m/Y na tela, Y-m-d H:i no post: sem máscara, "01/10/2026" digitado
-        // chegava cru ao serviço e virava 10/jan (T-53).
+        // d/m/Y na tela e no post, sem setDatabaseMask: o TDateTime converteria
+        // por createFromFormat sem validar (31/02 → 03/03). O texto digitado
+        // vai cru ao AppointmentService, que o lê com DateTimeInput::parse
+        // (estrito, d/m/Y) (T-53).
         $scheduled_at->setMask('dd/mm/yyyy hh:ii');
-        $scheduled_at->setDatabaseMask('yyyy-mm-dd hh:ii');
 
         // add the fields (pares rótulo/campo em 2 colunas)
         $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
@@ -94,7 +98,7 @@ class AppointmentForm extends TPage
         $professional_system_user_id->addValidation( _t('Professional'), new TRequiredValidator );
         $scheduled_at->addValidation( _t('Date/time'), new TRequiredValidator );
 
-        $back_date = isset($param['scheduled_at']) ? substr((string) $param['scheduled_at'], 0, 10) : date('Y-m-d');
+        $back_date = self::backDate($param['scheduled_at'] ?? null);
         $back = ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['AgendaView', 'onReload'], ['date' => $back_date])];
 
         if ($this->viewId === null)
@@ -155,7 +159,7 @@ class AppointmentForm extends TPage
                     'patient_id' => $appointment->patientId,
                     'service_id' => $appointment->serviceId,
                     'professional_system_user_id' => $appointment->professionalSystemUserId,
-                    'scheduled_at' => $appointment->scheduledAt->format('Y-m-d H:i'),
+                    'scheduled_at' => $appointment->scheduledAt->format('d/m/Y H:i'),
                 ]);
             }
             catch (Exception $e)
@@ -169,7 +173,7 @@ class AppointmentForm extends TPage
 
         if (isset($param['scheduled_at']))
         {
-            $this->form->setData((object) ['scheduled_at' => $param['scheduled_at']]);
+            $this->form->setData((object) ['scheduled_at' => self::displayDate((string) $param['scheduled_at'])]);
         }
         else
         {
@@ -229,12 +233,14 @@ class AppointmentForm extends TPage
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
+            $this->keepScheduleData($data);
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
+            $this->keepScheduleData($data);
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -244,23 +250,27 @@ class AppointmentForm extends TPage
             // error.
             TTransaction::rollback();
             new TMessage('error', _t('You are not allowed to schedule an appointment for this unit'));
+            $this->keepScheduleData($data);
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
             new TMessage('error', _t('An authenticated session with a tenant is required'));
+            $this->keepScheduleData($data);
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
+            $this->keepScheduleData($data);
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
+            $this->keepScheduleData($data);
         }
     }
 
@@ -311,6 +321,52 @@ class AppointmentForm extends TPage
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
+    }
+
+    /** Keeps the typed values on the form after a refused new appointment. */
+    private function keepScheduleData($data)
+    {
+        if ($data !== null)
+        {
+            $this->form->setData($data);
+        }
+    }
+
+    /**
+     * Prefill from AgendaView ("Y-m-d" date or "Y-m-d H:i") → display format
+     * of the field (d/m/Y [H:i]); anything else is kept as it came.
+     */
+    private static function displayDate(string $value): string
+    {
+        foreach (['!Y-m-d H:i' => 'd/m/Y H:i', '!Y-m-d H:i:s' => 'd/m/Y H:i', '!Y-m-d' => 'd/m/Y'] as $from => $to)
+        {
+            $date = \DateTimeImmutable::createFromFormat($from, trim($value));
+
+            if ($date !== false && \DateTimeImmutable::getLastErrors() === false)
+            {
+                return $date->format($to);
+            }
+        }
+
+        return $value;
+    }
+
+    /** Date (Y-m-d) of the back link: from "Y-m-d…" or the typed "d/m/Y H:i"; today otherwise. */
+    private static function backDate($value): string
+    {
+        $value = trim((string) $value);
+
+        try
+        {
+            return DateTimeInput::parse($value)->format('Y-m-d');
+        }
+        catch (\InvalidArgumentException $e)
+        {
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', substr($value, 0, 10));
+
+        return ($date !== false && \DateTimeImmutable::getLastErrors() === false) ? $date->format('Y-m-d') : date('Y-m-d');
     }
 
     /** Keeps the typed values (and the read-only patient) after a refused reschedule. */
