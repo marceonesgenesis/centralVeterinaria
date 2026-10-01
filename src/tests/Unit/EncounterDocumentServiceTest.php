@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterDocumentService;
+use CentralVet\Domain\Encounter;
 use CentralVet\Storage\StorageInterface;
 use CentralVet\Storage\StoredObjectMetadata;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\FakeEncounterRepository;
 use CentralVet\Tests\Support\FakeStorage;
 use CentralVet\Tests\Support\FakeStoredObjectRepository;
+use DateTimeImmutable;
 use RuntimeException;
 
 /**
@@ -101,7 +104,7 @@ final class EncounterDocumentServiceTest
     {
         $storage = new FakeStorage();
         $objects = new FakeStoredObjectRepository(7);
-        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects, self::encounters(10, 11));
 
         $service->attach(10, 'r2 laudo.pdf', '%PDF-bytes', 'application/pdf');
         $publicId = $service->list(10)[0]['public_id'];
@@ -147,7 +150,7 @@ final class EncounterDocumentServiceTest
     {
         $storage = new FakeStorage();
         $objects = new FakeStoredObjectRepository(7);
-        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects, self::encounters(10, 11));
 
         $first = $service->attach(10, 'laudo.pdf', 'PRIMEIRO', 'application/pdf');
         $second = $service->attach(10, 'laudo.pdf', 'SEGUNDO-MAIOR', 'application/pdf');
@@ -181,7 +184,7 @@ final class EncounterDocumentServiceTest
     {
         $storage = self::recordingStorage(new FakeStorage());
         $objects = new FakeStoredObjectRepository(7);
-        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects, self::encounters(10, 11));
 
         $first = $service->attach(10, 'laudo.pdf', 'PRIMEIRO', 'application/pdf');
         $objects->failNextRecordWith(new RuntimeException('insert failed'));
@@ -200,6 +203,56 @@ final class EncounterDocumentServiceTest
         $listed = $service->list(10);
         Assert::count(1, $listed);
         Assert::same('PRIMEIRO', $service->download(10, $listed[0]['public_id'])['contents'] ?? null);
+    }
+
+    /**
+     * T-03 (rodada 3): download also checks the object's status, the unit of
+     * the row and of the encounter, and that the encounter exists.
+     */
+    public function testDownloadRefusesAnotherUnitDeletedObjectOrMissingEncounter(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $encounters = self::encounters(10);
+        $service = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects, $encounters);
+        $otherUnit = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 9), $objects, $encounters);
+
+        $service->attach(10, 'ok.pdf', 'OK-BYTES', 'application/pdf');
+        $otherUnit->attach(10, 'unit9.pdf', 'UNIT-9', 'application/pdf');
+        $service->attach(10, 'deleted.pdf', 'DELETED', 'application/pdf');
+        $service->attach(12, 'orphan.pdf', 'ORPHAN', 'application/pdf');
+
+        $byName = [];
+        foreach ($objects->allRows() as $row) {
+            $byName[$row['original_name']] = (string) $row['public_id'];
+        }
+        $objects->updateRow($byName['deleted.pdf'], ['status' => 'deleted']);
+
+        Assert::null($service->download(10, $byName['unit9.pdf']), 'row of unit 9 is refused in unit 5');
+        Assert::null($service->download(10, $byName['deleted.pdf']), 'deleted row is refused');
+        Assert::null($service->download(12, $byName['orphan.pdf']), 'missing encounter is refused');
+        Assert::same('OK-BYTES', $service->download(10, $byName['ok.pdf'])['contents'] ?? null);
+
+        $noEncounters = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects);
+        Assert::null($noEncounters->download(10, $byName['ok.pdf']), 'without the encounter repository there is no download');
+        $noUnit = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3), $objects, $encounters);
+        Assert::null($noUnit->download(10, $byName['ok.pdf']), 'without a selected unit there is no download');
+        $encounterOfUnit9 = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 9), $objects, $encounters);
+        Assert::null($encounterOfUnit9->download(10, $byName['unit9.pdf']), 'encounter of unit 5 is refused in unit 9');
+    }
+
+    /** Encounters of tenant 7, unit 5, with the given ids. */
+    private static function encounters(int ...$ids): FakeEncounterRepository
+    {
+        $repository = new FakeEncounterRepository(7);
+
+        foreach ($ids as $id) {
+            $encounter = Encounter::start(7, 5, 1, null, 3, new DateTimeImmutable('2031-01-01 10:00:00'));
+            $encounter->assignId($id);
+            $repository->save($encounter);
+        }
+
+        return $repository;
     }
 
     /** T-56: a commit that fails after attach() lets the caller remove the object just written. */

@@ -89,6 +89,16 @@ final class FakeStoredObjectRepository implements StoredObjectRepositoryInterfac
         return null;
     }
 
+    /** Test helper: overwrites columns (e.g. status, deleted_at) of this tenant's row. */
+    public function updateRow(string $publicId, array $fields): void
+    {
+        foreach ($this->rowsByTenant[$this->tenantId] ?? [] as $id => $row) {
+            if ($row['public_id'] === $publicId) {
+                $this->rowsByTenant[$this->tenantId][$id] = [...$row, ...$fields];
+            }
+        }
+    }
+
     /** Test helper: the rows of every tenant, unscoped. */
     public function allRows(): array
     {
