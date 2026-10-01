@@ -32,6 +32,7 @@ final class UserMessage
         'Invalid file' => 'Invalid file',
         'Photo must be a JPEG, PNG or WEBP image' => 'Photo must be a JPEG, PNG or WEBP image',
         'Photo must be at most 2 MB' => 'Photo must be at most 2 MB',
+        'Name must not contain < or >' => 'Name must not contain < or >',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */

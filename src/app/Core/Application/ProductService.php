@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Application;
 
 use CentralVet\Domain\Contract\ProductRepositoryInterface;
+use CentralVet\Domain\NameText;
 use CentralVet\Domain\Product;
 use CentralVet\Tenancy\TenantContext;
 use InvalidArgumentException;
@@ -52,6 +53,8 @@ final class ProductService
         if ($name === '') {
             throw new InvalidArgumentException('name is required');
         }
+
+        NameText::assertNoMarkup($name);
 
         if ($this->products->findByName($name) !== null) {
             throw new InvalidArgumentException("A product named \"{$name}\" already exists for this tenant");
@@ -101,6 +104,8 @@ final class ProductService
         if (!$current instanceof Product) {
             throw new InvalidArgumentException("Product {$productId} not found for this tenant");
         }
+
+        NameText::assertNoMarkup($name);
 
         $validated = Product::create(
             tenantId: $current->tenantId(),

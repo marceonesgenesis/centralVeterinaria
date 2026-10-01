@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Unit;
 
+use CentralVet\Application\ProductService;
+use CentralVet\Application\ServiceCatalogService;
 use CentralVet\Application\TutorService;
 use CentralVet\Domain\NameText;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\FakeProductRepository;
+use CentralVet\Tests\Support\FakeServiceRepository;
 use CentralVet\Tests\Support\FakeTutorRepository;
 use InvalidArgumentException;
 
@@ -48,6 +52,28 @@ final class NameTextTest
         $this->assertRejectedBy(static fn () => $service->create(['full_name' => '<b>R3</b>', 'phone' => '11999990000']));
 
         Assert::count(0, $repository->search(''));
+    }
+
+    public function testServiceImportSkipsMarkupLineWithCataloguedReason(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $result = $service->importCsv(ServiceCatalogService::CSV_HEADER . "\n<b>R3</b>;;30;10\nR3 ok;;30;10\n");
+
+        Assert::same(1, $result['created']);
+        Assert::same([['line' => 2, 'reason' => 'Name must not contain < or >']], $result['skipped']);
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testProductServiceRejectsMarkupWithoutSaving(): void
+    {
+        $repository = new FakeProductRepository(1);
+        $service = new ProductService($repository, TenantContext::authenticated(1, 1));
+
+        $this->assertRejectedBy(static fn () => $service->create(1, '<b>R3</b>', null, 'un', 100, 0));
+
+        Assert::count(0, $repository->findActive());
     }
 
     private function assertRejected(string $name): void

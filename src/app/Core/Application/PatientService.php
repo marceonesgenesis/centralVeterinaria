@@ -7,6 +7,7 @@ namespace CentralVet\Application;
 use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\NameText;
 use CentralVet\Domain\Patient;
 use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
@@ -81,6 +82,8 @@ final class PatientService
             );
         }
 
+        NameText::assertNoMarkup((string) $data['name']);
+
         $patient = new Patient(
             id: null,
             tenantId: $this->context->tenantId(),
@@ -138,6 +141,8 @@ final class PatientService
         if ($name === '') {
             throw new \InvalidArgumentException('name is required');
         }
+
+        NameText::assertNoMarkup($name);
 
         $species = trim((string) ($data['species'] ?? ''));
         if ($species === '') {

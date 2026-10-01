@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Application;
 
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
+use CentralVet\Domain\NameText;
 use CentralVet\Domain\Tutor;
 use CentralVet\Tenancy\TenantContext;
 use InvalidArgumentException;
@@ -70,6 +71,8 @@ final class TutorService
             throw new InvalidArgumentException('full_name is required');
         }
 
+        NameText::assertNoMarkup($fullName);
+
         if ($phone === '') {
             throw new InvalidArgumentException('phone is required');
         }
@@ -119,6 +122,8 @@ final class TutorService
         if ($fullName === '') {
             throw new InvalidArgumentException('full_name is required');
         }
+
+        NameText::assertNoMarkup($fullName);
 
         if ($phone === '') {
             throw new InvalidArgumentException('phone is required');
