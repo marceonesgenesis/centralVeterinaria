@@ -91,7 +91,8 @@ class AgendaView extends TPage
         }
         catch (Exception $e)
         {
-            $body->add(new TAlert('danger', $e->getMessage()));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $body->add(new TAlert('danger', CvFormat::userError($e)));
         }
 
         $container->add($card);
