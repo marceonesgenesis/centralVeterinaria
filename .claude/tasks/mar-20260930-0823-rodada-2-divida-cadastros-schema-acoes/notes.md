@@ -120,6 +120,10 @@
 - 2026-09-30 · onda 11 — Varredura: T-44 (modelo repetido), T-45 (resumo de IA) e T-50 (abertura de caixa) seguem com a evidência das ondas anteriores ou da leitura do código.
 - 2026-09-30 · onda 11 — T-55 deixou o problema de produção de `RedisConnectionFactory` (ignora o `false` de `select()`) para T-61 na onda 12. O `fe.yml`, snapshot do Playwright deixado na raiz por um validador, foi movido para `.playwright-mcp/`.
 - 2026-09-30 · onda 11 — Validação cruzada coberta: gate LINT 31/31, SUITE 377/377 e i18n ok; após os fix loops de T-53, re-validação 2 com LINT e SUITE 380/380 no HEAD.
+- 2026-09-30 · T-60 · onda 12 — O followup do retorno virou TEntry com máscara 99/99/9999 99:99, sem picker (lição de T-53). Provado: 01/10 grava outubro; 31/02 e "abc" são recusados.
+- 2026-09-30 · T-60 · onda 12 — Escopo ampliado por ruling: os 2 catches do ExamResultForm passaram para userError, e a InvalidStatusTransition do pedido de exame ganhou mensagem pt no UserMessage e em translations.json (0f354f8 RED, f598c82). Provado no pedido 312.
+- 2026-09-30 · T-61 · onda 12 — RedisConnectionFactory lança "Unable to select Redis database N" para DB fora de 0..15 e para SELECT que falha. O caso "SELECT recusado com DB válido" fica só na leitura do código (o Redis local tem 16 DBs). Produção: o login admin funcionou depois do rebuild.
+- 2026-09-30 · onda 12 — Validação cruzada coberta: gate LINT 4/4, SUITE 383/383 e i18n ok; re-validação de T-60 com SUITE 384/384 e i18n ok no HEAD.
 
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
@@ -179,6 +183,8 @@
 - Onda 11: queda de sessão = host localhost × 127.0.0.1; gate de navegador sempre em http://127.0.0.1:8081. run.php recusa TEST_REDIS_DATABASE fora de 0..15 e SELECT recusado.
 - Onda 11: EncounterDocumentService::discard(object); ExamResultForm grava anexo em stored_object; PatientForm descarta a foto nova se o commit falha; badge 'In queue' só para agendado/confirmado/em_atendimento; FakeEncounterAccountRepository::$saveCount.
 - Onda 11: registros R2 criados: appointments 144, 155 (2026-03-03, efeito do bug do picker, antes da correção 2), 156 e 167; financial_entry 15706; service 151; bank_account 776; foto do paciente 2772 trocada.
+- Onda 12: RedisConnectionFactory::connect recusa $database fora de 0..15 e select() !== true com RuntimeException("Unable to select Redis database N"); EncounterView.followup_scheduled_at é TEntry com máscara e usa DateTimeInput::parse; UserMessage::PATTERNS com 14 padrões (transição de pedido de exame em pt).
+- Onda 12: registro R2 criado: appointment 193.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -282,6 +288,9 @@
 - T-57: nenhum teste cobre a regra do badge (premissa do ruling corrigida: vale leitura do diff); $active_statuses poderia ser constante da classe (AgendaView.php:417-421).
 - T-58: se o rollback lançar (conexão morta), discardPhoto não roda; bloco de discard copiado 7 vezes no PatientForm; caminho close() lança sem teste.
 - Onda 11: validador sem navegador para T-55 e T-56; GATE de navegador de T-56/T-57 (cancelado) não rodou.
+- T-60: screenError do EncounterView ficou redundante, pois CvFormat::userError já cobre PDOException (EncounterView.php:1596-1606).
+- T-61: fechar a conexão ($redis->close()) antes de lançar quando o SELECT falha (RedisConnectionFactory.php:54-55); MAX_DATABASE deveria ser constante no topo da classe (:28-29).
+- T-61: o ramo select() !== true com DB válido não tem teste automático (só leitura do código).
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -321,5 +330,6 @@
   - Onda 9: BASE c03e1b2 → HEAD bbda807 (bbda807, 17b0770, 16307b5, 73600c2, cc00614, 7ec6808, 32f1bb2, 884b0c5, cb1e945, 72a0020, 08a26f4, e197d51, b2a403d, 4cbc575)
   - Onda 10: BASE 87a40c6 → HEAD f6f4538 (f6f4538, b32af91, fd3b889, 0833a40, 8a4e93a, 6fa5958, d9defc8, f2ff511, 6021755, a64fc14, 281e9d4, fc7151f)
   - Onda 11: BASE f56cb01 → HEAD 63de67e (d755bef, 10ddafb, 178577d, b37c79c, f9db627, 34b1a68, ffe2824, 52a882d, 0046013, 7edbc12, fde5e1d, cf869f6, 9ff456b, 28cae09, 9fe0571, 63de67e)
-- Último status conhecido: onda 11 (T-53..T-59 [x]) concluída; T-53 com 2 fix loops; re-validação 2 LINT e SUITE 380/380 no HEAD.
-- Próxima onda recomendada: onda 12 (T-60, T-61); depois revisão final.
+  - Onda 12: BASE cea793b → HEAD f598c82 (f876cc6, 94a786e, b726942, 0f354f8, f598c82)
+- Último status conhecido: onda 12 (T-60, T-61 [x]) concluída; T-60 com 1 correção por ampliação de escopo; re-validação SUITE 384/384 e i18n ok no HEAD.
+- Próxima onda recomendada: nenhuma (última onda de implementação); revisão final.

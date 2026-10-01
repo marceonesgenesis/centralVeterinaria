@@ -61,8 +61,8 @@
 | T-57 | frontend | Onda 11: badge "Na fila" só para agendamento ativo e ordem do Fake da fila | — | sim | simples | Aang | [x] |
 | T-58 | backend | Onda 11: foto nova apagada se o commit falhar e teste do error_log | — | sim | simples | Tesla | [x] |
 | T-59 | backend | Onda 11: contador de save no FakeEncounterAccountRepository | — | sim | simples | Arquimedes | [x] |
-| T-60 | frontend | Onda 12: retorno do EncounterView pelo DateTimeInput e catches do ExamResultForm | T-53, T-56 | não | simples | Yoda | [ ] |
-| T-61 | backend | Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha | — | sim | simples | Naruto | [ ] |
+| T-60 | frontend | Onda 12: retorno do EncounterView pelo DateTimeInput e catches do ExamResultForm | T-53, T-56 | não | simples | Yoda | [x] |
+| T-61 | backend | Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha | — | sim | simples | Naruto | [x] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
