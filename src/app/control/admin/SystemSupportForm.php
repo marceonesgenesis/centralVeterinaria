@@ -11,6 +11,13 @@
  */
 class SystemSupportForm extends TPage
 {
+    /**
+     * T-20 (correção 2): anexos aceitos no uploader (`extensions` na URL).
+     * UploadedTmpFile::DEFAULT_EXTENSIONS + documentos de escritório; sem
+     * html/xhtml/svg/php/js.
+     */
+    private const ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'odt', 'ods', 'gif', 'zip'];
+
     protected $form; // form
     
     /**
@@ -38,6 +45,7 @@ class SystemSupportForm extends TPage
         $attachments = new TMultiFile('attachments');
         // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
         $attachments->setService('CvUploaderService');
+        $attachments->setAllowedExtensions(self::ATTACHMENT_EXTENSIONS);
         $message->setSize('100%', 300);
         
         // add the fields
