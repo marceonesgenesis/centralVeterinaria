@@ -78,12 +78,16 @@ class AppointmentForm extends TPage
         // TCriteria cannot reach) — documented exception, same pattern as
         // the only precedent (SystemUserForm.php's frontpage_id search).
         $professional_system_user_id = new TDBUniqueSearch('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
-        $scheduled_at = new TDateTime('scheduled_at');
-        // d/m/Y na tela e no post, sem setDatabaseMask: o TDateTime converteria
-        // por createFromFormat sem validar (31/02 → 03/03). O texto digitado
-        // vai cru ao AppointmentService, que o lê com DateTimeInput::parse
-        // (estrito, d/m/Y) (T-53).
-        $scheduled_at->setMask('dd/mm/yyyy hh:ii');
+        // TEntry com máscara, sem TDateTime: o bootstrap-datetimepicker
+        // reescrevia no cliente a data inválida ao fechar o popup (31/02 →
+        // 03/03) e o popup cobria o botão Agendar; o setDatabaseMask convertia
+        // sem validar. O texto digitado (dd/mm/aaaa hh:mm) vai cru ao
+        // AppointmentService, que o lê com DateTimeInput::parse (estrito) (T-53).
+        $scheduled_at = new TEntry('scheduled_at');
+        $scheduled_at->setMask('99/99/9999 99:99');
+        $scheduled_at->placeholder = 'dd/mm/aaaa hh:mm';
+        $scheduled_at->setProperty('inputmode', 'numeric');
+        $scheduled_at->setProperty('autocomplete', 'off');
 
         // add the fields (pares rótulo/campo em 2 colunas)
         $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
