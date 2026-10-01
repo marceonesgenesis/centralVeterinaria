@@ -166,7 +166,8 @@ class PatientList extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a 500
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         $total  = count($patients);
