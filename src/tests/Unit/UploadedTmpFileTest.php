@@ -90,6 +90,46 @@ final class UploadedTmpFileTest
         $this->assertInvalid('link.pdf');
     }
 
+    public function testNewUploadItemsInsideTmpDirAreKeptAndEmptyOnesDropped(): void
+    {
+        $item = urlencode(json_encode(['idFile' => '', 'fileName' => 'tmp/ok.pdf', 'newFile' => 'tmp/ok.pdf']));
+
+        Assert::same([$item], UploadedTmpFile::newUploadItems([$item, '', '  '], $this->dir));
+        Assert::same([], UploadedTmpFile::newUploadItems([], $this->dir));
+    }
+
+    public function testFileHandlingItemsOutsideTmpOrDeletingAreRejected(): void
+    {
+        $outside = $this->root . DIRECTORY_SEPARATOR . 'fora.txt';
+        $json = static fn (array $item): string => urlencode((string) json_encode($item));
+        $cases = [
+            'delFile of a real file' => $json(['fileName' => 'tmp/ok.pdf', 'newFile' => 'tmp/ok.pdf', 'delFile' => $outside]),
+            'delFile only' => $json(['fileName' => 'tmp/ok.pdf', 'delFile' => 'tmp/ok.pdf']),
+            'stored path without newFile' => $json(['fileName' => 'app/config/application.php']),
+            'traversal in fileName' => $json(['fileName' => 'tmp/../fora.txt', 'newFile' => 'tmp/../fora.txt']),
+            'absolute fileName' => $json(['fileName' => $outside, 'newFile' => $outside]),
+            'fileName without tmp/ prefix' => $json(['fileName' => 'ok.pdf', 'newFile' => 'ok.pdf']),
+            'newFile differs from fileName' => $json(['fileName' => 'tmp/ok.pdf', 'newFile' => 'tmp/outro.pdf']),
+            'missing file' => $json(['fileName' => 'tmp/nao-existe.pdf', 'newFile' => 'tmp/nao-existe.pdf']),
+            'not json' => 'tmp/ok.pdf',
+            'json scalar' => $json(['tmp/ok.pdf']),
+        ];
+
+        foreach ($cases as $label => $item) {
+            try {
+                UploadedTmpFile::newUploadItems(['', $item], $this->dir);
+            } catch (InvalidArgumentException $e) {
+                Assert::same('Invalid file', $e->getMessage(), "message for {$label}");
+
+                continue;
+            }
+
+            Assert::true(false, "newUploadItems must reject: {$label}");
+        }
+
+        Assert::true(is_file($outside), 'nothing is deleted by the validation');
+    }
+
     private function assertInvalid(string $name, ?string $dir = null): void
     {
         $dir ??= $this->dir;
