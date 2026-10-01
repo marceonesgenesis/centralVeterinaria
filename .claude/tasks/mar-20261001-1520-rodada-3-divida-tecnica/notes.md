@@ -33,6 +33,9 @@
 - 2026-10-01 · T-13 · onda 2 — alerta automático de "Information Disclosure" por remover screenError: falso positivo (CvFormat::userError já filtra PDOException/SQLSTATE[ em toda a cadeia; teste cobre exceção que embrulha PDO).
 - 2026-10-01 · T-15 · onda 2 — o descarte de cv_uploads em loadSessionVars também roda no "Reload" do menu do usuário (LoginForm::reloadPermissions), que já leva à WelcomeView e descarta o form; perder o upload pendente nesse caso é aceito.
 - 2026-10-01 · orquestrador · onda 2 — Rebuild e recreate do centralvet-app-1 antes do gate; sessão admin no Playwright mantida pelo orquestrador.
+- 2026-10-01 · T-16 · onda 3 — translations.json reordenado inteiro (a BASE já estava fora da ordem casefold); chave antiga `%s days` mantida (fora do escopo).
+- 2026-10-01 · T-17 · onda 3 — Correção 1 por extensão de escopo do orquestrador: AgendaView.php:94 (TAlert com getMessage cru → userError) e trava estendida a `new TAlert(` (1d630f6 RED, 8c1c24a). O primeiro commit 6be5900 (trava) é sem RED, conforme tasks.md.
+- 2026-10-01 · orquestrador · onda 3 — Rebuild e recreate do centralvet-app-1 antes do gate; sessão admin no Playwright mantida pelo orquestrador.
 
 ## Bloqueios
 - (resolvido) Pré-requisito da rodada 2 cumprido: T-62..T-65 `[x]`, HEAD `39de5ef` de `feat/rodada-2-cadastros-schema-acoes` e revisão final das ondas 13–16 aprovada. O orquestrador cria `feat/rodada-3-divida-tecnica` a partir de `39de5ef`.
@@ -62,6 +65,8 @@
 - [T-19] SUITE usa centralvet_test desde 946709c (TestDatabase::DEFAULT_NAME = 'centralvet_test'); run.php sai com 1 se o nome resolvido = DB_DATABASE ou se o banco não existir.
 - [T-05] Correção 1: provision.sh aplica a base Adianti de var/sql-bootstrap com preflight e --check (4242dd8); scripts/test-db/provision-check.test.sh checa os arquivos sem banco (669a3ac).
 - [T-13] EncounterView usa CvFormat::userError direto (14 chamadas) e não tem mais screenError (d7b8c1e).
+- [T-16] translations.json (8c0ef00): +7 chaves do board, órfã `Uploaded file was not found` removida, 782 entradas em ordem casefold; `%s days` antiga mantida.
+- [T-17] trava ControllerRawExceptionMessageTest cobre `new TMessage(` e `new TAlert(` com getMessage() cru em clinic/, SearchBox.php e log/; AgendaView.php:94 corrigido (8c1c24a).
 
 ## Pendências
 - T-02: sugestão: trava de camadas não pega `use CentralVet\Presentation;` nem import agrupado; Core/README.md não cita a camada Support.
@@ -85,6 +90,8 @@
 - T-19: sugestões: sem teste unitário de resolveName(['DB_DATABASE' => 'centralvet_test']) nem do ramo "not found" do preflight; prepare/execute do preflight fora do try (PDOException vira fatal 255); docblock defasado em MysqlIntegrationTestCase.php:10-15.
 - Validador (onda 2): mensagens novas em inglês até a T-16 ("Name must not contain < or >"); OverpaymentException em inglês com centavos ("Payment of … cent(s) would raise paid_cents …"), fora do catálogo UserMessage, para depois; GATEs de navegador (T-10 SaleForm/EncounterAccountForm, T-11 demais telas, T-12 nome repetido, T-15 POST forçado e segundo login) passam para a T-18.
 - Registros R3 criados no banco de dev no gate da onda 2 (ver reviews/T-NN.md § Gate).
+- T-16: sugestão: `%s days` ficou órfã depois de T-11 (nenhum uso em src/app fora do JSON); candidata à lista de órfãs herdadas. GATE do retorno inválido do EncounterView no navegador não rodado (vai para a T-18).
+- T-17: sugestões: a trava não pega variável intermediária (`$msg = $e->getMessage(); new TMessage('error', $msg)`), alias de `use ... as`, nome de classe em minúsculas nem closure com `;`; regra alternativa "getMessage() só em error_log( ou comparação" com allowlist; `log/SystemLogDashboard.php:244` faz `parent::add($e->getMessage())` cru, fora do Incluso. GATE de navegador da AgendaView com erro genérico não rodado (T-18).
 
 ## Riscos
 - A rodada 2 pode mudar arquivos deste plano ao fechar (T-65 mexe em `PatientForm`, `AppointmentForm`, `EncounterView`, `SaleForm` e models). Mitigação: o orquestrador confere `git -C /var/www/html/centralvet diff --stat <HEAD de hoje>..<HEAD de partida>` antes da onda 1 e, se um arquivo do Mapa mudou, as linhas citadas nas tasks são conferidas pelo implementador antes de editar.
@@ -101,5 +108,6 @@
 - Commits por onda:
   - Onda 1: BASE b75d7cc → HEAD 7687d16 (7687d16, 75a411c, 2fb13d0, c0fd1b1, 374028d, 0a74522, 317dac1, 6731313, 9f3c639, 662c637, 9e025c9, 5e058b0, 6d57324, c592905, f301e70, 916c57c, 551f2cc, 7e2d2ef, 52b46ba, 9c29731, 4b30140, 57f0b41, 04ddd61, b44bd6e)
   - Onda 2: BASE ae45458 → HEAD 39005ff (39005ff, 946709c, cdcfd37, a928701, 3fb5787, af5899f, 3feb3a8, d7b8c1e, a093a02, 4242dd8, 669a3ac)
-- Último status conhecido: onda 2 fechada com T-10..T-15 e T-19 [x] (T-05 com Correção 1 aprovada); centralvet_test provisionado; falta T-16, T-17 e T-18.
-- Próxima onda recomendada: onda 3 (T-16, T-17), depois T-18 (validação final)
+  - Onda 3: BASE c2da454 → HEAD 8c1c24a (8c1c24a, 1d630f6, 6be5900, 8c0ef00)
+- Último status conhecido: onda 3 fechada com T-16 e T-17 [x]; centralvet_test provisionado; falta T-18 (validação final).
+- Próxima onda recomendada: onda 4 (T-18, validação final)

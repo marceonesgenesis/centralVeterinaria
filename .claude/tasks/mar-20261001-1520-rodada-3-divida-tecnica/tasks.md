@@ -19,8 +19,8 @@
 | T-13 | frontend | EncounterView sem screenError (CvFormat::userError direto) | T-03 | sim | simples | Yoda | [x] |
 | T-14 | backend | Defesa na entrada: recusar `<`/`>` em nomes de Patient, Tutor, Service e Product (aprovado pelo usuário) | T-01, T-04 | sim | média | Jaspion | [x] |
 | T-15 | frontend | Pequenos: SystemMessageForm mantém dados no erro, SystemDatabaseExplorer sem `$table` indefinido, cv_uploads limpo no login | — | sim | simples | Maquiavel | [x] |
-| T-16 | frontend | translations.json (escritor único): chaves novas, "^1 days" e remoção da chave órfã | T-01, T-11, T-14 | sim | simples | Platão | [ ] |
-| T-17 | qa | Trava de regressão: nenhum `new TMessage(... getMessage())` cru nos controllers da clínica | T-10, T-11, T-12 | sim | simples | Levi | [ ] |
+| T-16 | frontend | translations.json (escritor único): chaves novas, "^1 days" e remoção da chave órfã | T-01, T-11, T-14 | sim | simples | Platão | [x] |
+| T-17 | qa | Trava de regressão: nenhum `new TMessage(... getMessage())` cru nos controllers da clínica | T-10, T-11, T-12 | sim | simples | Levi | [x] |
 | T-19 | qa | SUITE passa a usar o banco `centralvet_test` por padrão e recusa o banco da aplicação | T-05 | sim | simples | Naruto | [x] |
 | T-18 | qa | Validação final: varredura Playwright e i18n das telas tocadas | T-13, T-15, T-16, T-17, T-19, T-20, T-21 | não | média | Spock | [ ] |
 
