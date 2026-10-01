@@ -216,6 +216,8 @@ class SystemMessageForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
+            // keep what was typed, like the Exception catch below
+            $this->form->setData($this->form->getData());
             new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception
