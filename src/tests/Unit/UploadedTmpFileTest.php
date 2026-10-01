@@ -245,6 +245,45 @@ final class UploadedTmpFileTest
         Assert::same(['x' => 'y'], UploadedTmpFile::rememberUpload(['legado.pdf', 3 => 'z'], 'x', 'y'));
     }
 
+    public function testExtensionIsCheckedEvenWithoutRequestedList(): void
+    {
+        Assert::false(UploadedTmpFile::extensionAllowed('a.xhtml', null), 'xhtml is not in the default list');
+        Assert::false(UploadedTmpFile::extensionAllowed('a.html', null), 'html is not in the default list');
+        Assert::true(UploadedTmpFile::extensionAllowed('laudo.PDF', null), 'extension is compared in lower case');
+        Assert::false(UploadedTmpFile::extensionAllowed('a.csv', ['pdf']), 'the requested list replaces the default');
+        Assert::false(UploadedTmpFile::extensionAllowed('sem-extensao', null), 'no extension is refused');
+    }
+
+    public function testMimeAllowedReadsTheRealContentType(): void
+    {
+        $fake = $this->dir . DIRECTORY_SEPARATOR . 'falso.pdf';
+        file_put_contents($fake, "<html><body><script>alert(1)</script></body></html>\n");
+
+        try {
+            Assert::false(UploadedTmpFile::mimeAllowed($fake, ['application/pdf']), 'html named .pdf is not a pdf');
+            Assert::true(UploadedTmpFile::mimeAllowed($fake, ['text/html']), 'the real type is read by finfo');
+            Assert::false(UploadedTmpFile::mimeAllowed($this->dir . DIRECTORY_SEPARATOR . 'nao-existe.pdf', ['application/pdf']), 'missing file');
+        } finally {
+            unlink($fake);
+        }
+    }
+
+    public function testResolveForSessionTrimsTheNameOnce(): void
+    {
+        $expected = UploadedTmpFile::resolveForSession('ok.pdf', ['ok.pdf'], $this->dir);
+
+        Assert::same($expected, UploadedTmpFile::resolveForSession(' ok.pdf ', ['ok.pdf'], $this->dir));
+        Assert::same($expected, UploadedTmpFile::resolveForSession(" ok.pdf\t", [' ok.pdf '], $this->dir), 'the session name is trimmed too');
+    }
+
+    public function testNullByteAtTheEdgesIsRejected(): void
+    {
+        $this->assertInvalidForSession("ok.pdf\0", ['ok.pdf']);
+        $this->assertInvalidForSession("\0ok.pdf", ['ok.pdf']);
+        $this->assertInvalidForSession("ok.pdf\0", ["ok.pdf\0"]);
+        $this->assertInvalid("ok.pdf\0");
+    }
+
     private function assertInvalidForSession(string $name, array $uploads): void
     {
         $label = json_encode([$name, $uploads]);
