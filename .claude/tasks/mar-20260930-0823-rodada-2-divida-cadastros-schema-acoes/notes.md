@@ -125,6 +125,23 @@
 - 2026-09-30 · T-61 · onda 12 — RedisConnectionFactory lança "Unable to select Redis database N" para DB fora de 0..15 e para SELECT que falha. O caso "SELECT recusado com DB válido" fica só na leitura do código (o Redis local tem 16 DBs). Produção: o login admin funcionou depois do rebuild.
 - 2026-09-30 · onda 12 — Validação cruzada coberta: gate LINT 4/4, SUITE 383/383 e i18n ok; re-validação de T-60 com SUITE 384/384 e i18n ok no HEAD.
 
+- 2026-09-30 · plano (revisão) · onda 13 — A revisão final (ondas 8 a 12) achou um BLOQUEANTE de segurança: travessia de caminho no upload de anexos (`filename` do POST em `tmp/<filename>` sem `basename`; leitura, exfiltração e remoção de arquivo do servidor). Foi aberta a `### Onda 13 — correção (revisão final)` com T-62 (Jaspion): o helper `CentralVet\Presentation\UploadedTmpFile::resolve` (basename + realpath dentro de `tmp/`) em todos os handlers que montam `tmp/` com nome da requisição. São 4 em `clinic/` e 4 do template Adianti (`SystemSupportForm`, `SystemDriveDocumentUploadForm`, `SystemProfileForm`, `SystemDatabaseExplorer:408`), que não estão em `framework_hashes.php`. Os handlers que geram o próprio nome (`SystemSQLPanel`, `SystemTableList`, exports do `SystemDatabaseExplorer`) ficam fora, sem entrada do usuário. O Review Focus troca o 5º item pelo de T-62.
+
+- 2026-09-30 · plano (revisão) · onda 14 — Achado explorável da re-revisão de T-62: `tmp/` compartilhado entre sessões; nome previsível (export ou dump de admin) anexado e baixado por outro usuário. Foi aberta a `### Onda 14 — correção (revisão final)` com T-63 (Jaspion).
+  - Escolha do planejador, a mais simples sem tocar o framework: uploader próprio `CvUploaderService` em `app/service`, ligado por `TFile::setService` (`TFile.php:117`, `TMultiFile.php:97`), que copia as checagens de `AdiantiUploaderService`, grava `tmp/<32 hex>-<nome saneado>` e registra o nome em `TSession 'cv_uploads'`. Os handlers resolvem só nomes da sessão (`resolveForSession`).
+  - Os exports de admin (`SystemDatabaseExplorer`, `SystemTableList`, `SystemSQLPanel`) passam a ter nome com 128 bits aleatórios.
+  - Apagar depois do download fica fora: o download é servido em outra requisição por `__adianti_download_file`. Nome imprevisível + vínculo de sessão fecham o vazamento.
+  - O Review Focus troca o item de T-56 pelo de T-63.
+
+- 2026-09-30 · plano (revisão) · onda 15 — A re-revisão de T-63 aprovou T-63 e achou o mesmo vetor no `title`: `CvAvatar.php:16` com só `e()`, e o tippy do framework (`__adianti_process_tooltips`, `allowHTML`, não editável) interpreta `[title]` como HTML. Isso é XSS armazenado por nome de tutor ou paciente. Foi aberta a `### Onda 15 — correção (revisão final)` com T-64 (Levi): `forHtmlSink` em todo `title` com texto de usuário, `cvEscapeTitle` no `cv-shell.js` e a varredura completa no relatório. O tutor e o paciente `<img src=x onerror=alert(1)> R2` criados no gate ficam no banco (dados R2). O Review Focus troca o item de T-55 pelo de T-64.
+
+- 2026-09-30 · plano (revisão) · onda 16 — O gate de T-64 achou um XSS crítico fora do escopo dela: o select2 dos `TDBUniqueSearch` renderiza como HTML o rótulo vindo de `AdiantiMultiSearchService` (`$object->render($mask)`, framework). Foi aberta a `### Onda 16 — correção (revisão final)` com T-65 (Sherlock).
+  - Escolha do planejador: o atributo virtual escapado nos models (`get_name_safe()`/`get_full_name_safe()` via `CvSafeLabelTrait`), resolvido por `TRecord::render` → `__get`, como máscara dos 14 combos da clínica. Também os `TDBCombo`, por causa do `enableSearch`/select2. O fallback, se a seleção mostrar `&amp;`, é `TCombo` + `addItems` por combo.
+  - A recusa de `<`/`>` no domínio fica como proposta no relatório (muda o cadastro) e é decisão do usuário.
+  - O Review Focus troca o item de T-54 pelo de T-65.
+- 2026-10-01 · T-62 · onda 13 — Bloqueante plano-mandou (SystemMessageForm/saveFilesByComma fora do inventário) corrigido no fix loop (c79e81b RED, 6c970fe); aceito como extensão de escopo.
+- 2026-10-01 · T-62 · onda 13 — GATE dos 4 handlers do template aceito pelo orquestrador; foto válida no PatientForm (2772) e CSV válido no ServiceImportForm provados na Re-validação 1.
+
 ## Bloqueios
 - Planejamento: nenhum. Antes da onda 1 o orquestrador cria a branch. Entre as ondas 1 e 2, T-01 depende da aprovação do usuário para aplicar a 0007 e o DML. O orquestrador anota aqui as contagens de antes e de depois (`product`, `patient`, `prescription`, `financial_entry`, `encounter`), o hash do backup e o SHA-256.
 - Resolvido (T-01, entre as ondas 1 e 2): com aprovação SQL do usuário, backup var/backups/centralvet-20260930T122254Z.sql.gz (gzip -t ok; `make` ausente, usado ./scripts/backup.sh); migration 0007 aplicada com MIGRATION_DB_USER, checksum 9ef0242d0f4c94986141e331338e951c8a7ce28ac62540c573f8cfef243dd679; .verify.sql: product/patient/prescription/financial_entry/encounter = 2/5/2/6/5 antes e depois, 0 violações, 2 pagamentos com payment_method; sql/T-01-programs.sql aplicado (programas 106–108; group_program 109, 110). Nomes acentuados em system_program ficaram double-encoded, como o id 104; o menu exibe corretamente.
@@ -185,6 +202,8 @@
 - Onda 11: registros R2 criados: appointments 144, 155 (2026-03-03, efeito do bug do picker, antes da correção 2), 156 e 167; financial_entry 15706; service 151; bank_account 776; foto do paciente 2772 trocada.
 - Onda 12: RedisConnectionFactory::connect recusa $database fora de 0..15 e select() !== true com RuntimeException("Unable to select Redis database N"); EncounterView.followup_scheduled_at é TEntry com máscara e usa DateTimeInput::parse; UserMessage::PATTERNS com 14 padrões (transição de pedido de exame em pt).
 - Onda 12: registro R2 criado: appointment 193.
+- Onda 13: UploadedTmpFile::resolve(name, ?tmpDir) e newUploadItems(array, ?tmpDir) recusam fora de tmp/, separador, '..', byte nulo, inexistente e symlink para fora com InvalidArgumentException('Invalid file'); UserMessage::STATIC com 15 entradas; i18n Invalid file → Arquivo inválido; SystemMessageForm::onSend valida antes do store()/saveFilesByComma (c79e81b RED, 6c970fe).
+- Onda 13: registros R2 criados: patient 2772 com photo_object_key novo (photo-c91f8e6704fc-r2-foto3.png); service 252 (CSV de revalidação); nenhum system_message.
 
 ## Pendências
 - Fora do escopo por decisão do planejador (ver `plan.md § Excluído`):
@@ -291,6 +310,9 @@
 - T-60: screenError do EncounterView ficou redundante, pois CvFormat::userError já cobre PDOException (EncounterView.php:1596-1606).
 - T-61: fechar a conexão ($redis->close()) antes de lançar quando o SELECT falha (RedisConnectionFactory.php:54-55); MAX_DATABASE deveria ser constante no topo da classe (:28-29).
 - T-61: o ramo select() !== true com DB válido não tem teste automático (só leitura do código).
+- T-62: o envio positivo do SystemMessageForm com anexo não foi exercitado (só unit); o catch InvalidArgumentException do SystemMessageForm não faz setData (SystemMessageForm.php:196-200).
+- T-62: tmp/ compartilhado com exports de admin de nome previsível (SystemDatabaseExplorer/SystemTableList); fechado em parte pela onda 14 (T-63).
+- T-62: `..` no meio do nome recusa nomes legítimos (laudo..final.pdf); chave `Uploaded file was not found` órfã em translations.json; `\0` nas pontas sem teste; no catch do SystemDatabaseExplorer o ramo com outra mensagem usa $table possivelmente indefinido e sem rollback (:478-486).
 
 ## Riscos
 - DDL MySQL não é transacional. Em falha parcial, o orquestrador para, inspeciona `information_schema` e não tenta de novo (runbook). O rollback preferido é restaurar o backup pré-migration.
@@ -315,7 +337,7 @@
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/`
-- Sessões: 72051bcd-769a-4db4-bb19-021f9565544c
+- Sessões: 72051bcd-769a-4db4-bb19-021f9565544c, ce4d9a4f-5d35-46ec-a771-8ef03d42a254
 - Branch de trabalho: feat/rodada-2-cadastros-schema-acoes (base: feat/fidelidade-visual-mocks)
 - BASE da onda 1: d6dce7a
 - Commits por onda:
@@ -331,5 +353,6 @@
   - Onda 10: BASE 87a40c6 → HEAD f6f4538 (f6f4538, b32af91, fd3b889, 0833a40, 8a4e93a, 6fa5958, d9defc8, f2ff511, 6021755, a64fc14, 281e9d4, fc7151f)
   - Onda 11: BASE f56cb01 → HEAD 63de67e (d755bef, 10ddafb, 178577d, b37c79c, f9db627, 34b1a68, ffe2824, 52a882d, 0046013, 7edbc12, fde5e1d, cf869f6, 9ff456b, 28cae09, 9fe0571, 63de67e)
   - Onda 12: BASE cea793b → HEAD f598c82 (f876cc6, 94a786e, b726942, 0f354f8, f598c82)
-- Último status conhecido: onda 12 (T-60, T-61 [x]) concluída; T-60 com 1 correção por ampliação de escopo; re-validação SUITE 384/384 e i18n ok no HEAD.
-- Próxima onda recomendada: nenhuma (última onda de implementação); revisão final.
+  - Onda 13: BASE 77a2fb1 → HEAD 6c970fe (7093dd9, 84f8295, c79e81b, 6c970fe)
+- Último status conhecido: onda 13 (T-62 [x]) concluída; 1 correção por extensão de escopo (SystemMessageForm); Re-validação 1 ok. Ondas 14–15 executadas e revisadas, ainda sem fechamento.
+- Próxima onda recomendada: fechar a 14 (T-63) e a 15 (T-64); depois a 16 (T-65).

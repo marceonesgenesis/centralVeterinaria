@@ -63,6 +63,10 @@
 | T-59 | backend | Onda 11: contador de save no FakeEncounterAccountRepository | — | sim | simples | Arquimedes | [x] |
 | T-60 | frontend | Onda 12: retorno do EncounterView pelo DateTimeInput e catches do ExamResultForm | T-53, T-56 | não | simples | Yoda | [x] |
 | T-61 | backend | Onda 12: RedisConnectionFactory recusa DB inválido e SELECT com falha | — | sim | simples | Naruto | [x] |
+| T-62 | backend | Onda 13: travessia de caminho nos uploads em tmp/ (UploadedTmpFile) | — | não | alta | Jaspion | [x] |
+| T-63 | backend | Onda 14: upload vinculado à sessão e nomes imprevisíveis em tmp/ | T-62 | não | alta | Jaspion | [ ] |
+| T-64 | frontend | Onda 15: XSS armazenado via atributo title (tooltip allowHTML) | T-63 | não | média | Levi | [ ] |
+| T-65 | frontend | Onda 16: XSS armazenado nas options dos combos de busca (select2) | T-64 | não | alta | Sherlock | [ ] |
 
 ## Convenções (valem para todas as tasks)
 - LINT, SUITE e GATE: definidos em `plan.md § Premissas`. "SUITE verde" = `Failed: 0` com `PASS` em todos os métodos da classe de teste citada.
@@ -2493,6 +2497,250 @@ Achado de produção de T-55 (`reports/T-55.md:52-54`, `:87`). Em `src/app/Core/
 - `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'chdir("/var/www/html/src"); require "vendor/autoload.php"; try { CentralVet\Redis\RedisConnectionFactory::connect(getenv("REDIS_HOST"), (int) getenv("REDIS_PORT"), 99, getenv("REDIS_PASSWORD") ?: null, 1.0); echo "sem erro"; } catch (RuntimeException $e) { echo $e->getMessage(); }'` (evidência: `Unable to select Redis database 99`)
 - GATE → login em `http://127.0.0.1:8081` depois do rebuild (evidência: painel aberto, console 0 `error`)
 - Review Focus: `REDIS_DATABASE=99` falha alto, sem conexão silenciosa no DB 0 (evidência: a mensagem do `php -r`)
+
+### T-62 — Onda 13: travessia de caminho nos uploads em tmp/ (helper único UploadedTmpFile)
+
+**Camada:** backend
+**Dependências:** nenhuma
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Jaspion
+
+BLOQUEANTE de segurança da revisão final (`reviews/final.md § Revisão final — ondas 8 a 12`). O `filename` do POST é usado sem `basename` em `tmp/<filename>` (`EncounterView.php:1866-1873`, `:1893`, `:1919-1967`; `ExamResultForm.php:174-176`). Um usuário autenticado consegue ler arquivos do servidor (ex.: `../app/config/application.php`), gravá-los como anexo, baixá-los e apagar a origem pelo `@unlink`. Achados de `grep -rn "tmp/" src/app/control`, além dos dois citados:
+- `PatientForm.php:640-647` e `ServiceImportForm.php:72-77` aplicam `basename` mas não exigem que o caminho real fique em `tmp/` (symlink);
+- os controllers do template Adianti `admin/SystemSupportForm.php:81-95` (anexos de suporte enviados por e-mail e depois `unlink`), `communication/documents/SystemDriveDocumentUploadForm.php:78`, `admin/SystemProfileForm.php:167` (foto de perfil, qualquer usuário) e `admin/SystemDatabaseExplorer.php:408` (`$param['file']`) montam `tmp/` + nome vindo da requisição, sem validação. Esses arquivos não estão em `framework_hashes.php` e podem ser editados;
+- `admin/SystemSQLPanel.php:223`, `admin/SystemTableList.php:129,182` e `admin/SystemDatabaseExplorer.php:221,248,301,327` geram o próprio nome (`mt_rand`, nome de tabela ou banco do servidor) e ficam fora, sem entrada do usuário no nome.
+Reprodução exigida em `## RED`, só em worktree isolada (`git -C /var/www/html/centralvet worktree add /tmp/claude-1000/wt-T-62 HEAD`, removida ao fim) ou por leitura do código: o caminho `tmp/../app/config/application.php` resolvido por `realpath` dentro do container, sem gravar nem apagar nada no checkout compartilhado. A prova de exploração no navegador é do gate, depois da correção, e só no sentido negativo (recusa).
+Escritor único de `translations.json` na onda 13.
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/UploadedTmpFile.php`
+- `src/tests/Unit/UploadedTmpFileTest.php`
+- `src/app/Core/Presentation/UserMessage.php`
+- `src/app/config/translations.json`
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/control/clinic/ExamResultForm.php`
+- `src/app/control/clinic/PatientForm.php`
+- `src/app/control/clinic/ServiceImportForm.php`
+- `src/app/control/admin/SystemSupportForm.php`
+- `src/app/control/communication/documents/SystemDriveDocumentUploadForm.php`
+- `src/app/control/admin/SystemProfileForm.php`
+- `src/app/control/admin/SystemDatabaseExplorer.php`
+
+**Interface**
+- Produz: `CentralVet\Presentation\UploadedTmpFile::resolve(string $name, ?string $tmpDir = null): string` (final, estático, sem Adianti). Devolve o caminho real absoluto do arquivo em `tmp/` e lança `\InvalidArgumentException('Invalid file')` em qualquer outro caso: `$tmpDir` nulo → `realpath('tmp')` relativo ao diretório de trabalho da aplicação (`src/`); `realpath` falso → exceção; `$name` aparado vazio, com `/`, `\\` ou byte nulo, igual a `.` ou `..`, contendo `..` ou com `basename($name) !== $name` → exceção; `realpath($tmpDir . DIRECTORY_SEPARATOR . $name)` falso, que não começa com `realpath($tmpDir) . DIRECTORY_SEPARATOR` (inclusive symlink para fora) ou que não é arquivo regular (`is_file`) → exceção.
+- Produz: `UserMessage::STATIC` ganha `Invalid file`, com a chave igual à mensagem, e `translations.json` ganha `Invalid file` → `Arquivo inválido`, sem duplicata exata nem por `casefold()`.
+- Produz: todos os handlers da lista (os 4 de `clinic/` e os 4 do template) obtêm o caminho só por `UploadedTmpFile::resolve(<nome da requisição>)`: o `file_get_contents`, o anexo de e-mail, o `copy`/`rename` e o `@unlink`/`unlink` usam só o caminho devolvido; nenhum `'tmp/' . <entrada>` sobra nesses arquivos; nos `clinic/`, a exceção vira `TMessage('error', CvFormat::userError($e))` ("Arquivo inválido") com `error_log`, e nada é gravado em storage nem em `stored_object`; nos do template, `TMessage('error', _t('Invalid file'))`; `ServiceImportForm` aplica `urldecode` antes do `resolve`, como hoje.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/UploadedTmpFileTest.php` — cria um `tmpDir` temporário próprio (`sys_get_temp_dir()` + `uniqid`), com `ok.pdf` dentro e `fora.txt` no diretório pai, e remove tudo no `tearDown`. `resolve('ok.pdf', $dir)` devolve `realpath` de `ok.pdf`; lançam `Invalid file`: `'../fora.txt'`, `'a/b'`, `'a\\b'`, o caminho absoluto de `fora.txt`, `''`, `'..'`, `'nao-existe.pdf'` e um symlink `link.pdf` dentro do `tmpDir` apontando para `fora.txt` (se `symlink()` falhar no ambiente, esse caso vira `SkippedTestException` com o motivo). Falha antes da correção porque a classe não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\UploadedTmpFileTest::` e `PASS  Unit\UserMessageTest::` em todos os métodos, `Failed: 0`.
+- `grep -rnE "'tmp/' ?\. ?\$" src/app/control/clinic src/app/control/admin/SystemSupportForm.php src/app/control/communication/documents/SystemDriveDocumentUploadForm.php src/app/control/admin/SystemProfileForm.php` vazio, e na linha 408 de `SystemDatabaseExplorer` o nome passa por `UploadedTmpFile::resolve`.
+- Script python: `dup=0 dupcase=0` e `Invalid file` presente.
+- GATE:
+  - POST forçado (`browser_evaluate` com `fetch`/`FormData`) de `onAttachDocument` do `EncounterView` (atendimento `R2 varredura` em andamento) com `filename=../app/config/application.php` mostra "Arquivo inválido", e `SELECT COUNT(*) FROM stored_object` fica igual;
+  - o mesmo no `ExamResultForm` de um pedido `R2 varredura`, com o `COUNT(*)` de `stored_object` e de `exam_result` iguais;
+  - depois dos dois, `docker compose exec -T app test -f /var/www/html/src/app/config/application.php && echo existe` imprime `existe`;
+  - upload válido de um PDF pelo widget no `EncounterView` faz `COUNT(*)` de `stored_object` +1 e lista o anexo;
+  - foto válida no `PatientForm` (paciente 2772) e CSV válido no `ServiceImportForm` seguem gravando;
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 10 PHP (evidência: 10 `No syntax errors detected`) + SUITE (evidência: as linhas `PASS` citadas, `Failed: 0`)
+- `grep -rnE "'tmp/' ?\. ?\$" /var/www/html/centralvet/src/app/control/clinic` (evidência: vazio)
+- GATE → os fluxos do critério, com `SELECT COUNT(*) FROM stored_object` e `FROM exam_result` antes e depois de cada POST forçado (evidência: iguais), o `test -f` de `application.php` (evidência: `existe`), a mensagem "Arquivo inválido" no snapshot e os uploads válidos com `COUNT(*)` +1 (evidência: lista do `EncounterView`)
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem `/tmp/claude-1000/wt-T-62`)
+- Review Focus: `filename=../app/config/application.php` no anexo → recusado, sem `stored_object` novo, e `application.php` continua existindo (evidência: `COUNT(*)` igual e `existe`)
+
+### T-63 — Onda 14: upload vinculado à sessão e nomes imprevisíveis em tmp/
+
+**Camada:** backend
+**Dependências:** T-62
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Jaspion
+
+Achado explorável da re-revisão de T-62 (`reviews/T-62.md § Rodada 2`), fora do contrato de T-62. O `tmp/` é compartilhado entre sessões, e `UploadedTmpFile::resolve` aceita qualquer arquivo regular que esteja lá. Um usuário de `EncounterView`, ou de outro handler de upload, passa um nome previsível que já existe em `tmp/` e o anexa e baixa. Exemplos de nome previsível: um dump ou export de admin (`SystemDatabaseExplorer.php:221,248,301,327`, `<banco>.zip`/`<tabela>.csv`/`.sql`; `SystemTableList.php:129,182`, `<tabela>.csv`/`.sql.txt`; `SystemSQLPanel.php:223`, `sql<mt_rand>.csv`). Isso vaza dados do banco.
+Investigação feita no planejamento:
+- `TFile`/`TMultiFile` aceitam `setService(<classe>)` (`lib/adianti/widget/form/TFile.php:117`, `TMultiFile.php:97`), e a URL de upload é `engine.php?class=<classe>&name=…&hash=…&extensions=…`;
+- `AdiantiUploaderService` (`lib/adianti/service/AdiantiUploaderService.php`, framework) grava `tmp/<nome original>` e devolve `fileName`;
+- `AdiantiApplicationLoader` carrega `app/service`.
+O ponto de extensão da aplicação é um uploader próprio em `app/service`, registrado em todos os `TFile`/`TMultiFile` dos handlers, sem tocar o framework.
+Reprodução exigida em `## RED`: criar uma canária em `tmp/` só na worktree isolada (`/tmp/claude-1000/wt-T-63`, removida ao fim) e mostrar que `UploadedTmpFile::resolve('<canária>')` a aceita no HEAD atual.
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/UploadedTmpFile.php`
+- `src/tests/Unit/UploadedTmpFileTest.php`
+- `src/app/service/upload/CvUploaderService.php`
+- `src/app/lib/widget/CvUpload.php`
+- `src/app/config/translations.json`
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/control/clinic/ExamResultForm.php`
+- `src/app/control/clinic/PatientForm.php`
+- `src/app/control/clinic/ServiceImportForm.php`
+- `src/app/control/admin/SystemSupportForm.php`
+- `src/app/control/communication/documents/SystemDriveDocumentUploadForm.php`
+- `src/app/control/admin/SystemProfileForm.php`
+- `src/app/control/admin/SystemDatabaseExplorer.php`
+- `src/app/control/admin/SystemTableList.php`
+- `src/app/control/admin/SystemSQLPanel.php`
+
+**Interface**
+- Produz: `UploadedTmpFile::generateName(string $originalName): string` → `bin2hex(random_bytes(16)) . '-' . <basename saneado>`: saneamento por `[^A-Za-z0-9_.\-]` → `_`, com no máximo 120 caracteres na parte saneada e a extensão preservada; nome original vazio ou só pontos → `upload`.
+- Produz: `UploadedTmpFile::resolveForSession(string $name, array $sessionUploads, ?string $tmpDir = null): string` aplica as regras de `resolve()` (T-62) e, além delas, exige `in_array($name, $sessionUploads, true)`; senão `\InvalidArgumentException('Invalid file')`. `resolve()` continua público, mas nenhum controller o chama mais.
+- Produz: `CvUploaderService` (global, `app/service/upload/`) com `show($param)`: reproduz literalmente as checagens de `AdiantiUploaderService::show`: extensões bloqueadas, `hash` com o mesmo seed e `extensions`, e as mesmas mensagens; grava em `tmp/<UploadedTmpFile::generateName($file['name'])>`; registra o nome gerado em `TSession` sob `cv_uploads`, uma lista de no máximo 50 nomes em que o mais antigo sai; responde `{"type":"success","fileName":"<nome gerado>"}`.
+- Produz: `CvUpload` (`app/lib/widget`): `CvUpload::resolve(string $name): string` chama `resolveForSession($name, TSession::getValue('cv_uploads') ?: [])`; `CvUpload::forget(string $name): void` tira o nome da lista depois do consumo.
+- Produz: os 8 handlers de T-62 (`EncounterView`, `ExamResultForm`, `PatientForm`, `ServiceImportForm`, `SystemSupportForm`, `SystemDriveDocumentUploadForm`, `SystemProfileForm` e o import de `SystemDatabaseExplorer`): os `TFile`/`TMultiFile` passam a ter `->setService('CvUploaderService')`; o caminho vem de `CvUpload::resolve(...)` (nunca de `UploadedTmpFile::resolve`), e depois do consumo vem `@unlink(<caminho validado>)` + `CvUpload::forget`; `Invalid file` segue como "Arquivo inválido"; o nome exibido ao usuário e gravado como `original_name`/anexo é o original, sem o prefixo hex. Remove-se o prefixo `^[0-9a-f]{32}-`.
+- Produz: os exports e dumps de `SystemDatabaseExplorer` (:221, 248, 301, 327), `SystemTableList` (:129, 182) e `SystemSQLPanel` (:223) passam a usar `tmp/<bin2hex(random_bytes(16))>-<nome atual>`, com o 2º argumento de `openFile` (`$basename`) mantendo o nome amigável. Apagar depois do download fica fora, porque o download é servido em outra requisição (`__adianti_download_file`); o nome imprevisível e o vínculo com a sessão fecham o vazamento.
+- Produz: nenhuma chave i18n nova está prevista (`Invalid file` já existe). Se surgir alguma, T-63 é o escritor único de `translations.json` na onda.
+- Consome: T-62 `CentralVet\Presentation\UploadedTmpFile::resolve(string $name, ?string $tmpDir = null): string`
+
+**Teste RED**
+- `src/tests/Unit/UploadedTmpFileTest.php` — com `tmpDir` temporário próprio contendo `dump.zip` e `abc-ok.pdf`: `resolveForSession('dump.zip', [], $dir)` e `resolveForSession('dump.zip', ['outro.pdf'], $dir)` lançam `Invalid file`; `resolveForSession('abc-ok.pdf', ['abc-ok.pdf'], $dir)` devolve o `realpath`; `resolveForSession('../dump.zip', ['../dump.zip'], $dir)` lança; `generateName('laudo ção.pdf')` casa `^[0-9a-f]{32}-laudo_+o_?\.pdf$`, termina em `.pdf` e duas chamadas dão nomes diferentes. Falha antes da implementação porque os métodos não existem (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\UploadedTmpFileTest::` em todos os métodos (inclusive os de T-62), `Failed: 0`.
+- `grep -rn "UploadedTmpFile::resolve(" src/app/control` vazio; `grep -c "setService('CvUploaderService')"` ≥ 1 em cada um dos 8 handlers; `grep -nE "'tmp/' ?\. ?\$(table|database)" src/app/control/admin` vazio.
+- GATE:
+  - `docker compose exec -T app sh -c 'echo canaria > /var/www/html/src/tmp/r2-canaria.csv'` (o validador remove a canária no fim);
+  - POST forçado de `onAttachDocument` do `EncounterView` (atendimento `R2 varredura`) com `filename=r2-canaria.csv` mostra "Arquivo inválido", e `SELECT COUNT(*) FROM stored_object` fica igual;
+  - o mesmo com o nome de um export real gerado pelo admin no `SystemTableList` (lido de `ls tmp/`) é recusado;
+  - o export do `SystemTableList` baixa com o nome amigável, e o arquivo em `tmp/` tem prefixo de 32 hex;
+  - upload legítimo pela própria sessão segue gravando nos 4 handlers da clínica: anexo do `EncounterView` (`COUNT(*)` +1, nome original na lista), resultado no `ExamResultForm`, foto no `PatientForm` (paciente 2772) e CSV no `ServiceImportForm`;
+  - console 0 `error`.
+
+**Validação**
+- LINT dos 15 PHP (evidência: 15 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\UploadedTmpFileTest::`, `Failed: 0`)
+- `grep -rn "UploadedTmpFile::resolve(" /var/www/html/centralvet/src/app/control` (evidência: vazio)
+- GATE → os fluxos do critério, com `SELECT COUNT(*) FROM stored_object` antes e depois de cada POST forçado (evidência: iguais), `ls /var/www/html/src/tmp` no container (evidência: export com prefixo hex), as listas e mensagens no snapshot e console 0 `error`
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem `/tmp/claude-1000/wt-T-63`)
+- Review Focus: nome previsível já em `tmp/` (canária ou export de admin), passado por outra sessão → "Arquivo inválido", sem `stored_object` novo (evidência: `COUNT(*)` igual)
+
+### T-64 — Onda 15: XSS armazenado via atributo title (tooltip tippy com allowHTML)
+
+**Camada:** frontend
+**Dependências:** T-63
+**Paralelizável:** não
+**Complexidade:** média
+**Agente:** Levi
+
+Achado da re-revisão de T-63 (`reviews/T-63.md § Rodada 3`). `CvAvatar.php:16` grava `title` com só `CvFormat::e($name)`, e o sink do framework `__adianti_process_tooltips` (tippy com `allowHTML`, em `framework_hashes.php`, não editável) interpreta todo `[title]` como HTML. Um tutor ou paciente cadastrado com nome `<img src=x onerror=…>` vira XSS armazenado em listas, busca, fila, atendimento, agenda, prescrição e carteira de vacina (`CvAvatar::placeholder`: `TutorList:65`, `PatientList:59`, `GlobalSearchController:69`, `ProductList:232,323,351`, `PrescriptionForm:356`, `VaccinationCardView:98`, `PendingExamResultList:101`, `EncounterView:624`). O helper de T-63 é `CvFormat::forHtmlSink(?string $text): string` (`CvFormat.php:76`, `e(e($text))`). Os sinks já achados no planejamento são:
+- `CvAvatar.php:16`, com texto do usuário (corrigir);
+- `CvPage.php:171-174`, `title` de ação que vem do spec (corrigir: o chamador pode passar texto de usuário);
+- `cv-shell.js:140`, `select.title = unitLabel`, com nome de unidade vindo do banco (corrigir no JS);
+- `cv-shell.js:246`, `link.setAttribute('title', text + …)`, com texto do menu e rótulos (corrigir no JS, pelo mesmo escape);
+- `PendingReceivableList.php:93`, `PendingExamResultList.php:88`, `EncounterView.php:447,547,948`, `PrescriptionForm.php:544` e `CvPage.php:104`, todos com `_t(...)` estático (não é texto de usuário; o relatório confirma);
+- `CvCard`, `TAccordion`, `CashSessionForm` e `FinancialEntryList` aparecem no grep por "title", a classificar.
+A varredura completa (`control/clinic`, `lib/widget`, `templates/adminbs5` e os JS do projeto; `resources/` só os templates `.html` da aplicação) fica no relatório como tabela `arquivo:linha | origem do texto | decisão (corrigido / não é texto de usuário: motivo)`. Um sink com texto de usuário em arquivo fora dos "Arquivos prováveis" para antes da edição e volta com `precisa de contexto` e o caminho, que vira `caminho autorizado` do orquestrador. Mutação de prova só em worktree isolada. Escritor único de `translations.json` na onda, se precisar (nenhuma chave nova prevista).
+
+**Arquivos prováveis**
+- `src/app/lib/widget/CvAvatar.php`
+- `src/tests/Unit/CvAvatarTitleTest.php`
+- `src/app/lib/widget/CvPage.php`
+- `src/app/templates/adminbs5/js/cv-shell.js`
+- `src/app/lib/widget/CvCard.php`
+- `src/app/lib/widget/TAccordion.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `CvAvatar::titleFor(string $name): string` (public static, sem Adianti) devolve `CvFormat::forHtmlSink($name)`, e `CvAvatar::placeholder` usa `$avatar->{'title'} = self::titleFor($name)`. O texto visível do avatar (inicial) segue `CvFormat::e`, sem escape duplo visível.
+- Produz: `CvPage::header` grava o `title` da ação com `CvFormat::forHtmlSink($title)`, e o `aria-label` com `CvFormat::e`. O mesmo vale para `title` dinâmico encontrado em `CvCard`/`TAccordion`, se a varredura achar.
+- Produz: em `cv-shell.js`, `function cvEscapeTitle(s)`, que troca `& < > " '` por entidades. Todo `title` montado no JS passa por ele antes de `setAttribute('title', …)`/`.title =` (no DOM o atributo não é decodificado, e o tippy recebe o texto escapado uma vez, o equivalente ao `forHtmlSink` do servidor).
+- Consome: nada (usa o helper forHtmlSink de CvFormat, já existente desde o fix loop de T-63)
+
+**Teste RED**
+- `src/tests/Unit/CvAvatarTitleTest.php` — faz `require` de `app/lib/widget/CvFormat.php` e `CvAvatar.php`. `CvAvatar::titleFor('<img src=x onerror=alert(1)> R2')` contém `&amp;lt;img` e não contém `<img` nem `&lt;img src` sem o `&amp;`. `titleFor('Rex & Cia')` contém `&amp;amp;`. Falha antes da correção porque `titleFor` não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\CvAvatarTitleTest::` em todos os métodos, `Failed: 0`.
+- O relatório traz a tabela da varredura com todos os sinks e a decisão de cada um; `grep -n "title" src/app/templates/adminbs5/js/cv-shell.js` mostra só atribuições via `cvEscapeTitle`.
+- GATE (sessão admin em `http://127.0.0.1:8081`):
+  - criar o tutor `<img src=x onerror=alert(1)> R2 Tutor` e o paciente `<img src=x onerror=alert(1)> R2 Pet` dele pela UI, registrando os ids no relatório;
+  - abrir `TutorList`, `PatientList` (do tutor), `GlobalSearchController&query=R2`, `QueueEntryView` (com o paciente na fila, por check-in de um agendamento R2 dele na `AgendaView`), `AgendaView`, `EncounterView` de um atendimento desse paciente, se houver, `PrescriptionForm` desse atendimento e `VaccinationCardView` do paciente;
+  - em cada tela, `browser_handle_dialog` não registra nenhum dialog, inclusive depois de `browser_hover` em cada avatar ou elemento com `title` do nome;
+  - o nome aparece legível como texto (`<img src=x onerror=alert(1)> R2 …` literal) no corpo e no tooltip;
+  - console 0 `error`.
+
+**Validação**
+- LINT de `CvAvatar.php`, `CvPage.php` e dos demais PHP tocados (evidência: `No syntax errors detected` em cada) + SUITE (evidência: `PASS  Unit\CvAvatarTitleTest::`, `Failed: 0`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'chdir("/var/www/html/src"); require "init.php"; echo CvAvatar::placeholder("<img src=x onerror=alert(1)> R2");'` (evidência: `title="&amp;lt;img src=x onerror=alert(1)&amp;gt; R2"`)
+- GATE → as telas do critério, com hover nos avatares e tooltips (evidência: 0 dialogs registrados, snapshot do tooltip com o texto literal, console 0 `error`, ids dos registros criados)
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem worktree de prova restante)
+- Review Focus: nome `<img src=x onerror=alert(1)> R2` com hover no avatar → tooltip mostra o texto literal e nenhum dialog abre (evidência: `browser_handle_dialog` vazio)
+
+### T-65 — Onda 16: XSS armazenado nas options dos combos de busca (select2) com rótulo de usuário
+
+**Camada:** frontend
+**Dependências:** T-64
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Sherlock
+
+Achado crítico do gate de T-64 (`reviews/T-64.md § Gate`), fora do escopo dela. No `AppointmentForm`, o `TDBUniqueSearch` `patient_id` mostra a option como HTML. Ao digitar "R2 Pet", aparece `<span><img src="x" onerror="alert(1)"> R2 Pet</span>` e o alert dispara 4 vezes. O rótulo vem de `AdiantiMultiSearchService::onSearch`, que faz `$object->render($mask)` em `lib/adianti/service/AdiantiMultiSearchService.php:~130` (framework, não editável) e não escapa nada. O `select2` do Adianti renderiza o texto como markup. `TRecord::render` resolve `{atributo}` por `__get`, que chama `get_<atributo>()`. Por isso, um atributo virtual nos models com o texto já escapado é o ponto de saída da aplicação, sem tocar o framework. Combos achados no planejamento (`grep -rn "new TDBUniqueSearch\|new TDBMultiSearch\|new TDBCombo\|new TDBSelect\|new TDBRadioGroup\|new TDBCheckGroup" src/app/control/clinic` e `enableSearch`):
+- `SaleForm:108` (Tutor `full_name`), `:109` (Patient `name`), `:139` (Product `name`), `:152` (ProcedureCatalogItem `name`);
+- `StockBatchForm:78` (Product);
+- `PatientForm:129` (Tutor `full_name`);
+- `VaccinationCardView:170` (Patient);
+- `AppointmentForm:74` (Patient), `:75` (`TDBCombo` Service) e `:80` (SystemUser `name`);
+- `VaccineProtocolForm:70` (`TDBCombo` VaccineCatalogItem);
+- `ProcedureInputForm:74` (`TDBCombo` ProcedureCatalogItem);
+- `EncounterAccountForm:390` (`TDBCombo` SystemUser com `enableSearch`);
+- `EncounterView:1279` (`TDBCombo` Service).
+Decisão do planejador: aplicar a mitigação também aos `TDBCombo`. Mesmo quando o `<select>` puro não executa HTML na option, `enableSearch` passa pelo select2, e o custo é o mesmo. Combos de `admin/`/`communication/` do template ficam no relatório, como "fora: rótulo administrado pelo admin (grupo, programa, unidade)", exceto onde o rótulo for nome de usuário editável pelo próprio usuário: esses entram como `caminho autorizado` se o orquestrador aprovar. Mutação de prova só em worktree isolada. Escritor único de `translations.json` na onda, se precisar (nenhuma chave prevista).
+
+**Arquivos prováveis**
+- `src/app/lib/widget/CvSafeLabelTrait.php`
+- `src/tests/Unit/CvSafeLabelTraitTest.php`
+- `src/app/model/clinic/Patient.php`
+- `src/app/model/clinic/Tutor.php`
+- `src/app/model/clinic/Service.php`
+- `src/app/model/clinic/Product.php`
+- `src/app/model/clinic/ProcedureCatalogItem.php`
+- `src/app/model/clinic/VaccineCatalogItem.php`
+- `src/app/model/admin/SystemUser.php`
+- `src/app/control/clinic/SaleForm.php`
+- `src/app/control/clinic/VaccineProtocolForm.php`
+- `src/app/control/clinic/StockBatchForm.php`
+- `src/app/control/clinic/PatientForm.php`
+- `src/app/control/clinic/ProcedureInputForm.php`
+- `src/app/control/clinic/VaccinationCardView.php`
+- `src/app/control/clinic/AppointmentForm.php`
+- `src/app/control/clinic/EncounterAccountForm.php`
+- `src/app/control/clinic/EncounterView.php`
+- `src/app/config/translations.json`
+
+**Interface**
+- Produz: `trait CvSafeLabelTrait` (`app/lib/widget`) com `protected function safeLabel(string $attribute): string`, que devolve `CvFormat::e((string) ($this->$attribute ?? ''))`.
+- Produz: os 7 models usam o trait e expõem o atributo virtual do rótulo: `Patient::get_name_safe()`; `Tutor::get_full_name_safe()`; `Service::get_name_safe()`; `Product::get_name_safe()`; `ProcedureCatalogItem::get_name_safe()`; `VaccineCatalogItem::get_name_safe()`; `SystemUser::get_name_safe()`.
+  Nenhuma coluna nova.
+- Produz: nos 14 combos listados: os `TDBUniqueSearch` usam `->setMask('{name_safe}')` (Tutor: `'{full_name_safe}'`), e a coluna de busca/ordem (5º/6º argumento) continua a coluna real (`name`/`full_name`); os `TDBCombo` usam o 5º argumento `'{name_safe}'` quando o widget aceitar máscara, ou trocam para `TCombo` com `addItems([id => CvFormat::e(nome)])` montado pela consulta já existente; a escolha por combo vai na tabela do relatório (`arquivo:linha | modelo/rótulo | mitigação | prova`).
+- Produz: no relatório, a proposta de defesa na entrada (recusar `<`/`>` em nomes de Patient, Tutor, Service e Product no domínio), com o impacto. Não é implementada nesta task (muda comportamento de cadastro e exige decisão do usuário).
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/CvSafeLabelTraitTest.php` — faz `require` de `CvFormat.php` e `CvSafeLabelTrait.php`. Uma classe anônima que usa o trait com `public $name = '<img src=x onerror=alert(1)> R2'` e um método público que chama `safeLabel('name')` devolve um texto que contém `&lt;img src=x onerror=alert(1)&gt; R2` e não contém `<img`. Com `'João & Cia'`, devolve `João &amp; Cia`, preservando o acento. Com o atributo nulo, devolve `''`. Falha antes da implementação porque o trait não existe (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php`)
+
+**Critério de aceite**
+- SUITE: `PASS  Unit\CvSafeLabelTraitTest::` em todos os métodos, `Failed: 0`.
+- O relatório traz a tabela dos 14 combos (e dos de `admin/`/`communication/` avaliados), com a decisão de cada um.
+- GATE (sessão admin em `http://127.0.0.1:8081`; registros R2 existentes: tutor 10626 e pacientes 9179 e 9180):
+  - o validador cria pela UI um tutor `R2 João & Cia` e um produto e um serviço `<img src=x onerror=alert(1)> R2 Prod`/`R2 Serv`, registrando os ids;
+  - digitar "R2 Pet" e "R2 Tutor" (e "R2 Prod"/"R2 Serv" onde couber) nos combos de `AppointmentForm` (paciente, serviço), `PatientForm` (tutor), `SaleForm` (tutor, paciente, produto), `VaccinationCardView` (paciente), `StockBatchForm` (produto) e `EncounterView` (serviço do retorno);
+  - em cada combo, 0 dialogs (`browser_handle_dialog`) e `document.querySelectorAll('img[src="x"]').length` = 0, com o dropdown aberto e depois da seleção;
+  - a option e a seleção mostram o texto literal `<img src=x onerror=alert(1)> R2 …`, e "R2 João & Cia" aparece com o acento e o "&" corretos, sem `&amp;` visível na option nem na seleção;
+  - salvar um agendamento R2 com o paciente 9179 grava `patient_id = 9179`;
+  - console 0 `error`.
+- Se a seleção mostrar `&amp;` visível, o accessor não serve para aquele widget. A task troca o combo para o caminho `TCombo` + `addItems` com o texto cru e prova de novo; se nenhum dos dois servir, para com `precisa de contexto`.
+
+**Validação**
+- LINT dos 18 PHP (evidência: 18 `No syntax errors detected`) + SUITE (evidência: `PASS  Unit\CvSafeLabelTraitTest::`, `Failed: 0`)
+- `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -r 'chdir("/var/www/html/src"); require "init.php"; TTransaction::open("permission"); $p = new Patient(9179); echo $p->render("{name_safe}"); TTransaction::close();'` (evidência: `&lt;img src=x onerror=alert(1)&gt;` no texto)
+- GATE → os combos do critério (evidência: 0 dialogs, contagem de `img[src="x"]` = 0, snapshot da option e da seleção, `SELECT patient_id FROM appointment ORDER BY id DESC LIMIT 1` = 9179, console 0 `error`)
+- `git -C /var/www/html/centralvet worktree list` (evidência: sem worktree de prova restante)
+- Review Focus: digitar "R2 Pet" no `patient_id` do `AppointmentForm` → 0 dialogs e nenhum `img[src="x"]` no DOM (evidência: `browser_handle_dialog` vazio e contagem 0)
 
 ## Legenda
 

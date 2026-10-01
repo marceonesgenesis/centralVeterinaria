@@ -9,6 +9,8 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 ## Tasks atribuídas
 - T-01: Migration 0007 (+ verify) e DML de programas/grupos
 - T-40: Onda 9: migration 0008 — UNIQUE em queue_entry.appointment_id com dedupe prévio
+- T-62: Onda 13: travessia de caminho nos uploads em tmp/ (UploadedTmpFile)
+- T-63: Onda 14: upload vinculado à sessão e nomes imprevisíveis em tmp/
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -35,6 +37,8 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-63 (onda 14, segurança): o uploader do framework (`lib/adianti/service/AdiantiUploaderService.php`) não pode ser editado; crie `app/service/upload/CvUploaderService.php` e ligue-o por `setService('CvUploaderService')`. Canária e reprodução só na worktree `/tmp/claude-1000/wt-T-63`, removida ao fim. A canária do gate é do validador. Dono único de `translations.json` na onda, se surgir chave nova.
+- T-62 (onda 13, segurança): ao contrário de T-01/T-40, esta task edita código. TDD: commit `Task: T-62 (RED)` só com `UploadedTmpFileTest.php` antes de qualquer correção. Você é o escritor único de `translations.json` na onda. Nenhuma tentativa de exploração no checkout compartilhado: a reprodução fica na worktree `/tmp/claude-1000/wt-T-62`, removida ao fim, ou é feita por leitura. Nunca rode `unlink` nem anexe arquivo fora de `tmp/` para provar o bug. Os 4 controllers do template (`admin/`, `communication/`) podem ser editados (não estão em `framework_hashes.php`); `src/lib/adianti` continua proibido.
 - T-40 (onda 9, BASE `c03e1b2`): só redija a 0008 e o `.verify.sql` (SELECT). Não execute nenhum dos dois. SELECT para inspecionar os duplicados é permitido (anote a saída no relatório).
 - Restrição específica: não execute nenhum SQL que escreva, nem os arquivos que você redige. Pode rodar SELECT para descobrir `MAX(id)` de `system_program` e as colunas de `system_group_program` (`SHOW COLUMNS`). O arquivo `.verify.sql` só contém SELECT. `sql/T-01-programs.sql` fica na pasta do plano e não é commitado por você (o fechador registra); a migration e o verify são commitados com `Task: T-01`.
 

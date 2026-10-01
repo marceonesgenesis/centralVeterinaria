@@ -12,6 +12,7 @@ Rodada 2 do CentralVet: dívida técnica da fase 10, edição de cadastros, camp
 - T-37: Onda 8: testes de integração faltantes e verify da 0007
 - T-52: Onda 10: anexos do atendimento registrados em stored_object e listados
 - T-56: Onda 11: anexos do ExamResultForm em stored_object, sem órfão e com nome UTF-8
+- T-65: Onda 16: XSS armazenado nas options dos combos de busca (select2) com rótulo de usuário
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20260930-0823-rodada-2-divida-cadastros-schema-acoes/tasks.md`. Não leia as demais seções.
 
@@ -39,6 +40,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
   - `composer` que altere `composer.lock`/`vendor`;
   - editar `src/app/config/translations.json` (escritor único: T-23). Chave nova vai no board, na linha `- [T-xx] i18n: <chave en> → <texto pt>`.
 - Pré-requisito: containers `app`, `mysql` e `redis` no ar (`docker compose ps`).
+- T-65 (onda 16, segurança): não edite `lib/adianti` (inclusive `AdiantiMultiSearchService` e o JS do select2) nem arquivos de `framework_hashes.php`. Models de `app/model/clinic` e `app/model/admin/SystemUser.php` podem ser editados (só o trait e o accessor, sem mudar `TABLENAME`/atributos). Prova de exploração só na worktree `/tmp/claude-1000/wt-T-65`, removida ao fim; registros com payload no banco são do validador. Dono único de `translations.json` na onda, se precisar.
 - T-56 (onda 11): sem schema novo. Não edite `translations.json` (`Attachment not found` já existe).
 - T-52 (onda 10): confirme a causa antes de editar. Se a correção exigir coluna ou tabela nova, pare com `precisa de contexto` (schema novo fica fora). Não edite `translations.json`: registre `Attachment not found` no board. `ExamResultForm` fica intocado (construtor compatível).
 - T-37 (onda 8): só testes e o `.verify.sql` (SELECT). Nunca edite o `.sql` da 0007 (checksum aplicado). Se um teste revelar bug de produção, pare com `precisa de contexto` e o caminho.
