@@ -498,6 +498,55 @@ final class AppointmentServiceTest
         Assert::true(false, 'Expected InvalidArgumentException was not thrown');
     }
 
+    /**
+     * T-09: sem service_id, reschedule() recusa antes de buscar o serviço
+     * (sem a checagem, (int) null vira 0 e a falha seria outra).
+     */
+    public function testRescheduleRejectsMissingServiceId(): void
+    {
+        $service = $this->makeAppointmentService();
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        try {
+            $service->reschedule($a->id, [
+                'professional_system_user_id' => 10,
+                'scheduled_at' => '2026-09-22 14:00:00',
+            ], self::ACTION);
+        } catch (InvalidArgumentException $e) {
+            Assert::same('service_id is required', $e->getMessage());
+            Assert::same('2026-09-22 09:00', $service->findById($a->id)->scheduledAt->format('Y-m-d H:i'));
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidArgumentException was not thrown');
+    }
+
+    /**
+     * T-09: sem professional_system_user_id, reschedule() recusa e o horário
+     * não muda (sem a checagem, o profissional viraria 0 e a remarcação passaria).
+     */
+    public function testRescheduleRejectsMissingProfessional(): void
+    {
+        $service = $this->makeAppointmentService();
+        $a = $this->scheduleAt($service, '2026-09-22 09:00:00');
+
+        try {
+            $service->reschedule($a->id, [
+                'service_id' => 1,
+                'scheduled_at' => '2026-09-22 14:00:00',
+            ], self::ACTION);
+        } catch (InvalidArgumentException $e) {
+            Assert::same('professional_system_user_id is required', $e->getMessage());
+            Assert::same('2026-09-22 09:00', $service->findById($a->id)->scheduledAt->format('Y-m-d H:i'));
+            Assert::same(10, $service->findById($a->id)->professionalSystemUserId);
+
+            return;
+        }
+
+        Assert::true(false, 'Expected InvalidArgumentException was not thrown');
+    }
+
     public function testRescheduleOfCancelledAppointmentHasExactMessage(): void
     {
         $cancelled = new Appointment(
