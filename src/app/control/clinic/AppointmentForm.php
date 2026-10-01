@@ -72,12 +72,14 @@ class AppointmentForm extends TPage
 
         // create the form fields
         $patient_id = new TDBUniqueSearch('patient_id', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
+        $patient_id->setMask(Patient::safeSearchMask('name_safe')); // T-65: rótulo escapado no select2
         $service_id = new TDBCombo('service_id', 'permission', 'Service', 'id', 'name', 'name', $tenant_criteria);
         // professional_system_user_id: SystemUser is native Adianti (no
         // tenant_id column of its own, the link is via tenant_user, which
         // TCriteria cannot reach) — documented exception, same pattern as
         // the only precedent (SystemUserForm.php's frontpage_id search).
         $professional_system_user_id = new TDBUniqueSearch('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
+        $professional_system_user_id->setMask(SystemUser::safeSearchMask('name_safe')); // T-65
         // TEntry com máscara, sem TDateTime: o bootstrap-datetimepicker
         // reescrevia no cliente a data inválida ao fechar o popup (31/02 →
         // 03/03) e o popup cobria o botão Agendar; o setDatabaseMask convertia

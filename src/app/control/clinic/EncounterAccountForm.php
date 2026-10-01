@@ -388,8 +388,9 @@ class EncounterAccountForm extends TPage
 
         // quem autorizou: combo de usuários ativos do tenant (antes, id digitado)
         $authorized_by_system_user_id = new TDBCombo(
-            'authorized_by_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name', self::tenantUsersCriteria()
-        );
+            'authorized_by_system_user_id', 'permission', 'SystemUser', 'id',
+            SystemUser::safeSearchMask('name_safe'), 'name', self::tenantUsersCriteria()
+        ); // T-65: enableSearch passa pelo select2; rótulo escapado, ordem pela coluna real
         $authorized_by_system_user_id->enableSearch();
         $authorized_by_system_user_id->setSize('100%');
         $authorized_by_system_user_id->setValue(TSession::getValue('userid'));

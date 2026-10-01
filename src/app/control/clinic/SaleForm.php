@@ -107,6 +107,9 @@ class SaleForm extends TPage
         // header fields
         $tutor_id = new TDBUniqueSearch('tutor_id', 'permission', 'Tutor', 'id', 'full_name', 'full_name', $tenant_criteria);
         $patient_id = new TDBUniqueSearch('patient_id', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
+        // T-65: rótulos escapados no select2 (busca/ordem seguem na coluna real)
+        $tutor_id->setMask(Tutor::safeSearchMask('full_name_safe'));
+        $patient_id->setMask(Patient::safeSearchMask('name_safe'));
         $encounter_id = new TEntry('encounter_id');
 
         $encounter_id->setNumericMask(0, '', '', false, false, false);
@@ -137,6 +140,7 @@ class SaleForm extends TPage
 
         // item entry: product
         $product_id = new TDBUniqueSearch('product_id', 'permission', 'Product', 'id', 'name', 'name', $tenant_criteria);
+        $product_id->setMask(Product::safeSearchMask('name_safe')); // T-65
         $product_quantity = new TEntry('product_quantity');
 
         $product_quantity->setNumericMask(0, '', '', false, false, false);
@@ -150,6 +154,7 @@ class SaleForm extends TPage
 
         // item entry: procedure
         $procedure_id = new TDBUniqueSearch('procedure_id', 'permission', 'ProcedureCatalogItem', 'id', 'name', 'name', $tenant_criteria);
+        $procedure_id->setMask(ProcedureCatalogItem::safeSearchMask('name_safe')); // T-65
         $procedure_quantity = new TEntry('procedure_quantity');
 
         $procedure_quantity->setNumericMask(0, '', '', false, false, false);

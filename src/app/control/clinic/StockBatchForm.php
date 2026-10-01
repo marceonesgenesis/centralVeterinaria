@@ -76,6 +76,7 @@ class StockBatchForm extends TPage
             $tenant_criteria->add(new TFilter('active', '=', 1));
 
             $product_id = new TDBUniqueSearch('product_id', 'permission', 'Product', 'id', 'name', 'name', $tenant_criteria);
+            $product_id->setMask(Product::safeSearchMask('name_safe')); // T-65: rótulo escapado no select2
             $product_id->setMinLength(0);
             $product_id->addValidation(_t('Product'), new TRequiredValidator);
 

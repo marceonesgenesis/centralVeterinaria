@@ -23,6 +23,8 @@
  */
 class Patient extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'patient';
     const PRIMARYKEY = 'id';
     const IDPOLICY = 'max'; // {max, serial}
@@ -43,5 +45,13 @@ class Patient extends TRecord
         parent::addAttribute('weight_kg');
         parent::addAttribute('color');
         parent::addAttribute('notes');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }

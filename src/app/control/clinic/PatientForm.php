@@ -127,6 +127,7 @@ class PatientForm extends TStandardForm
             $tenant_criteria->add(new TFilter('tenant_id', '=', $tenant_id));
 
             $tutor_field = new TDBUniqueSearch('tutor_id', 'permission', 'Tutor', 'id', 'full_name', 'full_name', $tenant_criteria);
+            $tutor_field->setMask(Tutor::safeSearchMask('full_name_safe')); // T-65: rótulo escapado no select2
             $tutor_field->setMinLength(1);
             $tutor_field->addValidation( _t('Tutor'), new TRequiredValidator );
             $tutor_label = null;

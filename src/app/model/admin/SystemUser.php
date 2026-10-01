@@ -11,6 +11,8 @@
  */
 class SystemUser extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'system_users';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'max'; // {max, serial}
@@ -591,5 +593,13 @@ class SystemUser extends TRecord
             }
         }
         return $collection;
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }
