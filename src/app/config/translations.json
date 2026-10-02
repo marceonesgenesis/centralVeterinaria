@@ -1240,6 +1240,10 @@
     "pt": "Estoque insuficiente para executar este procedimento"
   },
   {
+    "en": "Insufficient stock: ^1 unit(s) missing",
+    "pt": "Estoque insuficiente: faltam ^1 unidade(s)"
+  },
+  {
     "en": "Interval from previous dose",
     "pt": "Intervalo desde a dose anterior"
   },
@@ -2716,6 +2720,10 @@
     "pt": "Termos de uso e política de privacidade"
   },
   {
+    "en": "The discount cannot be greater than the subtotal",
+    "pt": "O desconto não pode ser maior que o subtotal"
+  },
+  {
     "en": "The file must be a CSV of up to 1 MB",
     "pt": "O arquivo deve ser um CSV de até 1 MB"
   },
@@ -2734,6 +2742,10 @@
   {
     "en": "The passwords do not match",
     "pt": "As senhas não coincidem"
+  },
+  {
+    "en": "The payment exceeds the open balance",
+    "pt": "O pagamento ultrapassa o valor em aberto"
   },
   {
     "en": "The programs selected here will automatically have access permission granted to this user group",

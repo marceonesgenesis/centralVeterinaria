@@ -55,6 +55,9 @@ final class UserMessage
         '/^Bank account must belong to the current unit \d+$/D' => 'Bank account must belong to the current unit',
         '/^(?:Appointment|Patient|Tutor|Product|Payable) \d+ not found for this tenant$/D' => 'Record not found',
         '/^items\[\]\.([a-z_]+) is required$/D' => 'Fill in ^1 on every item',
+        '/^Payment of \d+ cent\(s\) would raise paid_cents to \d+, exceeding total_cents of \d+ cent\(s\)$/D' => 'The payment exceeds the open balance',
+        '/^Discount of \d+ cent\(s\) exceeds subtotal of \d+ cent\(s\)$/D' => 'The discount cannot be greater than the subtotal',
+        '/^Insufficient stock for product_id \d+: short by (\d+) unit\(s\)$/D' => 'Insufficient stock: ^1 unit(s) missing',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
         '/^([a-z_]+) is required$/D' => '^1 is required',
