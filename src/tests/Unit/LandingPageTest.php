@@ -81,6 +81,59 @@ final class LandingPageTest
         Assert::false(str_contains($script, 'R$ 97'), 'landing.js must not hardcode R$ 97');
     }
 
+    /**
+     * A landing só lê a sessão: com cookie forjado/expirado (id inexistente)
+     * o handler não recebe write/destroy, e sem cookie nem é tocado. Roda em
+     * subprocesso porque o runner já imprimiu saída (session_start recusaria).
+     */
+    public function testReadLoggedNeverWritesTheSession(): void
+    {
+        Assert::true(method_exists(LandingPage::class, 'readLogged'), 'LandingPage::readLogged must exist');
+
+        $script = <<<'PHP'
+            require $argv[1];
+            ini_set('session.serialize_handler', 'php');
+            $handler = new class implements SessionHandlerInterface {
+                public array $calls = [];
+                public function open(string $path, string $name): bool { $this->calls[] = 'open'; return true; }
+                public function close(): bool { $this->calls[] = 'close'; return true; }
+                public function read(string $id): string|false {
+                    $this->calls[] = 'read:' . $id;
+                    return $id === 'validsession1' ? 'centralvet|a:1:{s:6:"logged";b:1;}' : '';
+                }
+                public function write(string $id, string $data): bool { $this->calls[] = 'write:' . $id; return true; }
+                public function destroy(string $id): bool { $this->calls[] = 'destroy:' . $id; return true; }
+                public function gc(int $max): int|false { return 0; }
+            };
+            $page = new CentralVet\Landing\LandingPage();
+            $out = [];
+            foreach (['none' => [], 'forged' => ['PHPSESSID_centralvet' => 'deadbeef'], 'valid' => ['PHPSESSID_centralvet' => 'validsession1']] as $case => $cookies) {
+                $handler->calls = [];
+                $logged = $page->readLogged($handler, 'PHPSESSID_centralvet', $cookies, 'centralvet');
+                $out[$case] = ['logged' => $logged, 'calls' => $handler->calls, 'status' => session_status()];
+            }
+            echo json_encode($out);
+            PHP;
+
+        $autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+        $command = escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($script) . ' ' . escapeshellarg($autoload) . ' 2>&1';
+        $output = (string) shell_exec($command);
+        $result = json_decode($output, true);
+        Assert::true(is_array($result), 'subprocess output must be JSON: ' . $output);
+
+        Assert::same(['logged' => false, 'calls' => [], 'status' => PHP_SESSION_NONE], $result['none'], 'no cookie: handler untouched');
+        Assert::false($result['forged']['logged'], 'forged cookie is anonymous');
+        Assert::true($result['valid']['logged'], 'valid session with logged=true is logged');
+
+        foreach (['forged', 'valid'] as $case) {
+            Assert::same(PHP_SESSION_NONE, $result[$case]['status'], "{$case}: session must be closed after read");
+            Assert::same([], array_values(array_filter(
+                $result[$case]['calls'],
+                static fn (string $call): bool => str_starts_with($call, 'write:') || str_starts_with($call, 'destroy:'),
+            )), "{$case}: handler must never write or destroy");
+        }
+    }
+
     private function read(string $relative): string
     {
         $path = dirname(__DIR__, 2) . '/' . $relative;
