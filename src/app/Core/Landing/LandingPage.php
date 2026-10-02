@@ -35,6 +35,54 @@ final class LandingPage
         return self::ENTRY_LANDING;
     }
 
+    /**
+     * Lê `logged` da sessão sem nunca gravá-la: só abre quando o cookie
+     * $sessionName veio no pedido, em `read_and_close` (open/read/close, sem
+     * write), sem Set-Cookie e sem cache headers. Cookie forjado ou expirado
+     * resulta em anônimo e nada é criado no backend de sessão.
+     *
+     * @param array<string, mixed> $cookies normalmente $_COOKIE
+     * @param string|null $applicationName APPLICATION_NAME do Adianti (TSession guarda os valores sob essa chave)
+     */
+    public function readLogged(
+        ?\SessionHandlerInterface $handler,
+        string $sessionName,
+        array $cookies,
+        ?string $applicationName,
+    ): bool {
+        $sessionId = $cookies[$sessionName] ?? null;
+        if (!is_string($sessionId) || preg_match('/^[A-Za-z0-9,-]{1,256}$/', $sessionId) !== 1) {
+            return false;
+        }
+
+        if (session_status() !== PHP_SESSION_NONE) {
+            return false;
+        }
+
+        if ($handler !== null) {
+            session_set_save_handler($handler, false);
+        }
+
+        session_name($sessionName);
+        session_id($sessionId);
+
+        if (!session_start([
+            'read_and_close' => true,
+            'use_cookies' => false,
+            'use_only_cookies' => true,
+            'cache_limiter' => '',
+        ])) {
+            return false;
+        }
+
+        $data = $_SESSION;
+        $_SESSION = [];
+
+        $values = $applicationName !== null ? ($data[$applicationName] ?? []) : $data;
+
+        return is_array($values) && (bool) ($values['logged'] ?? false);
+    }
+
     public function render(string $template, string $leadToken): string
     {
         return strtr($template, [

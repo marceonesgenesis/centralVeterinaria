@@ -21,14 +21,15 @@ require_once __DIR__ . '/init.php';
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $queryString = (string) ($_SERVER['QUERY_STRING'] ?? '');
 
-$logged = false;
-if (isset($_COOKIE[session_name()])) {
-    new TSession(SessionHandlerFactory::createFromEnvironment());
-    $logged = (bool) TSession::getValue('logged');
-    session_write_close();
-}
-
 $page = new LandingPage();
+
+// Só leitura: cookie forjado ou expirado segue anônimo e nada é gravado.
+$logged = isset($_COOKIE[session_name()]) && $page->readLogged(
+    SessionHandlerFactory::createFromEnvironment(),
+    session_name(),
+    $_COOKIE,
+    defined('APPLICATION_NAME') ? APPLICATION_NAME : null,
+);
 
 switch ($page->entryFor($method, $queryString, $logged)) {
     case LandingPage::ENTRY_SYSTEM:
