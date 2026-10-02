@@ -36,6 +36,12 @@
 - 2026-10-01 · T-16 · onda 3 — translations.json reordenado inteiro (a BASE já estava fora da ordem casefold); chave antiga `%s days` mantida (fora do escopo).
 - 2026-10-01 · T-17 · onda 3 — Correção 1 por extensão de escopo do orquestrador: AgendaView.php:94 (TAlert com getMessage cru → userError) e trava estendida a `new TAlert(` (1d630f6 RED, 8c1c24a). O primeiro commit 6be5900 (trava) é sem RED, conforme tasks.md.
 - 2026-10-01 · orquestrador · onda 3 — Rebuild e recreate do centralvet-app-1 antes do gate; sessão admin no Playwright mantida pelo orquestrador.
+- 2026-10-01 · orquestrador · onda 4 — A 1ª execução da T-18 foi interrompida a pedido do usuário logo no início, sem artefatos nem commits; retomada depois e executada do zero.
+- 2026-10-01 · orquestrador · onda 4 — Login admin no Playwright refeito pelo orquestrador com autorização explícita do usuário para ler a senha do .env, sem expor a credencial.
+- 2026-10-01 · T-18 · onda 4 — Correção 1 (cruzada sem dona, achada pela própria T-18): PaymentForm (pagamento acima do saldo), EncounterAccountForm (desconto acima do subtotal) e SaleForm (estoque insuficiente) mostravam mensagem de domínio em inglês; o dono do catálogo acrescentou 3 padrões ao UserMessage::PATTERNS e as chaves em translations.json (288626f RED, d04f13a). Gate aprovado nos 3 fluxos, sem gravação.
+- 2026-10-01 · T-18 · onda 4 — Itens `não rodado` aceitos como pendência: erro de unidade do BankAccountForm, procedure_id do SaleForm, login e segundo login sem logout, hover do avatar do paciente 9179 no EncounterView e no PrescriptionForm; contagens BASE de service/product/stored_object/financial_entry sem comparação.
+- 2026-10-01 · orquestrador · onda 4 — Rebuild e recreate do centralvet-app-1 antes do gate.
+
 
 ## Bloqueios
 - (resolvido) Pré-requisito da rodada 2 cumprido: T-62..T-65 `[x]`, HEAD `39de5ef` de `feat/rodada-2-cadastros-schema-acoes` e revisão final das ondas 13–16 aprovada. O orquestrador cria `feat/rodada-3-divida-tecnica` a partir de `39de5ef`.
@@ -67,6 +73,8 @@
 - [T-13] EncounterView usa CvFormat::userError direto (14 chamadas) e não tem mais screenError (d7b8c1e).
 - [T-16] translations.json (8c0ef00): +7 chaves do board, órfã `Uploaded file was not found` removida, 782 entradas em ordem casefold; `%s days` antiga mantida.
 - [T-17] trava ControllerRawExceptionMessageTest cobre `new TMessage(` e `new TAlert(` com getMessage() cru em clinic/, SearchBox.php e log/; AgendaView.php:94 corrigido (8c1c24a).
+- [T-18] varredura: PaymentForm (Overpayment), EncounterAccountForm (desconto > subtotal) e SaleForm (estoque insuficiente) mostravam a mensagem de domínio em inglês; corrigido por 3 padrões em UserMessage (d04f13a). SUITE 446/446 em centralvet_test, MAX(id) do dev inalterado.
+
 
 ## Pendências
 - T-02: sugestão: trava de camadas não pega `use CentralVet\Presentation;` nem import agrupado; Core/README.md não cita a camada Support.
@@ -92,6 +100,10 @@
 - Registros R3 criados no banco de dev no gate da onda 2 (ver reviews/T-NN.md § Gate).
 - T-16: sugestão: `%s days` ficou órfã depois de T-11 (nenhum uso em src/app fora do JSON); candidata à lista de órfãs herdadas. GATE do retorno inválido do EncounterView no navegador não rodado (vai para a T-18).
 - T-17: sugestões: a trava não pega variável intermediária (`$msg = $e->getMessage(); new TMessage('error', $msg)`), alias de `use ... as`, nome de classe em minúsculas nem closure com `;`; regra alternativa "getMessage() só em error_log( ou comparação" com allowlist; `log/SystemLogDashboard.php:244` faz `parent::add($e->getMessage())` cru, fora do Incluso. GATE de navegador da AgendaView com erro genérico não rodado (T-18).
+- T-18: sugestão: teste negativo e de "\n" final para os 3 padrões novos de UserMessage (UserMessageTest.php:103).
+- T-18: itens `não rodado` aceitos: erro de unidade do BankAccountForm, procedure_id do SaleForm, login e segundo login sem logout, hover do avatar 9179 no EncounterView e no PrescriptionForm; contagens BASE de service/product/stored_object/financial_entry sem comparação.
+- Registros R3 criados no banco de dev pela T-18: agendamento 831 (remarcado 01/10/2026 16:30), mensagem de sistema 1 com anexo, dose na vacina 280, r3.pdf em tmp/.
+
 
 ## Riscos
 - A rodada 2 pode mudar arquivos deste plano ao fechar (T-65 mexe em `PatientForm`, `AppointmentForm`, `EncounterView`, `SaleForm` e models). Mitigação: o orquestrador confere `git -C /var/www/html/centralvet diff --stat <HEAD de hoje>..<HEAD de partida>` antes da onda 1 e, se um arquivo do Mapa mudou, as linhas citadas nas tasks são conferidas pelo implementador antes de editar.
@@ -109,5 +121,6 @@
   - Onda 1: BASE b75d7cc → HEAD 7687d16 (7687d16, 75a411c, 2fb13d0, c0fd1b1, 374028d, 0a74522, 317dac1, 6731313, 9f3c639, 662c637, 9e025c9, 5e058b0, 6d57324, c592905, f301e70, 916c57c, 551f2cc, 7e2d2ef, 52b46ba, 9c29731, 4b30140, 57f0b41, 04ddd61, b44bd6e)
   - Onda 2: BASE ae45458 → HEAD 39005ff (39005ff, 946709c, cdcfd37, a928701, 3fb5787, af5899f, 3feb3a8, d7b8c1e, a093a02, 4242dd8, 669a3ac)
   - Onda 3: BASE c2da454 → HEAD 8c1c24a (8c1c24a, 1d630f6, 6be5900, 8c0ef00)
-- Último status conhecido: onda 3 fechada com T-16 e T-17 [x]; centralvet_test provisionado; falta T-18 (validação final).
-- Próxima onda recomendada: onda 4 (T-18, validação final)
+  - Onda 4: BASE 47ec9e9 → HEAD d04f13a (d04f13a, 288626f)
+- Último status conhecido: todas as ondas concluídas (onda 4 fechada com T-18 [x]).
+- Próxima onda recomendada: nenhuma; próximo passo: revisão final da rodada 3.

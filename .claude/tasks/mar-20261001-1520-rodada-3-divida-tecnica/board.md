@@ -40,3 +40,4 @@ EOF
 - [T-16] translations.json (commit 8c0ef00): +7 chaves do board (as 3 de foto/Record not found já existiam), órfã `Uploaded file was not found` removida, 782 entradas em ordem casefold (BASE tinha `Invalid exam request id` fora de ordem; reordenado). `%s days` antiga mantida.
 - [T-17] commit 6be5900: ControllerRawExceptionMessageTest trava só `new TMessage(` com getMessage() (tokenizer, multilinha) em clinic/, SearchBox.php e log/; TAlert fica fora porque AgendaView.php:94 ainda passa $e->getMessage() cru a TAlert.
 - [T-17] Correção 1 (ruling): trava estendida para `new TAlert(` com getMessage() (RED 1d630f6); AgendaView.php:94 corrigido com error_log + CvFormat::userError (8c1c24a).
+- [T-18] varredura: PaymentForm (Overpayment), EncounterAccountForm (desconto > subtotal) e SaleForm (estoque insuficiente) ainda mostram a mensagem de domínio em inglês; SUITE 445/445 em centralvet_test, MAX(id) do dev inalterado.
