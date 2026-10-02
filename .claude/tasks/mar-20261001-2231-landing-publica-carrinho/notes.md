@@ -16,14 +16,27 @@
 - 2026-10-01 · plano · onda 1 — Resposta do usuário (2): limite de 10 envios por IP por hora, contados a cada POST.
 - 2026-10-01 · plano · onda 1 — Resposta do usuário (3): o usuário aprovou executar o plano agora.
 
+- 2026-10-01 · T-01 · onda 1 — `consent` no `publicJson()` é `{"version","text"}`; `vets` = VETS_OPTIONS como objeto.
+- 2026-10-01 · T-01 · onda 1 — `UFS` em ordem alfabética estrita (o rascunho tinha AP antes de AM).
+- 2026-10-01 · T-01 · onda 1 — `city`/`uf` ausentes no payload contam como `''`; demais campos ausentes são inválidos; caractere de controle = `\p{Cc}`.
+- 2026-10-01 · T-02 · onda 1 — T-02 sem teste, conforme tasks.md; guarda do SQL de programa é manual (comentário + SELECT MAX(id)).
+
 ## Bloqueios
 - Entre as ondas 1 e 2 (aprovação SQL do usuário): `./scripts/backup.sh` + `gzip -t`; anotar antes `COUNT(*)` de `tenant`, `patient`, `tutor`, `system_program`, `system_group_program`; `sha256sum` da 0009 e troca do checksum de zeros; aplicar `src/app/database/migrations/20261001_0009_landing_lead.sql` em `centralvet` com o usuário de migration; rodar o `.verify.sql`; aplicar `sql/T-02-programs.sql` em `centralvet`; com aprovação própria, aplicar a 0009 em `centralvet_test`. Desbloqueia T-04 e T-08. Sem aprovação: T-04 e T-08 `[!]`, T-05/T-06/T-07 seguem.
 
 ## Descobertas
-- nenhuma
+- T-01: contrato pronto (2023e96); chave de erro de `LeadSubmission` é o nome do campo do payload (`plan`, não `planId`).
 
 ## Pendências
-- nenhuma
+- T-01: sem teste de preço forjado (price_cents/planPriceCents no payload) → LandingCatalogTest.php:42
+- T-01: regras sem teste (phone, email >160, clinic, vets, city, tipos não-string, consent não-bool)
+- T-01: name/clinic só com caracteres invisíveis (NBSP/ZWSP/\p{Cf}) passam o trim → LeadSubmission.php:131
+- T-01: phone sem limite no texto bruto (contido por MAX_BODY_BYTES do T-05) → LeadSubmission.php:55
+- T-01: plan com espaços aceito após trim; só registrar → LeadSubmission.php:77
+- T-02: guarda de sql/T-02-programs.sql é só instrução; tornar autoabortável com INSERT … SELECT … WHERE MAX(id)=108/110
+- T-02: verify.sql não conta system_group_program (runbook e critérios esperam +1)
+- T-03: consume() não reconfere idade/TTL; T-05 deve rodar isUsable() antes e inserir o lead só após consume() === true
+- T-03: FakeRedis::set ignora o 3º argumento int (EX) do phpredis e não expira TTL
 
 ## Riscos
 - `REMOTE_ADDR` atrás de proxy/CDN vira o IP do proxy e o limite por IP passa a valer para todos os visitantes: hoje o nginx é a borda; em produção com proxy, configurar `real_ip` no nginx antes de abrir o tráfego.
@@ -36,7 +49,8 @@
 - Pasta: `.claude/tasks/mar-20261001-2231-landing-publica-carrinho/`
 - Sessões: ce4d9a4f-5d35-46ec-a771-8ef03d42a254
 - Branch de trabalho: task/landing-publica-carrinho (base: feat/rodada-3-divida-tecnica)
-- BASE da onda 1: {hash7}
-- Commits por onda: {Onda N: BASE <hash7> → HEAD <hash7> (<hashes dos commits>)}
-- Último status conhecido: plano aprovado, nenhuma task executada (T-01..T-09 [ ])
-- Próxima onda recomendada: onda 1
+- BASE da onda 1: 7e4e33a
+- Commits por onda:
+  - Onda 1: BASE 7e4e33a → HEAD 0a79b54 (edab8f2, c3175b4, c534b57, 2023e96, 0a79b54)
+- Último status conhecido: onda 1 concluída (T-01, T-02, T-03 [x]); T-04..T-09 [ ]. Bloqueio entre ondas 1 e 2: 0009 e sql/T-02-programs.sql em centralvet e 0009 em centralvet_test pendentes de aprovação SQL (ver ## Bloqueios)
+- Próxima onda recomendada: onda 2 (T-04, T-05, T-06, T-07), após aplicar o SQL (próximo passo: orquestrador, com aprovação SQL do usuário)

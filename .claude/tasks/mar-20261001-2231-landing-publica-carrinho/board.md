@@ -11,3 +11,5 @@ cat >> "/var/www/html/centralvet/.claude/tasks/mar-20261001-2231-landing-publica
 - [T-NN] <fato>
 EOF
 ```
+- [T-01] Contrato pronto (2023e96): `LandingCatalog::publicJson()` tem `consent` como objeto `{"version": CONSENT_VERSION, "text": CONSENT_TEXT}` e `vets` como objeto chave→rótulo (VETS_OPTIONS); `ufs` em ordem alfabética (AM antes de AP, diferente do rascunho).
+- [T-01] `LeadSubmission::fromPayload`: `city` e `uf` ausentes no payload contam como `''` (opcionais); os demais campos ausentes ou não-string são inválidos. Chave de erro é o nome do campo do payload (`plan`, não `planId`).
