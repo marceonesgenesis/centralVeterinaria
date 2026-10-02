@@ -21,11 +21,19 @@ namespace CentralVet\Tests\Support;
  * current value equals ARGV[1]), which is the one and only script RedisLock
  * ever sends — this is a deliberate, documented simplification, not a
  * general-purpose Lua interpreter.
+ *
+ * incr/expire/ttl/del follow phpredis semantics for LoginRateLimiter and
+ * Landing\LeadFormToken: TTLs are remembered (from set() with ['EX'|'ex'
+ * => n] or expire()) but never elapse — there is no clock; ttl() returns
+ * -2 for a missing key and -1 for a key without TTL.
  */
 final class FakeRedis extends \Redis
 {
     /** @var array<string, string> */
     private array $store = [];
+
+    /** @var array<string, int> */
+    private array $ttls = [];
 
     public function __construct()
     {
@@ -37,6 +45,7 @@ final class FakeRedis extends \Redis
     public function set($key, $value, $options = null): \Redis|string|bool
     {
         $nx = false;
+        $ttl = null;
 
         if (is_array($options)) {
             foreach ($options as $optionKey => $optionValue) {
@@ -44,6 +53,10 @@ final class FakeRedis extends \Redis
 
                 if (strtoupper($flag) === 'NX') {
                     $nx = true;
+                }
+
+                if (is_string($optionKey) && strtoupper($optionKey) === 'EX') {
+                    $ttl = (int) $optionValue;
                 }
             }
         }
@@ -54,7 +67,56 @@ final class FakeRedis extends \Redis
 
         $this->store[$key] = (string) $value;
 
+        if ($ttl !== null) {
+            $this->ttls[$key] = $ttl;
+        } else {
+            unset($this->ttls[$key]);
+        }
+
         return true;
+    }
+
+    public function incr($key, $by = 1): \Redis|int|false
+    {
+        $value = (int) ($this->store[$key] ?? 0) + (int) $by;
+        $this->store[$key] = (string) $value;
+
+        return $value;
+    }
+
+    public function expire($key, $timeout, $mode = null): \Redis|bool
+    {
+        if (!array_key_exists($key, $this->store)) {
+            return false;
+        }
+
+        $this->ttls[$key] = (int) $timeout;
+
+        return true;
+    }
+
+    public function ttl($key): \Redis|int|false
+    {
+        if (!array_key_exists($key, $this->store)) {
+            return -2;
+        }
+
+        return $this->ttls[$key] ?? -1;
+    }
+
+    public function del($key, ...$other_keys): \Redis|int|false
+    {
+        $keys = array_merge(is_array($key) ? $key : [$key], $other_keys);
+        $deleted = 0;
+
+        foreach ($keys as $candidate) {
+            if (array_key_exists($candidate, $this->store)) {
+                unset($this->store[$candidate], $this->ttls[$candidate]);
+                $deleted++;
+            }
+        }
+
+        return $deleted;
     }
 
     public function get($key): mixed
@@ -69,7 +131,7 @@ final class FakeRedis extends \Redis
         $expectedToken = $args[1] ?? null;
 
         if ($key !== null && array_key_exists($key, $this->store) && $this->store[$key] === $expectedToken) {
-            unset($this->store[$key]);
+            unset($this->store[$key], $this->ttls[$key]);
 
             return 1;
         }
