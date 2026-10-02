@@ -136,6 +136,10 @@
                         <icon>fas:user fa-fw</icon>
                         <action>SystemUserList</action>
                     </menuitem>
+                    <menuitem label='_t{Landing leads}'>
+                        <icon>fas:bullhorn fa-fw</icon>
+                        <action>LandingLeadList</action>
+                    </menuitem>
                     <menuitem label='_t{Page management}'>
                         <icon>fab:wikipedia-w fa-fw</icon>
                         <action>SystemWikiList</action>
