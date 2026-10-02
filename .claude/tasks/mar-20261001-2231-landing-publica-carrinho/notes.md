@@ -90,5 +90,5 @@
   - Onda 2: BASE 41569bc → HEAD 162b8aa (4b74566, da3345a, 370c4f6, 7593b2c, a0f40da, 9c20c9d, b28043f, 393f172, 162b8aa)
   - Onda 3: BASE 53ed7eb → HEAD 9a16203 (a903dff, 9a16203)
   - Onda 4: BASE e033e85 → HEAD 28cc5fa (8aab833, 28cc5fa)
-- Último status conhecido: todas as ondas concluídas (T-01 a T-09 [x]). SQL aplicado, bloqueio resolvido
-- Próxima onda recomendada: nenhuma; próximo passo: revisão final
+- Último status conhecido: todas as ondas concluídas (T-01 a T-09 [x]). Revisão final concluída (aprovada com sugestões, sem bloqueante; SUITE 485/485). Plano encerrado
+- Próxima onda recomendada: nenhuma; plano encerrado
