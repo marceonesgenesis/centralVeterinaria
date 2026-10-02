@@ -122,5 +122,5 @@
   - Onda 2: BASE ae45458 → HEAD 39005ff (39005ff, 946709c, cdcfd37, a928701, 3fb5787, af5899f, 3feb3a8, d7b8c1e, a093a02, 4242dd8, 669a3ac)
   - Onda 3: BASE c2da454 → HEAD 8c1c24a (8c1c24a, 1d630f6, 6be5900, 8c0ef00)
   - Onda 4: BASE 47ec9e9 → HEAD d04f13a (d04f13a, 288626f)
-- Último status conhecido: todas as ondas concluídas (onda 4 fechada com T-18 [x]).
-- Próxima onda recomendada: nenhuma; próximo passo: revisão final da rodada 3.
+- Último status conhecido: revisão final concluída (reviews/final.md: aprovada com sugestões, sem bloqueante; triagem 7 resolvidas, 21 abertas, 0 promovidas; SUITE 446/446); relatório de eficiência em eficiencia/ (21/21, 19 aprovadas de primeira, 4 fix loops); rodada encerrada.
+- Próxima onda recomendada: nenhuma; rodada 3 encerrada.
