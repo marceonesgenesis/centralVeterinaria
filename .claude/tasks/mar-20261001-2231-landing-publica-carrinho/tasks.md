@@ -5,9 +5,9 @@
 | T-01 | backend | Contrato da landing: catálogo de planos e preços, contrato HTTP, LeadSubmission validado e LeadStoreInterface | — | sim | média | Platão | [x] |
 | T-02 | database | Migration 0009 `landing_lead` + verify, runbook, centralvet_test e SQL do programa admin | — | sim | média | Darwin | [x] |
 | T-03 | backend | Token de formulário de uso único em Redis e FakeRedis com incr/expire/ttl/del | — | sim | simples | Arquimedes | [x] |
-| T-04 | backend | LeadRepository PDO (insert, search, count) com integração no centralvet_test | T-01, T-02 | sim | média | Darwin | [ ] |
-| T-05 | backend | Endpoint público POST /lead.php: handler com limite, token, honeypot, origem e JSON | T-01, T-03 | sim | alta | Jaspion | [ ] |
-| T-06 | frontend | Landing em / (landing.php, template, CSS e JS sem inline) e decisão sessão/anônimo | T-01, T-03 | sim | alta | Tesla | [ ] |
+| T-04 | backend | LeadRepository PDO (insert, search, count) com integração no centralvet_test | T-01, T-02 | sim | média | Darwin | [x] |
+| T-05 | backend | Endpoint público POST /lead.php: handler com limite, token, honeypot, origem e JSON | T-01, T-03 | sim | alta | Jaspion | [x] |
+| T-06 | frontend | Landing em / (landing.php, template, CSS e JS sem inline) e decisão sessão/anônimo | T-01, T-03 | sim | alta | Tesla | [x] |
 | T-07 | infra | nginx: / sem query para landing.php, CSP e headers da landing, assets e endpoint | T-01 | sim | média | Yoda | [x] |
 | T-08 | frontend | Tela admin LandingLeadList com filtro, paginação e CSV (CsvCell, LeadCsvExport) | T-01, T-02, T-04 | não | média | Aang | [ ] |
 | T-09 | qa | Validação final: suíte, lint, nginx, curl, gate anônimo e admin, contagens | T-04, T-05, T-06, T-07, T-08 | não | média | Spock | [ ] |
