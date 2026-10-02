@@ -31,6 +31,8 @@
 - 2026-10-01 · T-08 · onda 3 — menu.xml validado com simplexml (xmllint ausente no ambiente), aceito.
 - 2026-10-01 · T-08 · onda 3 — ReferenceError da máscara TDate só ao abrir engine.php?class=LandingLeadList fora do shell index.php; pelo index.php, 0 erros: aceito (efeito do framework fora do shell).
 - 2026-10-01 · orquestrador · onda 3 — Rebuild do centralvet-app-1 antes do gate.
+- 2026-10-01 · T-09 · onda 4 — Correção 1 pedida pelo orquestrador (cruzada achada pela T-09): `/favicon.ico` caía no index.php e criava sessão para o anônimo → location própria no nginx servindo src/favicon.png e `<link rel="icon">` na landing (28cc5fa). docker/nginx/default.conf e src/app/view/landing/landing.html entram como extensão de escopo da T-09. Sem RED por ser config de nginx; verificação por curl (200 image/png, sem Set-Cookie) e por navegador anônimo (0 cookies).
+- 2026-10-01 · orquestrador · onda 4 — Rebuild do centralvet-app-1 e restart do nginx antes do gate.
 
 ## Bloqueios
 - Entre as ondas 1 e 2 (aprovação SQL do usuário): `./scripts/backup.sh` + `gzip -t`; anotar antes `COUNT(*)` de `tenant`, `patient`, `tutor`, `system_program`, `system_group_program`; `sha256sum` da 0009 e troca do checksum de zeros; aplicar `src/app/database/migrations/20261001_0009_landing_lead.sql` em `centralvet` com o usuário de migration; rodar o `.verify.sql`; aplicar `sql/T-02-programs.sql` em `centralvet`; com aprovação própria, aplicar a 0009 em `centralvet_test`. Desbloqueia T-04 e T-08. Sem aprovação: T-04 e T-08 `[!]`, T-05/T-06/T-07 seguem.
@@ -42,6 +44,7 @@
 - [T-05] POST /lead.php pronto (9c20c9d): header do token `x-cv-lead-token`; bucket `lead|<REMOTE_ADDR>` com prefixo `centralvet:lead-throttle:`; 422 devolve `{"accepted":false,"error":"validation","fields":{...}}` sem consumir o token.
 - [T-06] Cookie de sessão do app é `PHPSESSID_centralvet`; landing em src/landing.php, assets em /landing/landing.css e /landing/landing.js (b28043f); a landing só lê a sessão (read_and_close), nunca grava (162b8aa).
 - [T-08] LandingLeadList pronto (a903dff RED, 9a16203): filtros por parâmetro de requisição (plan_id, from/to em d/m/Y no POST ou Y-m-d na paginação/CSV); CSV em engine.php?class=LandingLeadList&method=onExport&static=1; xmllint ausente no host e no container.
+- [T-09] Validação final ok (485/485, lint 23 arquivos, nginx, curl, navegador anônimo/admin, contagens, escopo vazio); /favicon.ico caía em index.php e criava sessão para anônimo (corrigido em 28cc5fa).
 
 ## Pendências
 - T-01: sem teste de preço forjado (price_cents/planPriceCents no payload) → LandingCatalogTest.php:42
@@ -65,6 +68,10 @@
 - T-08: markup no nome do lead verificado só pelo código (CvFormat::e), sem lead com markup no banco; avaliar na T-09 (clínica `Patas & Cia "LP teste"` e e-mail com `+`)
 - T-08: ControllerRawExceptionMessageTest não varre app/control/admin; conferido à mão → LandingLeadList.php:85-86,167
 - T-08: onExport em falha responde 500 sem corpo numa aba _blank (mesmo padrão do FinancialOverview::onExport) → LandingLeadList.php:163-178
+- T-09: Redis fora do ar não exercitado (parar container é proibido ao validador); coberto só por código/testes
+- T-09: 2 leads `LP teste` e 1 `R3 landing Ana` em landing_lead (centralvet); limpar manualmente
+- T-09: relatório lista só reports/T-09.md em "Arquivos tocados"; default.conf e landing.html aparecem apenas em "Correção 1" → reports/T-09.md
+- T-09: location `= /favicon.ico` sem teste automatizado (coberta por curl) → docker/nginx/default.conf:75-82
 
 ## Riscos
 - `REMOTE_ADDR` atrás de proxy/CDN vira o IP do proxy e o limite por IP passa a valer para todos os visitantes: hoje o nginx é a borda; em produção com proxy, configurar `real_ip` no nginx antes de abrir o tráfego.
@@ -82,5 +89,6 @@
   - Onda 1: BASE 7e4e33a → HEAD 0a79b54 (edab8f2, c3175b4, c534b57, 2023e96, 0a79b54)
   - Onda 2: BASE 41569bc → HEAD 162b8aa (4b74566, da3345a, 370c4f6, 7593b2c, a0f40da, 9c20c9d, b28043f, 393f172, 162b8aa)
   - Onda 3: BASE 53ed7eb → HEAD 9a16203 (a903dff, 9a16203)
-- Último status conhecido: onda 3 concluída (T-08 [x]); T-09 [ ]. SQL aplicado, bloqueio resolvido
-- Próxima onda recomendada: onda 4 (T-09)
+  - Onda 4: BASE e033e85 → HEAD 28cc5fa (8aab833, 28cc5fa)
+- Último status conhecido: todas as ondas concluídas (T-01 a T-09 [x]). SQL aplicado, bloqueio resolvido
+- Próxima onda recomendada: nenhuma; próximo passo: revisão final
