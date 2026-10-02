@@ -100,10 +100,27 @@ final class UserMessageTest
         Assert::same(['key' => 'Name must not contain < or >', 'params' => []], UserMessage::resolve('Name must not contain < or >'));
     }
 
+    public function testMoneyAndStockMessagesResolveWithoutCentsOrColumnNames(): void
+    {
+        // Rodada 3, T-18 correção 1: mensagens reais vistas no PaymentForm, EncounterAccountForm e SaleForm.
+        Assert::same(
+            ['key' => 'The payment exceeds the open balance', 'params' => []],
+            UserMessage::resolve('Payment of 9999900 cent(s) would raise paid_cents to 10000000, exceeding total_cents of 4500 cent(s)'),
+        );
+        Assert::same(
+            ['key' => 'The discount cannot be greater than the subtotal', 'params' => []],
+            UserMessage::resolve('Discount of 99900 cent(s) exceeds subtotal of 7000 cent(s)'),
+        );
+        Assert::same(
+            ['key' => 'Insufficient stock: ^1 unit(s) missing', 'params' => ['9999']],
+            UserMessage::resolve('Insufficient stock for product_id 8545: short by 9999 unit(s)'),
+        );
+    }
+
     public function testCatalogHasExactlyTheContractEntries(): void
     {
         Assert::count(18, UserMessage::STATIC);
-        Assert::count(20, UserMessage::PATTERNS);
+        Assert::count(23, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
