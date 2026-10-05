@@ -27,7 +27,7 @@ final class HospitalizationAdmissionFormIntegrationTest
     ];
 
     /**
-     * @return array{error: ?string, fields: array<string, ?string>}
+     * @return array{error: ?string, fields: array<string, ?string>, actions: list<string>}
      */
     private function buildForm(): array
     {
@@ -38,7 +38,7 @@ final class HospitalizationAdmissionFormIntegrationTest
         }
 
         $code = 'chdir(' . var_export($src, true) . '); require "init.php";'
-            . '$result = ["error" => null, "fields" => []];'
+            . '$result = ["error" => null, "fields" => [], "actions" => []];'
             . 'try {'
             . '  ob_start();'
             . '  $page = new HospitalizationAdmissionForm([]);'
@@ -47,6 +47,9 @@ final class HospitalizationAdmissionFormIntegrationTest
             . '  foreach (' . var_export(self::FIELDS, true) . ' as $name) {'
             . '    $field = is_object($form) ? $form->getField($name) : null;'
             . '    $result["fields"][$name] = is_object($field) ? get_class($field) : null;'
+            . '  }'
+            . '  foreach ((is_object($form) ? (array) $form->getActions() : []) as $button) {'
+            . '    $result["actions"][] = (string) $button->class;'
             . '  }'
             . '} catch (\Throwable $e) {'
             . '  while (ob_get_level() > 0) { ob_end_clean(); }'
@@ -85,5 +88,19 @@ final class HospitalizationAdmissionFormIntegrationTest
             $hiddenClass === 'THidden' || str_ends_with($hiddenClass, '\\THidden'),
             "encounter_id must be hidden, got '{$hiddenClass}'"
         );
+    }
+
+    public function testActionButtonsAreTouchTargets(): void
+    {
+        $actions = $this->buildForm()['actions'] ?? [];
+
+        Assert::true($actions !== [], 'the admission form must have action buttons');
+
+        foreach ($actions as $class) {
+            Assert::true(
+                in_array('cv-touch-target', preg_split('/\\s+/', trim($class)) ?: [], true),
+                "action button must carry cv-touch-target (min 44x44 on tablet), got '{$class}'"
+            );
+        }
     }
 }
