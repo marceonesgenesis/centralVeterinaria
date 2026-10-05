@@ -62,4 +62,52 @@ final class BedFormIntegrationTest
 
         Assert::same(['editable' => false], $result);
     }
+
+    /**
+     * Correção 1 (gate T-20): alvos de toque de 44 px no tablet. A regra
+     * `.cv-touch-target` mora na seção `cv-touch` de cv-components.css.
+     */
+    public function testTouchTargetRuleExistsInSharedCss(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/app/templates/adminbs5/cv-components.css');
+        $start = strpos($css, '/* cv-touch */');
+
+        Assert::true($start !== false, 'cv-components.css must have a /* cv-touch */ section');
+
+        $section = substr($css, $start);
+        Assert::true(
+            preg_match('/\.cv-touch-target\s*\{[^}]*min-height:\s*44px;[^}]*\}/', $section) === 1
+                && preg_match('/\.cv-touch-target\s*\{[^}]*min-width:\s*44px;[^}]*\}/', $section) === 1,
+            '.cv-touch-target must set min-height and min-width 44px'
+        );
+    }
+
+    public function testBedFormSaveButtonIsATouchTarget(): void
+    {
+        $result = $this->runInAdianti(
+            '$page = new BedForm([]);'
+            . '$form = (new ReflectionProperty($page, "form"))->getValue($page);'
+            . 'ob_start(); $form->show(); $html = ob_get_clean();'
+            . 'preg_match_all("/<button[^>]*>/", $html, $m);'
+            . '$save = array_values(array_filter($m[0], fn ($b) => str_contains($b, "onSave")));'
+            . 'echo "@@BEDFORM@@", json_encode(["found" => count($save), "touch" => $save !== [] && str_contains($save[0], "cv-touch-target")]);'
+        );
+
+        Assert::same(['found' => 1, 'touch' => true], $result);
+    }
+
+    public function testBedListRowActionsAreTouchTargets(): void
+    {
+        $result = $this->runInAdianti(
+            '$page = new BedList([]);'
+            . '$grid = (new ReflectionProperty($page, "datagrid"))->getValue($page);'
+            . '$grid->addItem((object) ["id" => 1, "code" => "L1", "name" => "x", "daily_rate_cents" => 0, "status" => "available"]);'
+            . 'ob_start(); $grid->show(); $html = ob_get_clean();'
+            . 'preg_match_all("/<a [^>]*href=\"[^\"]*(onEdit|onDeactivate)[^\"]*\"[^>]*>\\s*<span[^>]*class=\"([^\"]*)\"/", $html, $m);'
+            . '$touch = array_filter($m[2], fn ($c) => str_contains($c, "cv-touch-target"));'
+            . 'echo "@@BEDFORM@@", json_encode(["actions" => count($m[2]), "touch" => count($touch)]);'
+        );
+
+        Assert::same(['actions' => 2, 'touch' => 2], $result);
+    }
 }
