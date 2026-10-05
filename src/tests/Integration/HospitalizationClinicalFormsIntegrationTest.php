@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Integration;
 
+use CentralVet\Authorization\AuthorizationRequest;
 use CentralVet\Domain\HospitalizationOrder;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\SkippedTestException;
@@ -81,6 +82,46 @@ final class HospitalizationClinicalFormsIntegrationTest
         Assert::true(is_array($result['route_items']), 'route must be a TCombo');
         Assert::same(7, count(HospitalizationOrder::ROUTES));
         Assert::same(HospitalizationOrder::ROUTES, $result['route_items']);
+    }
+
+    /**
+     * Correção 1: toda ação de autorização dos 3 forms (ACTION_*) segue
+     * AuthorizationRequest::ACTION_PATTERN (Classe::método); senão o service
+     * lança `Invalid authorization action format` e a tela abre vazia.
+     */
+    public function testAllAuthorizationActionsMatchTheRequestPattern(): void
+    {
+        $src = dirname(__DIR__, 2);
+
+        if (!is_file($src . '/init.php')) {
+            throw new SkippedTestException('init.php not found');
+        }
+
+        $code = 'chdir(' . var_export($src, true) . '); require "init.php";'
+            . '$out = [];'
+            . 'foreach (["HospitalizationOrderForm", "HospitalizationAdministrationForm", "HospitalizationEventForm"] as $c) {'
+            . ' if (!class_exists($c)) { $out[$c] = null; continue; }'
+            . ' foreach ((new ReflectionClass($c))->getConstants() as $k => $v) {'
+            . '  if (str_starts_with($k, "ACTION_")) { $out[$c][$k] = $v; } } }'
+            . 'echo json_encode($out);';
+
+        $out = shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($code) . ' 2>/dev/null');
+        $decoded = json_decode((string) $out, true);
+
+        Assert::true(is_array($decoded), 'subprocess output: ' . (string) $out);
+
+        foreach ($decoded as $class => $actions) {
+            Assert::true(is_array($actions) && $actions !== [], "{$class} must declare ACTION_* constants");
+
+            foreach ($actions as $name => $action) {
+                Assert::same(
+                    1,
+                    preg_match(AuthorizationRequest::ACTION_PATTERN, (string) $action),
+                    "{$class}::{$name} = '{$action}' must match AuthorizationRequest::ACTION_PATTERN"
+                );
+                Assert::true(str_starts_with((string) $action, $class . '::'), "{$class}::{$name} must be '{$class}::<method>'");
+            }
+        }
     }
 
     public function testEventFormWithVitalsTypeHasVitalSignFields(): void
