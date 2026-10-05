@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Integration;
 use CentralVet\Domain\Bed;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\Exception\BedUnavailableException;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Hospitalization;
 use CentralVet\Domain\HospitalizationAdministration;
 use CentralVet\Domain\HospitalizationEvent;
@@ -231,6 +232,43 @@ final class HospitalizationRepositoryIntegrationTest extends MysqlIntegrationTes
 
         $otherTenant = new HospitalizationAdministrationRepository($this->contextFor($this->tenantB), $this->pdo);
         Assert::same([], $otherTenant->listBoardRows($this->unitId, $from, $to), 'other tenant sees no board rows');
+    }
+
+    public function testSavingAStaleAdministrationNoLongerPendingIsRefusedWithoutOverwriting(): void
+    {
+        $administrations = new HospitalizationAdministrationRepository($this->contextFor($this->tenantA), $this->pdo);
+        $hospitalization = $this->admit($this->createBed('F6-L8'), '2031-08-01 07:30:00');
+        $order = $this->prescribe($hospitalization, '2031-08-01 08:00:00', '2031-08-02 08:00:00');
+        $id = (int) $this->scheduleAt($hospitalization, $order, '2031-08-01 08:00:00')->id();
+
+        // Two tablets load the same pending administration.
+        /** @var HospitalizationAdministration $first */
+        $first = $administrations->findById($id);
+        /** @var HospitalizationAdministration $second */
+        $second = $administrations->findById($id);
+
+        $first->markDone(new DateTimeImmutable('2031-08-01 08:05:00'), $this->userId, 'Dada F6');
+        $administrations->save($first);
+
+        $second->markSkipped(new DateTimeImmutable('2031-08-01 08:06:00'), $this->userId, 'Recusou F6');
+        $message = '';
+        try {
+            $administrations->save($second);
+        } catch (InvalidStatusTransitionException $e) {
+            $message = $e->getMessage();
+        }
+        Assert::same("Administration {$id} is not pending", $message, 'stale save signals the lost race');
+
+        $current = $administrations->findById($id);
+        Assert::same(HospitalizationAdministration::STATUS_DONE, $current?->status(), 'row keeps the first outcome');
+        Assert::same('2031-08-01 08:05:00', $current?->performedAt()?->format('Y-m-d H:i:s'));
+        Assert::same('Dada F6', $current?->notesText());
+
+        /** @var HospitalizationAdministration $third */
+        $third = HospitalizationAdministration::reconstitute($id, $this->tenantA, (int) $hospitalization->id(), (int) $order->id(), new DateTimeImmutable('2031-08-01 08:00:00'), 'pending', null, null, null);
+        $third->cancel();
+        Assert::throws(InvalidStatusTransitionException::class, static fn () => $administrations->save($third), 'cancel over done is refused too');
+        Assert::same(HospitalizationAdministration::STATUS_DONE, $administrations->findById($id)?->status());
     }
 
     private function createBed(string $code): Bed

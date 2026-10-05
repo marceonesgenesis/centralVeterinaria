@@ -158,6 +158,31 @@ final class HospitalizationFakesTest
         Assert::same([2, 1], array_map(static fn ($e) => $e->id(), $events->listByHospitalization(1)));
     }
 
+    public function testAdministrationFakeRefusesStaleSaveOfNoLongerPendingRow(): void
+    {
+        $scheduledAt = new DateTimeImmutable('2031-08-01 08:00:00');
+        $repository = new FakeHospitalizationAdministrationRepository(1);
+        $stored = HospitalizationAdministration::schedule(1, 10, 20, $scheduledAt);
+        $repository->save($stored);
+        $id = (int) $stored->id();
+
+        $stored->markDone(new DateTimeImmutable('2031-08-01 08:05:00'), 7, '');
+        $repository->save($stored);
+
+        $stale = HospitalizationAdministration::reconstitute($id, 1, 10, 20, $scheduledAt, 'pending', null, null, null);
+        $stale->markSkipped(new DateTimeImmutable('2031-08-01 08:06:00'), 7, 'Recusou');
+
+        $message = '';
+        try {
+            $repository->save($stale);
+        } catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same("Administration {$id} is not pending", $message);
+        Assert::same(HospitalizationAdministration::STATUS_DONE, $repository->findById($id)?->status());
+    }
+
     public function testBoardRowsAreReturnedUnfiltered(): void
     {
         $repository = new FakeHospitalizationAdministrationRepository(self::TENANT_ID);
