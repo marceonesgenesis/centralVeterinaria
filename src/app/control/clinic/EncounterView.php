@@ -85,6 +85,7 @@ class EncounterView extends TPage
         'procedure' => ['Procedure', 'fa:syringe', 'ProcedureExecutionForm'],
         'vaccine' => ['Vaccine', 'fa:shield-alt', 'VaccinationForm'],
         'account' => ['Account', 'fa:file-invoice-dollar', 'EncounterAccountForm'],
+        'hospitalization' => ['Hospitalize', 'fa:procedures', 'HospitalizationAdmissionForm'],
     ];
 
     /**
