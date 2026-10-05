@@ -101,6 +101,27 @@ final class LandingCatalogTest
         Assert::same(['clinic', 'name'], $this->sortedKeys($errors));
     }
 
+    public function testUnicodeSpaceOnlyNameAndClinicAreRejected(): void
+    {
+        // Sem \p{Cf}: só o strip unicode de text() recusa; trim() simples aceitaria.
+        $cases = [
+            ["\u{00A0}\u{00A0}\u{00A0}", "\u{3000}\u{3000}"],
+            ["\u{3000}\u{3000}\u{3000}", "\u{00A0}\u{00A0}"],
+        ];
+
+        foreach ($cases as [$name, $clinic]) {
+            $errors = $this->errorsFor(['name' => $name, 'clinic' => $clinic] + $this->validPayload());
+            Assert::same(['clinic', 'name'], $this->sortedKeys($errors));
+        }
+    }
+
+    public function testFormatCharacterInsideCityIsRejected(): void
+    {
+        $errors = $this->errorsFor(['city' => "Camp\u{2060}inas"] + $this->validPayload());
+
+        Assert::same(['city'], array_keys($errors));
+    }
+
     public function testFormatCharacterInsideNameIsRejected(): void
     {
         $errors = $this->errorsFor(['name' => "An\u{200B}a Ribeiro"] + $this->validPayload());
