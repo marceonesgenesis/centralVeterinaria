@@ -1,5 +1,17 @@
 # Central Vet Pro
 
+## Planejamento do produto
+
+O [plano de desenvolvimento atualizado](.docs/plan/centralvet-roadmap.md)
+complementa o PRD v1.1 com a visão de ecossistema veterinário integrado, a
+Central Intelligence (piloto em Imperatriz/MA) e o Ei, Vet!. Consulte a [especificação do módulo](.docs/prd/central-intelligence.md),
+a [pesquisa de mercado e tecnologia](.docs/research/central-intelligence-mercado-tecnologia.md)
+e a [proposta de arquitetura](docs/architecture/adr/0004-central-intelligence-analytical-boundary.md).
+O [PRD Ei, Vet!](.docs/prd/ei-vet.md) descreve a conexão entre clínicas e
+veterinários disponíveis para serviços avulsos; a [ADR do ecossistema](docs/architecture/adr/0005-veterinary-network-boundary.md)
+separa a colaboração na rede dos dados privados de cada clínica.
+Esses documentos registram trabalho futuro; os novos módulos ainda não foram implementados.
+
 Base local de infraestrutura para o Central Vet Pro, conforme o PRD v1.1. Esta
 etapa oferece o Adianti Framework/Template 8.6 sobre PHP 8.4-FPM, Nginx,
 MySQL 8, Redis 7 e um processo de worker. As imagens usam versões patch fixas e
