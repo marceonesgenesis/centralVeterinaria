@@ -28,6 +28,8 @@
 - 2026-10-05 · T-04 · onda 1 — Acréscimos além da Interface: `reconstitute()`/`assignId()`, `HospitalizationOrder::TYPES`, `AdministrationSchedule::assertValid()` público; `suspend()` fora de `active` lança `InvalidStatusTransitionException`; quantidade sem produto é recusada; período de exatamente 30 dias é aceito.
 - 2026-10-05 · T-02 · onda 1 — Conversão da consulta de verificação extraída para `verification_query()` público em `scripts/prepare-mysql57.py`.
 - 2026-10-05 · T-05 · onda 1 — `SET NAMES utf8mb4;` também no seed; `FROM DUAL` nos INSERTs sem tabela (5.7); rollback com SELECT prévio de concessões fora dos grupos 1 e novo.
+- 2026-10-05 · T-06 · onda 2 — Fakes com `public int $saveCount`; `occupy`/`release` do FakeBedRepository trocam o Bed guardado por `Bed::reconstitute` (Bed sem mutador de ocupação); administrações por scheduled_at,id e eventos por recorded_at DESC,id DESC.
+- 2026-10-05 · T-07 · onda 2 — `BedRepository::save` via CASE nunca move leito para/de `occupied` (protege `bed_occupancy_ck`); repositório de eventos só insere (`remove()` lança); `listBoardRows` exclui administrações `cancelled`.
 
 ## Bloqueios
 - RESOLVIDO em 2026-10-05 (orquestrador, com aprovação SQL explícita do usuário): bloqueio entre a Onda 1 e a Onda 2.
@@ -50,6 +52,8 @@
 - [T-04] Além do contrato: `HospitalizationOrder::reconstitute(...)`, `assignId()`, `prescribedBySystemUserId()`, `suspendedAt()`, `TYPES`; `suspend()` fora de `active` → `InvalidStatusTransitionException` `Order <id> is not active`; quantidade sem produto → `quantity_per_administration requires a product`; mensagens extras: `description_text is required`, `Unknown route "<r>"`, `Unknown order_type "<t>"`. `HospitalizationAdministration::reconstitute(...)` e `assignId()`; `markDone` aceita nota vazia (vira null). `AdministrationSchedule::assertValid(startsAt, endsAt, frequencyHours)` público (usado pelo prescribe).
 - [T-02] `scripts/prepare-mysql57.py`: `ALTER TABLE t DROP CHECK x` vira `DROP TRIGGER IF EXISTS x_bi/x_bu`; verify 5.7 usa `verification_query()` e exige literal `table_name = '<t>'` ou `table_name IN (...)` em toda consulta a check_constraints (senão ValueError).
 - [T-01] 0010 preparada (743537a): 5 tabelas, 16 CHECKs (14 novos + 2 ampliados), 2 UNIQUEs, 23 FKs; `provision.sh` lista a 0010 depois da 0009. Aplicada no bloqueio da onda 1.
+- [T-06] Fakes prontos (c2306e7): construtor (int $tenantId, Entidade ...$seed), `saveCount` zerado após o seed; `FakeBedRepository::occupy/release` trocam o Bed por reconstitute (use findById depois); `seedBoardRows(array)` no fake de administração.
+- [T-07] Repositórios PDO prontos (bad05c6): `BedRepository::save` preserva ocupação via CASE; `inactive` com leito ocupado lança `BedUnavailableException::occupied`; `remove()` de leito só se livre; eventos append-only; save de internação grava só bed_id/status/alta; save de prescrição só status/suspended_at; `listBoardRows` exclui `cancelled`, datas `Y-m-d H:i:s`.
 
 ## Pendências
 - Central de Pendências (PRD §8.23) sem tela própria: o item de internação fica para quando a central existir.
@@ -59,6 +63,8 @@
 - T-02: `DROP CHECK` com tabela entre crases não é convertido; sem teste de `DROP CHECK` + `ADD CONSTRAINT` na mesma instrução nem de `prepare()` chamando `verification_query`; RED de `test_verify_uses_table_from_query` falhou por AttributeError (função nova), não pelo `landing_lead` previsto.
 - T-05: rollback não cobre dependentes por FK (`system_user_program`, `system_program_method_role`, `system_users.frontpage_id`, `tenant_group`); collation `utf8mb4_0900_ai_ci` é insensível a acento (considerar `COLLATE utf8mb4_bin`); grupo 4 sem linha em `tenant_group` (nenhum PHP lê hoje).
 - T-01: tenant/unidade só na aplicação (sem FK composta); admissões simultâneas do mesmo paciente sem guarda no banco (cobrir no service/teste da T-09); `hospitalization_discharge_ck` não exige `discharged_by_system_user_id`; falha entre `DROP CHECK` e `ADD CONSTRAINT` se recupera reaplicando só o ADD.
+- T-06: FakeBedRepository::save grava a entidade inteira, diferente do PDO (corrida leito ocupado/desativado passa no Fake e falha no PDO); ordenação de `listByHospitalization` (ordens) e `listActiveByUnit` no Fake é por inserção (PDO: starts_at,id / admitted_at,id); `$boardRows` declarada no meio da classe do fake de administração.
+- T-07: UPDATE de administração sem `AND status = 'pending'` (dois "Feito" simultâneos; avaliar UPDATE condicional em T-10); UPDATE de internação sem guarda `status = 'admitted'` (alta dupla concorrente; T-11 depende do TTransaction); CASE do save de leito reativa em silêncio leito inativado entre leitura e save.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -75,5 +81,6 @@
 - BASE da onda 1: 8f9ebfc
 - Commits por onda:
   - Onda 1: BASE 8f9ebfc → HEAD 743537a (743537a, def287d, 78db7e1, 7a2e9c9, 6d5be25, 2f89c78, 1299883, e343686)
-- Último status conhecido: onda 1 concluída (T-01..T-05 [x], gate aprovado, migration 0010 e DML T-05 aplicadas); banco pronto para a onda 2
-- Próxima onda recomendada: 2 (T-06, T-07, T-17: dependências satisfeitas pela onda 1)
+  - Onda 2: BASE 4bc287e → HEAD bad05c6 (bad05c6, c2306e7, 623b4f3, 0f7a949)
+- Último status conhecido: onda 2 concluída (T-06, T-07 [x], gate aprovado, SUITE 544/544); T-17 não fez parte da onda
+- Próxima onda recomendada: 3 (T-08, T-09, T-10, T-11 e T-17, se ainda pendente; dependências satisfeitas)
