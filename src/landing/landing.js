@@ -254,7 +254,27 @@
     if (t.id === "new-order") { state.sent = null; renderCart(); closeCart(); return; }
   });
   document.addEventListener("submit", function (ev) { if (ev.target && ev.target.id === "lead-form") submitLead(ev); });
-  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && $("cart").classList.contains("open")) closeCart(); });
+  function cartFocusables() {
+    var selector = "a[href],button,input,select,textarea,[tabindex]";
+    return Array.prototype.filter.call($("cart").querySelectorAll(selector), function (el) {
+      if (el.disabled || el.hidden || el.getAttribute("tabindex") === "-1") return false;
+      if (el.closest("[hidden],[inert],[aria-hidden='true']")) return false;
+      return el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    });
+  }
+  function wrapTab(ev) {
+    var cart = $("cart"), items = cartFocusables();
+    if (!items.length) { ev.preventDefault(); return; }
+    var first = items[0], last = items[items.length - 1], active = document.activeElement;
+    var outside = !cart.contains(active);
+    if (ev.shiftKey && (outside || active === first)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && (outside || active === last)) { ev.preventDefault(); first.focus(); }
+  }
+  document.addEventListener("keydown", function (ev) {
+    if (!$("cart").classList.contains("open")) return;
+    if (ev.key === "Escape") { closeCart(); return; }
+    if (ev.key === "Tab") wrapTab(ev);
+  });
   document.addEventListener("cv:languagechange", function () {
     brl = new Intl.NumberFormat(I18N.locale(), { style: "currency", currency: "BRL" });
     amount = new Intl.NumberFormat(I18N.locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
