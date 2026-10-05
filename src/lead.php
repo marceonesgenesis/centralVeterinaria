@@ -9,6 +9,8 @@ declare(strict_types=1);
  * CentralVet\Landing\LeadEndpoint.
  */
 
+use CentralVet\Landing\Contract\LeadStoreInterface;
+use CentralVet\Landing\LazyLeadStore;
 use CentralVet\Landing\LeadEndpoint;
 use CentralVet\Landing\LeadFormToken;
 use CentralVet\Landing\LeadSubmissionHandler;
@@ -34,22 +36,6 @@ try {
     $config = require __DIR__ . '/config/environment.php';
     date_default_timezone_set($config['app']['timezone']);
 
-    $database = $config['database'];
-    $pdo = new PDO(
-        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $database['host'], $database['port'], $database['database']),
-        $database['username'],
-        $database['password'],
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
-    );
-
-    $redis = RedisConnectionFactory::fromEnvironment();
-    $limiter = new LoginRateLimiter(
-        $redis,
-        (int) (getenv('LEAD_RATE_LIMIT_MAX_ATTEMPTS') ?: 10),
-        (int) (getenv('LEAD_RATE_LIMIT_DECAY_SECONDS') ?: 3600),
-        'centralvet:lead-throttle:',
-    );
-
     $headers = [];
     foreach ($_SERVER as $key => $value) {
         if (!is_string($value)) {
@@ -64,7 +50,30 @@ try {
 
     $body = (string) file_get_contents('php://input', false, null, 0, LeadEndpoint::MAX_BODY_BYTES + 1);
 
-    $response = (new LeadSubmissionHandler($limiter, new LeadFormToken($redis), new LeadRepository($pdo)))->handle(
+    $early = LeadSubmissionHandler::precheck((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'), $headers, $body);
+    if ($early !== null) {
+        centralvet_lead_emit($early->status, $early->body, $early->headers);
+
+        return;
+    }
+
+    $redis = RedisConnectionFactory::fromEnvironment();
+    $limiter = new LoginRateLimiter(
+        $redis,
+        (int) (getenv('LEAD_RATE_LIMIT_MAX_ATTEMPTS') ?: 10),
+        (int) (getenv('LEAD_RATE_LIMIT_DECAY_SECONDS') ?: 3600),
+        'centralvet:lead-throttle:',
+    );
+
+    $database = $config['database'];
+    $store = new LazyLeadStore(static fn (): LeadStoreInterface => new LeadRepository(new PDO(
+        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $database['host'], $database['port'], $database['database']),
+        $database['username'],
+        $database['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+    )));
+
+    $response = (new LeadSubmissionHandler($limiter, new LeadFormToken($redis), $store))->handle(
         (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'),
         $headers,
         $body,

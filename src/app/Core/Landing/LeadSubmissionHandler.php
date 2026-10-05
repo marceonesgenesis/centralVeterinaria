@@ -33,21 +33,9 @@ final class LeadSubmissionHandler
      */
     public function handle(string $method, array $headers, string $body, string $ip, \DateTimeImmutable $now): LeadResponse
     {
-        if (strtoupper($method) !== 'POST') {
-            return LeadResponse::error(405, 'method_not_allowed', [], ['Allow' => 'POST']);
-        }
-
-        if (strlen($body) > LeadEndpoint::MAX_BODY_BYTES) {
-            return LeadResponse::error(413, 'payload_too_large');
-        }
-
-        $contentType = strtolower(ltrim((string) ($headers['content-type'] ?? '')));
-        if (!str_starts_with($contentType, 'application/json')) {
-            return LeadResponse::error(400, 'invalid_request');
-        }
-
-        if (!self::sameOrigin($headers)) {
-            return LeadResponse::error(403, 'forbidden_origin');
+        $early = self::precheck($method, $headers, $body);
+        if ($early !== null) {
+            return $early;
         }
 
         $bucket = self::RATE_PREFIX . $ip;
@@ -93,6 +81,35 @@ final class LeadSubmissionHandler
         }
 
         return LeadResponse::accepted(201);
+    }
+
+    /**
+     * Passos sem estado de handle() (método, tamanho, Content-Type, origem):
+     * o entrypoint chama antes de abrir Redis ou MySQL. null = o pedido segue
+     * para limitador e token.
+     *
+     * @param array<string, string> $headers nomes em minúsculas
+     */
+    public static function precheck(string $method, array $headers, string $body): ?LeadResponse
+    {
+        if (strtoupper($method) !== 'POST') {
+            return LeadResponse::error(405, 'method_not_allowed', [], ['Allow' => 'POST']);
+        }
+
+        if (strlen($body) > LeadEndpoint::MAX_BODY_BYTES) {
+            return LeadResponse::error(413, 'payload_too_large');
+        }
+
+        $contentType = strtolower(ltrim((string) ($headers['content-type'] ?? '')));
+        if (!str_starts_with($contentType, 'application/json')) {
+            return LeadResponse::error(400, 'invalid_request');
+        }
+
+        if (!self::sameOrigin($headers)) {
+            return LeadResponse::error(403, 'forbidden_origin');
+        }
+
+        return null;
     }
 
     /** @param array<string, string> $headers */
