@@ -13,6 +13,9 @@ namespace CentralVet\Landing;
  */
 final class LeadSubmission
 {
+    /** Limite do texto bruto do phone: o JS envia só dígitos; barra payload forjado. */
+    public const PHONE_RAW_MAX = 20;
+
     private function __construct(
         public readonly string $name,
         public readonly string $clinic,
@@ -53,7 +56,12 @@ final class LeadSubmission
 
         $phoneRaw = self::text($payload, 'phone');
         $phone = $phoneRaw === null ? '' : (string) preg_replace('/\D/', '', $phoneRaw);
-        if (strlen($phone) < 10 || strlen($phone) > 13) {
+        if (
+            $phoneRaw === null
+            || mb_strlen($phoneRaw) > self::PHONE_RAW_MAX
+            || strlen($phone) < 10
+            || strlen($phone) > 13
+        ) {
             $errors['phone'] = 'Informe o WhatsApp com DDD.';
         }
 
@@ -102,7 +110,10 @@ final class LeadSubmission
         );
     }
 
-    /** Valor `trim`ado, ou null quando não é string (ou não é UTF-8 válido). */
+    /**
+     * Valor sem espaços nem caracteres invisíveis (`\s`, `\p{Z}`, `\p{Cf}`) nas
+     * pontas, ou null quando não é string (ou não é UTF-8 válido).
+     */
     private static function text(array $payload, string $field, ?string $missing = null): ?string
     {
         if (!array_key_exists($field, $payload)) {
@@ -114,7 +125,7 @@ final class LeadSubmission
             return null;
         }
 
-        return trim($value);
+        return (string) preg_replace('/^[\s\p{Z}\p{Cf}]+|[\s\p{Z}\p{Cf}]+$/u', '', $value);
     }
 
     private static function plainText(?string $value, int $min, int $max): bool
@@ -128,6 +139,6 @@ final class LeadSubmission
         return $length >= $min
             && $length <= $max
             && strpbrk($value, '<>') === false
-            && preg_match('/\p{Cc}/u', $value) === 0;
+            && preg_match('/[\p{Cc}\p{Cf}]/u', $value) === 0;
     }
 }
