@@ -99,12 +99,12 @@ class HospitalizationAdministrationForm extends TPage
             $disableAll = "document.querySelectorAll('." . self::SUBMIT_CLASS . "').forEach(function(b){b.disabled=true;})";
 
             $done = $this->form->addAction(_t('Done'), new TAction([$this, 'onDone']), 'fa:check');
-            $done->class = 'btn btn-success btn-lg ' . self::SUBMIT_CLASS;
+            $done->class = 'btn btn-success btn-lg cv-touch-target ' . self::SUBMIT_CLASS;
             $done->style = 'min-height:56px;min-width:160px;font-size:1.15rem';
             $done->addFunction($disableAll);
 
             $skip = $this->form->addAction(_t('Not done'), new TAction([$this, 'onSkip']), 'fa:times');
-            $skip->class = 'btn btn-danger btn-lg ' . self::SUBMIT_CLASS;
+            $skip->class = 'btn btn-danger btn-lg cv-touch-target ' . self::SUBMIT_CLASS;
             $skip->style = 'min-height:56px;min-width:160px;font-size:1.15rem';
             $skip->addFunction($disableAll);
         }

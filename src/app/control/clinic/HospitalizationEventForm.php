@@ -86,7 +86,7 @@ class HospitalizationEventForm extends TPage
         }
 
         $btn = $this->form->addAction(_t('Save'), new TAction([$this, 'onSave']), 'fa:check');
-        $btn->class = 'btn btn-primary btn-lg';
+        $btn->class = 'btn btn-primary btn-lg cv-touch-target';
         // um toque: evita registro em dobro por clique repetido
         $btn->addFunction("this.disabled=true");
 

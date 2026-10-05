@@ -23,6 +23,9 @@ class HospitalizationOrderForm extends TPage
 
     private const ACTION_SAVE = 'HospitalizationOrderForm::onSave';
 
+    /** Obrigatórios para todo tipo (alimentação inclusive), na ordem da tela. */
+    private const REQUIRED_FIELDS = ['order_type', 'description_text', 'route', 'frequency_hours', 'starts_at', 'ends_at'];
+
     public function __construct($param = null)
     {
         parent::__construct();
@@ -83,14 +86,21 @@ class HospitalizationOrderForm extends TPage
         $hiddenRow = $this->form->addFields([$hospitalization_id]);
         $hiddenRow->style = 'display: none';
 
-        $this->form->addFields([new TLabel(_t('Type'))], [$order_type], [new TLabel(_t('Description'))], [$description_text]);
-        $this->form->addFields([new TLabel(_t('Product'))], [$product_id], [new TLabel(_t('Quantity per administration'))], [$quantity_per_administration]);
-        $this->form->addFields([new TLabel(_t('Dose'))], [$dose_text], [new TLabel(_t('Route'))], [$route]);
-        $this->form->addFields([new TLabel(_t('Frequency (hours)'))], [$frequency_hours]);
-        $this->form->addFields([new TLabel(_t('Starts at'))], [$starts_at], [new TLabel(_t('Ends at'))], [$ends_at]);
+        // obrigatórios (Correção 2): rótulo marcado e atributo required/aria
+        foreach ([$order_type, $description_text, $route, $frequency_hours, $starts_at, $ends_at] as $requiredField)
+        {
+            $requiredField->setProperty('required', 'required');
+            $requiredField->setProperty('aria-required', 'true');
+        }
+
+        $this->form->addFields([self::label('order_type')], [$order_type], [self::label('description_text')], [$description_text]);
+        $this->form->addFields([self::label('product_id')], [$product_id], [self::label('quantity_per_administration')], [$quantity_per_administration]);
+        $this->form->addFields([self::label('dose_text')], [$dose_text], [self::label('route')], [$route]);
+        $this->form->addFields([self::label('frequency_hours')], [$frequency_hours]);
+        $this->form->addFields([self::label('starts_at')], [$starts_at], [self::label('ends_at')], [$ends_at]);
 
         $btn = $this->form->addAction(_t('Prescribe'), new TAction([$this, 'onSave']), 'fa:check');
-        $btn->class = 'btn btn-primary';
+        $btn->class = 'btn btn-primary cv-touch-target';
         // um toque: evita prescrição em dobro por clique repetido
         $btn->addFunction("this.disabled=true");
 
@@ -103,14 +113,29 @@ class HospitalizationOrderForm extends TPage
 
     public function onSave($param)
     {
+        $dateField = null;
+
         try
         {
+            // obrigatórios antes de qualquer conversão: a mensagem cita o
+            // rótulo do primeiro campo vazio, na ordem da tela
+            foreach (self::REQUIRED_FIELDS as $name)
+            {
+                if (trim((string) ($param[$name] ?? '')) === '')
+                {
+                    throw new InvalidArgumentException("{$name} is required");
+                }
+            }
+
             $hospitalizationId = self::requiredInt($param, 'hospitalization_id');
             $productId = self::optionalInt($param, 'product_id');
             $quantity = self::optionalInt($param, 'quantity_per_administration');
             $frequency = self::optionalInt($param, 'frequency_hours') ?? 0;
+            $dateField = 'starts_at';
             $startsAt = \CentralVet\Presentation\DateTimeInput::parse(trim((string) ($param['starts_at'] ?? '')));
+            $dateField = 'ends_at';
             $endsAt = \CentralVet\Presentation\DateTimeInput::parse(trim((string) ($param['ends_at'] ?? '')));
+            $dateField = null;
 
             $context = self::resolveTenantContext();
 
@@ -138,16 +163,99 @@ class HospitalizationOrderForm extends TPage
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
-            self::enableSubmit();
+            $this->keepTypedData($param);
             new TMessage('error', _t('You are not allowed to prescribe for this hospitalization'));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            self::enableSubmit();
+            $this->keepTypedData($param);
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', self::fieldError($e, $dateField));
         }
+    }
+
+    /**
+     * Correção 2: a página é reconstruída no POST; sem isto o formulário
+     * voltava com os valores padrão e o usuário perdia o que digitou.
+     */
+    private function keepTypedData($param): void
+    {
+        if ($this->form !== null && is_array($param))
+        {
+            $data = [];
+
+            foreach (array_keys(self::fieldLabels()) as $name)
+            {
+                if (array_key_exists($name, $param))
+                {
+                    $data[$name] = $param[$name];
+                }
+            }
+
+            $this->form->setData((object) $data);
+        }
+
+        self::enableSubmit();
+    }
+
+    /**
+     * Mensagem de erro com o rótulo do campo no lugar do nome técnico
+     * (`description_text is required` → "Campo obrigatório: Descrição").
+     * Falha de banco e mensagens sem campo seguem CvFormat::userError().
+     */
+    private static function fieldError(Throwable $e, ?string $dateField): string
+    {
+        $labels = self::fieldLabels();
+        $generic = CvFormat::userError($e);
+
+        if (!$e instanceof InvalidArgumentException || $e->getPrevious() instanceof PDOException)
+        {
+            return $generic;
+        }
+
+        if ($dateField !== null && isset($labels[$dateField]))
+        {
+            return $generic . ': ' . CvFormat::e($labels[$dateField]);
+        }
+
+        $resolved = \CentralVet\Presentation\UserMessage::resolve((string) $e->getMessage());
+
+        if ($resolved === null || $resolved['params'] === [] || !isset($labels[$resolved['params'][0]]))
+        {
+            return $generic;
+        }
+
+        $params = $resolved['params'];
+        $params[0] = $labels[$params[0]];
+
+        return _t($resolved['key'], ...array_map([CvFormat::class, 'e'], $params));
+    }
+
+    /** @return array<string, string> nome do campo → rótulo traduzido */
+    private static function fieldLabels(): array
+    {
+        return [
+            'order_type' => _t('Type'),
+            'description_text' => _t('Description'),
+            'product_id' => _t('Product'),
+            'quantity_per_administration' => _t('Quantity per administration'),
+            'dose_text' => _t('Dose'),
+            'route' => _t('Route'),
+            'frequency_hours' => _t('Frequency (hours)'),
+            'starts_at' => _t('Starts at'),
+            'ends_at' => _t('Ends at'),
+        ];
+    }
+
+    /** Rótulo do campo; obrigatório ganha " *" em vermelho (convenção Adianti). */
+    private static function label(string $name): TLabel
+    {
+        $text = self::fieldLabels()[$name];
+
+        return in_array($name, self::REQUIRED_FIELDS, true)
+            ? new TLabel($text . ' *', '#dc3545')
+            : new TLabel($text);
     }
 
     private static function enableSubmit(): void
