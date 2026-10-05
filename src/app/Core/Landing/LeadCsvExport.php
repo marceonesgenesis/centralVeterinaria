@@ -78,6 +78,27 @@ final class LeadCsvExport
         return $value;
     }
 
+    /**
+     * Página HTML mínima para a aba `_blank` do onExport quando a exportação
+     * falha: mensagem escapada, sem Adianti.
+     */
+    public static function failurePage(string $message): string
+    {
+        $safe = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return "<!doctype html>\n"
+            . "<html lang=\"pt-BR\">\n"
+            . "<head>\n"
+            . "<meta charset=\"utf-8\">\n"
+            . "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+            . "<title>{$safe}</title>\n"
+            . "</head>\n"
+            . "<body>\n"
+            . "<p>{$safe}</p>\n"
+            . "</body>\n"
+            . "</html>\n";
+    }
+
     private static function text(mixed $value): string
     {
         return CsvCell::safe((string) $value);
