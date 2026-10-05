@@ -34,9 +34,9 @@ final class LandingA11yTest
         $template = $this->read(self::TEMPLATE);
 
         foreach ([
-            'landing/landing.css?v=20261005-a11y',
+            'landing/landing.css?v=20261005-a11y2',
             'landing/translations.js?v=20261005-a11y',
-            'landing/landing.js?v=20261005-a11y',
+            'landing/landing.js?v=20261005-a11y2',
         ] as $marker) {
             Assert::stringContains($marker, $template);
         }
@@ -62,7 +62,16 @@ final class LandingA11yTest
         Assert::stringContains('function cartFocusables()', $script);
         Assert::stringContains('ev.key === "Tab"', $script);
         Assert::stringContains('ev.shiftKey', $script);
-        Assert::stringContains('ev.preventDefault()', $script);
+        Assert::stringContains('ev.preventDefault(); last.focus();', $script);
+        Assert::stringContains('ev.preventDefault(); first.focus();', $script);
+        Assert::stringContains('if (ev.key === "Tab") wrapTab(ev);', $script);
+    }
+
+    public function testRemovePlanFocusesGoPlansInsideCart(): void
+    {
+        $script = $this->read(self::SCRIPT);
+
+        Assert::stringContains('renderCart(); $("go-plans").focus(); return; }', $script);
     }
 
     public function testScriptWiresFieldErrors(): void
@@ -91,6 +100,13 @@ final class LandingA11yTest
         Assert::stringContains('visibility 0s linear .25s', $style);
         Assert::stringContains('visibility: visible', $style);
         Assert::stringContains('.field [aria-invalid="true"]', $style);
+    }
+
+    public function testStyleKeepsInvalidBorderOnFocus(): void
+    {
+        $style = $this->read(self::STYLE);
+
+        Assert::stringContains('.field [aria-invalid="true"]:focus { border-color: #B3412E;', $style);
     }
 
     private function read(string $relative): string
