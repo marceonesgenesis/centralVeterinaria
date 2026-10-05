@@ -37,6 +37,8 @@ class HospitalizationView extends TPage
 
     private const TOUCH = 'min-height:var(--cv-touch-target)';
 
+    private const DISCHARGE_FORM = 'form_HospitalizationView_discharge';
+
     private ?int $hospitalizationId;
 
     public function __construct($param = null)
@@ -105,9 +107,11 @@ class HospitalizationView extends TPage
 
     /**
      * Transferência de leito (HospitalizationService::transfer) num único
-     * TTransaction: occupy() perdido após o save desfaz a troca.
+     * TTransaction: occupy() perdido após o save desfaz a troca. Estática:
+     * recusa (inclusive sem leito de destino) mostra a mensagem e mantém a
+     * ficha e o formulário como estão; sucesso recarrega pelo OK.
      */
-    public function onTransfer($param)
+    public static function onTransfer($param)
     {
         $id = self::paramInt('id', $param);
 
@@ -153,36 +157,54 @@ class HospitalizationView extends TPage
     public static function onAskDischarge($param = null)
     {
         $id = (int) ($param['id'] ?? 0);
-        $summary = trim((string) ($param['summary_text'] ?? ''));
 
-        if ($id <= 0 || $summary === '')
+        if ($id <= 0 || self::postedSummary() === '')
         {
             new TMessage('error', _t('The discharge summary is required'));
             return;
         }
 
+        // o "Sim" reenvia o formulário da alta por POST: o resumo (texto
+        // clínico) vai no corpo, nunca na URL (TQuestion só carrega URL)
         $action = new TAction([__CLASS__, 'onDischarge']);
         $action->setParameter('id', $id);
-        $action->setParameter('summary_text', $summary);
+        $action->setParameter('static', '1');
 
-        new TQuestion(
-            _t('Discharge this patient? The stay and the performed administrations will be billed to the encounter account and their products consumed from stock.'),
-            $action
-        );
+        $yes = "function () { __adianti_post_data('" . self::DISCHARGE_FORM . "', '"
+            . addslashes($action->serialize(false)) . "'); }";
+
+        TScript::create(sprintf(
+            "__adianti_question('%s', '%s', %s, function () {}, '%s', '%s')",
+            addslashes(AdiantiCoreTranslator::translate('Question')),
+            addslashes(_t('Discharge this patient? The stay and the performed administrations will be billed to the encounter account and their products consumed from stock.')),
+            $yes,
+            addslashes(AdiantiCoreTranslator::translate('Yes')),
+            addslashes(AdiantiCoreTranslator::translate('No'))
+        ));
+    }
+
+    /**
+     * Resumo da alta só do corpo do POST: o mesmo campo na query string é
+     * ignorado.
+     */
+    private static function postedSummary(): string
+    {
+        return trim((string) ($_POST['summary_text'] ?? ''));
     }
 
     /**
      * Alta integrada (HospitalizationDischargeService::discharge) dentro de
      * um único TTransaction('permission'): qualquer exceção — estoque
      * insuficiente, conta fechada, leito já liberado — dá rollback de tudo.
+     * Estática e com o resumo só do POST (ver onAskDischarge()).
      */
-    public function onDischarge($param)
+    public static function onDischarge($param)
     {
         $id = self::paramInt('id', $param);
 
         try
         {
-            $summary = trim((string) ($param['summary_text'] ?? ''));
+            $summary = self::postedSummary();
 
             if ($id === null || $summary === '')
             {
@@ -644,17 +666,17 @@ class HospitalizationView extends TPage
         $transferForm->addFields([new TLabel(_t('Destination bed'))]);
         $transferForm->addFields([$toBed]);
 
-        $transferAction = new TAction([$this, 'onTransfer']);
+        $transferAction = new TAction([__CLASS__, 'onTransfer']);
         $transferAction->setParameter('id', $id);
         $transferButton = $transferForm->addAction(_t('Transfer'), $transferAction, 'fa:exchange-alt');
-        $transferButton->class = 'btn btn-default';
+        $transferButton->class = 'btn btn-default cv-touch-target';
         $transferButton->style = self::TOUCH;
 
         CvForm::decorate($transferForm, 1);
         $side->add($transferForm);
 
         // alta: resumo obrigatório, confirmação por TQuestion
-        $dischargeForm = new BootstrapFormBuilder('form_HospitalizationView_discharge');
+        $dischargeForm = new BootstrapFormBuilder(self::DISCHARGE_FORM);
         $dischargeForm->setFormTitle(_t('Discharge'));
 
         $summary = new TText('summary_text');
@@ -667,7 +689,7 @@ class HospitalizationView extends TPage
         $dischargeAction = new TAction([__CLASS__, 'onAskDischarge']);
         $dischargeAction->setParameter('id', $id);
         $dischargeButton = $dischargeForm->addAction(_t('Discharge'), $dischargeAction, 'fa:sign-out-alt');
-        $dischargeButton->class = 'btn btn-primary';
+        $dischargeButton->class = 'btn btn-primary cv-touch-target';
         $dischargeButton->style = self::TOUCH;
 
         CvForm::decorate($dischargeForm, 1);
@@ -689,7 +711,7 @@ class HospitalizationView extends TPage
     private static function linkButton(string $label, string $href, string $icon, string $class): TElement
     {
         $link = new TElement('a');
-        $link->{'class'} = $class;
+        $link->{'class'} = $class . ' cv-touch-target';
         $link->{'href'} = CvFormat::e($href);
         $link->{'generator'} = 'adianti';
         $link->style = self::TOUCH . '; display:inline-flex; align-items:center; gap:var(--cv-space-1)';
