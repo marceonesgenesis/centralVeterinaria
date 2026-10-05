@@ -34,7 +34,7 @@ $logged = isset($_COOKIE[session_name()]) && $page->readLogged(
 switch ($page->entryFor($method, $queryString, $logged)) {
     case LandingPage::ENTRY_SYSTEM:
         http_response_code(302);
-        header('Location: /index.php' . ($queryString !== '' ? '?' . $queryString : ''));
+        header('Location: index.php' . ($queryString !== '' ? '?' . $queryString : ''));
         exit;
 
     case LandingPage::ENTRY_METHOD_NOT_ALLOWED:

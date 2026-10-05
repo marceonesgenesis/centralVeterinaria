@@ -10,7 +10,7 @@
 (function () {
   "use strict";
 
-  var LEAD_PATH = "/lead.php";
+  var LEAD_PATH = "lead.php";
   var TOKEN_HEADER = "X-CV-Lead-Token";
   var HONEYPOT_FIELD = "website";
   var STORE_KEY = "cvp-cart-plan";
@@ -21,6 +21,7 @@
   var MSG_FIX_FIELDS = "Revise os campos destacados e envie de novo.";
 
   var $ = function (id) { return document.getElementById(id); };
+  var I18N = window.CvLandingI18n;
 
   function readData() {
     var el = $("cv-landing-data");
@@ -39,8 +40,8 @@
   var CONSENT_TEXT = DATA.consent && DATA.consent.text ? String(DATA.consent.text) : "";
   var TOKEN = readToken();
 
-  var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-  var amount = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  var brl = new Intl.NumberFormat(I18N.locale(), { style: "currency", currency: "BRL" });
+  var amount = new Intl.NumberFormat(I18N.locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   var state = { planId: null, sent: null };
   try { var saved = localStorage.getItem(STORE_KEY); if (saved && planById(saved)) state.planId = saved; } catch (e) {}
 
@@ -66,6 +67,7 @@
         '<button type="button" class="btn ' + (p.featured || inCart ? "btn-primary" : "btn-ghost") + '" data-add="' + esc(p.id) + '">' +
         (inCart ? "No carrinho ✓" : "Adicionar ao carrinho") + "</button></article>";
     }).join("");
+    I18N.translate($("plans"));
   }
 
   function renderCompare() {
@@ -75,16 +77,23 @@
       }).join("");
       return "<tr><td>" + esc(r.label) + (r.soon ? ' <span class="tag tag-soon">Em breve</span>' : "") + "</td>" + cells + "</tr>";
     }).join("");
+    I18N.translate($("compare-body"));
   }
 
   function renderCount() { $("cart-count").textContent = state.planId ? "1" : "0"; }
 
   function renderCart() {
+    renderCartContent();
+    I18N.translate($("cart-body"));
+    I18N.translate($("cart-foot"));
+  }
+
+  function renderCartContent() {
     var body = $("cart-body"), foot = $("cart-foot"), plan = planById(state.planId);
     if (state.sent) {
       body.innerHTML = '<div class="done-box"><div class="seal">' + checkIcon.replace('aria-hidden="true"', 'width="34" height="34" aria-hidden="true"') + "</div>" +
-        "<h3>Pedido recebido</h3><p>Obrigado, " + esc(state.sent.name) + ". Registramos o plano <b>" + esc(state.sent.plan) +
-        "</b> para " + esc(state.sent.clinic) + ". Nossa equipe vai entrar em contato pelo WhatsApp ou e-mail informado para ativar a sua conta.</p></div>";
+        '<h3>Pedido recebido</h3><p><span>Obrigado,</span> <span data-no-i18n>' + esc(state.sent.name) + '</span>. <span>Registramos o plano</span> <b>' + esc(state.sent.plan) +
+        '</b> <span>para</span> <span data-no-i18n>' + esc(state.sent.clinic) + '</span>. <span>Nossa equipe vai entrar em contato pelo WhatsApp ou e-mail informado para ativar a sua conta.</span></p></div>';
       foot.innerHTML = '<button type="button" class="btn btn-ghost" id="new-order">Fechar</button>';
       return;
     }
@@ -94,10 +103,10 @@
       return;
     }
     body.innerHTML =
-      '<div class="line-item"><b>Plano ' + esc(plan.name) + '</b><span class="amt">' + money(plan) + "</span>" +
-      "<small>" + esc(plan.for_who) + " · cobrança mensal</small>" + '<button type="button" id="remove-plan">Remover</button></div>' +
-      '<div class="totals"><div><span>Mensalidade</span><span class="mono">' + money(plan) + "</span></div>" +
-      '<div class="grand"><span>Total por mês</span><span>' + money(plan) + "</span></div></div>" +
+      '<div class="line-item"><b><span>Plano</span> ' + esc(plan.name) + '</b><span class="amt" data-money-cents="' + Number(plan.price_cents) + '">' + money(plan) + "</span>" +
+      "<small><span>" + esc(plan.for_who) + "</span> · <span>cobrança mensal</span></small>" + '<button type="button" id="remove-plan">Remover</button></div>' +
+      '<div class="totals"><div><span>Mensalidade</span><span class="mono" data-money-cents="' + Number(plan.price_cents) + '">' + money(plan) + "</span></div>" +
+      '<div class="grand"><span>Total por mês</span><span data-money-cents="' + Number(plan.price_cents) + '">' + money(plan) + "</span></div></div>" +
       '<form class="form" id="lead-form" novalidate>' +
       "<h3>Seus dados para ativação</h3>" +
       field("lead-name", "Seu nome", "text", "name", "Ex.: Dra. Ana Ribeiro") +
@@ -116,7 +125,7 @@
       '<p class="status" id="lead-status" role="status">Nenhum pagamento é cobrado aqui. Confirmamos a assinatura com você.</p>';
   }
 
-  function submitLabel(plan) { return "Enviar pedido · " + money(plan) + "/mês"; }
+  function submitLabel(plan) { return I18N.t("Enviar pedido") + " · " + money(plan) + I18N.t("/mês"); }
 
   function field(id, label, type, ac, ph) {
     return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + type + '" autocomplete="' + ac +
@@ -147,7 +156,7 @@
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
 
-  function setErr(id, msg) { var el = $(id + "-err"); if (el) el.textContent = msg || ""; }
+  function setErr(id, msg) { var el = $(id + "-err"); if (el) { el.textContent = msg || ""; I18N.translate(el); } }
   function val(id) { var el = $(id); return el ? el.value.trim() : ""; }
   function errIdFor(key) { return key === "consent" ? "consent" : "lead-" + key; }
   function focusFirstError() {
@@ -159,7 +168,7 @@
     var unknown = [];
     Object.keys(fields || {}).forEach(function (key) {
       var el = $(errIdFor(key) + "-err");
-      if (el) el.textContent = String(fields[key]); else unknown.push(String(fields[key]));
+      if (el) { el.textContent = String(fields[key]); I18N.translate(el); } else unknown.push(String(fields[key]));
     });
     focusFirstError();
     return unknown.length ? unknown.join(" ") : MSG_FIX_FIELDS;
@@ -185,6 +194,7 @@
 
     var btn = $("submit-lead"), status = $("lead-status");
     btn.disabled = true; btn.textContent = "Enviando…"; status.classList.remove("bad"); status.textContent = "Enviando seu pedido.";
+    I18N.translate(btn); I18N.translate(status);
     var honeypot = $("lead-" + HONEYPOT_FIELD);
     var payload = {
       name: name.slice(0, 120), clinic: clinic.slice(0, 160), email: email.slice(0, 160), phone: digits,
@@ -216,6 +226,7 @@
       btn.disabled = false; btn.textContent = submitLabel(plan);
       status.classList.add("bad");
       status.textContent = message;
+      I18N.translate(status);
     }
   }
 
@@ -230,6 +241,14 @@
   });
   document.addEventListener("submit", function (ev) { if (ev.target && ev.target.id === "lead-form") submitLead(ev); });
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && $("cart").classList.contains("open")) closeCart(); });
+  document.addEventListener("cv:languagechange", function () {
+    brl = new Intl.NumberFormat(I18N.locale(), { style: "currency", currency: "BRL" });
+    amount = new Intl.NumberFormat(I18N.locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    renderPlans(); renderCompare();
+    var button = $("submit-lead"), plan = planById(state.planId);
+    if (button && plan && !button.disabled) button.textContent = submitLabel(plan);
+  });
 
   renderPlans(); renderCompare(); renderCount(); renderCart();
+  if (window.location.hash === "#cart") openCart();
 })();
