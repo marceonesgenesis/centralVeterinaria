@@ -21,7 +21,7 @@
 | T-17 | frontend | Navegação: menu, abas `CvNav`, ação no `EncounterView` | T-05 | sim | média | Jaspion | [x] |
 | T-18 | frontend | i18n pt/en e mensagens de domínio da internação | T-12, T-13, T-14, T-15, T-16, T-17 | sim | média | Levi | [x] |
 | T-19 | docs | Runbook da internação | T-01, T-02, T-05, T-11 | sim | simples | Gandalf | [x] |
-| T-20 | qa | Validação final ponta a ponta e SQL de limpeza `F6 teste` | T-18, T-19 | não | média | Spock | [ ] |
+| T-20 | qa | Validação final ponta a ponta e SQL de limpeza `F6 teste` | T-18, T-19 | não | média | Spock | [x] |
 
 ## Detalhamento
 

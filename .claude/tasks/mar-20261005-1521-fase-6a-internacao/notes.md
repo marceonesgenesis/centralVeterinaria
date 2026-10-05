@@ -33,6 +33,10 @@
 - 2026-10-05 · T-07/T-10 · onda 3 — Lost update no UPDATE de administração (done×skipped/cancel concorrentes) corrigido já na T-07: UPDATE com `AND status='pending'` + rowCount → "Administration <id> is not pending"; Fake espelhado (ea5e5ee RED + 08b0ea1). Sem cobrança/estoque em dobro (UNIQUE de source_id).
 - 2026-10-05 · T-07 · onda 3 — Caminhos autorizados por ruling para a correção: src/tests/Support/FakeHospitalizationAdministrationRepository.php e src/tests/Unit/HospitalizationFakesTest.php (RED inválido/escopo apontado pelo validador; sem reescrever histórico).
 - 2026-10-05 · T-09 · onda 3 — Corrida do occupy() após a internação salva: o rollback depende do TTransaction do controller; cobrar na revisão da T-13 (e T-14 se aplicável). Admissão simultânea do mesmo paciente sem guarda no banco fica como pendência do MVP.
+- 2026-10-05 · T-12/T-13/T-14/T-15 · onda 6 — Lote de correção pós-gate E2E (UX): T-12 é dona do CSS `.cv-touch-target` (44 px) e as demais só aplicam a classe; T-14 única escritora de translations.json. T-12 8ea5a53+d937f32 (ações da BedList saem do dropdown para botões visíveis); T-13 14a0398+152b920; T-14 12c9e28+9efbe58 (transferência sem destino com mensagem; resumo da alta só por POST, sem texto clínico na URL); T-15 909e5bd+1896eaf (rótulo pt no erro, dados mantidos, obrigatórios marcados). Re-gate: todos ≥ 44 px no tablet, SUITE 624/624; re-revisões aprovadas.
+- 2026-10-05 · T-20 · onda 6 — Revisão rodada 1 reprovou (conta 371 do atendimento 4304 sem limpeza; atraso do flowboard sem evidência E2E) → f3c5109 + evidência (administração 20, "Atrasado 1" em desktop/tablet); re-validada; rodada 2 aprovada.
+- 2026-10-05 · T-20 · onda 6 — Aceitos como cobertos sem E2E: Review Focus 1 (dois tablets no mesmo leito; ocupação condicional + teste de integração) e Review Focus 3 (conta fechada antes da alta; testDischargeRefusedWhenAccountClosedTouchesNoStock); re-gate sem desktop (correção só aplica min-height) e sem listagem de status de rede (gate anterior todas 200).
+- 2026-10-05 · T-20 · onda 6 — queue_entry 322: o re-gate relatou avanço por engano, mas o banco mostra 'aguardando' e updated_at = created_at, sem audit; nada a restaurar.
 
 ## Bloqueios
 - RESOLVIDO em 2026-10-05 (orquestrador, com aprovação SQL explícita do usuário): bloqueio entre a Onda 1 e a Onda 2.
@@ -78,6 +82,7 @@
 - [T-16] Flowboard pronto: janela 2 h, ação 'HospitalizationBoard::onReload'; captura AuthorizationDenied/MissingTenantContext (3bc672a).
 - [T-17] Navegação pronta: menu Internação/Leitos, CvNav group 'hospitalization', PLAN_ACTIONS['hospitalization'] 'Hospitalize'.
 - [onda 4] "Message not found" em textos novos até a T-18 (chaves em board.md). Ids de teste para a T-20: beds 1–3 (F6 teste L1..L3); hospitalization 1 (encounter 1708) e 2 (encounter 2189, paciente 1452); orders 1–3; administrations 1–9; eventos vitals/evolução; lote 'F6 teste lote' (produto 8545); 2 itens hospitalization* na conta 46; 1 stock_movement hospitalization_consumption.
+- [T-20] Gate final E2E (leito→admissão→prescrição→Feito/Não feito→parâmetros/evolução→transferência→alta; rollback por estoque insuficiente; permissão negada em outra unidade; toque duplo → 1 done; console 0 errors; rede 200) OK; reprovou por UX em T-12..T-15, corrigido e re-gateado. Prints em .playwright-mcp/ (ignorado pelo git).
 
 ## Pendências
 - Central de Pendências (PRD §8.23) sem tela própria: o item de internação fica para quando a central existir.
@@ -103,7 +108,9 @@
 - T-17: teste "Beds inside Settings" compara só posição de string; subprocesso descarta stderr.
 - T-18: padrões genéricos `^1 must be a number|whole number|positive integer` e `^1 is required` mostram o nome técnico do campo em pt; padrão `was not found ... authenticated tenant` vale para todos os serviços (muda mensagem de outras fases para "Registro não encontrado") e sem teste para eles; "Provide a hospitalization_id ..." mantém o nome técnico; grupo `\(new\)` do padrão `Hospitalization ... is not admitted` é morto e aceita "Hospitalization is not admitted".
 - T-19: runbook aponta SQL em `.claude/tasks/.../sql/T-05-programs*.sql`, pasta de plano que pode ser arquivada; copiar a DML para local estável ou avisar.
-- Onda 5: console e rede do navegador não checados no gate (só fetch autenticado); ficam para a T-20.
+- T-12: `.cv-touch-target` fixa `44px`; usar `var(--cv-touch-target)` (custom.css:34) manteria um valor só; correção escreveu em cv-components.css fora dos arquivos prováveis da T-12.
+- T-20: comentários de estado do sql/T-20-cleanup.sql desatualizados em relação ao banco pós-gate; os ~312 registros de audit_log dos gates ficam fora da limpeza (documentar).
+- T-20: executar `sql/T-20-cleanup.sql` pelo orquestrador após a revisão final, com backup e aprovação SQL do usuário.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -124,5 +131,6 @@
   - Onda 3: BASE f3e64aa → HEAD 08b0ea1 (08b0ea1, ea5e5ee, 2df0ddc, 2d7f4f8, e58c2f9, 1ee515d, 9ff9aaf, 43a556a, 059ff3f, 2eed5f8, db2f0de)
   - Onda 4: BASE 7d96545 → HEAD 3bc672a (3bc672a, f6cef53, d29e899, 6beb807, c6b2900, 435a93d, f93a63d, ca02c03, cad4416, d805a14, f13a863, d380bb7, f05eef9, 69e0ab0, 8f07c60, 9420e8c)
   - Onda 5: BASE 3f32dab → HEAD 7d16fd8 (7d16fd8, 7c66aa1, 2993ddd, 9e9bf37, ce1912d)
-- Último status conhecido: onda 5 concluída (T-18, T-19 [x]; gate aprovado, SUITE 614/614 após correção da T-18)
-- Próxima onda recomendada: 6 (T-20; dependências satisfeitas)
+  - Onda 6: BASE a72d78e → HEAD f3c5109 (f3c5109, 9efbe58, 1896eaf, 12c9e28, 909e5bd, d937f32, 8ea5a53, 152b920, 14a0398, 0b5a6c2)
+- Último status conhecido: onda 6 concluída (T-20 [x]; gate final E2E aprovado após correção de UX em T-12..T-15, SUITE 624/624)
+- Próxima onda recomendada: nenhuma (revisão final; depois executar sql/T-20-cleanup.sql com aprovação)
