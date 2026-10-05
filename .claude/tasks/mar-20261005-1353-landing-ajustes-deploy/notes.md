@@ -15,6 +15,8 @@
 - 2026-10-05 · T-01 · onda 1 — achado plano-mandou da revisão rodada 1 (teste não discriminava o strip unicode de text()) aceito e corrigido no fix loop rodada 1 (c0f19ff); re-revisão rodada 2 aprovada; validação cruzada pós-fix: SUITE 504/504.
 - 2026-10-05 · T-06 · onda 2 — gate reprovou (Tab/Shift+Tab escapavam de #cart via body); fix loop rodada 1 (1a4c70f RED + 937df30) re-validado e aprovado (reviews/T-06.md § Re-validação 1); revisão rodada 1 aprovada com sugestões; validação cruzada pós-fix: SUITE 514/514.
 - 2026-10-05 · T-08 · onda 2 — gate do CSV com sessão admin (onExport) não rodado nesta onda (sem sessão admin); passa para o gate admin da T-10.
+- 2026-10-05 · T-10 · onda 3 — bucket lead-throttle do gateway 192.168.16.1 esgotado (10/10): gates com X-Forwarded-For 203.0.113.NN, válido porque o nginx confia em RFC1918 (T-04); sem apagar a chave nem esperar o TTL.
+- 2026-10-05 · T-10/T-08 · onda 3 — login admin no Playwright MCP feito pelo orquestrador com credenciais do .env, com autorização explícita do usuário; CSV admin 200 text/csv, 12 colunas, 13 linhas. Caminho de falha do CSV coberto só pelo unitário LeadCsvExportTest.
 
 ## Bloqueios
 - Depois da Onda 3 (aprovação SQL do usuário): execução de `sql/T-09-cleanup-landing-lead.sql` em `centralvet` pelo orquestrador, com backup (`./scripts/backup.sh` + `gzip -t`) antes. Sem aprovação, os leads de teste ficam e a pendência é registrada.
@@ -24,6 +26,7 @@
 - [T-04] Neste zsh `grep` é função de shell e devolve 0; usar /usr/bin/grep nas validações do .htaccess.
 - [T-02] LeadSubmissionHandler::precheck(string $method, array $headers, string $body): ?LeadResponse e LazyLeadStore (closure no 1º insert) prontos (f008b84); lead.php só abre Redis/PDO depois do precheck; handle() inalterado.
 - [T-06] landing.html: cache-busters landing.css/translations.js/landing.js agora `?v=20261005-a11y` (i18n.js inalterado) e `#cart` com `inert` sem `aria-hidden` (c0117ea RED, aaefa40); LandingPageTest:67-68 atualizado. Quem mexer nesses arquivos deve partir desses valores.
+- [T-10] Gate: bucket centralvet:lead-throttle de 192.168.16.1 (gateway docker) em 10/10 no início da T-10 (429 no POST /lead.php); resolvido por ruling com X-Forwarded-For 203.0.113.NN, sem DEL. Sem sessão admin no Playwright até o login feito pelo orquestrador.
 
 ## Pendências
 - T-01: [sugestão] Interface promete recusar `\p{Cf}` também em `city`, mas só `name` tem teste de `\p{Cf}` no meio do texto (LeadSubmission.php:75, LandingCatalogTest.php:105-110).
@@ -39,6 +42,12 @@
 - T-08: [sugestão] `<html lang="pt-BR">` fixo em failurePage, mas a mensagem sai por `_t()` e pode ser em inglês (LeadCsvExport.php:90).
 - T-08: [sugestão] gate do CSV 200 / `text/csv` com sessão admin não rodou na onda 2; fica para o gate admin da T-10 (LandingLeadList.php:184-186).
 - Validador (onda 2): leads de teste criados nos gates: ids 4 `LP teste pt`, 5 `LP teste en`, 6 `LP teste es`, 7 `LP teste pt wrap2`, todos cobertos pelo predicado da T-09. Contagens observadas: landing_lead 7, tenant 1, patient 7, tutor 7, system_program 109, system_group_program 111 (comparar com a BASE na T-10).
+- T-10: [sugestão] BASE numérica da onda 1 (tenant/patient/tutor/system_program/system_group_program) nunca registrada; contagens finais: tenant 1, patient 7, tutor 7, system_program 109, system_group_program 111 (reports/T-10.md § Contagens).
+- T-10: [sugestão] nenhum 422 provocado no navegador (validação no cliente barra antes); 422 sem evidência no gate.
+- T-10: [sugestão] curls de T-02/T-04 com XFF 203.0.113.NN por ruling; o 403 sem XFF não foi exercido.
+- T-10: [sugestão] caminho de falha do CSV (failurePage) só coberto por LeadCsvExportTest, sem gate de navegador.
+- Validador (onda 3): escopo não verificável (onda sem commits de código; só reports/T-10.md e board.md).
+- landing_lead tem 13 linhas, todas no predicado da T-09; o SQL da T-09 ainda não foi executado (aguarda aprovação SQL do usuário após a revisão final).
 
 ## Riscos
 - 9 tasks em 2 ondas no checkout compartilhado: SUITEs simultâneas dão falso FAIL em testes Redis alheios — cada implementador lê só as linhas da própria classe; o gate roda a SUITE sozinha.
@@ -54,5 +63,6 @@
 - Commits por onda:
   - Onda 1: BASE 939b541 → HEAD c0f19ff (e36cf11, 75081e0, 9b5a8e0, 50e60d9, be5c9ac, 50abbe9, b7414ff, f008b84, c0f19ff)
   - Onda 2: BASE f65e9cc → HEAD 937df30 (dff3aeb, 1a31d45, a35c9bd, 6f83a3e, c0117ea, 6d3fc4b, aaefa40, 1a4c70f, 937df30)
-- Último status conhecido: onda 2 concluída (T-03, T-05, T-06, T-08 [x]); só T-10 pendente
-- Próxima onda recomendada: 3 — T-10
+  - Onda 3: BASE 9dbafc0 → HEAD 9dbafc0 (sem commits de código; só reports/reviews/board)
+- Último status conhecido: onda 3 concluída (T-10 [x]); todas as tasks [x]
+- Próxima onda recomendada: nenhuma (revisão final; depois SQL da T-09 com aprovação)

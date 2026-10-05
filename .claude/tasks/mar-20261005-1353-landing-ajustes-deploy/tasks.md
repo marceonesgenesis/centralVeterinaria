@@ -11,7 +11,7 @@
 | T-07 | backend | FakeRedis::set respeita TTL int no 3º argumento | — | sim | simples | Levi | [x] |
 | T-08 | frontend | LandingLeadList::onExport em falha com página de erro legível | — | sim | simples | Naruto | [x] |
 | T-09 | database | SQL de limpeza dos leads de teste e roteiro dos resíduos Redis (sem executar) | — | sim | simples | Darwin | [x] |
-| T-10 | qa | Validação final: suíte, lint, nginx, curl, navegador, contagens e escopo | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-08, T-09 | não | média | Spock | [ ] |
+| T-10 | qa | Validação final: suíte, lint, nginx, curl, navegador, contagens e escopo | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-08, T-09 | não | média | Spock | [x] |
 
 ## Detalhamento
 
