@@ -55,6 +55,8 @@
 - 2026-10-05 · T-17 · onda 4 — Não era bug: botão Internar é TButton com onclick (#tbutton_inline_hospitalization), confirmado no atendimento 2189; xmllint ausente, python minidom aceito.
 - 2026-10-05 · T-13 · onda 4 — Rollback da admissão com leito ocupado no meio conferido na revisão (operação inteira em TTransaction); corrida real não reproduzível pela UI.
 - 2026-10-05 · ambiente · onda 4 — Login admin no Playwright feito pelo orquestrador com autorização do usuário para toda a Fase 6A.
+- 2026-10-05 · gate · onda 5 — Gate em pt feito por fetch autenticado das 9 telas em vez de navegação; console e rede não checados nesta onda, ficam para a T-20.
+- 2026-10-05 · T-18 · onda 5 — Mensagens com id interno viram chaves sem id ("Este leito não está disponível"); uma tradução por chave `en`, chaves antigas mantêm a tradução anterior (Vital signs → Sinais vitais, Active → Ativo, Late → Atrasado).
 
 ## Descobertas
 - [T-03] `Bed` não muda ocupação: occupy/release só no repositório (fakes de T-06 montam o leito ocupado via `Bed::reconstitute` com status/current_hospitalization_id). Extras aditivos: `BedUnavailableException::occupied(id)`, getters `admittedBySystemUserId()`/`dischargedBySystemUserId()`/`createdAt()`/`updatedAt()`; `HospitalizationEvent::notesText()` devolve null para texto vazio; `discharge()` guarda summary vazio como null.
@@ -99,7 +101,9 @@
 - T-15: resolveTenantContext() e montagem do service copiados em 3 forms; board.md antigo com ação sem método (ver Descobertas).
 - T-16: N+1 em admittedCards; KPI "Done in shift" conta puladas.
 - T-17: teste "Beds inside Settings" compara só posição de string; subprocesso descarta stderr.
-- Onda 4: "Message not found" em textos novos até a T-18.
+- T-18: padrões genéricos `^1 must be a number|whole number|positive integer` e `^1 is required` mostram o nome técnico do campo em pt; padrão `was not found ... authenticated tenant` vale para todos os serviços (muda mensagem de outras fases para "Registro não encontrado") e sem teste para eles; "Provide a hospitalization_id ..." mantém o nome técnico; grupo `\(new\)` do padrão `Hospitalization ... is not admitted` é morto e aceita "Hospitalization is not admitted".
+- T-19: runbook aponta SQL em `.claude/tasks/.../sql/T-05-programs*.sql`, pasta de plano que pode ser arquivada; copiar a DML para local estável ou avisar.
+- Onda 5: console e rede do navegador não checados no gate (só fetch autenticado); ficam para a T-20.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -119,5 +123,6 @@
   - Onda 2: BASE 4bc287e → HEAD bad05c6 (bad05c6, c2306e7, 623b4f3, 0f7a949)
   - Onda 3: BASE f3e64aa → HEAD 08b0ea1 (08b0ea1, ea5e5ee, 2df0ddc, 2d7f4f8, e58c2f9, 1ee515d, 9ff9aaf, 43a556a, 059ff3f, 2eed5f8, db2f0de)
   - Onda 4: BASE 7d96545 → HEAD 3bc672a (3bc672a, f6cef53, d29e899, 6beb807, c6b2900, 435a93d, f93a63d, ca02c03, cad4416, d805a14, f13a863, d380bb7, f05eef9, 69e0ab0, 8f07c60, 9420e8c)
-- Último status conhecido: onda 4 concluída (T-12..T-17 [x]; gate aprovado no navegador; SUITE 607/607)
-- Próxima onda recomendada: 5 (T-18 e T-19; dependências satisfeitas)
+  - Onda 5: BASE 3f32dab → HEAD 7d16fd8 (7d16fd8, 7c66aa1, 2993ddd, 9e9bf37, ce1912d)
+- Último status conhecido: onda 5 concluída (T-18, T-19 [x]; gate aprovado, SUITE 614/614 após correção da T-18)
+- Próxima onda recomendada: 6 (T-20; dependências satisfeitas)
