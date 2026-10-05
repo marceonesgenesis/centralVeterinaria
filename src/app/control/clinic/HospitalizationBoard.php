@@ -92,6 +92,20 @@ class HospitalizationBoard extends TPage
 
             TTransaction::close();
         }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('You are not allowed to view the shift board'));
+            $this->content->add(self::kpiRow(0, 0, 0, 0));
+            return;
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('An authenticated session with an active unit is required'));
+            $this->content->add(self::kpiRow(0, 0, 0, 0));
+            return;
+        }
         catch (Exception $e)
         {
             TTransaction::rollback();
