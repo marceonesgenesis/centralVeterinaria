@@ -69,6 +69,17 @@ final class LeadCsvExportTest
         Assert::same('1.234,56', LeadCsvExport::row($lead)[9]);
     }
 
+    public function testFailurePageEscapesTheMessage(): void
+    {
+        $html = LeadCsvExport::failurePage('Falha <b>"x"</b>');
+
+        Assert::true(str_starts_with($html, '<!doctype html>'), 'failurePage deve começar com <!doctype html>');
+        Assert::stringContains('<html lang="pt-BR">', $html);
+        Assert::stringContains('<meta charset="utf-8">', $html);
+        Assert::stringContains('Falha &lt;b&gt;&quot;x&quot;&lt;/b&gt;', $html);
+        Assert::false(str_contains($html, '<b>'), 'failurePage não pode conter <b> cru');
+    }
+
     /** @return array<string, mixed> */
     private function lead(): array
     {
