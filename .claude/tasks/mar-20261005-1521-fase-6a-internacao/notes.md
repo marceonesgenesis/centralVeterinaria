@@ -50,6 +50,12 @@
   Desbloqueia quando o `.verify.sql` lista as 5 tabelas e os 16 CHECKs (14 novos, 2 alterados) nos dois bancos e o verify da T-05 mostra 8 concessões no grupo 1, 8 em `Clínico – Internação`, 0 nos grupos 2 e 3 e o nome com 20 caracteres / 25 bytes.
 - Execução de `sql/T-20-cleanup.sql`: só depois do gate final, pelo orquestrador, com aprovação SQL.
 
+- 2026-10-05 · T-15 · onda 4 — Fix loop rodada 1 (6beb807 RED + d29e899): ACTION_VIEW do AdministrationForm passou a 'HospitalizationAdministrationForm::onLoad'; re-validado no navegador (toque duplo em Feito → done=1); revisão rodada 1 aprovada.
+- 2026-10-05 · T-16 · onda 4 — Revisão rodada 1 reprovou (AuthorizationDenied/MissingTenantContext não capturados no HospitalizationBoard); fix f6cef53 (RED) + 3bc672a; SUITE 607/607; re-revisão rodada 2 aprovada. Caminho autorizado: src/tests/Integration/HospitalizationBoardIntegrationTest.php.
+- 2026-10-05 · T-17 · onda 4 — Não era bug: botão Internar é TButton com onclick (#tbutton_inline_hospitalization), confirmado no atendimento 2189; xmllint ausente, python minidom aceito.
+- 2026-10-05 · T-13 · onda 4 — Rollback da admissão com leito ocupado no meio conferido na revisão (operação inteira em TTransaction); corrida real não reproduzível pela UI.
+- 2026-10-05 · ambiente · onda 4 — Login admin no Playwright feito pelo orquestrador com autorização do usuário para toda a Fase 6A.
+
 ## Descobertas
 - [T-03] `Bed` não muda ocupação: occupy/release só no repositório (fakes de T-06 montam o leito ocupado via `Bed::reconstitute` com status/current_hospitalization_id). Extras aditivos: `BedUnavailableException::occupied(id)`, getters `admittedBySystemUserId()`/`dischargedBySystemUserId()`/`createdAt()`/`updatedAt()`; `HospitalizationEvent::notesText()` devolve null para texto vazio; `discharge()` guarda summary vazio como null.
 - [T-04] Além do contrato: `HospitalizationOrder::reconstitute(...)`, `assignId()`, `prescribedBySystemUserId()`, `suspendedAt()`, `TYPES`; `suspend()` fora de `active` → `InvalidStatusTransitionException` `Order <id> is not active`; quantidade sem produto → `quantity_per_administration requires a product`; mensagens extras: `description_text is required`, `Unknown route "<r>"`, `Unknown order_type "<t>"`. `HospitalizationAdministration::reconstitute(...)` e `assignId()`; `markDone` aceita nota vazia (vira null). `AdministrationSchedule::assertValid(startsAt, endsAt, frequencyHours)` público (usado pelo prescribe).
@@ -62,6 +68,14 @@
 - [T-09] HospitalizationService: authorize 'hospitalization' com requiresUnitScope; leito ocupado/inativo/outra unidade recusado antes de salvar; transfer para o mesmo leito → `to_bed_id must differ from from_bed_id`; `expected_discharge_date must be a Y-m-d date`; evento admission grava notes=motivo e to_bed_id.
 - [T-11] HospitalizationDischargeService: valida status/conta/produtos antes de escrever; item de administração usa performedAt (fallback scheduledAt) `d/m/Y H:i`; mensagens novas para T-18: `source_type "<t>" is not accepted for sourced items`, `Bed <id> is not occupied by hospitalization <id>`, `hospitalization_id|bed_id|product_id <id> was not found for the authenticated tenant`.
 - [T-07] Correção 1 (08b0ea1): UPDATE de administração só sobre `pending`; suspend/alta concorrentes com "Feito" propagam a exceção e o TTransaction do controller desfaz (afeta T-10/T-11/T-15).
+
+- [T-12] BedList/BedForm prontos: ações BedList::onReload|onActivate|onDeactivate, BedForm::onSave|onEdit; aba 'beds' do CvNav.
+- [T-13] HospitalizationAdmissionForm: admit em TTransaction único (corrida do occupy desfaz a internação); recusas via CvFormat::userError.
+- [T-14] HospitalizationView: rota id[&tab], onTransfer, onAskDischarge→onDischarge, onAskSuspendOrder→onSuspendOrder; alta em TTransaction único.
+- [T-15] Forms de prescrição/administração/evento prontos; leitura do AdministrationForm autoriza 'HospitalizationAdministrationForm::onLoad' (board.md antigo dizia sem método); toda action de service é Classe::método.
+- [T-16] Flowboard pronto: janela 2 h, ação 'HospitalizationBoard::onReload'; captura AuthorizationDenied/MissingTenantContext (3bc672a).
+- [T-17] Navegação pronta: menu Internação/Leitos, CvNav group 'hospitalization', PLAN_ACTIONS['hospitalization'] 'Hospitalize'.
+- [onda 4] "Message not found" em textos novos até a T-18 (chaves em board.md). Ids de teste para a T-20: beds 1–3 (F6 teste L1..L3); hospitalization 1 (encounter 1708) e 2 (encounter 2189, paciente 1452); orders 1–3; administrations 1–9; eventos vitals/evolução; lote 'F6 teste lote' (produto 8545); 2 itens hospitalization* na conta 46; 1 stock_movement hospitalization_consumption.
 
 ## Pendências
 - Central de Pendências (PRD §8.23) sem tela própria: o item de internação fica para quando a central existir.
@@ -78,6 +92,14 @@
 - T-10: `suspend` não exige internação admitted (avaliar na T-15).
 - T-11: alta dupla concorrente falha com PDOException de chave duplicada em vez de `is not admitted` (UPDATE condicional ou mapeamento no controller da T-14); fechamento concorrente da conta pode ser reaberto em silêncio (FOR UPDATE/UPDATE condicional); sem teste de `release` falso nem de `addSourcedItem` com conta não aberta.
 - T-07: restam sem guarda o UPDATE de internação (`status='admitted'`) e o CASE do save de leito; o UPDATE de administração foi corrigido na onda 3.
+
+- T-12: BedList sem teste automatizado (CvBadge, display conditions, estado vazio); botão Voltar só com ícone, sem aria-label (corrigir no kit).
+- T-13: catch (Exception) não cobre \Error (transação sem rollback explícito, mensagem crua); loadOptions() roda de novo em onSave.
+- T-14: alta dupla concorrente cai em PDOException (UNIQUE) sem mensagem amigável; onDischarge faz get(ACTION_READ) extra dentro da transação; resumo clínico (até 2000 chars) vai como GET no TQuestion.
+- T-15: resolveTenantContext() e montagem do service copiados em 3 forms; board.md antigo com ação sem método (ver Descobertas).
+- T-16: N+1 em admittedCards; KPI "Done in shift" conta puladas.
+- T-17: teste "Beds inside Settings" compara só posição de string; subprocesso descarta stderr.
+- Onda 4: "Message not found" em textos novos até a T-18.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -96,5 +118,6 @@
   - Onda 1: BASE 8f9ebfc → HEAD 743537a (743537a, def287d, 78db7e1, 7a2e9c9, 6d5be25, 2f89c78, 1299883, e343686)
   - Onda 2: BASE 4bc287e → HEAD bad05c6 (bad05c6, c2306e7, 623b4f3, 0f7a949)
   - Onda 3: BASE f3e64aa → HEAD 08b0ea1 (08b0ea1, ea5e5ee, 2df0ddc, 2d7f4f8, e58c2f9, 1ee515d, 9ff9aaf, 43a556a, 059ff3f, 2eed5f8, db2f0de)
-- Último status conhecido: onda 3 concluída (T-08, T-09, T-10, T-11 [x]; T-07 corrigida e segue [x]; gate aprovado, SUITE 590/590)
-- Próxima onda recomendada: 4 (T-12, T-13, T-14, T-15, T-16 e T-17, se ainda pendente; dependências satisfeitas)
+  - Onda 4: BASE 7d96545 → HEAD 3bc672a (3bc672a, f6cef53, d29e899, 6beb807, c6b2900, 435a93d, f93a63d, ca02c03, cad4416, d805a14, f13a863, d380bb7, f05eef9, 69e0ab0, 8f07c60, 9420e8c)
+- Último status conhecido: onda 4 concluída (T-12..T-17 [x]; gate aprovado no navegador; SUITE 607/607)
+- Próxima onda recomendada: 5 (T-18 e T-19; dependências satisfeitas)

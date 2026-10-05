@@ -13,12 +13,12 @@
 | T-09 | backend | `HospitalizationService` — admissão, transferência, evolução, parâmetros | T-03, T-06 | sim | alta | Athena | [x] |
 | T-10 | backend | `HospitalizationOrderService` — prescrição, suspensão, administração, flowboard | T-03, T-04, T-06 | sim | alta | Arquimedes | [x] |
 | T-11 | backend | Alta integrada — `HospitalizationDischargeService` + `EncounterAccountService::addSourcedItem` | T-03, T-04, T-06 | sim | alta | Aang | [x] |
-| T-12 | frontend | Telas de leitos (`BedList`, `BedForm`) | T-07, T-08 | sim | média | Saitama | [ ] |
-| T-13 | frontend | Tela de admissão a partir do atendimento | T-07, T-09 | sim | média | Naruto | [ ] |
-| T-14 | frontend | Ficha da internação com transferência e alta | T-07, T-09, T-10, T-11 | sim | alta | Aang | [ ] |
-| T-15 | frontend | Formulários de prescrição, administração e evolução/parâmetros | T-07, T-09, T-10 | sim | alta | Kratos | [ ] |
-| T-16 | frontend | Flowboard do turno (tablet) + `HospitalizationBoardView` + CSS `cv-board-*` | T-04, T-07, T-09, T-10 | sim | alta | Tesla | [ ] |
-| T-17 | frontend | Navegação: menu, abas `CvNav`, ação no `EncounterView` | T-05 | sim | média | Jaspion | [ ] |
+| T-12 | frontend | Telas de leitos (`BedList`, `BedForm`) | T-07, T-08 | sim | média | Saitama | [x] |
+| T-13 | frontend | Tela de admissão a partir do atendimento | T-07, T-09 | sim | média | Naruto | [x] |
+| T-14 | frontend | Ficha da internação com transferência e alta | T-07, T-09, T-10, T-11 | sim | alta | Aang | [x] |
+| T-15 | frontend | Formulários de prescrição, administração e evolução/parâmetros | T-07, T-09, T-10 | sim | alta | Kratos | [x] |
+| T-16 | frontend | Flowboard do turno (tablet) + `HospitalizationBoardView` + CSS `cv-board-*` | T-04, T-07, T-09, T-10 | sim | alta | Tesla | [x] |
+| T-17 | frontend | Navegação: menu, abas `CvNav`, ação no `EncounterView` | T-05 | sim | média | Jaspion | [x] |
 | T-18 | frontend | i18n pt/en e mensagens de domínio da internação | T-12, T-13, T-14, T-15, T-16, T-17 | sim | média | Levi | [ ] |
 | T-19 | docs | Runbook da internação | T-01, T-02, T-05, T-11 | sim | simples | Gandalf | [ ] |
 | T-20 | qa | Validação final ponta a ponta e SQL de limpeza `F6 teste` | T-18, T-19 | não | média | Spock | [ ] |

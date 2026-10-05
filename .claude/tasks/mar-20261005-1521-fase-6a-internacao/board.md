@@ -21,3 +21,104 @@ EOF
 - [T-09] HospitalizationService pronto: authorize com entityType 'hospitalization', requiresUnitScope true. Leito ocupado/inativo/de outra unidade já é recusado antes de salvar (BedUnavailableException::forBed); occupy()=false após o save lança o mesmo (o controller deve envolver admit/transfer num TTransaction). transfer para o mesmo leito → InvalidArgumentException 'to_bed_id must differ from from_bed_id'; data prevista inválida → InvalidArgumentException 'expected_discharge_date must be a Y-m-d date'; evento admission grava notes=reason e to_bed_id; recordEvolution/recordVitals/transfer fora de admitted → InvalidStatusTransitionException 'Hospitalization <id> is not admitted'.
 - [T-11] HospitalizationDischargeService pronto: valida status/conta aberta/produtos antes de escrever; item de administração usa performedAt (fallback scheduledAt) em `d/m/Y H:i`. Mensagens novas para T-18: `source_type "<t>" is not accepted for sourced items`, `Bed <id> is not occupied by hospitalization <id>` (release falhou → exceção, TTransaction desfaz), `hospitalization_id <id> was not found for the authenticated tenant`, `bed_id <id> was not found...`, `product_id <id> was not found...`. Conta fechada repete a mensagem de assertAccountOpen.
 - [T-07] Correção 1 (08b0ea1): HospitalizationAdministrationRepository::save de administração existente agora faz UPDATE com `AND status='pending'`; 0 linhas → InvalidStatusTransitionException "Administration <id> is not pending" (sem sobrescrever). FakeHospitalizationAdministrationRepository espelha (status persistido != pending → mesma exceção). Afeta T-10/T-11/T-15: suspend/alta concorrentes com um "Feito" propagam a exceção e o TTransaction do controller desfaz tudo.
+- [T-17] Navegação pronta (69e0ab0): menu `_t{Hospitalization}` → HospitalizationBoard e `_t{Beds}` → BedList (Configurações); CvNav::group('hospitalization') = board/beds com labels 'Board'/'Beds'; PLAN_ACTIONS['hospitalization'] label 'Hospitalize'. T-18 precisa das chaves Hospitalization, Beds, Board, Hospitalize. T-12/T-16 podem usar CvNav::tabs('hospitalization', 'board'|'beds').
+- [T-13] i18n: Hospitalization admission → Admissão de internação
+- [T-13] i18n: Bed → Leito
+- [T-13] i18n: Responsible veterinarian → Veterinário responsável
+- [T-13] i18n: Admission reason → Motivo da internação
+- [T-13] i18n: Expected discharge date → Previsão de alta
+- [T-13] i18n: Admit → Internar
+- [T-13] i18n: Open the admission from an encounter. → Abra a internação a partir de um atendimento.
+- [T-13] i18n: There is no available bed in this unit. → Não há leito disponível nesta unidade.
+- [T-13] i18n: Manage beds → Gerenciar leitos
+- [T-13] i18n: Patient admitted → Paciente internado
+- [T-13] i18n: You are not allowed to admit patients in this unit → Você não tem permissão para internar pacientes nesta unidade
+- [T-13] HospitalizationAdmissionForm pronto: admit num único TTransaction('permission') (corrida do occupy desfaz a internação); recusas via CvFormat::userError — T-18 precisa traduzir "Patient <id> already has an active hospitalization" e as de BedUnavailableException. Leitos via BedService::listAvailableForUnit(unidade do atendimento, 'HospitalizationAdmissionForm::onLoad'); responsável: usuários ativos do tenant (CvTenantUsers::criteria, mesma fonte dos forms clínicos) pré-selecionado com o profissional do atendimento. Link do estado vazio: index.php?class=BedList.
+- [T-16] Flowboard pronto (8f07c60 RED, ca02c03): rota index.php?class=HospitalizationBoard, ação RBAC 'HospitalizationBoard::onReload', janela 2 h; cartão → index.php?class=HospitalizationAdministrationForm&administration_id=<id> (sem method, também em cartões feitos/pulados) e faixa → index.php?class=HospitalizationView&id=<id>. CSS só em /* cv-board */ no fim de cv-components.css.
+- [T-16] i18n: Shift board → Quadro do turno
+- [T-16] i18n: Refresh → Atualizar
+- [T-16] i18n: Hospitalized → Internados
+- [T-16] i18n: Next 2 h → Próximas 2 h
+- [T-16] i18n: Done in shift → Feitas no turno
+- [T-16] i18n: Upcoming → Próximas
+- [T-16] i18n: Done → Feitas
+- [T-16] i18n: Due now → No horário
+- [T-16] i18n: Done late → Feita com atraso
+- [T-16] i18n: Skipped → Não realizada
+- [T-16] i18n: Nothing here → Nada aqui
+- [T-16] i18n: Bed → Leito
+- [T-16] i18n: Since ^1 → Desde ^1
+- [T-16] i18n: No hospitalized patients in this unit → Nenhum paciente internado nesta unidade
+- [T-16] i18n: Admit a patient from an encounter to see it on the board. → Interne um paciente a partir do atendimento para vê-lo no quadro.
+- [T-16] i18n: Oral → Oral
+- [T-16] i18n: IV → IV
+- [T-16] i18n: IM → IM
+- [T-16] i18n: SC → SC
+- [T-16] i18n: Topical → Tópica
+- [T-16] i18n: Inhalation → Inalatória
+- [T-12] i18n: Daily rate → Diária
+- [T-12] i18n: Edit bed → Editar leito
+- [T-12] i18n: New bed → Novo leito
+- [T-12] i18n: Hospitalization → Internação
+- [T-12] i18n: Beds → Leitos
+- [T-12] i18n: Activate → Ativar
+- [T-12] i18n: Deactivate → Desativar
+- [T-12] i18n: Bed activated → Leito ativado
+- [T-12] i18n: Bed deactivated → Leito desativado
+- [T-12] i18n: Available → Disponível
+- [T-12] i18n: Occupied → Ocupado
+- [T-12] i18n: No beds registered in this unit → Nenhum leito cadastrado nesta unidade
+- [T-12] i18n: You are not allowed to manage beds → Você não tem permissão para gerenciar leitos
+- [T-12] BedList/BedForm prontos: actions 'BedList::onReload|onActivate|onDeactivate', 'BedForm::onSave|onEdit'; CvNav::tabs('hospitalization','beds') atrás de try/catch InvalidArgumentException (T-17 cria o grupo, aba 'beds' → index.php?class=BedList). Mensagem de código repetido depende do UserMessage da T-18 para `A bed with code "<code>" already exists in this unit` (hoje aparece em inglês, escapada).
+- [T-15] Formulários prontos (435a93d). HospitalizationOrderForm::routeLabels() é public static (rótulos das 7 vias na ordem de ROUTES; reutilizável por T-14/T-16). Rotas voltam para HospitalizationView&id=<id> (sem id: HospitalizationBoard). Leitura do AdministrationForm autoriza com action 'HospitalizationAdministrationForm' (sem método). Botões de envio com classe cv-administration-submit, desabilitados no clique e reabilitados em erro.
+- [T-15] Mensagens novas (InvalidArgumentException, para UserMessage): `<campo> must be a positive integer` (hospitalization_id, administration_id, product_id, quantity_per_administration, frequency_hours), `<campo> must be a whole number` (heart_rate_bpm, respiratory_rate_rpm, pain_score), `<campo> must be a number` (temperature_c, weight_kg).
+- [T-15] i18n: Hospitalization order → Prescrição da internação
+- [T-15] i18n: Provide a hospitalization_id to prescribe. → Informe um hospitalization_id para prescrever.
+- [T-15] i18n: Quantity per administration → Quantidade por administração
+- [T-15] i18n: Dose → Dose
+- [T-15] i18n: Frequency (hours) → Frequência (horas)
+- [T-15] i18n: Starts at → Início
+- [T-15] i18n: Ends at → Fim
+- [T-15] i18n: Prescribe → Prescrever
+- [T-15] i18n: Order prescribed successfully → Prescrição registrada com sucesso
+- [T-15] i18n: You are not allowed to prescribe for this hospitalization → Você não tem permissão para prescrever nesta internação
+- [T-15] i18n: Medication → Medicação
+- [T-15] i18n: Feeding → Alimentação
+- [T-15] i18n: Procedure → Procedimento
+- [T-15] i18n: Oral → Oral
+- [T-15] i18n: Intravenous → Intravenosa
+- [T-15] i18n: Intramuscular → Intramuscular
+- [T-15] i18n: Subcutaneous → Subcutânea
+- [T-15] i18n: Topical → Tópica
+- [T-15] i18n: Inhalation → Inalatória
+- [T-15] i18n: Other → Outra
+- [T-15] i18n: Administration → Administração
+- [T-15] i18n: Provide an administration_id to record it. → Informe um administration_id para registrá-la.
+- [T-15] i18n: Required when not done → Obrigatória quando não feito
+- [T-15] i18n: Done → Feito
+- [T-15] i18n: Not done → Não feito
+- [T-15] i18n: Administration recorded as done → Administração registrada como feita
+- [T-15] i18n: Administration recorded as not done → Administração registrada como não feita
+- [T-15] i18n: You are not allowed to record this administration → Você não tem permissão para registrar esta administração
+- [T-15] i18n: Item → Item
+- [T-15] i18n: Scheduled at → Horário previsto
+- [T-15] i18n: Pending → Pendente
+- [T-15] i18n: Cancelled → Cancelada
+- [T-15] i18n: Vital signs → Parâmetros
+- [T-15] i18n: Evolution → Evolução
+- [T-15] i18n: Provide a hospitalization_id to record it. → Informe um hospitalization_id para registrar.
+- [T-15] i18n: Temperature (°C) → Temperatura (°C)
+- [T-15] i18n: Heart rate (bpm) → FC (bpm)
+- [T-15] i18n: Respiratory rate (rpm) → FR (mpm)
+- [T-15] i18n: Weight (kg) → Peso (kg)
+- [T-15] i18n: Pain score (0–10) → Dor (0–10)
+- [T-15] i18n: Vital signs recorded successfully → Parâmetros registrados com sucesso
+- [T-15] i18n: Evolution recorded successfully → Evolução registrada com sucesso
+- [T-15] i18n: You are not allowed to record events for this hospitalization → Você não tem permissão para registrar eventos nesta internação
+- [T-14] HospitalizationView pronto (c6b2900): rota `HospitalizationView&id=<id>[&tab=orders|administrations|timeline]`; ações `onTransfer(id,to_bed_id)`, `onAskDischarge`→TQuestion→`onDischarge(id,summary_text)`, `onAskSuspendOrder`→`onSuspendOrder(id,order_id)`, `onReload` (no-op). Action strings RBAC: `HospitalizationView::onReload|onTransfer|onDischarge|onSuspendOrder`. Links usados: `HospitalizationOrderForm&hospitalization_id=`, `HospitalizationAdministrationForm&administration_id=`, `HospitalizationEventForm&hospitalization_id=&type=evolution|vitals`, `EncounterAccountForm&encounter_id=`, voltar `HospitalizationBoard`.
+- [T-14] i18n: Hospitalization → Internação; Open a hospitalization from the hospitalization board or from the encounter. → Abra uma internação pelo quadro de internação ou pelo atendimento.; This hospitalization could not be loaded. → Não foi possível carregar esta internação.; Prescriptions → Prescrições; Administrations → Administrações; Evolution and vital signs → Evolução e parâmetros; Select the destination bed → Selecione o leito de destino; Patient transferred → Paciente transferido; You are not allowed to change this hospitalization → Você não tem permissão para alterar esta internação; You are not allowed to access this hospitalization → Você não tem permissão para acessar esta internação; The discharge summary is required → O resumo da alta é obrigatório
+- [T-14] i18n: Discharge this patient? The stay and the performed administrations will be billed to the encounter account and their products consumed from stock. → Dar alta a este paciente? As diárias e as administrações feitas serão lançadas na conta do atendimento e os produtos baixados do estoque.; Patient discharged → Alta registrada; Billed days → Diárias lançadas; Items added to the account → Itens lançados na conta; Products consumed → Produtos baixados; Open encounter account → Abrir conta do atendimento; Suspend this prescription? Its future pending administrations will be cancelled. → Suspender esta prescrição? As administrações pendentes futuras serão canceladas.; Invalid prescription → Prescrição inválida; Prescription suspended → Prescrição suspensa
+- [T-14] i18n: Bed → Leito; Responsible → Responsável; Admitted at → Admitido em; Expected discharge → Previsão de alta; Discharged at → Alta em; Hospitalized → Internado; Discharged → Alta; New prescription → Nova prescrição; No prescriptions yet. → Nenhuma prescrição ainda.; Description → Descrição; Dose → Dose; Route → Via; Frequency → Frequência; Period → Período; Status → Status; Suspend → Suspender; Every ^1 h → A cada ^1 h; Active → Ativa; Suspended → Suspensa
+- [T-14] i18n: No administrations scheduled for today or later. → Nenhuma administração agendada para hoje ou depois.; Scheduled at → Agendada para; Prescription → Prescrição; Performed at → Realizada em; Record → Registrar; Due now → No horário; Late → Atrasada; Done → Feita; Done late → Feita com atraso; Skipped → Não realizada; Cancelled → Cancelada; Upcoming → Próxima; Record evolution → Registrar evolução; Record vital signs → Registrar parâmetros; No events recorded yet. → Nenhum evento registrado ainda.; Admission → Admissão; Transfer → Transferir; Evolution → Evolução; Vital signs → Parâmetros; Discharge → Alta; Temperature → Temperatura; HR → FC; RR → FR; Weight → Peso; Pain → Dor; Transfer bed → Transferir de leito; Destination bed → Leito de destino; Discharge summary → Resumo da alta
+- [T-15] Correção 1: a leitura do HospitalizationAdministrationForm agora autoriza com 'HospitalizationAdministrationForm::onLoad'; a forma sem método violava AuthorizationRequest::ACTION_PATTERN (Invalid authorization action format). Toda action passada a service precisa ser Classe::método.
+- [T-16] i18n: You are not allowed to view the shift board → Você não tem permissão para ver o quadro do turno
