@@ -98,6 +98,19 @@ final class LeadFormTokenTest
         Assert::same(-2, $redis->ttl('counter'));
     }
 
+    public function testFakeRedisSetWithIntTtlBehavesLikeSetex(): void
+    {
+        $redis = new FakeRedis();
+
+        Assert::true($redis->set('k', 'v', 30));
+        Assert::same('v', $redis->get('k'));
+        Assert::same(30, $redis->ttl('k'), 'int third argument is the TTL in seconds, like SETEX');
+
+        $redis->set('k', 'w');
+        Assert::same('w', $redis->get('k'));
+        Assert::same(-1, $redis->ttl('k'), 'set without TTL clears the TTL');
+    }
+
     public function testLeadThrottleBlocksAfterTenHitsPerHour(): void
     {
         $limiter = new LoginRateLimiter(new FakeRedis(), 10, 3600, 'centralvet:lead-throttle:');
