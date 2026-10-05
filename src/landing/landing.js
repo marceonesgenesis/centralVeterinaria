@@ -250,7 +250,7 @@
     if (t.hasAttribute("data-add")) { state.planId = t.getAttribute("data-add"); state.sent = null; persist(); renderCount(); renderPlans(); openCart(); return; }
     if (t.id === "open-cart") { openCart(); return; }
     if (t.id === "close-cart" || t.id === "scrim" || t.id === "go-plans") { closeCart(); return; }
-    if (t.id === "remove-plan") { state.planId = null; persist(); renderCount(); renderPlans(); renderCart(); return; }
+    if (t.id === "remove-plan") { state.planId = null; persist(); renderCount(); renderPlans(); renderCart(); $("go-plans").focus(); return; }
     if (t.id === "new-order") { state.sent = null; renderCart(); closeCart(); return; }
   });
   document.addEventListener("submit", function (ev) { if (ev.target && ev.target.id === "lead-form") submitLead(ev); });

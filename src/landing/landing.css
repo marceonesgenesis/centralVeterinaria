@@ -223,6 +223,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .field input:focus, .field select:focus { border-color: var(--accent); outline: none; }
 .field .err { color: #B3412E; font-size: 13px; min-height: 0; }
 .field [aria-invalid="true"] { border-color: #B3412E; }
+.field [aria-invalid="true"]:focus { border-color: #B3412E; box-shadow: 0 0 0 3px rgba(179, 65, 46, .25); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
 .check { display: grid; grid-template-columns: 20px 1fr; gap: 10px; font-size: 14px; color: var(--ink-soft); align-items: start; }
