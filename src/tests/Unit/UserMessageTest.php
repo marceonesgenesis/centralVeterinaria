@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(32, UserMessage::STATIC);
-        Assert::count(36, UserMessage::PATTERNS);
+        Assert::count(39, UserMessage::STATIC);
+        Assert::count(38, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -171,6 +171,37 @@ final class UserMessageTest
         Assert::same(['key' => '^1 must be a positive integer', 'params' => ['frequency_hours']], UserMessage::resolve('frequency_hours must be a positive integer'));
         Assert::same(['key' => '^1 must be a whole number', 'params' => ['pain_score']], UserMessage::resolve('pain_score must be a whole number'));
         Assert::same(['key' => '^1 must be a number', 'params' => ['weight_kg']], UserMessage::resolve('weight_kg must be a number'));
+    }
+
+    public function testHospitalizationReachableMessagesResolveWithoutFieldNames(): void
+    {
+        // T-18 correção 1: o form de parâmetros aceita "-" e o domínio recusa negativo; recusas restantes da varredura.
+        foreach ([
+            'temperature_c cannot be negative',
+            'heart_rate_bpm cannot be negative',
+            'respiratory_rate_rpm cannot be negative',
+            'weight_kg cannot be negative',
+            'from_bed_id and to_bed_id are required for a transfer',
+            'bed_id must be positive',
+            'responsible_system_user_id must be positive',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+        }
+        Assert::same(['key' => 'Invalid route', 'params' => []], UserMessage::resolve('Unknown route "nasal"'));
+        Assert::same(['key' => 'Invalid prescription type', 'params' => []], UserMessage::resolve('Unknown order_type "x"'));
+    }
+
+    public function testCatalogTranslationsDoNotShowTechnicalFieldNames(): void
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        foreach (['temperature_c', 'heart_rate_bpm', 'respiratory_rate_rpm', 'weight_kg'] as $field) {
+            $pt = $translations["{$field} cannot be negative"] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$field} cannot be negative must name the field in Portuguese");
+        }
     }
 
     public function testEveryCatalogKeyHasATranslation(): void
