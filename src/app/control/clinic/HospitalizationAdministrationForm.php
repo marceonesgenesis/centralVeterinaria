@@ -22,7 +22,7 @@ class HospitalizationAdministrationForm extends TPage
 {
     protected $form;
 
-    private const ACTION_VIEW = 'HospitalizationAdministrationForm';
+    private const ACTION_VIEW = 'HospitalizationAdministrationForm::onLoad';
     private const ACTION_DONE = 'HospitalizationAdministrationForm::onDone';
     private const ACTION_SKIP = 'HospitalizationAdministrationForm::onSkip';
 
