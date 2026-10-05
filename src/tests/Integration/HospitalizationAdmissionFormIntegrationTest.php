@@ -80,6 +80,10 @@ final class HospitalizationAdmissionFormIntegrationTest
             );
         }
 
-        Assert::same('THidden', $result['fields']['encounter_id'] ?? null, 'encounter_id must be hidden');
+        $hiddenClass = (string) ($result['fields']['encounter_id'] ?? '');
+        Assert::true(
+            $hiddenClass === 'THidden' || str_ends_with($hiddenClass, '\\THidden'),
+            "encounter_id must be hidden, got '{$hiddenClass}'"
+        );
     }
 }
