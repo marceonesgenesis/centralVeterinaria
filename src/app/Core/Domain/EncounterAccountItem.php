@@ -43,8 +43,16 @@ final class EncounterAccountItem
     public const TYPE_PROCEDURE_EXECUTION = 'procedure_execution';
     public const TYPE_EXAM_REQUEST = 'exam_request';
     public const TYPE_MANUAL = 'manual';
+    public const TYPE_HOSPITALIZATION_STAY = 'hospitalization_stay';
+    public const TYPE_HOSPITALIZATION_ADMINISTRATION = 'hospitalization_administration';
 
-    private const TYPES = [self::TYPE_PROCEDURE_EXECUTION, self::TYPE_EXAM_REQUEST, self::TYPE_MANUAL];
+    private const TYPES = [
+        self::TYPE_PROCEDURE_EXECUTION,
+        self::TYPE_EXAM_REQUEST,
+        self::TYPE_MANUAL,
+        self::TYPE_HOSPITALIZATION_STAY,
+        self::TYPE_HOSPITALIZATION_ADMINISTRATION,
+    ];
 
     private function __construct(
         private ?int $id,
