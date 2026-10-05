@@ -164,6 +164,22 @@ final class LandingCatalogTest
         }
     }
 
+    public function testMissingNullOrNonStringPhoneIsRejected(): void
+    {
+        $missing = $this->validPayload();
+        unset($missing['phone']);
+
+        $cases = [
+            'missing' => $missing,
+            'null' => ['phone' => null] + $this->validPayload(),
+            'int' => ['phone' => 11912345678] + $this->validPayload(),
+        ];
+
+        foreach ($cases as $label => $payload) {
+            Assert::same(['phone'], array_keys($this->errorsFor($payload)), 'Expected only phone for ' . $label);
+        }
+    }
+
     /** @return array<string, mixed> */
     private function validPayload(): array
     {
