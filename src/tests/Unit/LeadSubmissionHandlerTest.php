@@ -192,6 +192,17 @@ final class LeadSubmissionHandlerTest
         Assert::count(1, $this->store->inserted);
     }
 
+    public function testForgedPriceInPayloadIsStoredWithCatalogPrice(): void
+    {
+        $token = $this->tokens->issue(self::ISSUED_AT);
+
+        $response = $this->post(['plan_price_cents' => 1, 'price_cents' => 1] + $this->validPayload(), $token);
+
+        Assert::same(201, $response->status);
+        Assert::count(1, $this->store->inserted);
+        Assert::same(9700, $this->store->inserted[0]['lead']->planPriceCents);
+    }
+
     public function testStoreFailureAnswers503WithoutLeakingTheMessage(): void
     {
         $handler = $this->handlerWith(new FakeLeadStore(new \RuntimeException('SQLSTATE[HY000] segredo')));

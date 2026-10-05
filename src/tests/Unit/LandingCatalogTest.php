@@ -78,6 +78,71 @@ final class LandingCatalogTest
         Assert::same(['name'], array_keys($errors));
     }
 
+    public function testForgedPriceInPayloadIsIgnored(): void
+    {
+        $lead = LeadSubmission::fromPayload([
+            'price_cents' => 1,
+            'plan_price_cents' => 1,
+            'planPriceCents' => 1,
+            'plan_name' => 'Grátis',
+        ] + $this->validPayload());
+
+        Assert::same(9700, $lead->planPriceCents);
+        Assert::same('Pro', $lead->planName);
+    }
+
+    public function testInvisibleOnlyNameAndClinicAreRejected(): void
+    {
+        $errors = $this->errorsFor([
+            'name' => "\u{00A0}\u{200B}\u{00A0}",
+            'clinic' => "\u{200B}\u{2060}",
+        ] + $this->validPayload());
+
+        Assert::same(['clinic', 'name'], $this->sortedKeys($errors));
+    }
+
+    public function testFormatCharacterInsideNameIsRejected(): void
+    {
+        $errors = $this->errorsFor(['name' => "An\u{200B}a Ribeiro"] + $this->validPayload());
+
+        Assert::same(['name'], array_keys($errors));
+    }
+
+    public function testPhoneRawTextAboveLimitIsRejected(): void
+    {
+        $phone = '(11) 91234-5678' . str_repeat(' -', 5);
+        Assert::same(25, mb_strlen($phone));
+        Assert::same(11, strlen((string) preg_replace('/\D/', '', $phone)));
+
+        $errors = $this->errorsFor(['phone' => $phone] + $this->validPayload());
+
+        Assert::same(['phone'], array_keys($errors));
+    }
+
+    public function testUncoveredRulesAreEnforced(): void
+    {
+        $cases = [
+            ['phone', ['phone' => '119123456']],
+            ['phone', ['phone' => '11912345678901']],
+            ['email', ['email' => str_repeat('a', 149) . '@exemplo.com']],
+            ['clinic', ['clinic' => 'A']],
+            ['clinic', ['clinic' => str_repeat('a', 161)]],
+            ['vets', ['vets' => 'x']],
+            ['city', ['city' => str_repeat('a', 81)]],
+            ['city', ['city' => 'Campinas <b>']],
+            ['name', ['name' => 123]],
+            ['email', ['email' => ['a@b.com']]],
+            ['plan', ['plan' => true]],
+            ['consent', ['consent' => 'true']],
+            ['consent', ['consent' => 1]],
+        ];
+
+        foreach ($cases as [$key, $override]) {
+            $errors = $this->errorsFor($override + $this->validPayload());
+            Assert::same([$key], array_keys($errors), 'Expected only ' . $key . ' for ' . json_encode($override));
+        }
+    }
+
     /** @return array<string, mixed> */
     private function validPayload(): array
     {
