@@ -17,9 +17,11 @@
 - 2026-10-05 · T-08 · onda 2 — gate do CSV com sessão admin (onExport) não rodado nesta onda (sem sessão admin); passa para o gate admin da T-10.
 - 2026-10-05 · T-10 · onda 3 — bucket lead-throttle do gateway 192.168.16.1 esgotado (10/10): gates com X-Forwarded-For 203.0.113.NN, válido porque o nginx confia em RFC1918 (T-04); sem apagar a chave nem esperar o TTL.
 - 2026-10-05 · T-10/T-08 · onda 3 — login admin no Playwright MCP feito pelo orquestrador com credenciais do .env, com autorização explícita do usuário; CSV admin 200 text/csv, 12 colunas, 13 linhas. Caminho de falha do CSV coberto só pelo unitário LeadCsvExportTest.
+- 2026-10-05 · final · pós-revisão — revisão final aprovada com sugestões (reviews/final.md: 5 resolvidas, 14 abertas, 0 promovidas).
+- 2026-10-05 · T-09 · pós-revisão — SQL executado pelo orquestrador com aprovação SQL explícita do usuário: backup var/backups/centralvet-20261005T174645Z.sql.gz (gzip -t ok; `make` ausente no host, usado ./scripts/backup.sh), DELETE em transação com guarda ROW_COUNT()=13 → 13 linhas afetadas, COMMIT, landing_lead total_depois = 0; nenhuma chave Redis removida.
 
 ## Bloqueios
-- Depois da Onda 3 (aprovação SQL do usuário): execução de `sql/T-09-cleanup-landing-lead.sql` em `centralvet` pelo orquestrador, com backup (`./scripts/backup.sh` + `gzip -t`) antes. Sem aprovação, os leads de teste ficam e a pendência é registrada.
+- RESOLVIDO (2026-10-05): execução de `sql/T-09-cleanup-landing-lead.sql` feita pelo orquestrador com aprovação SQL explícita do usuário (ver Decisões tomadas).
 
 ## Descobertas
 - [T-04] nginx (9b5a8e0): real_ip X-Forwarded-For (RFC1918 + 127.0.0.1, recursive) e absolute_redirect off; /lead.php não-POST responde 405 JSON com Allow: POST no nginx (não chega ao PHP local).
@@ -34,7 +36,7 @@
 - T-09: [sugestão] A guarda "N linhas afetadas, senão ROLLBACK" é só comentário; deixar explícito no cabeçalho que a execução é interativa e o COMMIT só após conferir N (sql/T-09-cleanup-landing-lead.sql:12-14,37).
 - T-09: [sugestão] Comentário "lead-throttle: nenhum encontrado em 2026-10-05" já está vencido; dizer "no momento da leitura" (sql:42-43).
 - Validador: contagens de tenant/patient/tutor/system_program/system_group_program não comparadas na onda 1 (sem BASE no prompt); ficam para T-10. Gate de navegador é das ondas 2-3.
-- SQL da T-09 só é executado pelo orquestrador após a onda 3, com backup e aprovação SQL do usuário.
+- RESOLVIDO: SQL da T-09 executado em 2026-10-05 (ver Decisões tomadas).
 - T-06: [sugestão] marcador `ev.preventDefault()` de testScriptWrapsTabInsideOpenCart já existia (submitLead); o wrap só é provado pelo gate Playwright (LandingA11yTest.php:65).
 - T-06: [sugestão] `.field input:focus`/`select:focus` sobrepõe a borda de `[aria-invalid="true"]`; campo inválido focado perde o indicador vermelho (landing.css:223-225).
 - T-06: [sugestão] "Remover" (`#remove-plan`) chama renderCart() e o foco cai em body dentro do diálogo aberto (landing.js:253).
@@ -47,7 +49,7 @@
 - T-10: [sugestão] curls de T-02/T-04 com XFF 203.0.113.NN por ruling; o 403 sem XFF não foi exercido.
 - T-10: [sugestão] caminho de falha do CSV (failurePage) só coberto por LeadCsvExportTest, sem gate de navegador.
 - Validador (onda 3): escopo não verificável (onda sem commits de código; só reports/T-10.md e board.md).
-- landing_lead tem 13 linhas, todas no predicado da T-09; o SQL da T-09 ainda não foi executado (aguarda aprovação SQL do usuário após a revisão final).
+- RESOLVIDO: landing_lead tinha 13 linhas, todas no predicado da T-09; SQL executado em 2026-10-05, landing_lead total_depois = 0.
 
 ## Riscos
 - 9 tasks em 2 ondas no checkout compartilhado: SUITEs simultâneas dão falso FAIL em testes Redis alheios — cada implementador lê só as linhas da própria classe; o gate roda a SUITE sozinha.
@@ -65,4 +67,4 @@
   - Onda 2: BASE f65e9cc → HEAD 937df30 (dff3aeb, 1a31d45, a35c9bd, 6f83a3e, c0117ea, 6d3fc4b, aaefa40, 1a4c70f, 937df30)
   - Onda 3: BASE 9dbafc0 → HEAD 9dbafc0 (sem commits de código; só reports/reviews/board)
 - Último status conhecido: onda 3 concluída (T-10 [x]); todas as tasks [x]
-- Próxima onda recomendada: nenhuma (revisão final; depois SQL da T-09 com aprovação)
+- Próxima onda recomendada: nenhuma (execução encerrada; revisão final aprovada, SQL da T-09 executado)
