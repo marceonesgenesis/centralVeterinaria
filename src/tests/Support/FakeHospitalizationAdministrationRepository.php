@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Support;
 
 use CentralVet\Domain\Contract\HospitalizationAdministrationRepositoryInterface;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\HospitalizationAdministration;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -22,6 +23,15 @@ final class FakeHospitalizationAdministrationRepository implements Hospitalizati
     /** @var array<int, HospitalizationAdministration> */
     private array $administrations = [];
     private int $nextId = 1;
+
+    /**
+     * Status each id had at its last save(), mirroring the PDO repository's
+     * `AND status = 'pending'` guard (entities are shared by reference, so
+     * the stored object cannot tell what was persisted).
+     *
+     * @var array<int, string>
+     */
+    private array $persistedStatus = [];
 
     /** Number of save() calls after construction (seed not counted). */
     public int $saveCount = 0;
@@ -60,10 +70,17 @@ final class FakeHospitalizationAdministrationRepository implements Hospitalizati
         if ($entity->id() === null) {
             $entity->assignId($this->nextId++);
         } else {
+            $previous = $this->persistedStatus[$entity->id()] ?? null;
+
+            if ($previous !== null && $previous !== HospitalizationAdministration::STATUS_PENDING) {
+                throw new InvalidStatusTransitionException("Administration {$entity->id()} is not pending");
+            }
+
             $this->nextId = max($this->nextId, $entity->id() + 1);
         }
 
         $this->administrations[$entity->id()] = $entity;
+        $this->persistedStatus[$entity->id()] = $entity->status();
         $this->saveCount++;
 
         return $entity;

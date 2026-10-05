@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Persistence;
 
 use CentralVet\Domain\Contract\HospitalizationAdministrationRepositoryInterface;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\HospitalizationAdministration;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
@@ -158,7 +159,13 @@ final class HospitalizationAdministrationRepository extends AbstractTenantReposi
             return $entity;
         }
 
-        $query = $this->tenantQuery()->andEquals('id', $entity->id());
+        // Every domain transition leaves `pending` (markDone/markSkipped/
+        // cancel), so the UPDATE only applies to a row still pending: a
+        // concurrent done x skipped/cancel loses here (InnoDB re-evaluates
+        // the WHERE on the committed row) instead of overwriting the winner.
+        $query = $this->tenantQuery()
+            ->andEquals('id', $entity->id())
+            ->andEquals('status', HospitalizationAdministration::STATUS_PENDING);
 
         $statement = $this->connection->prepare(
             <<<SQL
@@ -175,6 +182,10 @@ final class HospitalizationAdministrationRepository extends AbstractTenantReposi
             ':performed_by_system_user_id' => $entity->performedBySystemUserId(),
             ':notes_text' => $entity->notesText(),
         ]);
+
+        if ($statement->rowCount() !== 1) {
+            throw new InvalidStatusTransitionException("Administration {$entity->id()} is not pending");
+        }
 
         return $entity;
     }
