@@ -24,7 +24,7 @@ namespace CentralVet\Tests\Support;
  *
  * incr/expire/ttl/del follow phpredis semantics for LoginRateLimiter and
  * Landing\LeadFormToken: TTLs are remembered (from set() with ['EX'|'ex'
- * => n] or expire()) but never elapse — there is no clock; ttl() returns
+ * => n] or an int third argument, or expire()) but never elapse — there is no clock; ttl() returns
  * -2 for a missing key and -1 for a key without TTL.
  */
 final class FakeRedis extends \Redis
@@ -47,7 +47,10 @@ final class FakeRedis extends \Redis
         $nx = false;
         $ttl = null;
 
-        if (is_array($options)) {
+        if (is_int($options)) {
+            // phpredis: set($key, $value, int $ttl) is SETEX with $ttl seconds.
+            $ttl = $options;
+        } elseif (is_array($options)) {
             foreach ($options as $optionKey => $optionValue) {
                 $flag = is_string($optionKey) ? $optionKey : (string) $optionValue;
 
