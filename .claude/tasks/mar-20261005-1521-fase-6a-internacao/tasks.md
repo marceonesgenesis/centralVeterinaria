@@ -7,8 +7,8 @@
 | T-03 | backend | Domain de leito, internação e evento + contratos + tipos de conta e motivo de estoque | — | sim | alta | Platão | [x] |
 | T-04 | backend | Domain de prescrição interna, administração e agenda + contratos | — | sim | alta | Arquimedes | [x] |
 | T-05 | infra | Programas RBAC das 8 telas e grupo `Clínico – Internação` (seed + DML, verify e rollback) | — | sim | média | Jaspion | [x] |
-| T-06 | shared | Fakes dos 5 repositórios da internação | T-03, T-04 | sim | média | Platão | [ ] |
-| T-07 | backend | Repositórios PDO (ocupação atômica de leito, flowboard) + integração | T-01, T-03, T-04 | sim | alta | Athena | [ ] |
+| T-06 | shared | Fakes dos 5 repositórios da internação | T-03, T-04 | sim | média | Platão | [x] |
+| T-07 | backend | Repositórios PDO (ocupação atômica de leito, flowboard) + integração | T-01, T-03, T-04 | sim | alta | Athena | [x] |
 | T-08 | backend | `BedService` — cadastro de leitos por unidade | T-03, T-06 | sim | média | Jaspion | [ ] |
 | T-09 | backend | `HospitalizationService` — admissão, transferência, evolução, parâmetros | T-03, T-06 | sim | alta | Athena | [ ] |
 | T-10 | backend | `HospitalizationOrderService` — prescrição, suspensão, administração, flowboard | T-03, T-04, T-06 | sim | alta | Arquimedes | [ ] |
