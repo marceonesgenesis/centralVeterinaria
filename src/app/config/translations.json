@@ -436,6 +436,10 @@
     "pt": "Leito desativado"
   },
   {
+    "en": "bed_id must be positive",
+    "pt": "Selecione um leito"
+  },
+  {
     "en": "Beds",
     "pt": "Leitos"
   },
@@ -1304,6 +1308,10 @@
     "pt": "De"
   },
   {
+    "en": "from_bed_id and to_bed_id are required for a transfer",
+    "pt": "Informe o leito de origem e o de destino da transferência"
+  },
+  {
     "en": "Front page",
     "pt": "Página inicial"
   },
@@ -1354,6 +1362,10 @@
   {
     "en": "Heart rate (bpm)",
     "pt": "Frequência cardíaca (bpm)"
+  },
+  {
+    "en": "heart_rate_bpm cannot be negative",
+    "pt": "A frequência cardíaca não pode ser negativa"
   },
   {
     "en": "Help",
@@ -1564,6 +1576,10 @@
     "pt": "Prescrição inválida"
   },
   {
+    "en": "Invalid prescription type",
+    "pt": "Tipo de prescrição inválido"
+  },
+  {
     "en": "invalid price",
     "pt": "preço inválido"
   },
@@ -1574,6 +1590,10 @@
   {
     "en": "Invalid receivable",
     "pt": "Conta a receber inválida"
+  },
+  {
+    "en": "Invalid route",
+    "pt": "Via inválida"
   },
   {
     "en": "Invalid sale",
@@ -2728,6 +2748,10 @@
     "pt": "FR (mpm)"
   },
   {
+    "en": "respiratory_rate_rpm cannot be negative",
+    "pt": "A frequência respiratória não pode ser negativa"
+  },
+  {
     "en": "Responsible",
     "pt": "Responsável"
   },
@@ -2738,6 +2762,10 @@
   {
     "en": "responsible_system_user_id must be an active user of this tenant",
     "pt": "O veterinário responsável deve ser um usuário ativo desta clínica"
+  },
+  {
+    "en": "responsible_system_user_id must be positive",
+    "pt": "Selecione o veterinário responsável"
   },
   {
     "en": "Restore from trash",
@@ -3220,6 +3248,10 @@
     "pt": "Temperatura (°C)"
   },
   {
+    "en": "temperature_c cannot be negative",
+    "pt": "A temperatura não pode ser negativa"
+  },
+  {
     "en": "Template",
     "pt": "Modelo"
   },
@@ -3634,6 +3666,10 @@
   {
     "en": "Weight (kg)",
     "pt": "Peso (kg)"
+  },
+  {
+    "en": "weight_kg cannot be negative",
+    "pt": "O peso não pode ser negativo"
   },
   {
     "en": "weight_kg must be a number between 0 and 9999.99, e.g. 4,5",

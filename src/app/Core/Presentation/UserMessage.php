@@ -48,6 +48,13 @@ final class UserMessage
         'name must be between 1 and 120 characters' => 'name must be between 1 and 120 characters',
         'daily_rate_cents cannot be negative' => 'daily_rate_cents cannot be negative',
         'reason_text must be at most 500 characters' => 'reason_text must be at most 500 characters',
+        'temperature_c cannot be negative' => 'temperature_c cannot be negative',
+        'heart_rate_bpm cannot be negative' => 'heart_rate_bpm cannot be negative',
+        'respiratory_rate_rpm cannot be negative' => 'respiratory_rate_rpm cannot be negative',
+        'weight_kg cannot be negative' => 'weight_kg cannot be negative',
+        'from_bed_id and to_bed_id are required for a transfer' => 'from_bed_id and to_bed_id are required for a transfer',
+        'bed_id must be positive' => 'bed_id must be positive',
+        'responsible_system_user_id must be positive' => 'responsible_system_user_id must be positive',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -83,6 +90,8 @@ final class UserMessage
         '/^Hospitalization (?:\d+|\(new\))? ?is not admitted$/D' => 'This hospitalization is no longer active',
         '/^Administration (?:\d+|\(new\)) is not pending$/D' => 'This administration is no longer pending',
         '/^Order (?:\d+|\(new\)) is not active$/D' => 'This prescription is no longer active',
+        '/^Unknown route "[^"]*"$/D' => 'Invalid route',
+        '/^Unknown order_type "[^"]*"$/D' => 'Invalid prescription type',
         '/^Encounter account \d+ cannot be modified: status is "[^"]*", not "open"$/D' => 'The encounter account is not open',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
