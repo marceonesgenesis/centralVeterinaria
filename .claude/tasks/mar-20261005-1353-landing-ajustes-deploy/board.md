@@ -13,3 +13,4 @@ EOF
 ```
 - [T-04] nginx (9b5a8e0): real_ip X-Forwarded-For (RFC1918 + 127.0.0.1, recursive) e absolute_redirect off no server; /lead.php não-POST → 405 JSON com Allow: POST no nginx (não chega ao PHP local). Grep de validação do .htaccess: usar /usr/bin/grep (o grep do zsh é função e dá 0).
 - [T-02] LeadSubmissionHandler::precheck(string $method, array $headers, string $body): ?LeadResponse e CentralVet\Landing\LazyLeadStore (closure chamada só no 1º insert) prontos (f008b84); lead.php agora só abre Redis/PDO depois do precheck. handle() inalterado no contrato.
+- [T-06] landing.html: cache-busters landing.css/translations.js/landing.js agora `?v=20261005-a11y` (i18n.js inalterado) e `#cart` com `inert` sem `aria-hidden` (c0117ea RED, aaefa40); LandingPageTest:67-68 atualizado. Quem mexer nesses arquivos deve partir desses valores.

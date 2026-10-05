@@ -4,12 +4,12 @@
 |---|---|---|---|---|---|---|---|
 | T-01 | backend | LeadSubmission: trim unicode, `\p{Cf}` e phone bruto; testes de regras e de preço forjado | — | sim | média | Arquimedes | [x] |
 | T-02 | backend | lead.php: precheck (405/413/400/403) antes de Redis/PDO e LazyLeadStore | — | sim | média | Platão | [x] |
-| T-03 | backend | HEAD em landing.php não emite nem grava token | — | sim | simples | Saitama | [ ] |
+| T-03 | backend | HEAD em landing.php não emite nem grava token | — | sim | simples | Saitama | [x] |
 | T-04 | infra | nginx: real_ip, absolute_redirect off, 405 do /lead.php; .htaccess com limite de método | — | sim | média | Yoda | [x] |
-| T-05 | docs | Runbooks: IP real e limite por IP no nginx local e na hospedagem compartilhada | T-04 | sim | simples | Gandalf | [ ] |
-| T-06 | frontend | a11y do drawer do carrinho e do formulário de lead (pt/en/es) | — | sim | alta | Aang | [ ] |
+| T-05 | docs | Runbooks: IP real e limite por IP no nginx local e na hospedagem compartilhada | T-04 | sim | simples | Gandalf | [x] |
+| T-06 | frontend | a11y do drawer do carrinho e do formulário de lead (pt/en/es) | — | sim | alta | Aang | [x] |
 | T-07 | backend | FakeRedis::set respeita TTL int no 3º argumento | — | sim | simples | Levi | [x] |
-| T-08 | frontend | LandingLeadList::onExport em falha com página de erro legível | — | sim | simples | Naruto | [ ] |
+| T-08 | frontend | LandingLeadList::onExport em falha com página de erro legível | — | sim | simples | Naruto | [x] |
 | T-09 | database | SQL de limpeza dos leads de teste e roteiro dos resíduos Redis (sem executar) | — | sim | simples | Darwin | [x] |
 | T-10 | qa | Validação final: suíte, lint, nginx, curl, navegador, contagens e escopo | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-08, T-09 | não | média | Spock | [ ] |
 
