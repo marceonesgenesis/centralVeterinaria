@@ -36,6 +36,15 @@ final class LandingPage
     }
 
     /**
+     * Só `GET` emite o token do formulário (grava `centralvet:lead-token:*`
+     * com TTL de 2 h); `HEAD` responde os mesmos headers sem tocar o Redis.
+     */
+    public function issuesToken(string $method): bool
+    {
+        return strtoupper($method) === 'GET';
+    }
+
+    /**
      * Lê `logged` da sessão sem nunca gravá-la: só abre quando o cookie
      * $sessionName veio no pedido, em `read_and_close` (open/read/close, sem
      * write), sem Set-Cookie e sem cache headers. Cookie forjado ou expirado

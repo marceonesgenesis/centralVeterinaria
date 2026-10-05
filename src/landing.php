@@ -45,11 +45,14 @@ switch ($page->entryFor($method, $queryString, $logged)) {
         exit;
 }
 
+// HEAD não emite token: cada pedido gravaria uma chave de 2 h no Redis.
 $leadToken = '';
-try {
-    $leadToken = (new LeadFormToken(RedisConnectionFactory::fromEnvironment()))->issue(time());
-} catch (\Throwable $e) {
-    error_log('landing.php: lead form token unavailable: ' . $e->getMessage());
+if ($page->issuesToken($method)) {
+    try {
+        $leadToken = (new LeadFormToken(RedisConnectionFactory::fromEnvironment()))->issue(time());
+    } catch (\Throwable $e) {
+        error_log('landing.php: lead form token unavailable: ' . $e->getMessage());
+    }
 }
 
 header('Content-Type: text/html; charset=utf-8');
