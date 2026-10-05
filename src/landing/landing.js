@@ -92,7 +92,7 @@
     var body = $("cart-body"), foot = $("cart-foot"), plan = planById(state.planId);
     if (state.sent) {
       body.innerHTML = '<div class="done-box"><div class="seal">' + checkIcon.replace('aria-hidden="true"', 'width="34" height="34" aria-hidden="true"') + "</div>" +
-        '<h3>Pedido recebido</h3><p><span>Obrigado,</span> <span data-no-i18n>' + esc(state.sent.name) + '</span>. <span>Registramos o plano</span> <b>' + esc(state.sent.plan) +
+        '<h3 id="lead-done-title" tabindex="-1">Pedido recebido</h3><p><span>Obrigado,</span> <span data-no-i18n>' + esc(state.sent.name) + '</span>. <span>Registramos o plano</span> <b>' + esc(state.sent.plan) +
         '</b> <span>para</span> <span data-no-i18n>' + esc(state.sent.clinic) + '</span>. <span>Nossa equipe vai entrar em contato pelo WhatsApp ou e-mail informado para ativar a sua conta.</span></p></div>';
       foot.innerHTML = '<button type="button" class="btn btn-ghost" id="new-order">Fechar</button>';
       return;
@@ -118,7 +118,7 @@
       selectField("lead-uf", "UF", ufOptions()) + "</div>" +
       '<div class="hp" aria-hidden="true"><label for="lead-' + HONEYPOT_FIELD + '">Site</label>' +
       '<input id="lead-' + HONEYPOT_FIELD + '" name="' + HONEYPOT_FIELD + '" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"></div>' +
-      '<label class="check"><input type="checkbox" id="lead-consent"><span>' + esc(CONSENT_TEXT) + "</span></label>" +
+      '<label class="check"><input type="checkbox" id="lead-consent" aria-describedby="consent-err"><span>' + esc(CONSENT_TEXT) + "</span></label>" +
       '<p class="field"><span class="err" id="consent-err"></span></p>' +
       "</form>";
     foot.innerHTML = '<button type="submit" form="lead-form" class="btn btn-primary" id="submit-lead">' + submitLabel(plan) + "</button>" +
@@ -129,10 +129,10 @@
 
   function field(id, label, type, ac, ph) {
     return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + type + '" autocomplete="' + ac +
-      '" placeholder="' + esc(ph) + '"><span class="err" id="' + id + '-err"></span></div>';
+      '" placeholder="' + esc(ph) + '" aria-describedby="' + id + '-err"><span class="err" id="' + id + '-err"></span></div>';
   }
   function selectField(id, label, options) {
-    return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '">' + options +
+    return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '" aria-describedby="' + id + '-err">' + options +
       '</select><span class="err" id="' + id + '-err"></span></div>';
   }
   function vetsOptions() {
@@ -143,20 +143,33 @@
   }
 
   var lastFocus = null;
+  function pageSiblings() {
+    return [document.querySelector("header.top"), $("inicio"), document.querySelector("body > footer")].filter(Boolean);
+  }
   function openCart() {
     lastFocus = document.activeElement;
+    $("cart").inert = false;
+    pageSiblings().forEach(function (el) { el.inert = true; });
     $("scrim").hidden = false;
-    var d = $("cart"); d.classList.add("open"); d.setAttribute("aria-hidden", "false");
+    $("cart").classList.add("open");
     renderCart();
     setTimeout(function () { $("close-cart").focus(); }, 30);
   }
   function closeCart() {
+    $("cart").inert = true;
+    pageSiblings().forEach(function (el) { el.inert = false; });
     $("scrim").hidden = true;
-    var d = $("cart"); d.classList.remove("open"); d.setAttribute("aria-hidden", "true");
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    $("cart").classList.remove("open");
+    var target = lastFocus && lastFocus.isConnected && lastFocus !== document.body ? lastFocus : $("open-cart");
+    lastFocus = null;
+    if (target && target.focus) target.focus();
   }
 
-  function setErr(id, msg) { var el = $(id + "-err"); if (el) { el.textContent = msg || ""; I18N.translate(el); } }
+  function setErr(id, msg) {
+    var el = $(id + "-err"); if (el) { el.textContent = msg || ""; I18N.translate(el); }
+    var control = $(id === "consent" ? "lead-consent" : id);
+    if (control) { if (msg) control.setAttribute("aria-invalid", "true"); else control.removeAttribute("aria-invalid"); }
+  }
   function val(id) { var el = $(id); return el ? el.value.trim() : ""; }
   function errIdFor(key) { return key === "consent" ? "consent" : "lead-" + key; }
   function focusFirstError() {
@@ -168,7 +181,7 @@
     var unknown = [];
     Object.keys(fields || {}).forEach(function (key) {
       var el = $(errIdFor(key) + "-err");
-      if (el) { el.textContent = String(fields[key]); I18N.translate(el); } else unknown.push(String(fields[key]));
+      if (el) setErr(errIdFor(key), String(fields[key])); else unknown.push(String(fields[key]));
     });
     focusFirstError();
     return unknown.length ? unknown.join(" ") : MSG_FIX_FIELDS;
@@ -212,6 +225,7 @@
         if (r.status === 201 || r.status === 200) {
           state.sent = { name: name.split(" ")[0], plan: plan.name, clinic: clinic };
           state.planId = null; persist(); renderCount(); renderPlans(); renderCart();
+          $("lead-done-title").focus();
           return;
         }
         var message = MSG_GENERIC;
