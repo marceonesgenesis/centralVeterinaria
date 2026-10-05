@@ -3,6 +3,12 @@
 Arquivos numerados deste diretório são artefatos auditáveis e não são
 executados automaticamente pela aplicação.
 
+Os SQLs originais exigem MySQL 8. Para instalação inicial em MySQL 5.7,
+use o preparador documentado em
+[`shared-hosting-mysql57.md`](../../../../docs/runbooks/shared-hosting-mysql57.md).
+Ele preserva as validações CHECK com triggers e gera um manifesto próprio;
+não execute os SQLs originais diretamente nessa versão.
+
 Procedimento obrigatório:
 
 1. validar versão, banco-alvo e precondições;

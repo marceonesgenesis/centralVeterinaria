@@ -1,0 +1,2 @@
+# Public entry for Apache/shared hosting. The login remains at index.php.
+DirectoryIndex landing.php index.php
