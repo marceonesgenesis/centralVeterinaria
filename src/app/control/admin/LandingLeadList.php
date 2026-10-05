@@ -177,7 +177,7 @@ class LandingLeadList extends TPage
             http_response_code(500);
             header('Content-Type: text/html; charset=UTF-8');
             header('Cache-Control: private, no-store');
-            echo \CentralVet\Landing\LeadCsvExport::failurePage(_t('Could not export the leads. Close this tab and try again.'));
+            echo \CentralVet\Landing\LeadCsvExport::failurePage(_t('Could not export the leads. Close this tab and try again.'), (string) ApplicationTranslator::getLanguage());
             exit;
         }
 
