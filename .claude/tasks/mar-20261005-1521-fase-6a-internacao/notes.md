@@ -30,6 +30,9 @@
 - 2026-10-05 · T-05 · onda 1 — `SET NAMES utf8mb4;` também no seed; `FROM DUAL` nos INSERTs sem tabela (5.7); rollback com SELECT prévio de concessões fora dos grupos 1 e novo.
 - 2026-10-05 · T-06 · onda 2 — Fakes com `public int $saveCount`; `occupy`/`release` do FakeBedRepository trocam o Bed guardado por `Bed::reconstitute` (Bed sem mutador de ocupação); administrações por scheduled_at,id e eventos por recorded_at DESC,id DESC.
 - 2026-10-05 · T-07 · onda 2 — `BedRepository::save` via CASE nunca move leito para/de `occupied` (protege `bed_occupancy_ck`); repositório de eventos só insere (`remove()` lança); `listBoardRows` exclui administrações `cancelled`.
+- 2026-10-05 · T-07/T-10 · onda 3 — Lost update no UPDATE de administração (done×skipped/cancel concorrentes) corrigido já na T-07: UPDATE com `AND status='pending'` + rowCount → "Administration <id> is not pending"; Fake espelhado (ea5e5ee RED + 08b0ea1). Sem cobrança/estoque em dobro (UNIQUE de source_id).
+- 2026-10-05 · T-07 · onda 3 — Caminhos autorizados por ruling para a correção: src/tests/Support/FakeHospitalizationAdministrationRepository.php e src/tests/Unit/HospitalizationFakesTest.php (RED inválido/escopo apontado pelo validador; sem reescrever histórico).
+- 2026-10-05 · T-09 · onda 3 — Corrida do occupy() após a internação salva: o rollback depende do TTransaction do controller; cobrar na revisão da T-13 (e T-14 se aplicável). Admissão simultânea do mesmo paciente sem guarda no banco fica como pendência do MVP.
 
 ## Bloqueios
 - RESOLVIDO em 2026-10-05 (orquestrador, com aprovação SQL explícita do usuário): bloqueio entre a Onda 1 e a Onda 2.
@@ -54,6 +57,11 @@
 - [T-01] 0010 preparada (743537a): 5 tabelas, 16 CHECKs (14 novos + 2 ampliados), 2 UNIQUEs, 23 FKs; `provision.sh` lista a 0010 depois da 0009. Aplicada no bloqueio da onda 1.
 - [T-06] Fakes prontos (c2306e7): construtor (int $tenantId, Entidade ...$seed), `saveCount` zerado após o seed; `FakeBedRepository::occupy/release` trocam o Bed por reconstitute (use findById depois); `seedBoardRows(array)` no fake de administração.
 - [T-07] Repositórios PDO prontos (bad05c6): `BedRepository::save` preserva ocupação via CASE; `inactive` com leito ocupado lança `BedUnavailableException::occupied`; `remove()` de leito só se livre; eventos append-only; save de internação grava só bed_id/status/alta; save de prescrição só status/suspended_at; `listBoardRows` exclui `cancelled`, datas `Y-m-d H:i:s`.
+- [T-08] BedService: create autoriza antes da checagem de código duplicado; leito inexistente/de outro tenant → CrossTenantReferenceException antes de `decide`; listAvailableForUnit filtra isAvailable() sobre listByUnit.
+- [T-10] HospitalizationOrderService: OUTCOME_DONE/OUTCOME_SKIPPED, BOARD_LOOKBACK_HOURS=12; outcome inválido → `Unknown administration outcome "<x>"`; windowHours<1 → `window_hours must be positive`; ids inexistentes/produto inativo → CrossTenantReferenceException; suspend não exige admitted; board autoriza com requireUnitId.
+- [T-09] HospitalizationService: authorize 'hospitalization' com requiresUnitScope; leito ocupado/inativo/outra unidade recusado antes de salvar; transfer para o mesmo leito → `to_bed_id must differ from from_bed_id`; `expected_discharge_date must be a Y-m-d date`; evento admission grava notes=motivo e to_bed_id.
+- [T-11] HospitalizationDischargeService: valida status/conta/produtos antes de escrever; item de administração usa performedAt (fallback scheduledAt) `d/m/Y H:i`; mensagens novas para T-18: `source_type "<t>" is not accepted for sourced items`, `Bed <id> is not occupied by hospitalization <id>`, `hospitalization_id|bed_id|product_id <id> was not found for the authenticated tenant`.
+- [T-07] Correção 1 (08b0ea1): UPDATE de administração só sobre `pending`; suspend/alta concorrentes com "Feito" propagam a exceção e o TTransaction do controller desfaz (afeta T-10/T-11/T-15).
 
 ## Pendências
 - Central de Pendências (PRD §8.23) sem tela própria: o item de internação fica para quando a central existir.
@@ -65,6 +73,11 @@
 - T-01: tenant/unidade só na aplicação (sem FK composta); admissões simultâneas do mesmo paciente sem guarda no banco (cobrir no service/teste da T-09); `hospitalization_discharge_ck` não exige `discharged_by_system_user_id`; falha entre `DROP CHECK` e `ADD CONSTRAINT` se recupera reaplicando só o ADD.
 - T-06: FakeBedRepository::save grava a entidade inteira, diferente do PDO (corrida leito ocupado/desativado passa no Fake e falha no PDO); ordenação de `listByHospitalization` (ordens) e `listActiveByUnit` no Fake é por inserção (PDO: starts_at,id / admitted_at,id); `$boardRows` declarada no meio da classe do fake de administração.
 - T-07: UPDATE de administração sem `AND status = 'pending'` (dois "Feito" simultâneos; avaliar UPDATE condicional em T-10); UPDATE de internação sem guarda `status = 'admitted'` (alta dupla concorrente; T-11 depende do TTransaction); CASE do save de leito reativa em silêncio leito inativado entre leitura e save.
+- T-08: create concorrente com o mesmo código estoura a UNIQUE `bed_unit_code_uq` como PDOException crua; falta teste da guarda `system_unit_id must be positive` em listAvailableForUnit.
+- T-09: admissões simultâneas do mesmo paciente sem guarda no banco (pendência do MVP; FOR UPDATE ou coluna gerada com UNIQUE); corrida do occupy() depende do TTransaction do controller (cobrar na revisão da T-13/T-14); transfer() ignora o retorno de release(); teste de corrida não afirma saveCount === 1; helper eventsOfType varre só ids 1..8.
+- T-10: `suspend` não exige internação admitted (avaliar na T-15).
+- T-11: alta dupla concorrente falha com PDOException de chave duplicada em vez de `is not admitted` (UPDATE condicional ou mapeamento no controller da T-14); fechamento concorrente da conta pode ser reaberto em silêncio (FOR UPDATE/UPDATE condicional); sem teste de `release` falso nem de `addSourcedItem` com conta não aberta.
+- T-07: restam sem guarda o UPDATE de internação (`status='admitted'`) e o CASE do save de leito; o UPDATE de administração foi corrigido na onda 3.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -82,5 +95,6 @@
 - Commits por onda:
   - Onda 1: BASE 8f9ebfc → HEAD 743537a (743537a, def287d, 78db7e1, 7a2e9c9, 6d5be25, 2f89c78, 1299883, e343686)
   - Onda 2: BASE 4bc287e → HEAD bad05c6 (bad05c6, c2306e7, 623b4f3, 0f7a949)
-- Último status conhecido: onda 2 concluída (T-06, T-07 [x], gate aprovado, SUITE 544/544); T-17 não fez parte da onda
-- Próxima onda recomendada: 3 (T-08, T-09, T-10, T-11 e T-17, se ainda pendente; dependências satisfeitas)
+  - Onda 3: BASE f3e64aa → HEAD 08b0ea1 (08b0ea1, ea5e5ee, 2df0ddc, 2d7f4f8, e58c2f9, 1ee515d, 9ff9aaf, 43a556a, 059ff3f, 2eed5f8, db2f0de)
+- Último status conhecido: onda 3 concluída (T-08, T-09, T-10, T-11 [x]; T-07 corrigida e segue [x]; gate aprovado, SUITE 590/590)
+- Próxima onda recomendada: 4 (T-12, T-13, T-14, T-15, T-16 e T-17, se ainda pendente; dependências satisfeitas)

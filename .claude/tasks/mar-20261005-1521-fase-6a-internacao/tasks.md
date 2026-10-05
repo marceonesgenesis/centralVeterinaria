@@ -9,10 +9,10 @@
 | T-05 | infra | Programas RBAC das 8 telas e grupo `Clínico – Internação` (seed + DML, verify e rollback) | — | sim | média | Jaspion | [x] |
 | T-06 | shared | Fakes dos 5 repositórios da internação | T-03, T-04 | sim | média | Platão | [x] |
 | T-07 | backend | Repositórios PDO (ocupação atômica de leito, flowboard) + integração | T-01, T-03, T-04 | sim | alta | Athena | [x] |
-| T-08 | backend | `BedService` — cadastro de leitos por unidade | T-03, T-06 | sim | média | Jaspion | [ ] |
-| T-09 | backend | `HospitalizationService` — admissão, transferência, evolução, parâmetros | T-03, T-06 | sim | alta | Athena | [ ] |
-| T-10 | backend | `HospitalizationOrderService` — prescrição, suspensão, administração, flowboard | T-03, T-04, T-06 | sim | alta | Arquimedes | [ ] |
-| T-11 | backend | Alta integrada — `HospitalizationDischargeService` + `EncounterAccountService::addSourcedItem` | T-03, T-04, T-06 | sim | alta | Aang | [ ] |
+| T-08 | backend | `BedService` — cadastro de leitos por unidade | T-03, T-06 | sim | média | Jaspion | [x] |
+| T-09 | backend | `HospitalizationService` — admissão, transferência, evolução, parâmetros | T-03, T-06 | sim | alta | Athena | [x] |
+| T-10 | backend | `HospitalizationOrderService` — prescrição, suspensão, administração, flowboard | T-03, T-04, T-06 | sim | alta | Arquimedes | [x] |
+| T-11 | backend | Alta integrada — `HospitalizationDischargeService` + `EncounterAccountService::addSourcedItem` | T-03, T-04, T-06 | sim | alta | Aang | [x] |
 | T-12 | frontend | Telas de leitos (`BedList`, `BedForm`) | T-07, T-08 | sim | média | Saitama | [ ] |
 | T-13 | frontend | Tela de admissão a partir do atendimento | T-07, T-09 | sim | média | Naruto | [ ] |
 | T-14 | frontend | Ficha da internação com transferência e alta | T-07, T-09, T-10, T-11 | sim | alta | Aang | [ ] |
