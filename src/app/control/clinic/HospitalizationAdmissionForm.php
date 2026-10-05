@@ -72,7 +72,7 @@ class HospitalizationAdmissionForm extends TPage
         );
 
         $btn = $this->form->addAction(_t('Admit'), new TAction([$this, 'onSave']), 'fa:bed');
-        $btn->class = 'btn btn-primary';
+        $btn->class = 'btn btn-primary cv-touch-target';
 
         CvForm::decorate($this->form, 2);
 
@@ -250,7 +250,7 @@ class HospitalizationAdmissionForm extends TPage
 
         if ($link !== null)
         {
-            $html .= '<a class="btn btn-outline-primary" generator="adianti" href="' . CvFormat::e($link['href']) . '">'
+            $html .= '<a class="btn btn-outline-primary cv-touch-target" generator="adianti" href="' . CvFormat::e($link['href']) . '">'
                 . CvFormat::e($link['label']) . '</a>';
         }
 
