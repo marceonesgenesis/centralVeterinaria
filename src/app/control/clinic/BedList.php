@@ -47,17 +47,25 @@ class BedList extends TPage
         $this->datagrid->addColumn($column_rate);
         $this->datagrid->addColumn($column_status);
 
+        // Ações como botões visíveis (não dropdown): alvo de toque de 44 px no tablet.
         $action_edit = new TDataGridAction(['BedForm', 'onEdit'], ['id' => '{id}', 'register_state' => 'false']);
         $action_activate = new TDataGridAction([__CLASS__, 'onActivate'], ['id' => '{id}', 'static' => '1', 'register_state' => 'false']);
         $action_activate->setDisplayCondition([__CLASS__, 'canActivate']);
         $action_deactivate = new TDataGridAction([__CLASS__, 'onDeactivate'], ['id' => '{id}', 'static' => '1', 'register_state' => 'false']);
         $action_deactivate->setDisplayCondition([__CLASS__, 'canDeactivate']);
 
-        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
-            ['label' => _t('Edit'), 'action' => $action_edit, 'icon' => 'far:edit'],
-            ['label' => _t('Activate'), 'action' => $action_activate, 'icon' => 'fa:toggle-on'],
-            ['label' => _t('Deactivate'), 'action' => $action_deactivate, 'icon' => 'fa:toggle-off'],
-        ]));
+        foreach ([
+            [$action_edit, _t('Edit'), 'far:edit'],
+            [$action_activate, _t('Activate'), 'fa:toggle-on'],
+            [$action_deactivate, _t('Deactivate'), 'fa:toggle-off'],
+        ] as [$action, $label, $icon])
+        {
+            $action->setLabel($label);
+            $action->setImage($icon);
+            $action->setUseButton(true);
+            $action->setButtonClass('btn btn-sm btn-outline-secondary cv-touch-target');
+            $this->datagrid->addAction($action);
+        }
 
         $this->datagrid->createModel();
 
@@ -232,7 +240,7 @@ class BedList extends TPage
         $state->add(TElement::tag('p', CvFormat::e(_t('No beds registered in this unit')), ['class' => 'cv-state__title']));
 
         $button = TElement::tag('a', CvFormat::e(_t('New bed')), [
-            'class'     => 'btn btn-primary',
+            'class'     => 'btn btn-primary cv-touch-target',
             'href'      => 'index.php?class=BedForm',
             'generator' => 'adianti',
         ]);

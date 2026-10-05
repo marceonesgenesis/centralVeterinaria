@@ -734,3 +734,15 @@ a.cv-tab:hover {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* cv-touch */
+/* Alvo de toque mínimo de 44 px (tablet) para botões de ação das telas da
+   internação; mesmo alinhamento dos botões do cabeçalho (.cv-page-head__actions .btn). */
+.cv-touch-target {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cv-space-2);
+    min-height: 44px;
+    min-width: 44px;
+}

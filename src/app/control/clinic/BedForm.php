@@ -60,7 +60,7 @@ class BedForm extends TPage
         $daily_rate->addValidation( _t('Daily rate'), new TRequiredValidator );
 
         $btn = $this->form->addAction(_t('Save'), new TAction([$this, 'onSave']), 'fa:check');
-        $btn->class = 'btn btn-primary';
+        $btn->class = 'btn btn-primary cv-touch-target';
 
         $container = new TVBox;
         $container->style = 'width: 100%';
