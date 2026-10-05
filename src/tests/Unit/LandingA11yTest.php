@@ -55,6 +55,16 @@ final class LandingA11yTest
         Assert::false(str_contains($script, 'aria-hidden", "'), 'landing.js must not toggle aria-hidden on #cart');
     }
 
+    public function testScriptWrapsTabInsideOpenCart(): void
+    {
+        $script = $this->read(self::SCRIPT);
+
+        Assert::stringContains('function cartFocusables()', $script);
+        Assert::stringContains('ev.key === "Tab"', $script);
+        Assert::stringContains('ev.shiftKey', $script);
+        Assert::stringContains('ev.preventDefault()', $script);
+    }
+
     public function testScriptWiresFieldErrors(): void
     {
         $script = $this->read(self::SCRIPT);
