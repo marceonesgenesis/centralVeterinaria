@@ -56,6 +56,22 @@ redirecionamentos da landing usam caminhos relativos, compatíveis com
 instalação na raiz do domínio ou em um subdiretório. Sessões autenticadas e
 pedidos com query string seguem para `index.php` no mesmo diretório.
 
+### IP do visitante e limite de envios da landing
+
+O `lead.php` usa só `REMOTE_ADDR` e conta 10 envios por IP por hora. Atrás de
+proxy/CDN do provedor (ex.: Cloudflare), `REMOTE_ADDR` vira o IP do proxy e
+todos os visitantes dividem o mesmo limite. A correção é no servidor, com
+`mod_remoteip` (`RemoteIPHeader` + `RemoteIPTrustedProxy` só com as faixas do
+proxy), pedida ao provedor: essas diretivas não valem no `.htaccess`. O PHP
+nunca lê `X-Forwarded-For`, porque o cliente falsifica o header.
+
+Como conferir: envie um lead de teste e compare o `consent_ip` gravado com o
+IP público de quem enviou; se vier o IP do proxy, o `mod_remoteip` falta.
+
+O `.htaccess` recusa métodos diferentes de `POST` no `lead.php` com 405
+(`RewriteRule ^lead\.php$ - [R=405,L]`), só com `mod_rewrite`; sem ele o PHP
+responde o mesmo 405.
+
 A landing oferece Português, English e Español nos seletores do cabeçalho
 e do carrinho. `landing/translations.js` contém as traduções de textos,
 planos, comparativo, FAQ, formulário e mensagens; `landing/i18n.js` aplica

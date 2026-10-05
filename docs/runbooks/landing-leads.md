@@ -68,8 +68,17 @@ do grupo precisam sair e entrar de novo para o menu carregar o programa.
 - **Limite por IP:** 10 `POST /lead.php` por IP por hora, contados a cada
   POST (inclusive os recusados), com o `LoginRateLimiter` no Redis sob o
   prefixo `centralvet:lead-throttle:`. Excedido → `429`. O IP é o
-  `REMOTE_ADDR`: atrás de proxy/CDN, configure `real_ip` no nginx antes de
-  abrir o tráfego, ou todos os visitantes dividem o mesmo limite.
+  `REMOTE_ADDR`; o PHP nunca lê `X-Forwarded-For`. No nginx local
+  (`docker/nginx/default.conf`), `set_real_ip_from` confia nas faixas
+  RFC1918 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) e em 127.0.0.1, com
+  `real_ip_header X-Forwarded-For;` e `real_ip_recursive on;`. Risco aceito:
+  quem fala com o gateway forja o header, mas a porta só escuta em
+  `127.0.0.1`; publicá-la em `0.0.0.0` exige rever `set_real_ip_from`. Para
+  conferir o bucket de um IP:
+  `redis-cli EXISTS centralvet:lead-throttle:$(printf 'lead|IP' | sha256sum | cut -d' ' -f1)`
+  (`1` = há envios na janela). Na hospedagem compartilhada o IP real vem do
+  `mod_remoteip` do provedor: ver `shared-hosting-mysql57.md` § IP do
+  visitante e limite de envios da landing.
 - **Token do formulário:** cada visualização da landing emite um token
   aleatório guardado no Redis (chave = sha256 do token, TTL 2 h), aceito só
   depois de 3 s da emissão e uma única vez. Token ausente, vencido, reusado ou
