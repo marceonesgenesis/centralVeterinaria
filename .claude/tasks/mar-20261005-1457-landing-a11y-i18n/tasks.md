@@ -6,7 +6,7 @@
 | T-02 | backend | `failurePage` do CSV com `lang` do idioma ativo do Adianti | — | sim | simples | Athena | [x] |
 | T-03 | backend | Phone sem `$phoneRaw === null ||`, com caracterização de ausente/`null`/não-string | — | sim | simples | Sherlock | [x] |
 | T-04 | database | Comentários pós-execução do SQL de limpeza da T-09 anterior | — | sim | simples | Maquiavel | [-] cancelada (fora do escopo) |
-| T-05 | qa | Validação final: LINT, SUITE, curl, Playwright pt/en/es, contagem e escopo | T-01, T-02, T-03 | não | média | Kratos | [ ] |
+| T-05 | qa | Validação final: LINT, SUITE, curl, Playwright pt/en/es, contagem e escopo | T-01, T-02, T-03 | não | média | Kratos | [x] |
 
 ## Detalhamento
 

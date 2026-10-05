@@ -12,17 +12,22 @@
 - 2026-10-05 · T-04 · onda 1 — Edição dos comentários do SQL histórico negada pelo classificador de permissões do modo automático; não contornada; usuário retirou a T-04 do escopo (cancelada). Comentários desatualizados do SQL viram pendência (a execução real está no notes.md da rodada anterior). T-05 deixa de depender da T-04.
 - 2026-10-05 · T-01 · onda 1 — Gate de navegador (foco em #go-plans após Remover, Tab, borda de erro focada) fica para a T-05.
 - 2026-10-05 · T-05 · onda 1 — Validador: "Total = BASE + 4" confirmado por referência (rodada anterior fechou com SUITE 514/514; onda deu 518/518); COUNT de landing_lead não se aplica na onda 1 (sem envio de lead).
+- 2026-10-05 · T-05 · onda 2 — Limpou localStorage/sessionStorage por língua em vez de contexto novo (perfil Playwright persistente); aceito.
+- 2026-10-05 · T-05 · onda 2 — Borda do select #lead-vets conferida com aria-invalid sintético porque o cliente não marca o select inválido no envio vazio; aceito.
 
 ## Bloqueios
 - nenhum
 
 ## Descobertas
 - [T-04] Bloqueada: o classificador do modo automático negou a edição de T-09-cleanup-landing-lead.sql; arquivo igual a 5b632bf, sem commit da T-04.
+- [T-05] Gate de navegador pt/en/es concluído; landing_lead 0→0, sem limpeza SQL.
 
 ## Pendências
 - T-04: comentários do SQL histórico .claude/tasks/mar-20261005-1353-landing-ajustes-deploy/sql/T-09-cleanup-landing-lead.sql seguem desatualizados (cancelada; execução real registrada no notes.md da rodada anterior).
 - T-03: `Failed: 0` global confirmado no gate da onda (518/518); sem pendência residual.
 - Validador: gate de navegador da T-01 (foco após Remover, Tab, borda de erro focada) não rodado; fica para a T-05.
+- T-05: `#lead-vets` nunca fica inválido no cliente (landing.js:202); borda em select só provada com aria-invalid sintético (reviews/T-05.md).
+- T-05: relatório registrou "Pendências: nenhuma" apesar do desvio do select; contexto Playwright não foi anônimo (perfil persistente).
 
 ## Riscos
 - 4 implementadores no checkout compartilhado: SUITEs simultâneas dão falso FAIL em testes Redis alheios — cada um lê só as linhas da própria classe; o gate roda a SUITE sozinha.
@@ -37,5 +42,6 @@
 - BASE da onda 1: 5b632bf
 - Commits por onda:
   - Onda 1: BASE 5b632bf → HEAD b1e8ba7 (bde7dc7, 0c0d806, e17e748, 42ebc17, 58593d2, b1e8ba7)
-- Último status conhecido: onda 1 concluída: T-01, T-02, T-03 [x]; T-04 cancelada (fora do escopo); SUITE 518/518.
-- Próxima onda recomendada: onda 2 — T-05 (validação final, após rebuild + restart do nginx)
+  - Onda 2: BASE a4be325 → HEAD a4be325 (sem commits de código; T-05 só relatório)
+- Último status conhecido: ondas 1 e 2 concluídas: T-01, T-02, T-03, T-05 [x]; T-04 cancelada (fora do escopo); SUITE 518/518.
+- Próxima onda recomendada: nenhuma — revisão final
