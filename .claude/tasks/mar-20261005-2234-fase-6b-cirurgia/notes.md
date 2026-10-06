@@ -111,6 +111,6 @@
   - Onda 4: BASE e09d03d → HEAD 1f7718f (dd31bcb, 24a5c00, b502111, 0388aee, aafdb9c, 192a950, 1a42185, c577b6d, d75ee63, 765b946, f872e4e, a5104a1, 1859572, 92daa99, 118f066, 2d05dd9, 78aa2e0, 1f7718f)
   - Onda 5: BASE c7ce164 → HEAD 5283aaa (193840a, 44343f2, 5283aaa)
   - Onda 6: BASE 2422d4a → HEAD dd2aa3c (dd2aa3c)
-  - Onda 7: BASE be11483 → HEAD 219f1e2, aeeb85d, f1c0688
+  - Onda 7: BASE be11483 → HEAD f1c0688 (219f1e2, aeeb85d, f1c0688)
 - Último status conhecido: onda 7 (correção da revisão final) concluída; T-06/T-08 [x]; SUITE 751/751, teste de duas conexões e PYTEST57 OK; re-revisão aprovada.
 - Próxima onda recomendada: nenhuma; executar sql/T-21-cleanup.sql (backup, ensaio, aprovação SQL)
