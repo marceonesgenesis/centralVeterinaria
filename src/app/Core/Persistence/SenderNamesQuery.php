@@ -11,9 +11,9 @@ use PDO;
 /**
  * Names of the active unit and of the current tenant for the manual message
  * placeholders `{{unit_name}}` and `{{clinic_name}}`. Only SELECTs.
- * `system_unit` (Adianti) has no tenant column: the unit id comes from the
- * authenticated context (the active unit), never from free input; the
- * tenant is always the context's.
+ * `system_unit` is filtered by the context's tenant (`tenant_id`, as every
+ * new query): a unit of another tenant reads as not found (null). The
+ * tenant is always the context's, never caller input.
  */
 final class SenderNamesQuery implements SenderNamesQueryInterface
 {
@@ -25,8 +25,9 @@ final class SenderNamesQuery implements SenderNamesQueryInterface
 
     public function namesForUnit(int $unitId): array
     {
-        $unit = $this->connection->prepare('SELECT name FROM system_unit WHERE id = :unit_id');
-        $unit->execute(['unit_id' => $unitId]);
+        $query = TenantQuery::forTenant($this->context->tenantId(), 'su')->andEquals('id', $unitId, 'su');
+        $unit = $this->connection->prepare('SELECT su.name FROM system_unit su WHERE ' . $query->whereSql());
+        $unit->execute($query->parameters());
         $unitName = $unit->fetchColumn();
 
         $tenant = $this->connection->prepare(
