@@ -199,4 +199,21 @@ final class CommunicationMessageScreensIntegrationTest
         Assert::true(!str_contains($html, '<script>'), 'no raw <script> may reach the list');
         Assert::true(str_contains($html, 'class=CommunicationMessageView&id=41') || str_contains($html, 'class=CommunicationMessageView&amp;id=41'), 'row links to the detail');
     }
+
+    public function testSentStatusUsesTheMessageGenderInPortuguese(): void
+    {
+        // T-21 correção 1: _t('Sent') é "Enviado" em outras telas; o status da mensagem tem chave própria.
+        $result = $this->runAdianti(
+            '$out["labels"] = array_map([CommunicationMessageView::class, "statusLabel"], ["queued", "sent", "manual", "failed", "cancelled"]);'
+            . '$msg = CentralVet\Domain\OutboundMessage::reconstitute(' . self::row('email', 'fulano@example.invalid', 'sent') . ');'
+            . '$r = new ReflectionClass("CommunicationMessageList");'
+            . '$m = $r->getMethod("table"); $m->setAccessible(true);'
+            . '$m->invoke(null, [$msg], [9 => "Tutor"])->show();'
+        );
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::same(['Na fila', 'Enviada', 'Enviada manualmente', 'Falhou', 'Cancelada'], $result['labels'] ?? null);
+        Assert::true(str_contains((string) $result['html'], 'Enviada'), 'the list shows the sent status as "Enviada"');
+        Assert::true(!str_contains((string) $result['html'], 'Enviado'), 'the list must not show the masculine "Enviado"');
+    }
 }

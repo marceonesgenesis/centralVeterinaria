@@ -25,6 +25,11 @@ final class PendingCenterIntegrationTest
         $scenario = json_decode($argv[1], true);
         $now = new DateTimeImmutable('2031-03-10 10:00:00');
         $items = [];
+        if ($scenario['labels'] ?? false) {
+            $items[] = new CentralVet\Domain\PendingItem('message_failed', 44, 'Rex', 'appointment_confirmation', new DateTimeImmutable('2031-03-20 08:00:00'), null, 'CommunicationMessageView', ['id' => 44]);
+            $items[] = new CentralVet\Domain\PendingItem('message_whatsapp_manual', 45, 'Rex', 'vaccine_due', new DateTimeImmutable('2031-03-20 08:00:00'), null, 'CommunicationMessageView', ['id' => 45]);
+            $items[] = new CentralVet\Domain\PendingItem('receivable_open', 55, 'Mia', 'receivable_open', new DateTimeImmutable('2031-03-20 08:00:00'), null, 'PaymentForm', ['receivable_id' => 55]);
+        }
         if ($scenario['items']) {
             $items[] = new CentralVet\Domain\PendingItem('exam_result', 11, '<script>x</script>', 'Hemograma', new DateTimeImmutable('2031-03-09 08:00:00'), 7, 'ExamResultForm', ['exam_request_id' => 11, 'encounter_id' => 5]);
             $items[] = new CentralVet\Domain\PendingItem('vaccine_due', 22, 'Rex', 'V10', new DateTimeImmutable('2031-03-20 00:00:00'), null, 'VaccinationCardView', ['patient_id' => 9]);
@@ -52,7 +57,7 @@ final class PendingCenterIntegrationTest
      * @param array<string, string> $param
      * @return array{html: string, urls: list<string>, error?: string}
      */
-    private function render(bool $withItems, array $param): array
+    private function render(bool $withItems, array $param, bool $labels = false): array
     {
         $src = dirname(__DIR__, 2);
 
@@ -61,7 +66,7 @@ final class PendingCenterIntegrationTest
         }
 
         $code = 'chdir(' . var_export($src, true) . '); require "init.php";' . self::SCRIPT;
-        $scenario = json_encode(['items' => $withItems, 'param' => $param]);
+        $scenario = json_encode(['items' => $withItems, 'param' => $param, 'labels' => $labels]);
 
         $out = shell_exec(
             escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($code) . ' -- ' . escapeshellarg((string) $scenario) . ' 2>/dev/null'
@@ -128,5 +133,21 @@ final class PendingCenterIntegrationTest
 
         Assert::stringContains('index.php?class=VaccinationCardView&amp;patient_id=9', $html, 'filtered type must be listed');
         Assert::false(str_contains($html, 'class=ExamResultForm'), 'other types must be filtered out');
+    }
+
+    public function testStatusAndSubjectShowPortugueseLabelsInsteadOfCodes(): void
+    {
+        // T-21 correção 1: status "aberta" com chave própria (não a ação "Abrir") e assunto
+        // de mensagem/recebível traduzido (não o código cru da finalidade).
+        $html = $this->render(false, [], true)['html'];
+
+        foreach (['appointment_confirmation', 'vaccine_due', 'receivable_open'] as $code) {
+            Assert::true(preg_match('/<td[^>]*>\s*' . $code . '\s*<\/td>/', $html) !== 1, "subject cell must not show the raw code {$code}");
+        }
+        Assert::stringContains('Confirmação de agendamento', $html, 'message purpose must be translated');
+        Assert::stringContains('Vacina a vencer', $html, 'message purpose must be translated');
+        Assert::stringContains('Cobrança em aberto', $html, 'receivable subject must be translated');
+        Assert::stringContains('Em aberto', $html, 'open status badge must read "Em aberto"');
+        Assert::true(preg_match('/>\s*Abrir\s*</', $html) !== 1, 'open status badge must not read "Abrir"');
     }
 }
