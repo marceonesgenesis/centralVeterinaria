@@ -238,7 +238,8 @@ final class CommunicationMessageScreensIntegrationTest
             str_contains($html, "__adianti_goto_page('index.php?class=CommunicationMessageView&id=41')"),
             'the detail must be reloaded right after the change'
         );
-        Assert::true(str_contains($html, 'Mensagem marcada como enviada'), 'the success message must be shown');
+        // TToast manda o texto em base64 (__adianti_show_toast64).
+        Assert::true(str_contains($html, "__adianti_show_toast64('success'"), 'the success message must be shown');
 
         $source = (string) ($result['source'] ?? '');
         Assert::true(

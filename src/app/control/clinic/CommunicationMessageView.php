@@ -161,7 +161,7 @@ class CommunicationMessageView extends TPage
                 }
             }
 
-            new TMessage('info', _t('Message requeued'), self::reloadAction($id));
+            self::reloadAfterChange($id, _t('Message requeued'));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -192,7 +192,7 @@ class CommunicationMessageView extends TPage
 
     /**
      * Roda uma transição num único TTransaction('permission') e recarrega a
-     * ficha pelo OK; qualquer exceção dá rollback.
+     * ficha logo depois do commit; qualquer exceção dá rollback.
      *
      * @param callable(\CentralVet\Tenancy\TenantContext, int): void $change
      */
@@ -211,7 +211,7 @@ class CommunicationMessageView extends TPage
             $change($context, $id);
             TTransaction::close();
 
-            new TMessage('info', $success, self::reloadAction($id));
+            self::reloadAfterChange($id, $success);
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -552,12 +552,15 @@ class CommunicationMessageView extends TPage
         return $box;
     }
 
-    private static function reloadAction(int $id): TAction
+    /**
+     * Depois de uma transição: aviso por TToast e a ficha recarregada na hora
+     * com o novo status e as ações dele (padrão de SurgeryMaterialForm e
+     * HospitalizationEventForm). A URL leva só o id.
+     */
+    private static function reloadAfterChange(int $id, string $success): void
     {
-        $action = new TAction([__CLASS__, 'onReload']);
-        $action->setParameter('id', $id);
-
-        return $action;
+        TToast::show('success', $success);
+        TScript::create("__adianti_goto_page('index.php?class=CommunicationMessageView&id=" . $id . "')");
     }
 
     private static function paramInt(string $name, $param): ?int
