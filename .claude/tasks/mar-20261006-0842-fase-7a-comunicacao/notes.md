@@ -97,5 +97,6 @@
   - Onda 1: BASE bf2178d → HEAD 7bd7b70 (cc8c534,3bf14d8,bcfa8c2,61fa5dd,3c6331b,52ba96d,6938b0a,0b40507,eb4832d,7bd7b70)
   - Onda 2: BASE dc7f430 → HEAD 812b4a3 (915a000,f71f723,4c37ddd,268109c,62c579d,812b4a3)
   - Onda 3: BASE 6458506 → HEAD 8830515 (d5a6193,f6dc87f,4b762ea,94cff24,cea3501,bfc8276,1a3e831,8f91496,4fb0b8a,ae23b40,91dd851,8830515)
-@@ONDA4@@- Último status conhecido: onda 4 concluída (T-15..T-20 [x]); SUITE 936/936 no gate (937/937 após a correção da T-15)
+  - Onda 4: BASE cf5eb18 → HEAD 80a83bc (4e84c61,1af3642,d66e876,4a8e09f,3ef250d,11c9473,4f1fe95,2ccec8c,7b90a81,989c1f1,2de5615,cb99fe4,4721664,80a83bc)
+- Último status conhecido: onda 4 concluída (T-15..T-20 [x]); SUITE 936/936 no gate (937/937 após a correção da T-15)
 - Próxima onda recomendada: 5 — T-21, T-22 (i18n e runbook); depois T-23
