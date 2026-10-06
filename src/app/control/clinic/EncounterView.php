@@ -1797,13 +1797,17 @@ class EncounterView extends TPage
 
             $appointments = self::makeAppointmentService($context);
 
-            $appointments->schedule([
+            $appointment = $appointments->schedule([
                 'patient_id' => $encounter->patientId(),
                 'service_id' => $serviceId,
                 'professional_system_user_id' => $encounter->professionalSystemUserId(),
                 'scheduled_at' => $scheduledAt,
                 'system_unit_id' => $context->requireUnitId(),
             ], 'EncounterView::onScheduleFollowUp');
+
+            // Fase 7A: marca o agendamento como retorno deste atendimento,
+            // na mesma transação (lembrete de retorno da comunicação)
+            self::makeAppointmentFollowupService($context)->link((int) $appointment->id, $id);
 
             TTransaction::close();
 
@@ -2031,6 +2035,23 @@ class EncounterView extends TPage
         );
 
         return new \CentralVet\Application\AppointmentService($appointments, $services, $patients, $context, $authorization);
+    }
+
+    /**
+     * Wires AppointmentFollowupService (Fase 7A, T-14) on the open
+     * TTransaction connection, so the follow-up link is written in the same
+     * transaction as the appointment scheduled by onScheduleFollowUp().
+     */
+    private static function makeAppointmentFollowupService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\AppointmentFollowupService
+    {
+        $connection = TTransaction::get();
+
+        return new \CentralVet\Application\AppointmentFollowupService(
+            new \CentralVet\Persistence\AppointmentFollowupRepository($context, $connection),
+            new \CentralVet\Persistence\AppointmentRepository($context, $connection),
+            new \CentralVet\Persistence\EncounterRepository($context, $connection),
+            $context,
+        );
     }
 
     /**
