@@ -54,7 +54,7 @@
 
     <menuitem label='_t{Surgeries}'>
         <icon>fas:kit-medical fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=surgeries</action>
+        <action>SurgeryList</action>
     </menuitem>
 
     <menuitem label='_t{Prescriptions}'>
@@ -117,6 +117,10 @@
             <menuitem label='_t{Beds}'>
                 <icon>fas:bed fa-fw</icon>
                 <action>BedList</action>
+            </menuitem>
+            <menuitem label='_t{Surgery rooms}'>
+                <icon>fas:kit-medical fa-fw</icon>
+                <action>SurgeryRoomList</action>
             </menuitem>
 
             <menuitem label='_t{Administration}'>
