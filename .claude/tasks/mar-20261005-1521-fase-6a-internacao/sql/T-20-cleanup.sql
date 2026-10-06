@@ -10,8 +10,9 @@
 -- O COMMIT final está comentado: sem ele, fechar a sessão desfaz tudo. Qualquer erro (FK
 -- RESTRICT, CHECK) interrompe o script; rode ROLLBACK e reveja o predicado.
 --
--- Estado lido em 2026-10-05 17:25 (só SELECT, MySQL 8.0.43), depois dos gates da Onda 6
--- (gate, re-gate 1 e a correção 1 da T-20):
+-- Estado lido em 2026-10-05 17:25 e reconfirmado às 22:29 (só SELECT, MySQL 8.0.43; o ensaio
+-- com ROLLBACK do orquestrador não deixou resíduo), depois dos gates da Onda 6 (gate, re-gate 1
+-- e a correção 1 da T-20):
 --   bed 1..3 ('F6 teste L1'..'L3'); bed 1 ocupado pela internação 2.
 --   hospitalization 1 (encounter 1708, discharged), 2 (encounter 2189, admitted, leito 1),
 --     3 e 4 (encounter 4304, paciente 2772, discharged, leito 3; a 4 é "F6 teste concorrência 4304").
@@ -192,9 +193,16 @@ DELETE FROM hospitalization_event          WHERE hospitalization_id IN (SELECT i
 DELETE FROM encounter_account_item
  WHERE source_type IN ('hospitalization_stay', 'hospitalization_administration')
    AND id IN (SELECT id FROM tmp_f6_item);                                                                -- 6
+-- Os dois valores vêm da mesma tabela derivada (soma dos itens restantes) e do desconto, que
+-- não muda: nenhuma atribuição lê outra coluna atualizada no mesmo comando (a versão anterior
+-- dependia da ordem de avaliação e violou encounter_account_total_ck no ensaio).
+-- discount_ck: conta 46 → soma 7000 >= desconto 500; total 6500.
 UPDATE encounter_account a
-   SET a.subtotal_cents = (SELECT COALESCE(SUM(i.amount_cents), 0) FROM encounter_account_item i WHERE i.account_id = a.id),
-       a.total_cents    = a.subtotal_cents - a.discount_cents
+  LEFT JOIN (SELECT i.account_id, SUM(i.amount_cents) AS items_cents
+               FROM encounter_account_item i
+              GROUP BY i.account_id) s ON s.account_id = a.id
+   SET a.subtotal_cents = COALESCE(s.items_cents, 0),
+       a.total_cents    = COALESCE(s.items_cents, 0) - a.discount_cents
  WHERE a.status = 'open'
    AND a.id IN (SELECT id FROM tmp_f6_account)
    AND a.id NOT IN (SELECT id FROM tmp_f6_account_new);               -- 1 (conta 46: 7000 / 500 / 6500)
