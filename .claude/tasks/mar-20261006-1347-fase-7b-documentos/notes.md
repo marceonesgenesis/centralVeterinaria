@@ -53,6 +53,8 @@
 - 2026-10-06 · T-21 · onda 6 — Critério plan.md:386 "curl /var/documents/ ≠ 200" substituído por "nenhum caminho sob /var/documents serve %PDF" (front controller devolve shell HTML).
 - 2026-10-06 · T-21 · onda 6 — Ações de estado no gate (local): worker parado/religado, DEL da fila Redis pending para simular job perdido, listener php -S 127.0.0.1:9 no worker (encerrado, sem processo restante).
 - 2026-10-06 · T-16 · onda 6 — Fix do gate (RED bc70e62, fix 1087d3c): "Baixar" passa por engine.php?class=DocumentList&method=onDownload&id=<id>&static=1 com target _blank (index.php devolvia o shell HTML); substitui a rota de download da Interface da T-16.
+- 2026-10-06 · T-21 · onda 7 — Limpeza SQL F7B autorizada pelo usuário e executada pelo orquestrador: backup var/backups/centralvet-20261006T183746Z.sql.gz (gzip -t ok), dry run com ROLLBACK (contagens batem com o pré-gate), COMMIT sem erro. Estado final: generated_document 0, document_template 0, stored_object 9/2131, tutor 7/13876, patient 7/9180, surgery 0, surgery_room 0, communication_message 0, communication_preference 0, encounter 7, appointment 15, payment 3; os 9 PDFs de teste removidos do volume app_documents (0 restantes).
+- 2026-10-06 · T-22 · onda 7 — Correção pós-revisão final aprovada pelo usuário (RED 25a3a7f, fix d24e252, runbook 31009a4; SUITE 1112/1112): "Gerar PDF" também ganhou cv-touch-target (irmão do "Arquivar PDF"); voltar da DocumentTemplateForm sem teste próprio; orquestrador mediu no navegador todos os botões da DocumentTemplateForm ≥44 px.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -126,6 +128,9 @@
 - T-21: cabeçalho do SQL diz que erro interrompe o script, mas no `mysql> source` interativo o cliente segue; ler os erros antes do COMMIT ou rodar em lote.
 - T-21: DEL da chave Redis cv:development:queue_default:pending no roteiro B: conteúdo apagado (só o job do doc 7) não verificável.
 - T-21: atestado a partir do template "F7B teste Atestado" não exercitado E2E (template só criado).
+- Controles globais do cabeçalho (menu, notificações, ajuda) com 40 px: pré-existentes, fora da 7B, violam a regra de 44 px do CLAUDE.md.
+- T-22: voltar da DocumentTemplateForm sem teste próprio; linha reflowada longa em docs/runbooks/documentos.md:79; sugestões em reviews/final.md e reviews/T-22.md.
+- T-22: aviso do eficiencia.py "onda 7 sem tasks em plan.md" (onda de correção pós-final; T-22 registrada só em tasks.md).
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -149,5 +154,6 @@
   - Onda 4: BASE e412e11 → HEAD e378577 (c3f1c9c, d20f911, 6c0b820, 0896446, 6820f0f, fd34d69, 265520d, 0b2852a, c85c010, e378577)
   - Onda 5: BASE 6f259c1 → HEAD 098f9c1 (eac4852, de25718, 098f9c1)
   - Onda 6: BASE 4c29344 → HEAD 893e10a (96938c1, bc70e62, 1087d3c, 0f0f10f, 4e6df97, 893e10a)
-- Último status conhecido: onda 6 concluída (T-21 [x]); SUITE 1111/1111, PYTEST57 OK; SQL de limpeza preparado e não executado
-- Próxima onda recomendada: nenhuma (revisão final; limpeza SQL pendente de aprovação)
+  - Onda 7: BASE 3bb514d → HEAD 31009a4 (25a3a7f, d24e252, 31009a4)
+- Último status conhecido: onda 7 concluída (T-22 [x]); SUITE 1112/1112; limpeza SQL F7B executada e verificada
+- Próxima onda recomendada: nenhuma

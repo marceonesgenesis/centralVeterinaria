@@ -23,6 +23,7 @@
 | T-19 | frontend | i18n pt/en das telas e mensagens de domínio | T-09, T-14, T-15, T-16, T-17, T-18 | sim | média | Levi | [x] |
 | T-20 | docs | Runbook de documentos, índice e passo da 0013 e cron na hospedagem 5.7 | T-01, T-03, T-04, T-14 | sim | simples | Gandalf | [x] |
 | T-21 | qa | Validação final ponta a ponta e SQL de limpeza `F7B teste` | T-19, T-20 | não | média | Spock | [x] |
+| T-22 | frontend | Correção pós-revisão final (onda 7): alvos ≥44 px (PrescriptionForm, voltar da DocumentTemplateForm) e rota de download no runbook | T-21 | não | simples | correção | [x] |
 
 ## Detalhamento
 
