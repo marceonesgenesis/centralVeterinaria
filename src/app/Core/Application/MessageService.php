@@ -13,6 +13,7 @@ use CentralVet\Domain\Contract\CommunicationPreferenceRepositoryInterface;
 use CentralVet\Domain\Contract\MessageTemplateRepositoryInterface;
 use CentralVet\Domain\Contract\OutboundMessageRepositoryInterface;
 use CentralVet\Domain\Contract\PatientRepositoryInterface;
+use CentralVet\Domain\Contract\SenderNamesQueryInterface;
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CommunicationConsentRequiredException;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
@@ -65,6 +66,7 @@ final class MessageService
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
         ?Closure $clock = null,
+        private readonly ?SenderNamesQueryInterface $senderNames = null,
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -123,6 +125,11 @@ final class MessageService
 
         $subject = isset($data['subject']) ? (string) $data['subject'] : null;
 
+        if (self::hasPlaceholder($body)
+            || ($channel === CommunicationChannel::EMAIL && $subject !== null && self::hasPlaceholder($subject))) {
+            throw new InvalidArgumentException('Replace the template placeholders before sending the message');
+        }
+
         $message = OutboundMessage::compose(
             tenantId: $this->context->tenantId(),
             systemUnitId: $unitId,
@@ -148,23 +155,41 @@ final class MessageService
     }
 
     /**
-     * Renders a template for a manual message with `tutor_name` and
-     * `patient_name`; every other placeholder renders empty.
+     * Renders a template for a manual message: `tutor_name`, `patient_name`
+     * (when a patient is given), `unit_name` (active unit) and `clinic_name`
+     * (tenant) from the sender-names query. A manual message has no
+     * appointment, vaccine or receivable, so every placeholder without a
+     * value stays visible as `{{name}}` for the attendant to replace;
+     * `compose` refuses a text that still has one, so nothing goes out with
+     * a blank where a date or a name should be.
      *
      * @return array{subject: ?string, body: string}
      */
     public function renderTemplate(int $templateId, int $tutorId, ?int $patientId, string $action): array
     {
-        $this->authorize($action, $this->context->requireUnitId(), null);
+        $unitId = $this->context->requireUnitId();
+        $this->authorize($action, $unitId, null);
 
         $template = $this->requireTemplate($templateId);
         $tutor = $this->requireTutor($tutorId);
         $patient = $patientId !== null ? $this->requirePatientOfTutor($patientId, (int) $tutor->id) : null;
 
+        $names = $this->senderNames?->namesForUnit($unitId) ?? [];
+
         $variables = [
             'tutor_name' => $tutor->fullName,
             'patient_name' => $patient?->name,
+            'unit_name' => $names['unit_name'] ?? null,
+            'clinic_name' => $names['clinic_name'] ?? null,
         ];
+
+        foreach (MessageTemplateRenderer::PLACEHOLDERS as $placeholder) {
+            $value = $variables[$placeholder] ?? null;
+
+            if ($value === null || trim((string) $value) === '') {
+                $variables[$placeholder] = '{{' . $placeholder . '}}';
+            }
+        }
 
         return [
             'subject' => $template->subject() !== null ? MessageTemplateRenderer::render($template->subject(), $variables) : null,
@@ -332,6 +357,14 @@ final class MessageService
         }
 
         return $phone;
+    }
+
+    /** True when the text still has a `{{placeholder}}` of the closed list. */
+    private static function hasPlaceholder(string $text): bool
+    {
+        preg_match_all('/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/', $text, $matches);
+
+        return array_intersect($matches[1], MessageTemplateRenderer::PLACEHOLDERS) !== [];
     }
 
     private function now(): DateTimeImmutable
