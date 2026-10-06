@@ -11,9 +11,12 @@ use DateTimeImmutable;
  * Persistence boundary for the Surgery aggregate.
  *
  * `save()` of an existing surgery only writes while the status in the
- * database still equals `Surgery::loadedStatus()`; otherwise it throws
+ * database still equals the expected status: the last status saved by this
+ * same entity instance (tracked per instance), else
+ * `Surgery::loadedStatus()`, else `scheduled`. Otherwise it throws
  * `InvalidStatusTransitionException` with
- * `Surgery <id> changed status concurrently`.
+ * `Surgery <id> changed status concurrently`. The same instance can be saved
+ * repeatedly; another instance holding an older status is refused.
  *
  * @template TEntity of object
  * @extends TenantRepositoryInterface<TEntity>

@@ -16,12 +16,13 @@ use WeakMap;
  * objects) and findById() returns a fresh Surgery::reconstitute() copy, like
  * the PDO repository, so loadedStatus() is the status persisted at load time.
  *
- * save() of an existing surgery mirrors the conditional UPDATE of T-06: it
- * only writes while the stored status equals the status the entity was
- * loaded with (loadedStatus(), or the status it was inserted with when the
- * same object was created in-process); otherwise it throws
- * `Surgery <id> changed status concurrently`. forceStatus() simulates
- * another tab changing the status in the database.
+ * save() of an existing surgery mirrors the conditional UPDATE of the PDO
+ * repository: the expected status is the last status THIS instance saved
+ * (tracked per object), else loadedStatus(), else `scheduled`; the write
+ * only happens while the stored status equals it, otherwise it throws
+ * `Surgery <id> changed status concurrently`. The same instance may thus be
+ * saved several times, while a stale copy is still refused. forceStatus()
+ * simulates another tab changing the status in the database.
  */
 final class FakeSurgeryRepository implements SurgeryRepositoryInterface
 {
@@ -35,7 +36,7 @@ final class FakeSurgeryRepository implements SurgeryRepositoryInterface
     private array $rows = [];
     private int $nextId = 1;
 
-    /** @var WeakMap<Surgery, string> status an in-process (never reconstituted) entity was last saved with */
+    /** @var WeakMap<Surgery, string> last status each instance saved */
     private WeakMap $savedStatus;
 
     /** Number of save() calls after construction (seed not counted). */
@@ -69,9 +70,9 @@ final class FakeSurgeryRepository implements SurgeryRepositoryInterface
         }
 
         if ($entity->id() !== null && isset($this->rows[$entity->id()])) {
-            $expected = $entity->loadedStatus() ?? ($this->savedStatus[$entity] ?? null);
+            $expected = $this->savedStatus[$entity] ?? $entity->loadedStatus() ?? Surgery::STATUS_SCHEDULED;
 
-            if ($expected === null || $this->rows[$entity->id()]['status'] !== $expected) {
+            if ($this->rows[$entity->id()]['status'] !== $expected) {
                 throw new InvalidStatusTransitionException("Surgery {$entity->id()} changed status concurrently");
             }
         }
@@ -147,10 +148,7 @@ final class FakeSurgeryRepository implements SurgeryRepositoryInterface
         }
 
         $this->rows[(int) $entity->id()] = self::toRow($entity);
-
-        if ($entity->loadedStatus() === null) {
-            $this->savedStatus[$entity] = $entity->status();
-        }
+        $this->savedStatus[$entity] = $entity->status();
     }
 
     /** @return array<string, mixed>|null */
