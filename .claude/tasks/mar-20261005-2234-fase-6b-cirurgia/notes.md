@@ -28,7 +28,8 @@
 - 2026-10-05 · T-15 · onda 4 — Revisão rodada 1 reprovou (XSS armazenado: nome do procedimento sem escape no título do SurgeryEventForm) → 2d05dd9 (RED) + 78aa2e0 (CvFormat::e; varredura do SurgeryConsentForm sem outros casos); re-validada (SUITE 746/746); re-revisão rodada 2 aprovada.
 - 2026-10-05 · T-12..T-18 · onda 4 — Login admin no Playwright refeito pelo orquestrador (autorização do usuário para a 6B).
 - 2026-10-06 · T-19 · onda 5 — Gate de tela em pt não rodou (sessão admin expirada); transferido para a T-21. Aceitas: mensagens sem id interno; "Circulating nurse" → "Circulante" (plano dizia "Volante"; ajustável depois); obrigatórios "Campo obrigatório: <rótulo>".
-- 2026-10-06 · T-20 · onda 5 — A regex do critério devolve 8 (não casa SurgeryList/SurgeryView); os 9 controllers conferidos um a um.
+- 2026-10-06 · T-20 · onda 5 — A regex do critério devolve 8 (não casa SurgeryList/SurgeryView); os 9 controllers conferidos um a um.- 2026-10-06 · T-06, T-08 · onda 7 (correção da revisão final) — Bloqueante: agendamentos simultâneos na mesma sala gravavam cirurgias sobrepostas (checagem sem leitura travante sob REPEATABLE READ). 219f1e2 (RED) + aeeb85d (hasOverlapInRoom com FOR UPDATE) + f1c0688 (teste-guarda da ordem trava→checagem→insert; T-08 sem RED aceito, ordem já correta; SurgeryService inalterado para preservar lockCalls=0 com permissão negada). Re-revisão aprovada.
+
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
   1. `./scripts/backup.sh` e `gzip -t`.
@@ -86,6 +87,8 @@
 - T-21: [sugestão] tabela do gate por tela (Tela|Fluxos|Console|Rede|Erro|Veredito|Task dona) não registrada; só linha agregada de 14 telas x 2 viewports.
 - T-21: [sugestão] arquivo vazio não rastreado `=` na raiz do repositório; remover antes do fechamento.
 - T-21: fora do escopo: QueueEntryView::onAdvance mostra "Status atualizado" mas queue_entry 818 seguiu "aguardando" (provável bug anterior à fase).
+- Onda 7: execução do sql/T-21-cleanup.sql (pelo orquestrador, com backup, ensaio e aprovação SQL); aviso eficiencia.py: onda 7 (correção) sem tasks em plan.md, eficiência não gravada.
+- Final: [sugestão] isActive() da sala do snapshot; mensagem genérica no toque duplo concorrente do checklist (confirmPhase); QueueEntryView::onAdvance fora do escopo.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
@@ -108,5 +111,6 @@
   - Onda 4: BASE e09d03d → HEAD 1f7718f (dd31bcb, 24a5c00, b502111, 0388aee, aafdb9c, 192a950, 1a42185, c577b6d, d75ee63, 765b946, f872e4e, a5104a1, 1859572, 92daa99, 118f066, 2d05dd9, 78aa2e0, 1f7718f)
   - Onda 5: BASE c7ce164 → HEAD 5283aaa (193840a, 44343f2, 5283aaa)
   - Onda 6: BASE 2422d4a → HEAD dd2aa3c (dd2aa3c)
-- Último status conhecido: onda 6 concluída (T-21 [x]); gate final roteiros A e B aprovados; SUITE 749/749, PYTEST57 OK, LINT ok.
-- Próxima onda recomendada: nenhuma; revisão final da branch
+  - Onda 7: BASE be11483 → HEAD 219f1e2, aeeb85d, f1c0688
+- Último status conhecido: onda 7 (correção da revisão final) concluída; T-06/T-08 [x]; SUITE 751/751, teste de duas conexões e PYTEST57 OK; re-revisão aprovada.
+- Próxima onda recomendada: nenhuma; executar sql/T-21-cleanup.sql (backup, ensaio, aprovação SQL)
