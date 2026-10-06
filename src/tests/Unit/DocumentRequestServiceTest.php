@@ -12,6 +12,7 @@ use CentralVet\Domain\DocumentTemplate;
 use CentralVet\Domain\Exception\DocumentNotAvailableException;
 use CentralVet\Domain\Exception\DocumentSourceNotFoundException;
 use CentralVet\Domain\GeneratedDocument;
+use CentralVet\Storage\Exception\StorageException;
 use CentralVet\Storage\StorageInterface;
 use CentralVet\Storage\StoredObjectMetadata;
 use CentralVet\Tenancy\TenantContext;
@@ -129,6 +130,11 @@ final class DocumentRequestServiceTest
             public function get(string $key): string
             {
                 $this->gets++;
+
+                if (!$this->inner->exists($key)) {
+                    // Same contract as the real drivers (LocalFilesystemStorage, S3).
+                    throw new StorageException('Stored object not found');
+                }
 
                 return $this->inner->get($key);
             }
