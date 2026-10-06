@@ -297,7 +297,11 @@ final class SurgeryFakesTest
         Assert::same([2, 1], array_map(static fn (SurgeryMaterial $m): ?int => $m->id(), $repository->listBySurgery(1)));
         Assert::null($repository->findById(3));
 
-        $repository->remove($repository->findById(2));
+        $removed = $repository->findById(2);
+        Assert::same(1, $repository->delete($removed));
         Assert::same([1], array_map(static fn (SurgeryMaterial $m): ?int => $m->id(), $repository->listBySurgery(1)));
+        Assert::same(0, $repository->delete($removed), 'a second delete of the same material affects no row');
+        Assert::same(0, $repository->delete($repository->storedMaterialOfAnyTenant(3)), 'another tenant material is never deleted');
+        Assert::notNull($repository->storedMaterialOfAnyTenant(3));
     }
 }

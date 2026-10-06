@@ -252,8 +252,9 @@ final class SurgeryRepositoryIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(3, $listedMaterials[0]->quantity());
         Assert::same($this->productId, $listedMaterials[0]->productId());
         Assert::same((int) $material->id(), (int) $materials->findById((int) $material->id())?->id());
-        $materials->remove($material);
+        Assert::same(1, $materials->delete($material));
         Assert::count(0, $materials->listBySurgery($surgeryId));
+        Assert::same(0, $materials->delete($material), 'deleting an already removed material affects no row');
     }
 
     public function testOtherTenantCannotSeeTheSurgery(): void

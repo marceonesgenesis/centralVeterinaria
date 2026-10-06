@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\SurgeryMaterialService;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\Contract\SurgeryMaterialRepositoryInterface;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Product;
 use CentralVet\Domain\Surgery;
@@ -41,7 +42,8 @@ final class SurgeryMaterialServiceTest
     private const ACTION = 'SurgeryMaterialForm::onSave';
 
     private FakeSurgeryRepository $surgeries;
-    private FakeSurgeryMaterialRepository $materials;
+    /** @var FakeSurgeryMaterialRepository|SurgeryMaterialRepositoryInterface */
+    private SurgeryMaterialRepositoryInterface $materials;
     private FakeSurgeryEventRepository $events;
     private FakeProductRepository $products;
     private FakeAuthorizationPolicy $authorization;
@@ -248,5 +250,63 @@ final class SurgeryMaterialServiceTest
         $products = $this->service()->listActiveProducts(self::ACTION);
         Assert::count(1, $products);
         Assert::same('Fio nylon 3-0', $products[0]->name());
+    }
+
+    public function testConcurrentDoubleRemovalRecordsOnlyOneRemovalEvent(): void
+    {
+        $material = $this->service()->addMaterial(self::SURGERY_ID, self::ACTIVE_PRODUCT_ID, 2, self::ACTION);
+        $materialId = (int) $material->id();
+        $inner = $this->materials;
+        // Second tap read the material before the first removal committed:
+        // its findById still sees the (now deleted) row.
+        $this->materials = new class ($inner, $material) implements SurgeryMaterialRepositoryInterface {
+            public function __construct(
+                private readonly FakeSurgeryMaterialRepository $inner,
+                private readonly SurgeryMaterial $stale,
+            ) {
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                return (int) $id === $this->stale->id() ? $this->stale : $this->inner->findById($id);
+            }
+
+            public function save(object $entity): object
+            {
+                return $this->inner->save($entity);
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
+            }
+
+            public function delete(SurgeryMaterial $material): int
+            {
+                return $this->inner->delete($material);
+            }
+
+            public function listBySurgery(int $surgeryId): array
+            {
+                return $this->inner->listBySurgery($surgeryId);
+            }
+        };
+
+        $this->service()->removeMaterial($materialId, self::ACTION);
+
+        self::throwsWithMessage(
+            InvalidStatusTransitionException::class,
+            "Material {$materialId} was already removed",
+            fn () => $this->service()->removeMaterial($materialId, self::ACTION),
+        );
+
+        $events = $this->events->listBySurgery(self::SURGERY_ID);
+        Assert::count(2, $events, 'one material event plus a single removal event');
+        Assert::same('removido: Fio nylon 3-0 × 2', $events[0]->notesText());
     }
 }
