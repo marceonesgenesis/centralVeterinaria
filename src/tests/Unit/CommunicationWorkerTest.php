@@ -231,7 +231,9 @@ final class CommunicationWorkerTest
 
         $published = array_map(static fn (array $job): int => $job['payload']['message_id'], $queue->pushed());
         sort($published);
-        Assert::same([$createdEmailIds[0], $stuckId], $published);
+        $expected = [$createdEmailIds[0], $stuckId];
+        sort($expected);
+        Assert::same($expected, $published);
         foreach ($queue->pushed() as $job) {
             Assert::same(['type' => MessageQueuePublisher::JOB_TYPE, 'message_id' => $job['payload']['message_id']], $job['payload']);
             Assert::same(self::TENANT_ID, $job['tenantId']);

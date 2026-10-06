@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use CentralVet\Application\MessageQueuePublisher;
+use CentralVet\Communication\CommunicationJobHandler;
+use CentralVet\Communication\CommunicationScheduler;
+use CentralVet\Communication\EmailProviderFactory;
 use CentralVet\Observability\CorrelationId\CorrelationIdContext;
 use CentralVet\Observability\ErrorTracking\ErrorTrackerFactory;
 use CentralVet\Observability\Logging\JsonLogger;
 use CentralVet\Observability\Metrics\MetricsFactory;
 use CentralVet\Queue\QueueMessage;
+use CentralVet\Persistence\PdoConnectionFactory;
 use CentralVet\Queue\RedisQueue;
 
 const HEARTBEAT_FILE = '/tmp/centralvet-worker.heartbeat';
@@ -38,20 +43,47 @@ if (function_exists('pcntl_async_signals')) {
     });
 }
 
+$envInt = static function (string $name, int $default): int {
+    $value = getenv($name);
+
+    return ($value === false || trim($value) === '' || !is_numeric(trim($value))) ? $default : (int) trim($value);
+};
+
+$communicationSystemUserId = $envInt('COMMUNICATION_SYSTEM_USER_ID', 1);
+$schedulerIntervalSeconds = max(0, $envInt('COMMUNICATION_SCHEDULER_INTERVAL_SECONDS', 3600));
+$receivableReminderDays = max(0, $envInt('COMMUNICATION_RECEIVABLE_REMINDER_DAYS', 7));
+
 /**
- * Handles a single job payload. Fase 0 has no business jobs yet, so this is
- * a generic placeholder that proves the pipeline end to end (dequeue,
- * ack/retry/dead-letter, structured logging, metrics, error tracking);
- * future job types should dispatch from here into real Application
- * services, keyed by a `type` field on the payload.
+ * Communication job handler (Fase 7A): built lazily so a bad e-mail driver
+ * configuration fails the communication jobs (retry / dead-letter) instead
+ * of the whole worker. A new PDO is opened per job.
  */
-$handle = static function (QueueMessage $message) use ($logger): void {
+$communicationHandler = null;
+$communicationHandlerFor = static function () use (&$communicationHandler, $logger, $communicationSystemUserId): CommunicationJobHandler {
+    return $communicationHandler ??= CommunicationJobHandler::forEnvironment(
+        EmailProviderFactory::fromEnvironment($logger),
+        $logger,
+        $communicationSystemUserId,
+    );
+};
+
+/**
+ * Dispatches a job by its payload `type`: `communication.message.send` goes
+ * to the communication handler; any other type keeps the generic log of the
+ * Fase 0 pipeline (dequeue, ack/retry/dead-letter, logging, metrics).
+ */
+$handle = static function (QueueMessage $message) use ($logger, $communicationHandlerFor): void {
     $logger->info('queue.job.processing', [
         'queue' => $message->queue,
         'job_id' => $message->id,
         'tenant_id' => $message->tenantId,
         'attempts' => $message->attempts,
+        'type' => is_string($message->payload['type'] ?? null) ? $message->payload['type'] : null,
     ]);
+
+    if (($message->payload['type'] ?? null) === MessageQueuePublisher::JOB_TYPE) {
+        $communicationHandlerFor()->handle($message);
+    }
 };
 
 $logger->info('worker.started', ['queues' => $queueNames]);
@@ -74,11 +106,40 @@ try {
     exit(1);
 }
 
+/**
+ * Communication scheduler tick (Fase 7A): every
+ * COMMUNICATION_SCHEDULER_INTERVAL_SECONDS (0 disables), on a PDO opened for
+ * the tick. A failure is captured and never stops the loop.
+ */
+$schedulerNextRunAt = time();
+$runSchedulerTick = static function () use (&$schedulerNextRunAt, $schedulerIntervalSeconds, $queue, $logger, $errorTracker, $receivableReminderDays, $communicationSystemUserId): void {
+    if ($schedulerIntervalSeconds <= 0 || time() < $schedulerNextRunAt) {
+        return;
+    }
+
+    $schedulerNextRunAt = time() + $schedulerIntervalSeconds;
+
+    try {
+        CommunicationScheduler::forConnection(
+            PdoConnectionFactory::fromEnvironment(),
+            new MessageQueuePublisher($queue),
+            $logger,
+            $receivableReminderDays,
+            $communicationSystemUserId,
+        )->runOnce();
+    } catch (\Throwable $schedulerException) {
+        $errorTracker->captureException($schedulerException, ['phase' => 'communication_scheduler']);
+        $logger->error('communication.scheduler.failed', ['exception' => $schedulerException::class]);
+    }
+};
+
 while ($running) {
     touch(HEARTBEAT_FILE);
     CorrelationIdContext::start();
 
     try {
+        $runSchedulerTick();
+
         foreach ($queueNames as $queueName) {
             $recovered = $queue->recoverDue($queueName);
             if ($recovered > 0) {
