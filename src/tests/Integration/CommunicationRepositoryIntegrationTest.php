@@ -42,6 +42,11 @@ final class CommunicationRepositoryIntegrationTest extends MysqlIntegrationTestC
     {
         parent::setUp();
 
+        // The worker uses PdoConnectionFactory (native prepares): run the
+        // repositories the same way, so a repeated named parameter or a
+        // quoted LIMIT would fail here.
+        $this->pdo->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
+
         $hasTable = (bool) $this->pdo->query("SHOW TABLES LIKE 'communication_message'")->fetchColumn();
         Assert::true($hasTable, 'Migration 0012 must be applied to the test database');
 
@@ -371,6 +376,7 @@ final class CommunicationRepositoryIntegrationTest extends MysqlIntegrationTestC
 
         $other = new AppointmentFollowupRepository($this->contextFor($this->tenantB), $this->pdo);
         Assert::false($other->isFollowup($appointmentId));
+        Assert::throws(TenantBoundaryViolation::class, fn () => $other->link($this->createAppointment(), (int) $encounter->id(), $this->userId));
     }
 
     public function testConnectionFactoryBuildsStrictPdo(): void
