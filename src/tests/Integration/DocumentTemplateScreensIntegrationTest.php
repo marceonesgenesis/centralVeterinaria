@@ -49,7 +49,7 @@ final class DocumentTemplateScreensIntegrationTest
             . '$page = new DocumentTemplateForm([]);'
             . '$form = (new ReflectionProperty($page, "form"))->getValue($page);'
             . '$fields = [];'
-            . 'foreach (["name", "body_text", "status", "kind"] as $n) { $f = $form->getField($n); $fields[$n] = $f === null ? null : get_class($f); }'
+            . 'foreach (["name", "body_text", "status", "kind"] as $n) { $f = $form->getField($n); $fields[$n] = $f === null ? null : (new ReflectionClass($f))->getShortName(); }'
             . '$status = $form->getField("status");'
             . '$items = $status === null ? [] : array_keys((new ReflectionProperty($status, "items"))->getValue($status));'
             . 'ob_start(); $page->show(); $html = ob_get_clean();'
