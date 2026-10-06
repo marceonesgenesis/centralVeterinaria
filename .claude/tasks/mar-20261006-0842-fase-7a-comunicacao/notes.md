@@ -36,6 +36,8 @@
 - 2026-10-06 · T-23 · onda 6 — Marcadores sem valor aparecem como {{nome}} e o envio é recusado até o atendente trocar (UserMessage legível).
 - 2026-10-06 · T-23 · onda 6 — Profissional "vazio" no AppointmentForm não é defeito (TDBUniqueSearch exige 3 caracteres).
 - 2026-10-06 · T-23 · onda 6 — Itens não rodados aceitos como pendência (cobertos por testes automatizados): negação de PendingCenter para usuário sem acesso (só existe admin), base legal de vacina/cobrança E2E (sem dado elegível), escape de `<script>` em nome de tutor/paciente na Central (entrada recusa < >).
+- 2026-10-06 · T-24 · onda 7 — LEFT JOIN com condição de tenant (não INNER) em ReminderSourceQuery aceito: unidade de outro tenant vira unit_name vazio, mesma regra do SenderNamesQuery.
+- 2026-10-06 · T-23 · onda 7 — SQL de limpeza ampliado para message #42 e template #7 (bec04e8); segue não executado, depende de aprovação SQL explícita do usuário.
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -59,6 +61,8 @@
 - Onda 4 (i18n para a T-21): textos _t() de T-16..T-20 registrados no board; colisão de chave "Open" (Aberta na Central × Abrir no histórico/SurgeryList); assuntos/finalidades exibidos como código (receivable_open) precisam de mapeamento.
 - [T-22] Runbooks em docs/runbooks (comunicacao, README, shared-hosting-mysql57); cron do worker one-shot e do agendador documentados (dbdfab6).
 - [T-23] Gate E2E (roteiros A, revalidação 1, B, complemento rodada 2) e fix loop: alvo de toque 44 px em MessageTemplateList (9f741e0), ficha recarrega após "Sim" (08b48ad), marcadores sem valor recusados (87cd91c, 67a3b46), SenderNamesQuery filtrada por tenant (b544ca8). SQL de limpeza sql/T-23-cleanup.sql preparado e NÃO executado (depende de aprovação explícita do usuário).
+- [T-24] XSS do onChangeTemplate corrigido (literal JSON JSON_HEX_*, gancho protegido renderTemplateData); ReminderSourceQuery com LEFT JOIN system_unit por tenant (RED 2b6927c, impl fdc0d02).
+- [T-25] Opt-out barra WhatsApp manual: whatsAppLink/markManualSent reconferem permitsSending e cancelam (opted_out|consent_missing, cancelled_by NULL) lançando MessageCancelledByPreferenceException; OutboundMessageRepositoryInterface ganhou cancelQueuedForTutor; opt-out cancela a fila em lote (RED fcb802c, impl 224a35d).
 
 ## Pendências
 - Envio SMTP real só pode ser conferido com as credenciais do usuário (fora dos gates, que usam o driver `log`).
@@ -93,6 +97,10 @@
 - T-23: itens não rodados no E2E, cobertos por testes automatizados: negação de PendingCenter sem acesso, base legal de vacina/cobrança, escape de `<script>` na Central.
 - T-23: validação cruzada não rodou critérios de log sem dado pessoal e contagens nessa passada (rodados nos gates E2E).
 - T-23: sugestões: comparar o toast com base64_encode do texto esperado (CommunicationMessageScreensIntegrationTest:241-242); SQL de limpeza: cabeçalho "interrompe o script" engana no cliente mysql interativo (executar em duas etapas, seções 1-2 e depois 3-4) e mensagens com template F7A para tutor fora do prefixo seriam apagadas sem listar (hoje 0).
+- T-24: sugestões: RED do XSS falhou pela ausência do gancho renderTemplateData e não pelo `</script>` (CommunicationComposeTemplateXssIntegrationTest:46-47); LEFT JOIN deixa lembrete com unit_name vazio e o Assert::notNull vira sempre verdadeiro (ReminderSourceQuery:216; CommunicationReadModelIntegrationTest:267); renderTemplateData declara ?array mas nunca devolve null, `if ($rendered === null)` é código morto (CommunicationComposeForm:180-227).
+- T-25: sugestões: teste de integração do lote sem mensagem de outro tutor (filtro tutor_id do SQL real não afirmado); `$messages` opcional em CommunicationPreferenceService desliga o cancelamento em silêncio se omitido; autor inconsistente (opt-out grava usuário da sessão, MessageService grava NULL) inclusive em mensagens de outras unidades; loadData grava cancelamento sob ACTION_READ num GET e a perda da corrida cai no catch genérico (CommunicationMessageView:263-311).
+- Revisão final (sugestões): compose manual de legítimo interesse sem opt-in; hash sha256 truncado do e-mail no log sandbox (LogEmailProvider:34); lock do --once em sys_get_temp_dir() compartilhado (worker.php:110); demais itens em reviews/final.md.
+- Onda 7 (validador): não rodou PYTEST57 nem contagens de appointment/vaccination/receivable/tutor/encounter/system_program.
 
 ## Riscos
 - Volume de WhatsApp manual: com legítimo interesse, todo tutor sem opt-out e com telefone válido gera um WhatsApp `queued` de confirmação D-1 e de retorno, que aparece na Central de Pendências como "aguardando envio". Mitigação: o atendente envia ou descarta pela ficha; o volume é medido no roteiro A (T-23). Se pesar na operação, o próximo passo é um interruptor por canal nas automações (fora do MVP).
@@ -117,5 +125,6 @@
   - Onda 4: BASE cf5eb18 → HEAD 80a83bc (4e84c61,1af3642,d66e876,4a8e09f,3ef250d,11c9473,4f1fe95,2ccec8c,7b90a81,989c1f1,2de5615,cb99fe4,4721664,80a83bc)
   - Onda 5: BASE 1c2876e → HEAD dbdfab6 (1d00c80,dcdcd6a,eb25789,fe67d5c,1905709,08471bd,244821e,dbdfab6)
   - Onda 6: BASE 747264d → HEAD 975c8dd (a65c441,e6fc64a,0686df5,85e5c65,eef05aa,9f741e0,08b48ad,87cd91c,feaea9b,67a3b46,99efc3e,3ba0471,b544ca8,975c8dd)
-- Último status conhecido: onda 6 concluída (T-23 [x]); SQL de limpeza preparado, não executado
-- Próxima onda recomendada: nenhuma (revisão final; limpeza SQL com aprovação do usuário)
+  - Onda 7: BASE b735de1 → HEAD bec04e8 (2b6927c,fdc0d02,fcb802c,224a35d,bec04e8)
+- Último status conhecido: onda 7 concluída (T-24 e T-25 [x], correções da revisão final); SQL de limpeza (message #42, template #7) preparado, não executado
+- Próxima onda recomendada: nenhuma (nova revisão final; limpeza SQL com aprovação do usuário)
