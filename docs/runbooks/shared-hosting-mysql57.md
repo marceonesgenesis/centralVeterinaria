@@ -190,3 +190,51 @@ grep -n "TRIGGER IF EXISTS\|CREATE TRIGGER \`encounter_account_item\|CREATE TRIG
 Confira a ordem drop, create nos dois CHECKs e que o verify do 5.7 lista as
 6 tabelas. Em seguida aplique a DML de programas descrita em
 [`cirurgia.md`](./cirurgia.md), com autorização específica.
+
+## Migration 0012 (comunicação)
+
+A `20261006_0012_phase7a_communication.sql` cria quatro tabelas
+(`communication_preference`, `message_template`, `communication_message` e
+`appointment_followup`), 18 CHECKs, 4 UNIQUEs e dois índices em tabelas
+existentes (`vaccination_tenant_next_dose_idx` e
+`receivable_tenant_status_idx`, cada um em seu próprio `ALTER TABLE ... ADD
+KEY`). Não amplia CHECKs de tabelas existentes, então o preparador só emite
+os triggers `_bi`/`_bu` das tabelas novas. Os CHECKs não usam `BETWEEN`,
+`LIKE` nem funções. Rode numa janela de manutenção: a criação dos índices
+em `vaccination` e `receivable` percorre as tabelas.
+
+Preparo num diretório temporário privado, com o prefixo `16-` (depois do
+`15-` da 0011):
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261006_0012_phase7a_communication.sql \
+  "$d/16-20261006_0012_phase7a_communication.sql"
+cp src/app/database/migrations/20261006_0012_phase7a_communication.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "CREATE TRIGGER \`communication_\|CREATE TRIGGER \`message_template\|CREATE TRIGGER \`appointment_followup" \
+  "$d/out/16-20261006_0012_phase7a_communication.sql"
+```
+
+Confira que o verify do 5.7 lista as 4 tabelas. Em seguida aplique a DML dos
+7 programas descrita em [`comunicacao.md`](./comunicacao.md), com
+autorização específica.
+
+### Agendador e worker na hospedagem
+
+O e-mail só sai com o worker consumindo a fila. Sem worker contínuo na
+hospedagem, escolha uma das opções:
+
+- Manter `COMMUNICATION_EMAIL_DRIVER=log` (nada é enviado; o histórico
+  registra a referência).
+- Rodar o worker por cron (processa a fila e encerra) e o agendador por cron
+  no mesmo intervalo, a partir da raiz de `src/`:
+
+```cron
+# Lembretes automáticos de comunicação (de hora em hora)
+0 * * * * cd /caminho/da/aplicacao/src && php bin/communication-scheduler.php >> /caminho/dos/logs/communication-scheduler.log 2>&1
+```
+
+A saída é só o JSON de contadores, sem dado pessoal. Defina as variáveis
+`COMMUNICATION_*` e `SMTP_*` no ambiente do cron (nunca na linha do crontab
+com a senha à vista).
