@@ -20,6 +20,7 @@
 - 2026-10-05 · ambiente · onda 0 — Login admin no navegador com as credenciais do `.env` autorizado pelo usuário para toda a 6B; feito pelo orquestrador, senha nunca registrada.
 - 2026-10-05 · plano · onda 0 — Branch de trabalho `feat/fase-6b-cirurgia` (nome dado pelo orquestrador; o padrão da skill seria `task/fase-6b-cirurgia`), base `feat/fase-6a-internacao` @ `09ce2d5`.
 - 2026-10-06 · T-01..T-04 · onda 1 — Sem rulings novos além do ruling da T-03: público extra `SurgeryChecklist::assertItemOfPhase()` (reuso por entidade e service da T-09), contrato intacto.
+- 2026-10-06 · T-05/T-06 · onda 2 — Semântica oficial do save condicional de cirurgia = a do PDO: status esperado = último status gravado pela própria instância (WeakMap) → `loadedStatus()` → `scheduled`; mesma instância salva várias vezes, cópia antiga de outra instância lança "changed status concurrently". Fake e docblock de `SurgeryRepositoryInterface` corrigidos (701e4cb RED, f1dc5d8); substitui a nota do board que mandava recarregar a entidade entre saves.
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -35,6 +36,8 @@
 ## Descobertas
 - [T-03] `SurgeryChecklist::assertItemOfPhase` público (extra ao contrato); entidades do checklist com `reconstitute(array)` e `tenantId()`; `SurgeryEvent::record` com notes vazio em tipo não clínico grava null.
 - [T-02] `Surgery` com getters extras (scheduledBy/consentRecordedBy/completedBy/cancelledBy, createdAt/updatedAt); `SurgeryRoom` e `SurgeryTeamMember` com `reconstitute(array)`; transições inválidas lançam `InvalidStatusTransitionException`.
+- [T-05] `FakeSurgeryRepository::findById` devolve cópia nova (reconstitute), como o PDO; checklist duplicado lança `InvalidStatusTransitionException`; eventos `remove()` lança `LogicException`; Team/Checklist/Event sem seed no construtor.
+- [T-06] `SurgeryRepository::save` UPDATE grava só status, consentimento, started/completed/cancelled e `followup_appointment_id` (sala, horário, procedimento e notas imutáveis; remarcar = cancelar e agendar); `SurgeryTeamRepository::save` só insere (use `replaceForSurgery`); checklist/evento com id → `LogicException`; material sem UPDATE.
 
 ## Pendências
 - Herdadas da 6A e fora do escopo: Central de Pendências (PRD §8.23); `docs/runbooks/migrations.md` cita `$MIGRATION_USER`; admissões simultâneas do mesmo paciente sem guarda no banco.
@@ -42,6 +45,8 @@
 - T-02: [sugestão] `recordConsent` sem limite de tamanho de `consent_text` (coluna text); `SurgeryRoom::rename` sem teste.
 - T-03: [sugestão] `SurgeryChecklistItem::reconstitute` falha se código sair do catálogo; `assertComplete` caminho feliz com `Assert::true(true)`.
 - T-04: [sugestão] rollback só apaga concessões nos grupos 1 e Cirurgia (FK pode parar o script); lacunas de `frontpage_id`/`tenant_group`; nome sem `COLLATE utf8mb4_bin` casa sem acento.
+- T-05: [sugestão] `FakeSurgeryChecklistRepository::listBySurgery` ordena só por id (PDO: `checked_at ASC, id ASC`); regravar item de checklist com id lança `InvalidStatusTransitionException` no fake e `LogicException` no PDO.
+- T-06: [sugestão] caminho do WeakMap (mesma instância salva 2x) sem teste de integração; WeakMap guarda status mesmo após rollback da transação (falso conflito se a instância for reaproveitada); round trip não relê campos de cancelamento; inserts não validam tenant/unidade (T-08..T-10 conferem sala/unidade e carregam a cirurgia antes de gravar filhos); `replaceForSurgery` com membro repetido e corrida de código de sala sobem `PDOException` crua (services deduplicam/checam antes); docblock de `Surgery.php:21-23` ainda cita `loadedStatus()` como único status esperado.
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
@@ -59,5 +64,6 @@
 - BASE da onda 1: 09ce2d5
 - Commits por onda:
   - Onda 1: BASE 09ce2d5 → HEAD 1451d0d (be36b80, 6952e1d, e8d6c93, 3936273, e416aa6, 1451d0d)
-- Último status conhecido: onda 1 concluída (T-01..T-04 [x]); 0011 e DML RBAC aplicadas em centralvet e centralvet_test; SUITE 643/643.
-- Próxima onda recomendada: onda 2
+  - Onda 2: BASE 817a4f3 → HEAD f1dc5d8 (0887153, 223a94b, f245d7a, 98523b5, 701e4cb, f1dc5d8)
+- Último status conhecido: onda 2 concluída (T-05, T-06 [x]); SUITE 659/659; 0011 e DML RBAC aplicadas em centralvet e centralvet_test.
+- Próxima onda recomendada: onda 3 (T-07..T-11)

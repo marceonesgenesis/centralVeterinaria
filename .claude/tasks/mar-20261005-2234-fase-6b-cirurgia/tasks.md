@@ -6,8 +6,8 @@
 | T-02 | backend | Domain de sala, cirurgia e equipe + contratos + exceção + tipos de conta e motivo de estoque | — | sim | alta | Platão | [x] |
 | T-03 | backend | Domain de checklist (3 fases), evento e material + contratos | — | sim | média | Arquimedes | [x] |
 | T-04 | infra | Programas RBAC das 9 telas e grupo `Clínico – Cirurgia` (seed + DML, verify e rollback preparados) | — | sim | média | Jaspion | [x] |
-| T-05 | shared | Fakes dos 6 repositórios da cirurgia | T-02, T-03 | sim | média | Platão | [ ] |
-| T-06 | backend | Repositórios PDO (trava de sala, trava de status, UPDATE condicional) + integração | T-01, T-02, T-03 | sim | alta | Athena | [ ] |
+| T-05 | shared | Fakes dos 6 repositórios da cirurgia | T-02, T-03 | sim | média | Platão | [x] |
+| T-06 | backend | Repositórios PDO (trava de sala, trava de status, UPDATE condicional) + integração | T-01, T-02, T-03 | sim | alta | Athena | [x] |
 | T-07 | backend | `SurgeryRoomService` — cadastro de salas por unidade | T-02, T-05 | sim | simples | Jaspion | [ ] |
 | T-08 | backend | `SurgeryService` — agendamento, equipe, consentimento, pré-op, início, cancelamento, eventos | T-02, T-03, T-05 | sim | alta | Athena | [ ] |
 | T-09 | backend | `SurgeryChecklistService` — confirmação das fases | T-02, T-03, T-05 | sim | média | Arquimedes | [ ] |
