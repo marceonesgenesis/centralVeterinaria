@@ -222,19 +222,34 @@ autorização específica.
 
 ### Agendador e worker na hospedagem
 
-O e-mail só sai com o worker consumindo a fila. Sem worker contínuo na
-hospedagem, escolha uma das opções:
+O e-mail só sai com o worker consumindo a fila (`RedisQueue`, exige Redis
+acessível pela hospedagem). Sem processo contínuo na hospedagem, escolha uma
+das opções:
 
 - Manter `COMMUNICATION_EMAIL_DRIVER=log` (nada é enviado; o histórico
-  registra a referência).
-- Rodar o worker por cron (processa a fila e encerra) e o agendador por cron
-  no mesmo intervalo, a partir da raiz de `src/`:
+  registra a referência). Só o cron do agendador é necessário.
+- Rodar o worker em modo one-shot por cron e o agendador por cron, a partir
+  da raiz de `src/`:
 
 ```cron
 # Lembretes automáticos de comunicação (de hora em hora)
 0 * * * * cd /caminho/da/aplicacao/src && php bin/communication-scheduler.php >> /caminho/dos/logs/communication-scheduler.log 2>&1
+# Envio dos e-mails da fila (a cada minuto; drena e encerra em até 50 s)
+* * * * * cd /caminho/da/aplicacao/src && php bin/worker.php --once --max-seconds=50 --max-jobs=200 >> /caminho/dos/logs/worker.log 2>&1
 ```
 
-A saída é só o JSON de contadores, sem dado pessoal. Defina as variáveis
-`COMMUNICATION_*` e `SMTP_*` no ambiente do cron (nunca na linha do crontab
-com a senha à vista).
+`--once` processa a fila até esvaziar ou até o primeiro limite
+(`--max-seconds`, padrão 50 com `--once`; `--max-jobs`, padrão sem limite;
+`0` = sem limite) e sai com 0; sai com 1 se o Redis cair (log
+`worker.loop_error` só com a classe) e com 2 em opção inválida. Execuções
+sobrepostas não acumulam: uma trava de arquivo (`flock` no diretório
+temporário) faz a segunda execução sair com 0 e o log
+`worker.once_skipped_locked`; o envio duplicado já é barrado pelo claim
+condicional da mensagem. Retentativas em backoff são recuperadas na execução
+seguinte. Sem `--once`, o worker continua em loop contínuo (padrão do
+container `worker`).
+
+As saídas e os logs trazem só ids, códigos e contadores, sem dado pessoal.
+Defina no ambiente do cron as variáveis de banco (`DB_*`), de Redis
+(`REDIS_*`), `COMMUNICATION_*` e `SMTP_*` (nunca na linha do crontab com a
+senha à vista).

@@ -134,6 +134,26 @@ Imprime o JSON de contadores (inclui `skipped_opted_out`); sai com 0 em
 sucesso e 1 se algum tenant falhou ou a conexão caiu (só a classe da
 exceção).
 
+### Cron (hospedagem sem processo contínuo)
+
+Sem o container `worker`, o tick não existe: rode o agendador e o worker em
+modo one-shot por cron, a partir da raiz de `src/` (detalhes em
+[`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md)):
+
+```cron
+# Lembretes automáticos (de hora em hora)
+0 * * * * cd /caminho/da/aplicacao/src && php bin/communication-scheduler.php >> /caminho/dos/logs/communication-scheduler.log 2>&1
+# Envio dos e-mails da fila (a cada minuto)
+* * * * * cd /caminho/da/aplicacao/src && php bin/worker.php --once --max-seconds=50 --max-jobs=200 >> /caminho/dos/logs/worker.log 2>&1
+```
+
+`bin/worker.php --once [--max-jobs=N] [--max-seconds=N]` drena a fila até
+esvaziar ou atingir o limite (`--max-seconds` padrão 50 com `--once`; `0` =
+sem limite) e sai com 0 (1 se o Redis cair; 2 em opção inválida). Não roda o
+tick do agendador. Uma trava `flock` impede duas execuções simultâneas (a
+segunda sai com 0 e loga `worker.once_skipped_locked`); o claim condicional
+continua barrando envio duplicado.
+
 Programas de lembrete:
 
 | Finalidade | Gatilho | Base legal |
