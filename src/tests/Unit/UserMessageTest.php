@@ -119,7 +119,7 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(61, UserMessage::STATIC);
+        Assert::count(62, UserMessage::STATIC);
         Assert::count(84, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
@@ -366,6 +366,7 @@ final class UserMessageTest
             'Invalid pending item priority',
             'Invalid deep-link class',
             'Invalid deep-link parameter key',
+            'Replace the template placeholders before sending the message',
         ] as $message) {
             Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
             $pt = $translations[$message] ?? '';
