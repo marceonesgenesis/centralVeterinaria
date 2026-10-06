@@ -9,6 +9,7 @@ use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccount;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Contract\SurgeryRepositoryInterface;
+use CentralVet\Domain\Contract\SurgeryRoomRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\SurgeryRoomUnavailableException;
@@ -246,6 +247,136 @@ final class SurgeryServiceTest
         // Back-to-back slot (starts exactly at the end) is allowed.
         $next = $this->schedule($encounterId, $roomId, $procedureId, '2026-10-06 10:00:00', 60);
         Assert::notNull($next->id());
+    }
+
+    /**
+     * Review Focus 1: the overlap check runs only after the room lock and
+     * before the insert (lock -> check -> insert), so the PDO current read
+     * of hasOverlapInRoom happens while the room is serialized.
+     */
+    public function testScheduleLocksRoomBeforeOverlapCheckAndInsert(): void
+    {
+        $encounterId = $this->encounter();
+        $roomId = $this->room();
+        $procedureId = $this->procedure();
+        $log = new \ArrayObject();
+
+        $rooms = new class ($this->rooms, $log) implements SurgeryRoomRepositoryInterface {
+            public function __construct(private readonly FakeSurgeryRoomRepository $inner, private readonly \ArrayObject $log)
+            {
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                $this->log->append('room.find');
+
+                return $this->inner->findById($id);
+            }
+
+            public function save(object $entity): object
+            {
+                return $this->inner->save($entity);
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
+            }
+
+            public function listByUnit(int $systemUnitId): array
+            {
+                return $this->inner->listByUnit($systemUnitId);
+            }
+
+            public function findByCode(int $systemUnitId, string $code): ?object
+            {
+                return $this->inner->findByCode($systemUnitId, $code);
+            }
+
+            public function lockForScheduling(int $roomId): bool
+            {
+                $this->log->append('room.lock');
+
+                return $this->inner->lockForScheduling($roomId);
+            }
+        };
+
+        $surgeries = new class ($this->surgeries, $log) implements SurgeryRepositoryInterface {
+            public function __construct(private readonly FakeSurgeryRepository $inner, private readonly \ArrayObject $log)
+            {
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                return $this->inner->findById($id);
+            }
+
+            public function save(object $entity): object
+            {
+                $this->log->append('surgery.save');
+
+                return $this->inner->save($entity);
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
+            }
+
+            public function listByUnitAndDay(int $systemUnitId, DateTimeImmutable $day): array
+            {
+                return $this->inner->listByUnitAndDay($systemUnitId, $day);
+            }
+
+            public function hasOverlapInRoom(int $roomId, DateTimeImmutable $startAt, DateTimeImmutable $endAt, ?int $exceptSurgeryId): bool
+            {
+                $this->log->append('surgery.overlap');
+
+                return $this->inner->hasOverlapInRoom($roomId, $startAt, $endAt, $exceptSurgeryId);
+            }
+
+            public function lockStatus(int $surgeryId): ?string
+            {
+                return $this->inner->lockStatus($surgeryId);
+            }
+        };
+
+        $service = new SurgeryService(
+            $surgeries,
+            $rooms,
+            $this->team,
+            $this->checklist,
+            $this->events,
+            $this->encounters,
+            $this->accounts,
+            $this->procedures,
+            FakeTenantUserDirectory::allowingAll(),
+            $this->policy,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+            static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW),
+        );
+
+        $service->schedule($encounterId, $roomId, $procedureId, self::SURGEON_ID, new DateTimeImmutable('2026-10-06 08:00:00'), 60, [], null, self::ACTION);
+
+        Assert::same(['room.lock', 'room.find', 'surgery.overlap', 'surgery.save'], $log->getArrayCopy());
+
+        // A refused booking never reaches the insert.
+        $log->exchangeArray([]);
+        Assert::throws(
+            SurgeryRoomUnavailableException::class,
+            fn () => $service->schedule($encounterId, $roomId, $procedureId, self::SURGEON_ID, new DateTimeImmutable('2026-10-06 08:30:00'), 60, [], null, self::ACTION),
+        );
+        Assert::same(['room.lock', 'room.find', 'surgery.overlap'], $log->getArrayCopy());
     }
 
     public function testRoomOfAnotherUnitOrInactiveIsRefused(): void
