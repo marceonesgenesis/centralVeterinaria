@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use CentralVet\Application\DocumentJobPublisher;
 use CentralVet\Application\MessageQueuePublisher;
 use CentralVet\Communication\CommunicationJobHandler;
 use CentralVet\Communication\CommunicationScheduler;
 use CentralVet\Communication\EmailProviderFactory;
+use CentralVet\Document\DocumentJobHandler;
+use CentralVet\Document\DocumentSweeper;
 use CentralVet\Observability\CorrelationId\CorrelationIdContext;
 use CentralVet\Observability\ErrorTracking\ErrorTrackerFactory;
 use CentralVet\Observability\Logging\JsonLogger;
@@ -67,6 +70,8 @@ $envInt = static function (string $name, int $default): int {
 $communicationSystemUserId = $envInt('COMMUNICATION_SYSTEM_USER_ID', 1);
 $schedulerIntervalSeconds = max(0, $envInt('COMMUNICATION_SCHEDULER_INTERVAL_SECONDS', 3600));
 $receivableReminderDays = max(0, $envInt('COMMUNICATION_RECEIVABLE_REMINDER_DAYS', 7));
+$documentSystemUserId = $envInt('DOCUMENT_SYSTEM_USER_ID', 1);
+$documentSweepIntervalSeconds = max(0, $envInt('DOCUMENT_SWEEP_INTERVAL_SECONDS', 600));
 
 /**
  * Communication job handler (Fase 7A): built lazily so a bad e-mail driver
@@ -83,11 +88,23 @@ $communicationHandlerFor = static function () use (&$communicationHandler, $logg
 };
 
 /**
- * Dispatches a job by its payload `type`: `communication.message.send` goes
- * to the communication handler; any other type keeps the generic log of the
- * Fase 0 pipeline (dequeue, ack/retry/dead-letter, logging, metrics).
+ * Document job handler (Fase 7B): built lazily on the first
+ * `document.generate` job; it publishes the `document_ready` e-mails on the
+ * queue the job came from. A new PDO is opened per job.
  */
-$handle = static function (QueueMessage $message) use ($logger, $communicationHandlerFor): void {
+$documentHandler = null;
+$documentHandlerFor = static function (\CentralVet\Queue\QueueInterface $queue) use (&$documentHandler, $logger, $documentSystemUserId): DocumentJobHandler {
+    return $documentHandler ??= DocumentJobHandler::forEnvironment($queue, $logger, $documentSystemUserId);
+};
+
+/**
+ * Dispatches a job by its payload `type`: `communication.message.send` goes
+ * to the communication handler, `document.generate` to the document
+ * handler; any other type keeps the generic log of the Fase 0 pipeline
+ * (dequeue, ack/retry/dead-letter, logging, metrics).
+ */
+$queue = null;
+$handle = static function (QueueMessage $message) use ($logger, $communicationHandlerFor, $documentHandlerFor, &$queue): void {
     $logger->info('queue.job.processing', [
         'queue' => $message->queue,
         'job_id' => $message->id,
@@ -98,6 +115,10 @@ $handle = static function (QueueMessage $message) use ($logger, $communicationHa
 
     if (($message->payload['type'] ?? null) === MessageQueuePublisher::JOB_TYPE) {
         $communicationHandlerFor()->handle($message);
+    }
+
+    if (($message->payload['type'] ?? null) === DocumentJobPublisher::JOB_TYPE) {
+        $documentHandlerFor($queue)->handle($message);
     }
 };
 
@@ -180,6 +201,32 @@ $runSchedulerTick = static function () use (&$schedulerNextRunAt, $schedulerInte
     }
 };
 
+/**
+ * Document sweeper tick (Fase 7B): every DOCUMENT_SWEEP_INTERVAL_SECONDS
+ * (0 disables), re-publishes the documents stuck in `queued`, on a PDO
+ * opened for the tick. A failure is captured and never stops the loop.
+ */
+$documentSweepNextRunAt = time();
+$runDocumentSweepTick = static function () use (&$documentSweepNextRunAt, $documentSweepIntervalSeconds, $queue, $logger, $errorTracker, $documentSystemUserId): void {
+    if ($documentSweepIntervalSeconds <= 0 || time() < $documentSweepNextRunAt) {
+        return;
+    }
+
+    $documentSweepNextRunAt = time() + $documentSweepIntervalSeconds;
+
+    try {
+        DocumentSweeper::forConnection(
+            PdoConnectionFactory::fromEnvironment(),
+            new DocumentJobPublisher($queue),
+            $logger,
+            $documentSystemUserId,
+        )->runOnce();
+    } catch (\Throwable $sweepException) {
+        $errorTracker->captureException($sweepException, ['phase' => 'document_sweep']);
+        $logger->error('document.sweep.failed', ['exception' => $sweepException::class]);
+    }
+};
+
 $loop = new QueueWorkerLoop($queue, $queueNames, $handle, $logger, $metrics, $errorTracker, null, POP_TIMEOUT_SECONDS);
 
 while ($running) {
@@ -188,6 +235,7 @@ while ($running) {
 
     try {
         $runSchedulerTick();
+        $runDocumentSweepTick();
         $loop->processNext();
     } catch (\Throwable $loopException) {
         $errorTracker->captureException($loopException, ['phase' => 'loop']);
