@@ -20,7 +20,7 @@
 --
 -- Estado lido em 2026-10-06 10:51 (só SELECT), DEPOIS dos gates (roteiro A, revalidação 1, roteiro B):
 --   tutor 9 (MAX 15446), patient 9 (MAX 13320), appointment 20 (MAX 838), encounter 8 (MAX 11104),
---   communication_message 10 (MAX 19), communication_preference 3, message_template 6,
+--   communication_message 12 (MAX 36; 30 e 36 vêm do complemento da rodada 2), communication_preference 3, message_template 6,
 --   appointment_followup 3; encounter_account 4, receivable 3, payment 3, vaccination 0,
 --   queue_entry 4, system_program 133 (inalterados); audit_log MAX(id) 5856.
 --   Ids criados nos gates (todos alvo deste script):
@@ -28,7 +28,8 @@
 --     patient                  13319 'F7A teste Pet' (tutor 15445), 13320 'F7A teste Pet 2' (tutor 15446)
 --     message_template         1-6 ('F7A teste confirmação/retorno/vacina/cobrança/whatsapp/unidade')
 --     communication_preference 1, 2 (tutor 15445), 3 (tutor 15446)
---     communication_message    1-7, 17, 18, 19 (8-16 são lacunas do auto_increment; 19 tem patient_id NULL)
+--     communication_message    1-7, 17, 18, 19, 30, 36 (8-16, 20-29 e 31-35 são lacunas do
+--                              auto_increment; 19, 30 e 36 têm patient_id NULL e entram pelo tutor 15445)
 --     appointment              834 (paciente 13319), 835 (13320), 836, 837, 838 (retornos de 11104)
 --     encounter                11104 (paciente 13319, agendamento 834, in_progress)
 --     appointment_followup     1, 2, 3 (encounter 11104 → appointment 836, 837, 838)
@@ -193,7 +194,7 @@ SELECT COUNT(*) AS account_items        FROM encounter_account_item WHERE accoun
 SELECT 'tutor' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '15445,15446' AS confere FROM tmp_f7a_tutor;
 SELECT 'patient' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '13319,13320' AS confere FROM tmp_f7a_patient;
 SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6' AS confere FROM tmp_f7a_template;
-SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,17,18,19' AS confere FROM tmp_f7a_message;
+SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,17,18,19,30,36' AS confere FROM tmp_f7a_message;
 SELECT 'appointment' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '834,835,836,837,838' AS confere FROM tmp_f7a_appointment;
 SELECT 'encounter' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '11104' AS confere FROM tmp_f7a_encounter;
 SELECT 'followup' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3' AS confere FROM tmp_f7a_followup;
