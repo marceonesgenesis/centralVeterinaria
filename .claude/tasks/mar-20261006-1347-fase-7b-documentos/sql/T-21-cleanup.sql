@@ -33,6 +33,9 @@ START TRANSACTION;
 --     communication_preference 8 (tutor 15447), communication_message 53 (document_ready do doc 3).
 --   Criados pelo roteiro B (reviews/T-21.md § Gate (roteiro B) e complemento):
 --     generated_document 7, 8 e stored_object 2138, 2139; nenhuma mensagem nem preferência nova.
+--   Criados pelo complemento RF4 (reviews/T-21.md § Gate (complemento RF4)): document_template 2
+--     (nome com prefixo 'F7B teste' e HTML de teste), generated_document 9 (usa o template 2),
+--     stored_object 2140.
 --
 -- Guardas por id: além do prefixo, as linhas só entram se o id for maior que o MAX(id) pré-gate
 -- da Onda 4 (tutor 13876, patient 9180, encounter 4304, appointment 831, stored_object 2131,
@@ -81,6 +84,8 @@ START TRANSACTION;
 --   (stored_object 2138, 2139 = documentos 7, 8, roteiro B:)
 --   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/7/cffae9f0f4d1b35a.pdf
 --   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/8/68f8e88c8349b74d.pdf
+--   (stored_object 2140 = documento 9, complemento RF4:)
+--   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/9/799791ae7c047f09.pdf
 -- Depois do rm: docker compose exec -T app find /var/www/html/var/documents/cv -type f | wc -l
 -- deve bater com o número de stored_object local restantes.
 
@@ -241,12 +246,12 @@ SELECT CONCAT('docker compose exec -T app rm -f -- /var/www/html/var/documents/'
   FROM stored_object o WHERE o.id IN (SELECT id FROM tmp_f7b_object) AND o.storage_provider = 'local';
 
 -- 2.7 Conferência das listas derivadas contra os ids do gate (confere = 1 em todas; se alguma
---     vier 0, PARE). Onda 4 + roteiros A e B da Onda 6 (conferidos por SELECT em 2026-10-06).
+--     vier 0, PARE). Onda 4 + roteiros A, B e complemento RF4 da Onda 6 (conferidos por SELECT em 2026-10-06).
 SELECT 'tutor'   AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '15447' AS confere FROM tmp_f7b_tutor;
 SELECT 'patient' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '13321' AS confere FROM tmp_f7b_patient;
-SELECT 'document' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,8' AS confere FROM tmp_f7b_document;
-SELECT 'object'  AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2132,2133,2134,2135,2136,2137,2138,2139' AS confere FROM tmp_f7b_object;
-SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1' AS confere FROM tmp_f7b_template;
+SELECT 'document' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,8,9' AS confere FROM tmp_f7b_document;
+SELECT 'object'  AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2132,2133,2134,2135,2136,2137,2138,2139,2140' AS confere FROM tmp_f7b_object;
+SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2' AS confere FROM tmp_f7b_template;
 SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '53' AS confere FROM tmp_f7b_message;
 SELECT 'preference' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '8' AS confere
   FROM communication_preference WHERE tutor_id IN (SELECT id FROM tmp_f7b_tutor);
