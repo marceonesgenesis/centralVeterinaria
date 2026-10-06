@@ -39,6 +39,9 @@
 
   RESOLVIDO em 2026-10-06 (aprovação SQL explícita do usuário): backup var/backups/centralvet-20261006T021120Z.sql.gz (gzip -t ok); 0011 aplicada com MIGRATION_DB_USER em centralvet e centralvet_test a partir de cópia com SHA-256 12f7cfbc780221f843fd74a758cb734662f1f15837258f3f6231597b3bcded76 (commitado mantém placeholder); verify nos dois: 6 tabelas vazias, 11 CHECKs novos + 2 ampliados; T-04 DML: grupo id 5 'Clínico – Cirurgia' (18 chars/21 bytes), 9 programas, concessões grupo 1 = 9, grupo 5 = 9, grupos 2/3/4 = 0; system_group 4→5, system_program 117→126, system_group_program 127→145.
   Critério original: desbloqueia quando o `.verify.sql` lista as 6 tabelas e os 13 CHECKs (11 novos, 2 ampliados) nos dois bancos e o verify da T-04 mostra o grupo `Clínico – Cirurgia` (18 caracteres / 21 bytes), 9 concessões no grupo 1, 9 em `Clínico – Cirurgia` e 0 em `Clínico – Internação` e nos grupos 2 e 3.
+- 2026-10-06 · T-21 · onda 6 — Fluxo completo do roteiro A só em desktop; em tablet rodaram telas, cancelamento e lista.
+- 2026-10-06 · T-21 · onda 6 — Review Focus 2 (material com outra aba concluindo) coberto por SurgeryMaterialServiceTest::testMaterialAfterConcurrentCompletionIsRefused, não por navegador.
+- 2026-10-06 · T-21 · onda 6 — Login admin do gate refeito pelo orquestrador, com autorização do usuário para a 6B.
 
 ## Descobertas
 - [T-03] `SurgeryChecklist::assertItemOfPhase` público (extra ao contrato); entidades do checklist com `reconstitute(array)` e `tenantId()`; `SurgeryEvent::record` com notes vazio em tipo não clínico grava null.
@@ -49,6 +52,8 @@
 - [T-07..T-11] SurgeryService: sala de outra unidade → InvalidArgumentException `Surgery room <id> belongs to another unit`; cirurgia inexistente → CrossTenantReferenceException; eventos scheduled/consent/status/cancellation; replaceTeam confere lockStatus (T-08). SurgeryCompletionService não abre transação: T-14 envolve em TTransaction único e `complete()` sem leitura prévia; `scheduleFollowUp` valida antes de agendar (T-11).
 - [onda 4] Telas prontas: SurgeryRoomList/Form, SurgeryScheduleForm (`onChangeProcedure` extra), SurgeryView (abas summary|checklist|materials|events), SurgeryConsentForm/EventForm (`typeLabels()` público), SurgeryChecklistForm/MaterialForm (`onAskRemove` extra, CSS `cv-checklist-*`), SurgeryList + SurgeryAgendaView, navegação (menu, CvNav 'surgery', EncounterView::PLAN_ACTIONS). Detalhes e chaves i18n no board.md.
 - [onda 4] Gate: SUITE 744/744 (746 após fix T-15), LINT 19, PYTEST57 OK; smoke Playwright 820×1180 nas 9 telas vazias (alvos 44 px, console 0, rede sem ≥400).
+- [T-21] sql/T-21-cleanup.sql pronto (não executado); gate usou só prefixo 'F6B teste'. ids F6B: sala 1, cirurgias 1-3, paciente 13318, atendimento 11103, fila 818, agendamentos 832/833, produto 11836/lote 11187, movimentos 5/6, conta 373 itens 13/14, leito 4, internação 5; tutor 1595 reutilizado, fora da limpeza.
+
 ## Pendências
 - Herdadas da 6A e fora do escopo: Central de Pendências (PRD §8.23); `docs/runbooks/migrations.md` cita `$MIGRATION_USER`; admissões simultâneas do mesmo paciente sem guarda no banco.
 - T-01: [sugestão] FKs de coluna única não garantem consistência tenant/unidade (T-06/T-08 devem validar); `surgery_cancelled_ck` não exige autor do cancelamento; consulta de sobreposição de sala sem limite inferior de janela varre histórico.
@@ -75,6 +80,13 @@
 - T-19: [sugestão] status misturam gêneros nos badges (`Scheduled` "Agendado" ao lado de "Concluída"/"Cancelada"; exige chave própria na tela); mensagens `duration_minutes is required`, `quantity must be >= 1`, `cancellation_reason_text`/`consent_signer_name` com limite de tamanho ainda pelo genérico com nome técnico; `Hospitalize post-op` não criada (nenhuma tela usa).
 - T-19: gate de tela em pt (sessão admin expirada, "Message not found" não verificável) → T-21.
 - T-20: [sugestão] runbook trata `SurgeryAgendaView` como tela (é classe auxiliar de SurgeryList); passo 2 fixa "esperado 4/117/127" (marcar como contagens de 2026-10-05, delta +1/+9/+18).
+- T-21: executar sql/T-21-cleanup.sql após a revisão final (backup, ensaio com ROLLBACK, aprovação SQL explícita).
+- T-21: [sugestão] cabeçalho do SQL descreve só o estado pré-gate; registrar os ids reais antes do ensaio (sql/T-21-cleanup.sql:15-22).
+- T-21: [sugestão] queue_entry 818 e appointment 832 saem em 3.11 por patient_id sem contagem antes/depois nem linha de revisão (sql/T-21-cleanup.sql:76-88, 300-327).
+- T-21: [sugestão] tabela do gate por tela (Tela|Fluxos|Console|Rede|Erro|Veredito|Task dona) não registrada; só linha agregada de 14 telas x 2 viewports.
+- T-21: [sugestão] arquivo vazio não rastreado `=` na raiz do repositório; remover antes do fechamento.
+- T-21: fora do escopo: QueueEntryView::onAdvance mostra "Status atualizado" mas queue_entry 818 seguiu "aguardando" (provável bug anterior à fase).
+
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
 - Conclusão não atômica fora do controller (services não abrem transação). Mitigação: `SurgeryView::onComplete` com `TTransaction` único; Review Focus 3 conferido no roteiro B da T-21.
@@ -95,5 +107,6 @@
   - Onda 3: BASE 9c5bb04 → HEAD 21dbc10 (ddaadf0, a26b298, 6e68554, 96f0567, 3f2038a, 8dacf73, 41cfbee, 063e263, d9b5a81, 5ecd21e, 4678b75, 6929b48, 21dbc10)
   - Onda 4: BASE e09d03d → HEAD 1f7718f (dd31bcb, 24a5c00, b502111, 0388aee, aafdb9c, 192a950, 1a42185, c577b6d, d75ee63, 765b946, f872e4e, a5104a1, 1859572, 92daa99, 118f066, 2d05dd9, 78aa2e0, 1f7718f)
   - Onda 5: BASE c7ce164 → HEAD 5283aaa (193840a, 44343f2, 5283aaa)
-- Último status conhecido: onda 5 concluída (T-19, T-20 [x]); SUITE 749/749, translations 0 True, PYTEST57 OK, LINT ok.
-- Próxima onda recomendada: onda 6 (T-21)
+  - Onda 6: BASE 2422d4a → HEAD dd2aa3c (dd2aa3c)
+- Último status conhecido: onda 6 concluída (T-21 [x]); gate final roteiros A e B aprovados; SUITE 749/749, PYTEST57 OK, LINT ok.
+- Próxima onda recomendada: nenhuma; revisão final da branch
