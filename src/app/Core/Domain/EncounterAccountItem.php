@@ -45,6 +45,8 @@ final class EncounterAccountItem
     public const TYPE_MANUAL = 'manual';
     public const TYPE_HOSPITALIZATION_STAY = 'hospitalization_stay';
     public const TYPE_HOSPITALIZATION_ADMINISTRATION = 'hospitalization_administration';
+    public const TYPE_SURGERY_PROCEDURE = 'surgery_procedure';
+    public const TYPE_SURGERY_MATERIAL = 'surgery_material';
 
     private const TYPES = [
         self::TYPE_PROCEDURE_EXECUTION,
@@ -52,6 +54,8 @@ final class EncounterAccountItem
         self::TYPE_MANUAL,
         self::TYPE_HOSPITALIZATION_STAY,
         self::TYPE_HOSPITALIZATION_ADMINISTRATION,
+        self::TYPE_SURGERY_PROCEDURE,
+        self::TYPE_SURGERY_MATERIAL,
     ];
 
     private function __construct(
