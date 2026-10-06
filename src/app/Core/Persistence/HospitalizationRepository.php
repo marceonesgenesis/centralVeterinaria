@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Persistence;
 
 use CentralVet\Domain\Contract\HospitalizationRepositoryInterface;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Hospitalization;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
@@ -105,7 +106,13 @@ final class HospitalizationRepository extends AbstractTenantRepository implement
             return $entity;
         }
 
-        $query = $this->tenantQuery()->andEquals('id', $entity->id());
+        // Every domain transition (moveToBed, discharge) starts from
+        // `admitted`, so the UPDATE only applies to a row still admitted: a
+        // stale copy (e.g. a transfer racing a committed discharge) cannot
+        // reopen the hospitalization.
+        $query = $this->tenantQuery()
+            ->andEquals('id', $entity->id())
+            ->andEquals('status', Hospitalization::STATUS_ADMITTED);
 
         $statement = $this->connection->prepare(
             <<<SQL
@@ -124,6 +131,13 @@ final class HospitalizationRepository extends AbstractTenantRepository implement
             ':discharged_by_system_user_id' => $entity->dischargedBySystemUserId(),
             ':discharge_summary_text' => $entity->dischargeSummaryText(),
         ]);
+
+        // rowCount() counts changed rows: 0 is also an unchanged admitted
+        // row. A locking read (sees the latest commit, not the transaction
+        // snapshot) tells the two apart.
+        if ($statement->rowCount() === 0 && !$this->isStillAdmitted((int) $entity->id())) {
+            throw new InvalidStatusTransitionException("Hospitalization {$entity->id()} is not admitted");
+        }
 
         return $entity;
     }
@@ -146,6 +160,20 @@ final class HospitalizationRepository extends AbstractTenantRepository implement
 
         $statement = $this->connection->prepare("DELETE FROM hospitalization WHERE {$query->whereSql()}");
         $statement->execute($query->parameters());
+    }
+
+    private function isStillAdmitted(int $id): bool
+    {
+        $query = $this->tenantQuery()
+            ->andEquals('id', $id)
+            ->andEquals('status', Hospitalization::STATUS_ADMITTED);
+
+        $statement = $this->connection->prepare(
+            "SELECT 1 FROM hospitalization WHERE {$query->whereSql()} LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        return $statement->fetchColumn() !== false;
     }
 
     private function fetchOne(TenantQuery $query, string $orderBy = ''): ?Hospitalization
