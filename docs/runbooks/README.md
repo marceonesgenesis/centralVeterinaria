@@ -13,6 +13,7 @@ runbooks indicam o que muda nesses ambientes.
 - [`build-versioning.md`](./build-versioning.md) — estratégia de tag de imagem e o pipeline de CI.
 - [`environments.md`](./environments.md) — configuração esperada por ambiente (development/staging/production).
 - [`internacao.md`](./internacao.md) — fluxos, regras, banco, permissões e aplicação da internação (Fase 6A).
+- [`cirurgia.md`](./cirurgia.md) — fluxos, regras, banco, permissões e aplicação da cirurgia (Fase 6B).
 
 Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
 banco (migration, rollback, restore) exigem autorização explícita antes de

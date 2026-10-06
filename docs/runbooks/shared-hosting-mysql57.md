@@ -160,3 +160,33 @@ A verificação do 5.7 troca a consulta a `information_schema.check_constraints`
 pela de `information_schema.TRIGGERS`, filtrando `EVENT_OBJECT_TABLE` pelo
 literal `table_name = '<tabela>'` ou `table_name IN (...)` da própria consulta;
 consulta de CHECK sem esse literal faz o preparador falhar.
+
+## Migration 0011 (cirurgia)
+
+A `20261005_0011_phase6b_surgery.sql` cria seis tabelas (`surgery_room`,
+`surgery`, `surgery_team`, `surgery_checklist`, `surgery_event` e
+`surgery_material`) e amplia os mesmos dois CHECKs da 0010
+(`encounter_account_item_source_type_ck` e `stock_movement_reason_ck`) em
+`DROP CHECK` e `ADD CONSTRAINT`. Como a 0010 já criou os triggers
+`<nome>_bi`/`<nome>_bu` desses CHECKs no 5.7, o preparador emite
+`DROP TRIGGER IF EXISTS` dos dois triggers antes de cada `CREATE TRIGGER`;
+sem isso o `CREATE TRIGGER` falha por nome duplicado. Os `timestamp(6)` têm
+`DEFAULT CURRENT_TIMESTAMP(6)`, e os CHECKs novos não usam `BETWEEN`, `LIKE`
+nem funções.
+
+Preparo num diretório temporário privado, com o prefixo `15-` (depois do
+`14-` da 0010):
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261005_0011_phase6b_surgery.sql \
+  "$d/15-20261005_0011_phase6b_surgery.sql"
+cp src/app/database/migrations/20261005_0011_phase6b_surgery.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "TRIGGER IF EXISTS\|CREATE TRIGGER \`encounter_account_item\|CREATE TRIGGER \`stock_movement" \
+  "$d/out/15-20261005_0011_phase6b_surgery.sql"
+```
+
+Confira a ordem drop, create nos dois CHECKs e que o verify do 5.7 lista as
+6 tabelas. Em seguida aplique a DML de programas descrita em
+[`cirurgia.md`](./cirurgia.md), com autorização específica.
