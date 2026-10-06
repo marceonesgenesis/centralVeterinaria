@@ -53,7 +53,10 @@
   5. Registrar contagens antes/depois de `encounter_account_item`, `stock_movement` e `system_program`.
 
   Desbloqueia quando o `.verify.sql` lista as 5 tabelas e os 16 CHECKs (14 novos, 2 alterados) nos dois bancos e o verify da T-05 mostra 8 concessões no grupo 1, 8 em `Clínico – Internação`, 0 nos grupos 2 e 3 e o nome com 20 caracteres / 25 bytes.
-- Execução de `sql/T-20-cleanup.sql`: só depois do gate final, pelo orquestrador, com aprovação SQL.
+- RESOLVIDO em 2026-10-06 (orquestrador, com aprovação SQL explícita do usuário): execução de `sql/T-20-cleanup.sql`.
+  - Backup `var/backups/centralvet-20261006T012825Z.sql.gz` (gzip -t ok).
+  - 1º ensaio (+ROLLBACK) parou em ERROR 3819 `encounter_account_total_ck` na 3.3, sem gravar nada → Correção 2 da T-20 (f0aaeb8, somas por tabela derivada).
+  - 2º ensaio (+ROLLBACK) bateu tudo; execução com COMMIT: bed/hospitalization/order/administration/event = 0, encounter_account 5→4 (371 apagada), encounter_account_item 12→6, stock_movement 4→1, conta 46 = 7000/500/6500, system_program 117, queue_entry 322 inalterada.
 
 - 2026-10-05 · T-15 · onda 4 — Fix loop rodada 1 (6beb807 RED + d29e899): ACTION_VIEW do AdministrationForm passou a 'HospitalizationAdministrationForm::onLoad'; re-validado no navegador (toque duplo em Feito → done=1); revisão rodada 1 aprovada.
 - 2026-10-05 · T-16 · onda 4 — Revisão rodada 1 reprovou (AuthorizationDenied/MissingTenantContext não capturados no HospitalizationBoard); fix f6cef53 (RED) + 3bc672a; SUITE 607/607; re-revisão rodada 2 aprovada. Caminho autorizado: src/tests/Integration/HospitalizationBoardIntegrationTest.php.
@@ -112,7 +115,7 @@
 - T-19: runbook aponta SQL em `.claude/tasks/.../sql/T-05-programs*.sql`, pasta de plano que pode ser arquivada; copiar a DML para local estável ou avisar.
 - T-12: `.cv-touch-target` fixa `44px`; usar `var(--cv-touch-target)` (custom.css:34) manteria um valor só; correção escreveu em cv-components.css fora dos arquivos prováveis da T-12.
 - T-20: comentários de estado do sql/T-20-cleanup.sql desatualizados em relação ao banco pós-gate; os ~312 registros de audit_log dos gates ficam fora da limpeza (documentar).
-- T-20: executar `sql/T-20-cleanup.sql` pelo orquestrador após a revisão final, com backup e aprovação SQL do usuário.
+- RESOLVIDA em 2026-10-06 · T-20: `sql/T-20-cleanup.sql` executado pelo orquestrador (ver Bloqueios e Retomada).
 - Revisão final: prescrição concorrente com a alta deixa administrações pending numa internação discharged (somem do flowboard, nunca cobradas nem canceladas) → HospitalizationOrderService.php prescribe.
 - eficiencia.py: onda 7 sem tasks em plan.md (aviso; nenhuma linha gravada).
 
@@ -137,5 +140,5 @@
   - Onda 5: BASE 3f32dab → HEAD 7d16fd8 (7d16fd8, 7c66aa1, 2993ddd, 9e9bf37, ce1912d)
   - Onda 6: BASE a72d78e → HEAD f3c5109 (f3c5109, 9efbe58, 1896eaf, 12c9e28, 909e5bd, d937f32, 8ea5a53, 152b920, 14a0398, 0b5a6c2)
   - Onda 7 (correção da revisão final): BASE 3aeea3d → HEAD ac52d25 (ac52d25, b32c7c3, ebf01c3, 3cded2e)
-- Último status conhecido: onda 7 (correção da revisão final) concluída (T-07/T-09 [x]; SUITE 627/627; re-revisão aprovada)
-- Próxima onda recomendada: nenhuma (executar sql/T-20-cleanup.sql com backup e aprovação SQL)
+- Último status conhecido: plano concluído (onda 7 de correção da revisão final; sql/T-20-cleanup.sql executado em 2026-10-06)
+- Próxima onda recomendada: nenhuma (plano concluído)
