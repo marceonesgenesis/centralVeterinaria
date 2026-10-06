@@ -79,6 +79,7 @@ final class UserMessage
         'Invalid pending item priority' => 'Invalid pending item priority',
         'Invalid deep-link class' => 'Invalid deep-link class',
         'Invalid deep-link parameter key' => 'Invalid deep-link parameter key',
+        'Replace the template placeholders before sending the message' => 'Replace the template placeholders before sending the message',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */

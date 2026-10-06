@@ -3492,6 +3492,10 @@
     "pt": "Renovação de senha"
   },
   {
+    "en": "Replace the template placeholders before sending the message",
+    "pt": "Troque os marcadores {{...}} do modelo pelo texto antes de enviar a mensagem"
+  },
+  {
     "en": "Reports",
     "pt": "Relatórios"
   },
