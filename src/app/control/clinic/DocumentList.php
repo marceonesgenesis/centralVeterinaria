@@ -110,7 +110,7 @@ class DocumentList extends TPage
         }
 
         $container->add(CvPage::header(_t('Documents'), $subtitle !== '' ? $subtitle : null, [$refreshButton]));
-        $container->add($documents === [] ? self::emptyState() : self::table($documents));
+        $container->add($documents === [] ? self::emptyState() : self::table($documents, $patientId));
 
         parent::add($container);
     }
@@ -137,11 +137,19 @@ class DocumentList extends TPage
         exit;
     }
 
-    /** Confirmação da nova tentativa: o TQuestion carrega só o id. */
+    /**
+     * Confirmação da nova tentativa: o TQuestion carrega só o id e, vindo da
+     * lista de um paciente, o patient_id para voltar a ela.
+     */
     public static function onAskRetry($param = null)
     {
         $action = new TAction([__CLASS__, 'onRetry']);
         $action->setParameter('id', (int) self::positiveInt($param['id'] ?? null));
+        $patientId = self::positiveInt($param['patient_id'] ?? null);
+        if ($patientId !== null)
+        {
+            $action->setParameter('patient_id', $patientId);
+        }
         $action->setParameter('static', '1');
 
         new TQuestion(_t('Try to generate this document again?'), $action);
@@ -149,11 +157,12 @@ class DocumentList extends TPage
 
     /**
      * failed → queued (DocumentRequestService::retry); depois do commit o job
-     * é publicado. Falha no push só registra o id (o varredor republica).
+     * é publicado. Volta à lista de onde veio (do paciente, com patient_id).
      */
     public static function onRetry($param)
     {
         $id = self::positiveInt($param['id'] ?? null);
+        $patientId = self::positiveInt($param['patient_id'] ?? null);
 
         try
         {
@@ -162,24 +171,11 @@ class DocumentList extends TPage
                 throw new \CentralVet\Domain\Exception\DocumentNotAvailableException();
             }
 
-            $context = self::resolveTenantContext();
-
-            TTransaction::open('permission');
-            self::makeService($context)->retry($id, self::ACTION_RETRY);
-            TTransaction::close();
-
-            try
-            {
-                (new \CentralVet\Application\DocumentJobPublisher(\CentralVet\Queue\RedisQueue::fromEnvironment()))
-                    ->publish($context->tenantId(), $id);
-            }
-            catch (Throwable $publishError)
-            {
-                error_log(__METHOD__ . ': queue publish failed for document ' . $id . ' (' . get_class($publishError) . ')');
-            }
+            static::requeueDocument($id);
 
             TToast::show('success', _t('Document requeued'));
-            TScript::create("__adianti_goto_page('index.php?class=DocumentList')");
+            $url = 'index.php?class=DocumentList' . ($patientId !== null ? '&patient_id=' . $patientId : '');
+            TScript::create("__adianti_goto_page('" . $url . "')");
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -196,6 +192,29 @@ class DocumentList extends TPage
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . get_class($e));
             new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Retry numa transação e publicação do job depois do commit. Falha no
+     * push só registra o id (o varredor republica).
+     */
+    protected static function requeueDocument(int $id): void
+    {
+        $context = self::resolveTenantContext();
+
+        TTransaction::open('permission');
+        self::makeService($context)->retry($id, self::ACTION_RETRY);
+        TTransaction::close();
+
+        try
+        {
+            (new \CentralVet\Application\DocumentJobPublisher(\CentralVet\Queue\RedisQueue::fromEnvironment()))
+                ->publish($context->tenantId(), $id);
+        }
+        catch (Throwable $publishError)
+        {
+            error_log(__METHOD__ . ': queue publish failed for document ' . $id . ' (' . get_class($publishError) . ')');
         }
     }
 
@@ -279,8 +298,9 @@ class DocumentList extends TPage
 
     /**
      * @param list<\CentralVet\Domain\GeneratedDocument> $documents
+     * @param int|null $patientId paciente da lista (a nova tentativa volta a ela)
      */
-    private static function table(array $documents): TElement
+    private static function table(array $documents, ?int $patientId = null): TElement
     {
         $card = new TElement('div');
         $card->{'class'} = 'cv-card';
@@ -308,7 +328,8 @@ class DocumentList extends TPage
             $createdAt = $document->createdAt();
 
             $tr = new TElement('tr');
-            $tr->add(TElement::tag('td', CvFormat::e($document->title())));
+            // título pelo kind, na locale da sessão (o gravado é o pt do domínio)
+            $tr->add(TElement::tag('td', CvFormat::e(CvDocumentKind::title($document->kind()))));
             $tr->add(TElement::tag('td', CvFormat::e('v' . $document->version())));
 
             $status = new TElement('td');
@@ -318,7 +339,7 @@ class DocumentList extends TPage
             $tr->add(TElement::tag('td', CvFormat::e($createdAt !== null ? $createdAt->format('d/m/Y H:i') : '—')));
 
             $actions = new TElement('td');
-            $actions->add(self::actionFor($document));
+            $actions->add(self::actionFor($document, $patientId));
             $tr->add($actions);
 
             $tbody->add($tr);
@@ -330,7 +351,7 @@ class DocumentList extends TPage
         return $card;
     }
 
-    private static function actionFor(\CentralVet\Domain\GeneratedDocument $document): TElement
+    private static function actionFor(\CentralVet\Domain\GeneratedDocument $document, ?int $patientId): TElement
     {
         $id = (int) $document->id();
 
@@ -354,6 +375,10 @@ class DocumentList extends TPage
             case \CentralVet\Domain\GeneratedDocument::STATUS_FAILED:
                 $action = new TAction([__CLASS__, 'onAskRetry']);
                 $action->setParameter('id', $id);
+                if ($patientId !== null)
+                {
+                    $action->setParameter('patient_id', $patientId);
+                }
                 $action->setParameter('static', '1');
 
                 $link = new TElement('a');

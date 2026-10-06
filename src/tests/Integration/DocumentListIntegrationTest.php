@@ -185,7 +185,7 @@ final class DocumentListIntegrationTest
             . ' $row["source_type"] = $kind === "prescription" ? "prescription" : ($kind === "surgery_consent" ? "surgery" : "patient");'
             . ' $row["body_text"] = $kind === "prescription" ? null : "F7B teste corpo";'
             . ' ob_start(); $m->invoke(null, [CentralVet\Domain\GeneratedDocument::reconstitute($row)])->show();'
-            . ' preg_match("/<tbody><tr><td>([^<]*)<\/td>/", ob_get_clean(), $t); $out["titles"][] = $t[1] ?? null; }'
+            . ' preg_match("/<tbody>\\s*<tr>\\s*<td>([^<]*)<\/td>/", ob_get_clean(), $t); $out["titles"][] = $t[1] ?? null; }'
         );
 
         Assert::true(!isset($pt['error']), 'render threw: ' . (string) ($pt['error'] ?? ''));

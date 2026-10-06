@@ -9,8 +9,12 @@ START TRANSACTION;
 --   docker compose exec mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --default-character-set=utf8mb4 centralvet'
 --   mysql> source /caminho/T-21-cleanup.sql
 -- O usuário precisa de CREATE TEMPORARY TABLES (as tabelas tmp_f7b_* vivem só na sessão).
--- O COMMIT final está comentado: sem ele, fechar a sessão desfaz tudo. Qualquer erro (FK
--- RESTRICT, CHECK) interrompe o script; rode ROLLBACK e reveja o predicado.
+-- O COMMIT final está comentado: sem ele, fechar a sessão desfaz tudo. Atenção: no `source`
+-- interativo o cliente mysql NÃO para no erro (FK RESTRICT, CHECK); ele segue para o comando
+-- seguinte dentro da mesma transação. Por isso, execute em duas etapas:
+--   1) `source` do script inteiro (o COMMIT fica comentado) e procure "ERROR" na saída;
+--      com qualquer ERROR, rode ROLLBACK e reveja o predicado; só sem erro confira os SELECTs.
+--   2) Só então digite COMMIT; à mão, na mesma sessão (ou ROLLBACK; se algo não bater).
 -- Recomendado: ensaio completo terminando em ROLLBACK antes da execução com COMMIT.
 --
 -- Estado lido em 2026-10-06 14:49 (só SELECT, MySQL 8.0.43), DEPOIS do gate da Onda 4 e ANTES

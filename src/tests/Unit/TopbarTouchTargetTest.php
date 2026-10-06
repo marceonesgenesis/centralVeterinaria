@@ -77,6 +77,8 @@ final class TopbarTouchTargetTest
     {
         $dir = dirname(__DIR__, 2) . self::TEMPLATE;
 
-        return (string) file_get_contents($dir . 'custom.css') . "\n" . (string) file_get_contents($dir . 'cv-components.css');
+        $css = (string) file_get_contents($dir . 'custom.css') . "\n" . (string) file_get_contents($dir . 'cv-components.css');
+
+        return (string) preg_replace('#/\*.*?\*/#s', '', $css);
     }
 }

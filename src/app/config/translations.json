@@ -3212,6 +3212,10 @@
     "pt": "Dados da prescrição"
   },
   {
+    "en": "Prescription document",
+    "pt": "Receita"
+  },
+  {
     "en": "Prescription history",
     "pt": "Histórico de prescrições"
   },
@@ -4350,6 +4354,10 @@
   {
     "en": "Surgical assistant",
     "pt": "Auxiliar"
+  },
+  {
+    "en": "Surgical consent form",
+    "pt": "Termo de consentimento cirúrgico"
   },
   {
     "en": "Surgical safety checklist",

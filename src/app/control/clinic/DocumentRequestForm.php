@@ -179,33 +179,10 @@ class DocumentRequestForm extends TPage
             $bodyText = $isCertificate ? (string) ($_POST['body_text'] ?? '') : null;
             $notifyTutor = is_array($param) && (string) ($param['notify_tutor'] ?? '') === '1';
 
-            $context = self::resolveTenantContext();
-
-            TTransaction::open('permission');
-
-            $document = self::makeRequestService($context)->request(
-                $kind,
-                $sourceId,
-                $templateId > 0 ? $templateId : null,
-                $bodyText,
-                $notifyTutor,
-                self::ACTION_SAVE,
-            );
-
-            TTransaction::close();
-
-            $documentId = (int) $document->id();
+            $document = static::requestDocument($kind, $sourceId, $templateId > 0 ? $templateId : null, $bodyText, $notifyTutor);
 
             // publicação só depois do commit; falha fica para o varredor
-            try
-            {
-                (new \CentralVet\Application\DocumentJobPublisher(\CentralVet\Queue\RedisQueue::fromEnvironment()))
-                    ->publish($context->tenantId(), $documentId);
-            }
-            catch (Throwable $publishError)
-            {
-                error_log(__METHOD__ . ': publish failed for document_id=' . $documentId . ' (' . get_class($publishError) . ')');
-            }
+            static::publishDocumentJob($document);
 
             TToast::show('success', _t('Document requested. It will be available in the list in a few moments.'));
             TScript::create("__adianti_goto_page('index.php?class=DocumentList&patient_id=" . (int) $document->patientId() . "')");
@@ -236,6 +213,47 @@ class DocumentRequestForm extends TPage
             // mensagens de domínio carregam só ids e códigos
             error_log(__METHOD__ . ': ' . get_class($e) . ' kind=' . $kind . ' source_id=' . $sourceId);
             new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Pedido numa TTransaction própria (commit antes de publicar).
+     *
+     * @throws Exception do contexto, da autorização ou do domínio (onSave trata)
+     */
+    protected static function requestDocument(string $kind, int $sourceId, ?int $templateId, ?string $bodyText, bool $notifyTutor): \CentralVet\Domain\GeneratedDocument
+    {
+        $context = self::resolveTenantContext();
+
+        TTransaction::open('permission');
+
+        $document = self::makeRequestService($context)->request(
+            $kind,
+            $sourceId,
+            $templateId,
+            $bodyText,
+            $notifyTutor,
+            self::ACTION_SAVE,
+        );
+
+        TTransaction::close();
+
+        return $document;
+    }
+
+    /** Publica `document.generate`; falha do Redis só vai ao error_log com o id. */
+    protected static function publishDocumentJob(\CentralVet\Domain\GeneratedDocument $document): void
+    {
+        $documentId = (int) $document->id();
+
+        try
+        {
+            (new \CentralVet\Application\DocumentJobPublisher(\CentralVet\Queue\RedisQueue::fromEnvironment()))
+                ->publish($document->tenantId(), $documentId);
+        }
+        catch (Throwable $publishError)
+        {
+            error_log(__METHOD__ . ': publish failed for document_id=' . $documentId . ' (' . get_class($publishError) . ')');
         }
     }
 
@@ -327,7 +345,8 @@ class DocumentRequestForm extends TPage
 
     /**
      * Consentimento por canal do tutor do paciente da fonte (true =
-     * opt-in explícito). Vazio quando a fonte não é encontrada.
+     * opt-in explícito). Vazio quando a fonte não é encontrada, é de outra
+     * unidade ou o usuário não pode pedir documentos.
      *
      * @return array<string, bool>
      */
@@ -340,32 +359,28 @@ class DocumentRequestForm extends TPage
             TTransaction::open('permission');
 
             $connection = TTransaction::get();
-            $sources = new \CentralVet\Persistence\DocumentSourceQuery($context, $connection);
+            $preferences = new \CentralVet\Persistence\CommunicationPreferenceRepository($context, $connection);
 
-            $patientId = match (\CentralVet\Domain\DocumentKind::sourceTypeFor($kind)) {
-                \CentralVet\Domain\DocumentKind::SOURCE_PRESCRIPTION => (int) ($sources->prescription($sourceId)['patient_id'] ?? 0),
-                \CentralVet\Domain\DocumentKind::SOURCE_SURGERY => (int) ($sources->surgery($sourceId)['patient_id'] ?? 0),
-                default => $sourceId,
-            };
+            $summary = self::consentSummaryFor(
+                $context,
+                new \CentralVet\Persistence\DocumentSourceQuery($context, $connection),
+                self::makeAuthorization($connection),
+                static function (int $tutorId) use ($preferences): array {
+                    $byChannel = $preferences->findForTutor($tutorId);
+                    $summary = [];
 
-            $patient = $patientId > 0 ? $sources->patientSummary($patientId) : null;
-            $preferences = $patient !== null
-                ? (new \CentralVet\Persistence\CommunicationPreferenceRepository($context, $connection))->findForTutor((int) $patient['tutor_id'])
-                : null;
+                    foreach (\CentralVet\Domain\CommunicationChannel::all() as $channel)
+                    {
+                        $summary[$channel] = isset($byChannel[$channel]) && $byChannel[$channel]->isOptedIn();
+                    }
+
+                    return $summary;
+                },
+                $kind,
+                $sourceId,
+            );
 
             TTransaction::close();
-
-            if ($preferences === null)
-            {
-                return [];
-            }
-
-            $summary = [];
-
-            foreach (\CentralVet\Domain\CommunicationChannel::all() as $channel)
-            {
-                $summary[$channel] = isset($preferences[$channel]) && $preferences[$channel]->isOptedIn();
-            }
 
             return $summary;
         }
@@ -376,6 +391,56 @@ class DocumentRequestForm extends TPage
 
             return [];
         }
+    }
+
+    /**
+     * Regra do resumo: fonte da unidade ativa (receita e cirurgia; paciente
+     * é do tenant), autorização do pedido com escopo de unidade e só então
+     * a leitura das preferências do tutor.
+     *
+     * @param Closure(int): array<string, bool> $preferencesForTutor
+     * @return array<string, bool>
+     */
+    private static function consentSummaryFor(
+        \CentralVet\Tenancy\TenantContext $context,
+        \CentralVet\Domain\Contract\DocumentSourceQueryInterface $sources,
+        \CentralVet\Authorization\Contract\AuthorizationPolicyInterface $authorization,
+        Closure $preferencesForTutor,
+        string $kind,
+        int $sourceId,
+    ): array
+    {
+        $unitId = $context->requireUnitId();
+
+        $source = match (\CentralVet\Domain\DocumentKind::sourceTypeFor($kind)) {
+            \CentralVet\Domain\DocumentKind::SOURCE_PRESCRIPTION => $sources->prescription($sourceId),
+            \CentralVet\Domain\DocumentKind::SOURCE_SURGERY => $sources->surgery($sourceId),
+            default => ['patient_id' => $sourceId, 'system_unit_id' => $unitId],
+        };
+
+        if ($source === null || (int) ($source['system_unit_id'] ?? 0) !== $unitId)
+        {
+            return [];
+        }
+
+        $allowed = $authorization->decide(new \CentralVet\Authorization\AuthorizationRequest(
+            context: $context,
+            action: self::ACTION_LOAD,
+            requiresUnitScope: true,
+            resourceUnitId: $unitId,
+            entityType: 'generated_document',
+            entityId: null,
+            metadata: ['kind' => $kind, 'source_id' => $sourceId],
+        ))->allowed();
+
+        if (!$allowed)
+        {
+            return [];
+        }
+
+        $patient = $sources->patientSummary((int) ($source['patient_id'] ?? 0));
+
+        return $patient !== null ? $preferencesForTutor((int) $patient['tutor_id']) : [];
     }
 
     /** @param array<string, bool> $summary */
@@ -427,13 +492,7 @@ class DocumentRequestForm extends TPage
 
     private static function kindLabel(string $kind): string
     {
-        return match ($kind) {
-            \CentralVet\Domain\DocumentKind::VACCINATION_CARD => _t('Vaccination card'),
-            \CentralVet\Domain\DocumentKind::PRESCRIPTION => _t('Prescription'),
-            \CentralVet\Domain\DocumentKind::MEDICAL_CERTIFICATE => _t('Medical certificate'),
-            \CentralVet\Domain\DocumentKind::SURGERY_CONSENT => _t('Surgery consent'),
-            default => $kind,
-        };
+        return CvDocumentKind::label($kind);
     }
 
     private static function returnUrl(string $kind, int $sourceId): string

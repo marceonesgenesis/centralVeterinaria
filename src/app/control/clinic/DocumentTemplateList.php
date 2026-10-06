@@ -28,7 +28,6 @@ class DocumentTemplateList extends TPage
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
         CvDatagrid::decorate($this->datagrid, false);
         $this->datagrid->disableDefaultClick();
-        $this->datagrid->setActionSide('right');
 
         $column_name   = new TDataGridColumn('name', _t('Name'), 'left');
         $column_kind   = new TDataGridColumn('kind', _t('Kind'), 'left', 200);
@@ -36,7 +35,7 @@ class DocumentTemplateList extends TPage
 
         // O TDataGrid passa ao transformer o valor cru: este e() é o único escape.
         $column_name->setTransformer(static fn ($value) => CvFormat::e((string) $value));
-        $column_kind->setTransformer(static fn ($value) => CvFormat::e(DocumentTemplateForm::kindLabel((string) $value)));
+        $column_kind->setTransformer(static fn ($value) => CvFormat::e(CvDocumentKind::label((string) $value)));
         $column_status->setTransformer(static fn ($value) => self::statusBadge((string) $value));
 
         $this->datagrid->addColumn($column_name);
@@ -45,7 +44,7 @@ class DocumentTemplateList extends TPage
 
         // Ação como link próprio numa coluna: o <a> é o alvo de toque de 44 px
         // (as ações do TDataGrid põem a classe só num <span> interno).
-        $column_actions = new TDataGridColumn('id', _t('Actions'), 'right');
+        $column_actions = new TDataGridColumn('id', _t('Actions'), 'left');
         $column_actions->setTransformer(static fn ($value, $object) => self::actionLinks($object));
         $this->datagrid->addColumn($column_actions);
 
@@ -135,7 +134,7 @@ class DocumentTemplateList extends TPage
         $id = (int) ($object->id ?? 0);
 
         $links = new TElement('div');
-        $links->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2); justify-content:flex-end';
+        $links->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2)';
 
         $label = _t('Edit');
         $link = new TElement('a');

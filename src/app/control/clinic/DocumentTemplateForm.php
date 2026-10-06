@@ -223,16 +223,6 @@ class DocumentTemplateForm extends TPage
         parent::show();
     }
 
-    /** Rótulo traduzido do tipo de documento (texto puro: quem imprime escapa). */
-    public static function kindLabel(string $kind): string
-    {
-        return match ($kind)
-        {
-            \CentralVet\Domain\DocumentKind::MEDICAL_CERTIFICATE => _t('Medical certificate'),
-            default                                              => $kind,
-        };
-    }
-
     /**
      * Ajuda com os placeholders aceitos no texto.
      */
