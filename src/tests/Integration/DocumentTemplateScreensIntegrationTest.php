@@ -128,4 +128,23 @@ final class DocumentTemplateScreensIntegrationTest
 
         Assert::same(['raw' => false, 'escaped' => true, 'edit_label' => true, 'actions' => 1, 'touch' => 1], $result);
     }
+
+    public function testListActionsColumnIsLeftAlignedAndKindLabelIsNotBorrowedFromTheForm(): void
+    {
+        $result = $this->runInAdianti(
+            'if (!class_exists("DocumentTemplateList")) { echo "@@DOCTEMPLATE@@", json_encode(["missing" => true]); return; }'
+            . '$page = new DocumentTemplateList([]);'
+            . '$grid = (new ReflectionProperty($page, "datagrid"))->getValue($page);'
+            . '$grid->addItem((object) ["id" => 1, "name" => "F7B teste Atestado", "kind" => "medical_certificate", "status" => "active"]);'
+            . 'ob_start(); $grid->show(); $html = ob_get_clean();'
+            . 'echo "@@DOCTEMPLATE@@", json_encode(['
+            . ' "right" => preg_match("/(text-align|align)\\s*[:=]\\s*[\"\']?\\s*right|flex-end/i", $html) === 1,'
+            . ' "kind" => str_contains($html, _t("Medical certificate"))]);'
+        );
+
+        Assert::same(['right' => false, 'kind' => true], $result, 'actions column left-aligned (labels always left) and kind label rendered');
+
+        $list = (string) file_get_contents(dirname(__DIR__, 2) . '/app/control/clinic/DocumentTemplateList.php');
+        Assert::false(str_contains($list, 'DocumentTemplateForm::kindLabel'), 'the list must not borrow the kind label from the form');
+    }
 }

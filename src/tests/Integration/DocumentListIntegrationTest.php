@@ -160,15 +160,75 @@ final class DocumentListIntegrationTest
         Assert::true(!str_contains($html, (string) $result['processing']), 'ready document must not show the processing text');
     }
 
-    public function testTitleIsEscaped(): void
+    public function testTitleIsTranslatedFromTheKindAndEscaped(): void
     {
-        $result = $this->renderTable('ready');
+        // o título gravado (pt fixo do domínio) não vai à tela: a lista traduz pelo kind
+        $result = $this->runAdianti(
+            'ApplicationTranslator::setLanguage("en");'
+            . '$doc = CentralVet\Domain\GeneratedDocument::reconstitute(' . self::row(41, 'ready') . ');'
+            . '$m = new ReflectionMethod("DocumentList", "table"); $m->setAccessible(true);'
+            . '$m->invoke(null, [$doc])->show();'
+        );
         $html = (string) $result['html'];
 
         Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
-        Assert::true(!str_contains($html, '<script>alert(1)</script>'), 'title must not be rendered raw');
-        Assert::true(str_contains($html, '&lt;script&gt;alert(1)&lt;/script&gt;'), 'title must be rendered escaped');
+        Assert::true(!str_contains($html, 'alert(1)'), 'the stored title must not be rendered');
+        Assert::true(str_contains($html, '<td>Vaccination card</td>'), 'title must follow the locale (en): ' . $html);
         Assert::true(str_contains($html, 'cv-table'), 'list must use cv-table');
+
+        $pt = $this->runAdianti(
+            'ApplicationTranslator::setLanguage("pt");'
+            . '$out["titles"] = [];'
+            . '$m = new ReflectionMethod("DocumentList", "table"); $m->setAccessible(true);'
+            . 'foreach (["prescription", "surgery_consent", "medical_certificate"] as $i => $kind) {'
+            . ' $row = ' . self::row(41, 'ready') . '; $row["kind"] = $kind; $row["id"] = 70 + $i;'
+            . ' $row["source_type"] = $kind === "prescription" ? "prescription" : ($kind === "surgery_consent" ? "surgery" : "patient");'
+            . ' $row["body_text"] = $kind === "prescription" ? null : "F7B teste corpo";'
+            . ' ob_start(); $m->invoke(null, [CentralVet\Domain\GeneratedDocument::reconstitute($row)])->show();'
+            . ' preg_match("/<tbody><tr><td>([^<]*)<\/td>/", ob_get_clean(), $t); $out["titles"][] = $t[1] ?? null; }'
+        );
+
+        Assert::true(!isset($pt['error']), 'render threw: ' . (string) ($pt['error'] ?? ''));
+        Assert::same(['Receita', 'Termo de consentimento cirúrgico', 'Atestado'], array_map(
+            static fn ($t) => $t === null ? null : html_entity_decode((string) $t),
+            (array) ($pt['titles'] ?? [])
+        ), 'pt titles keep the document names');
+    }
+
+    public function testRetryKeepsThePatientContext(): void
+    {
+        $result = $this->runAdianti(
+            '$doc = CentralVet\Domain\GeneratedDocument::reconstitute(' . self::row(52, 'failed') . ');'
+            . '$m = new ReflectionMethod("DocumentList", "table"); $m->setAccessible(true);'
+            . '$m->invoke(null, [$doc], 7)->show();'
+        );
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::true(preg_match('/<a [^>]*href="([^"]*Retry[^"]*)"[^>]*>/', $html, $m) === 1, 'failed document must offer a retry');
+        Assert::true(str_contains(html_entity_decode($m[1]), 'patient_id=7'), 'retry carries the patient of the list: ' . $m[1]);
+
+        $ask = $this->runAdianti('DocumentList::onAskRetry(["id" => "52", "patient_id" => "7"]);');
+        Assert::true(!isset($ask['error']), 'onAskRetry threw: ' . (string) ($ask['error'] ?? ''));
+        Assert::true(
+            preg_match('/onRetry[^"\']*patient_id=7/', html_entity_decode((string) $ask['html'])) === 1,
+            'the confirmation carries the patient: ' . $ask['html']
+        );
+
+        $retry = $this->runAdianti(
+            'class DocumentListT25 extends DocumentList {'
+            . ' public static array $ids = [];'
+            . ' protected static function requeueDocument(int $id): void { self::$ids[] = $id; } }'
+            . 'DocumentListT25::onRetry(["id" => "52", "patient_id" => "7"]);'
+            . 'DocumentListT25::onRetry(["id" => "53"]);'
+            . '$out["ids"] = DocumentListT25::$ids;'
+        );
+        $html = (string) $retry['html'];
+
+        Assert::true(!isset($retry['error']), 'onRetry threw: ' . (string) ($retry['error'] ?? ''));
+        Assert::same([52, 53], $retry['ids'] ?? null, 'onRetry requeues the id');
+        Assert::stringContains("index.php?class=DocumentList&patient_id=7'", $html, 'retry goes back to the patient list');
+        Assert::stringContains("index.php?class=DocumentList'", $html, 'retry without patient goes back to the unit list');
     }
 
     public function testFailedOffersRetryByIdAndQueuedShowsProcessing(): void
