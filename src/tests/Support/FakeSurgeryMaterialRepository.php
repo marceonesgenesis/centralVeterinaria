@@ -11,7 +11,8 @@ use InvalidArgumentException;
 /**
  * In-memory double for SurgeryMaterialRepositoryInterface (T-05): save()
  * assigns incremental ids (seeded entities that already have one keep it),
- * remove() deletes, listBySurgery() orders by recorded_at, id, and reads
+ * remove()/delete() delete (delete() returns the rows deleted, 0 when
+ * already gone or of another tenant, like the PDO rowCount), listBySurgery() orders by recorded_at, id, and reads
  * only see materials of this instance's tenant.
  */
 final class FakeSurgeryMaterialRepository implements SurgeryMaterialRepositoryInterface
@@ -68,9 +69,34 @@ final class FakeSurgeryMaterialRepository implements SurgeryMaterialRepositoryIn
 
     public function remove(object $entity): void
     {
-        if ($entity instanceof SurgeryMaterial && $entity->id() !== null) {
-            unset($this->materials[$entity->id()]);
+        if ($entity instanceof SurgeryMaterial) {
+            $this->delete($entity);
         }
+    }
+
+    /** Like the PDO DELETE: tenant + id + surgery_id, returns the rows deleted. */
+    public function delete(SurgeryMaterial $material): int
+    {
+        $id = $material->id();
+        $stored = $id !== null ? ($this->materials[$id] ?? null) : null;
+
+        if (
+            $stored === null
+            || $stored->tenantId() !== $this->tenantId
+            || $stored->surgeryId() !== $material->surgeryId()
+        ) {
+            return 0;
+        }
+
+        unset($this->materials[$id]);
+
+        return 1;
+    }
+
+    /** Test-only: the stored material with this id, whatever its tenant. */
+    public function storedMaterialOfAnyTenant(int $id): ?SurgeryMaterial
+    {
+        return $this->materials[$id] ?? null;
     }
 
     public function listBySurgery(int $surgeryId): array

@@ -91,17 +91,26 @@ final class SurgeryMaterialRepository extends AbstractTenantRepository implement
             throw new InvalidArgumentException('Expected a SurgeryMaterial entity');
         }
 
-        $id = $entity->id();
+        $this->delete($entity);
+    }
+
+    public function delete(SurgeryMaterial $material): int
+    {
+        $id = $material->id();
 
         if ($id === null) {
-            return;
+            return 0;
         }
 
-        $this->assertEntityTenant($entity->tenantId());
+        $this->assertEntityTenant($material->tenantId());
 
-        $query = $this->tenantQuery()->andEquals('id', $id);
+        $query = $this->tenantQuery()
+            ->andEquals('id', $id)
+            ->andEquals('surgery_id', $material->surgeryId());
 
         $statement = $this->connection->prepare("DELETE FROM surgery_material WHERE {$query->whereSql()}");
         $statement->execute($query->parameters());
+
+        return $statement->rowCount();
     }
 }

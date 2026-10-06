@@ -89,7 +89,9 @@ final class SurgeryMaterialService
     /**
      * @throws CrossTenantReferenceException material or surgery not found in
      *         the tenant.
-     * @throws InvalidStatusTransitionException surgery not in progress.
+     * @throws InvalidStatusTransitionException surgery not in progress, or
+     *         the material was removed concurrently (the DELETE, run under
+     *         the surgery lock, affected no row; no event is recorded).
      */
     public function removeMaterial(int $materialId, string $action): void
     {
@@ -104,7 +106,10 @@ final class SurgeryMaterialService
         $surgeryId = $material->surgeryId();
         $this->lockedInProgressSurgery($surgeryId, $action);
 
-        $this->materials->remove($material);
+        if ($this->materials->delete($material) === 0) {
+            throw new InvalidStatusTransitionException("Material {$materialId} was already removed");
+        }
+
         $this->recordEvent(
             $surgeryId,
             'removido: ' . $this->productName($material->productId()) . ' × ' . $material->quantity(),
