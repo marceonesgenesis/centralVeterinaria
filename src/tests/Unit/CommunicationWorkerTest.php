@@ -241,8 +241,70 @@ final class CommunicationWorkerTest
 
         $failure = array_values(array_filter($this->logs, static fn (array $e): bool => $e['message'] === 'communication.scheduler.tenant_failed'));
         Assert::count(1, $failure);
-        Assert::same(['tenant_id' => 1, 'exception' => RuntimeException::class], $failure[0]['context']);
+        Assert::same(['tenant_id' => 1, 'stage' => 'services', 'exception' => RuntimeException::class], $failure[0]['context']);
         Assert::false(str_contains((string) json_encode($this->logs), 'example.invalid'));
+    }
+
+    public function testPoisonedGenerationStillSweepsAndPublishesTheTenantQueue(): void
+    {
+        $stuckId = 900;
+        $this->messages->seed(self::stuckEmail($stuckId));
+        $queue = new FakeQueue();
+        // The first candidate creates an e-mail; the second one has an
+        // oversized recipient and makes generate() throw every run.
+        $sources = new FakeReminderSourceQuery(appointments: [
+            self::candidate(11, self::EMAIL),
+            self::candidate(12, str_repeat('a', 190) . '@example.invalid'),
+        ]);
+        $now = new DateTimeImmutable(self::NOW, new DateTimeZone('America/Fortaleza'));
+        $clock = static function () use (&$now): DateTimeImmutable {
+            return $now;
+        };
+        $scheduler = new CommunicationScheduler(
+            static fn (): array => [['id' => self::TENANT_ID, 'timezone' => 'America/Fortaleza']],
+            fn (int $tenantId): array => [
+                'reminders' => new ReminderGenerationService(
+                    $sources,
+                    $this->preferences,
+                    new FakeMessageTemplateRepository($tenantId),
+                    $this->messages,
+                    TenantContext::authenticated($tenantId, 1),
+                    $clock,
+                ),
+                'messages' => $this->messages,
+            ],
+            new MessageQueuePublisher($queue),
+            $this->logger,
+            7,
+            $clock,
+        );
+
+        $first = $scheduler->runOnce();
+
+        Assert::same(1, $first['errors']);
+        Assert::same(1, $first['tenants']);
+        Assert::true(in_array($stuckId, self::publishedIds($queue), true), 'stuck e-mail must be published even when generate fails');
+        $failure = array_values(array_filter($this->logs, static fn (array $e): bool => $e['message'] === 'communication.scheduler.tenant_failed'));
+        Assert::count(1, $failure);
+        Assert::same(['tenant_id' => self::TENANT_ID, 'stage' => 'generate', 'exception' => \InvalidArgumentException::class], $failure[0]['context']);
+        Assert::false(str_contains((string) json_encode($this->logs), 'example.invalid'));
+
+        // The e-mail created before the poisoned candidate is swept on a
+        // later run, although generate keeps failing.
+        $createdEmailIds = array_values(array_map(
+            static fn (OutboundMessage $m): int => (int) $m->id(),
+            array_filter(
+                $this->messages->all(),
+                static fn (OutboundMessage $m): bool => $m->id() !== $stuckId && $m->channel() === CommunicationChannel::EMAIL,
+            ),
+        ));
+        Assert::count(1, $createdEmailIds);
+        $now = new DateTimeImmutable('+1 day');
+
+        $second = $scheduler->runOnce();
+
+        Assert::same(1, $second['errors']);
+        Assert::true(in_array($createdEmailIds[0], self::publishedIds($queue), true), 'e-mail created before the failure must be swept');
     }
 
     private function handler(): CommunicationJobHandler
@@ -261,6 +323,27 @@ final class CommunicationWorkerTest
             },
             $this->logger,
         );
+    }
+
+    private static function candidate(int $sourceId, string $email): ReminderCandidate
+    {
+        return new ReminderCandidate(
+            MessagePurpose::APPOINTMENT_CONFIRMATION,
+            OutboundMessage::SOURCE_APPOINTMENT,
+            $sourceId,
+            5,
+            self::TUTOR_ID,
+            21,
+            $email,
+            self::PHONE,
+            ['tutor_name' => 'F7A teste', 'patient_name' => 'Rex', 'unit_name' => 'Unidade', 'clinic_name' => 'Clínica', 'appointment_date' => '07/10/2026', 'appointment_time' => '09:00'],
+        );
+    }
+
+    /** @return list<int> */
+    private static function publishedIds(FakeQueue $queue): array
+    {
+        return array_map(static fn (array $job): int => $job['payload']['message_id'], $queue->pushed());
     }
 
     private function seedQueuedEmail(): int
