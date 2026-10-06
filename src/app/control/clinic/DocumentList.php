@@ -5,7 +5,7 @@
  * Documentos gerados da unidade ativa (Fase 7B, T-16), opcionalmente de um
  * paciente (`DocumentList&patient_id=<id>`): colunas documento, versão,
  * status (CvBadge), pedido em e ações. `ready` → link de download só por id
- * (`onDownload&id=<id>&static=1`); `failed` → nova tentativa por TQuestion
+ * (`engine.php?class=DocumentList&method=onDownload&id=<id>&static=1`); `failed` → nova tentativa por TQuestion
  * (só o id); `queued` → texto de processamento.
  *
  * O download responde 404 com o mesmo texto fixo para documento
@@ -337,10 +337,14 @@ class DocumentList extends TPage
         switch ($document->status())
         {
             case \CentralVet\Domain\GeneratedDocument::STATUS_READY:
-                // fora do roteador do Adianti: a resposta é o PDF, não HTML
+                // engine.php (index.php devolve o shell da aplicação) e fora do
+                // roteador do Adianti, em nova aba: a resposta é o PDF, não HTML
+                // (padrão de EncounterView::onDownloadDocument e SaleForm)
                 $link = new TElement('a');
                 $link->{'class'} = 'btn btn-sm btn-primary cv-touch-target';
-                $link->{'href'} = CvFormat::e('index.php?class=DocumentList&method=onDownload&id=' . $id . '&static=1');
+                $link->{'href'} = CvFormat::e('engine.php?class=DocumentList&method=onDownload&id=' . $id . '&static=1');
+                $link->{'target'} = '_blank';
+                $link->{'rel'} = 'noopener';
                 $link->style = 'display:inline-flex; align-items:center; gap:var(--cv-space-1)';
                 $link->add(new TImage('fa:download'));
                 $link->add(TElement::tag('span', CvFormat::e(_t('Download'))));
