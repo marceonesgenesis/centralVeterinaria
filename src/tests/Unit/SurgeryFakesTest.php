@@ -145,6 +145,28 @@ final class SurgeryFakesTest
         Assert::same(0, $repository->saveCount);
     }
 
+    public function testSameInstanceSavesTwiceButStaleInstanceFails(): void
+    {
+        $repository = new FakeSurgeryRepository(self::TENANT_ID, $this->reconstituted(7, Surgery::STATUS_SCHEDULED));
+
+        $copy = $repository->findById(7);
+        $stale = $repository->findById(7);
+
+        $copy->startPreOp();
+        $copy->recordConsent('Maria Tutora', 'Autorizo o procedimento.', 3, new DateTimeImmutable('2026-10-10 07:30:00'));
+        $repository->save($copy);
+        $copy->start(new DateTimeImmutable('2026-10-10 08:05:00'));
+        $repository->save($copy);
+
+        Assert::same(Surgery::STATUS_IN_PROGRESS, $repository->lockStatus(7));
+        Assert::same(2, $repository->saveCount);
+
+        $stale->cancel(new DateTimeImmutable('2026-10-10 08:10:00'), 3, 'Outra aba');
+        $message = $this->messageOf(fn () => $repository->save($stale), InvalidStatusTransitionException::class);
+        Assert::same('Surgery 7 changed status concurrently', $message);
+        Assert::same(Surgery::STATUS_IN_PROGRESS, $repository->lockStatus(7));
+    }
+
     public function testFreshSurgeryCanBeSavedAgainAfterLoad(): void
     {
         $repository = new FakeSurgeryRepository(self::TENANT_ID);
