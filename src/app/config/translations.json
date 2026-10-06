@@ -2700,6 +2700,10 @@
     "pt": "Em aberto"
   },
   {
+    "en": "Open (pending status)",
+    "pt": "Em aberto"
+  },
+  {
     "en": "Open (status)",
     "pt": "Aberto"
   },
@@ -3842,6 +3846,10 @@
   {
     "en": "Sent",
     "pt": "Enviado"
+  },
+  {
+    "en": "Sent (message status)",
+    "pt": "Enviada"
   },
   {
     "en": "Sent at",

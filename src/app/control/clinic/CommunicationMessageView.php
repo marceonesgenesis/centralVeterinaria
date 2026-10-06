@@ -439,7 +439,7 @@ class CommunicationMessageView extends TPage
     {
         return match ($status) {
             \CentralVet\Domain\OutboundMessage::STATUS_QUEUED    => _t('Queued'),
-            \CentralVet\Domain\OutboundMessage::STATUS_SENT      => _t('Sent'),
+            \CentralVet\Domain\OutboundMessage::STATUS_SENT      => _t('Sent (message status)'),
             \CentralVet\Domain\OutboundMessage::STATUS_MANUAL    => _t('Sent manually'),
             \CentralVet\Domain\OutboundMessage::STATUS_FAILED    => _t('Failed'),
             \CentralVet\Domain\OutboundMessage::STATUS_CANCELLED => _t('Cancelled'),

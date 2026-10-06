@@ -285,11 +285,11 @@ class PendingCenter extends TPage
 
             $tr->add(TElement::tag('td', CvFormat::e(_t(self::TYPE_META[$item->type()][0]))));
             $tr->add(TElement::tag('td', CvFormat::e($item->patientName() ?? '—')));
-            $tr->add(TElement::tag('td', CvFormat::e($item->subjectLabel())));
+            $tr->add(TElement::tag('td', CvFormat::e(self::subjectLabel($item))));
             $tr->add(TElement::tag('td', CvFormat::e($item->dueAt()->format('d/m/Y H:i'))));
 
             $status = new TElement('td');
-            $status->add(CvBadge::create($overdue ? _t('Overdue') : _t('Open'), $overdue ? 'danger' : 'neutral'));
+            $status->add(CvBadge::create($overdue ? _t('Overdue') : _t('Open (pending status)'), $overdue ? 'danger' : 'neutral'));
             $tr->add($status);
 
             $tr->add(TElement::tag('td', CvFormat::e($responsible !== null && isset($names[$responsible]) ? $names[$responsible] : '—')));
@@ -312,6 +312,23 @@ class PendingCenter extends TPage
         $body->add($table);
 
         return $card;
+    }
+
+    /**
+     * Assunto exibido: nas mensagens o subjectLabel é o código da finalidade
+     * e no recebível é o código fixo `receivable_open`, então ganham rótulo
+     * traduzido; nos demais tipos é um nome (exame, vacina, serviço,
+     * medicamento) mostrado como está.
+     */
+    private static function subjectLabel(CentralVet\Domain\PendingItem $item): string
+    {
+        return match ($item->type())
+        {
+            CentralVet\Domain\PendingItem::TYPE_MESSAGE_FAILED,
+            CentralVet\Domain\PendingItem::TYPE_MESSAGE_WHATSAPP_MANUAL => CommunicationMessageView::purposeLabel($item->subjectLabel()),
+            CentralVet\Domain\PendingItem::TYPE_RECEIVABLE_OPEN         => _t('Open receivable'),
+            default                                                     => $item->subjectLabel(),
+        };
     }
 
     /**
