@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\SurgeryService;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccount;
+use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Contract\SurgeryRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
@@ -493,6 +494,90 @@ final class SurgeryServiceTest
             'Unknown surgery event type "status"',
             fn () => $service->recordClinicalEvent($id, SurgeryEvent::TYPE_STATUS, 'x', self::ACTION),
         );
+    }
+
+    public function testScheduleAuthorizesOnTheEncounterUnit(): void
+    {
+        $encounterId = $this->encounter(7, self::OTHER_UNIT_ID);
+        $roomId = $this->room('X1', self::OTHER_UNIT_ID);
+
+        $surgery = $this->schedule($encounterId, $roomId, $this->procedure());
+
+        Assert::same(self::OTHER_UNIT_ID, $surgery->systemUnitId());
+        Assert::count(1, $this->policy->requests);
+        $request = $this->policy->requests[0];
+        Assert::same(self::OTHER_UNIT_ID, $request->resourceUnitId());
+        Assert::true($request->requiresUnitScope());
+        Assert::same('surgery', $request->entityType());
+        Assert::null($request->entityId());
+        Assert::same(self::ACTION, $request->action());
+    }
+
+    public function testTransitionsAndReadsAuthorizeOnThePersistedSurgeryUnit(): void
+    {
+        $surgery = $this->schedule(
+            $this->encounter(7, self::OTHER_UNIT_ID),
+            $this->room('X1', self::OTHER_UNIT_ID),
+            $this->procedure(),
+        );
+        $id = (int) $surgery->id();
+        $service = $this->service();
+        $this->policy->requests = [];
+
+        $service->get($id, self::ACTION);
+        $service->listTeam($id, self::ACTION);
+        $service->listEvents($id, self::ACTION);
+        $service->replaceTeam($id, [], self::ACTION);
+        $service->recordConsent($id, 'Maria Tutora', 'Autorizo.', self::ACTION);
+        $service->recordClinicalEvent($id, SurgeryEvent::TYPE_PRE_OP, 'Jejum', self::ACTION);
+        $service->startPreOp($id, self::ACTION);
+        $service->cancel($id, 'Tutor desistiu', self::ACTION);
+
+        Assert::count(8, $this->policy->requests);
+
+        foreach ($this->policy->requests as $request) {
+            Assert::same(self::OTHER_UNIT_ID, $request->resourceUnitId());
+            Assert::true($request->requiresUnitScope());
+            Assert::same('surgery', $request->entityType());
+            Assert::same($id, (int) $request->entityId());
+        }
+    }
+
+    public function testDeniedPolicyRefusesWithoutWriting(): void
+    {
+        $encounterId = $this->encounter();
+        $roomId = $this->room();
+        $procedureId = $this->procedure();
+        $this->policy->setAllowed(false);
+
+        Assert::throws(AuthorizationDenied::class, fn () => $this->schedule($encounterId, $roomId, $procedureId));
+        Assert::same(0, $this->surgeries->saveCount);
+        Assert::same(0, $this->rooms->lockCalls);
+        Assert::count(0, $this->team->listBySurgery(1));
+        Assert::count(0, $this->events->listBySurgery(1));
+
+        $this->policy->setAllowed(true);
+        $id = (int) $this->schedule($encounterId, $roomId, $procedureId)->id();
+        $this->surgeries->saveCount = 0;
+        $eventsBefore = count($this->events->listBySurgery($id));
+        $teamBefore = count($this->team->listBySurgery($id));
+        $this->policy->setAllowed(false);
+        $service = $this->service();
+
+        Assert::throws(AuthorizationDenied::class, fn () => $service->get($id, self::ACTION));
+        Assert::throws(AuthorizationDenied::class, fn () => $service->startPreOp($id, self::ACTION));
+        Assert::throws(AuthorizationDenied::class, fn () => $service->cancel($id, 'x', self::ACTION));
+        Assert::throws(AuthorizationDenied::class, fn () => $service->recordConsent($id, 'Maria', 'Autorizo.', self::ACTION));
+        Assert::throws(AuthorizationDenied::class, fn () => $service->replaceTeam($id, [], self::ACTION));
+        Assert::throws(
+            AuthorizationDenied::class,
+            fn () => $service->recordClinicalEvent($id, SurgeryEvent::TYPE_PRE_OP, 'Jejum', self::ACTION),
+        );
+
+        Assert::same(0, $this->surgeries->saveCount);
+        Assert::same(Surgery::STATUS_SCHEDULED, $this->surgeries->lockStatus($id));
+        Assert::count($eventsBefore, $this->events->listBySurgery($id));
+        Assert::count($teamBefore, $this->team->listBySurgery($id));
     }
 
     public function testReplaceTeamKeepsSurgeonAndReadsAreScoped(): void
