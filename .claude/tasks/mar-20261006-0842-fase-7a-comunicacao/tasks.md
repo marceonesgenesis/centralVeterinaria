@@ -22,8 +22,8 @@
 | T-18 | frontend | Compor mensagem e preferências do tutor | T-07, T-09, T-10 | sim | média | Naruto | [x] |
 | T-19 | frontend | Central de Pendências (tela) | T-08, T-13 | sim | média | Batman | [x] |
 | T-20 | frontend | Navegação (menu, CvNav, ações no TutorForm) | T-04 | sim | simples | Jaspion | [x] |
-| T-21 | frontend | i18n pt/en das telas e mensagens de domínio | T-15, T-16, T-17, T-18, T-19, T-20 | sim | média | Levi | [ ] |
-| T-22 | docs | Runbook de comunicação, índice e passo da 0012 na hospedagem 5.7 | T-01, T-04, T-05, T-15 | sim | simples | Gandalf | [ ] |
+| T-21 | frontend | i18n pt/en das telas e mensagens de domínio | T-15, T-16, T-17, T-18, T-19, T-20 | sim | média | Levi | [x] |
+| T-22 | docs | Runbook de comunicação, índice e passo da 0012 na hospedagem 5.7 | T-01, T-04, T-05, T-15 | sim | simples | Gandalf | [x] |
 | T-23 | qa | Validação final ponta a ponta e SQL de limpeza `F7A teste` | T-21, T-22 | não | média | Spock | [ ] |
 
 ## Detalhamento

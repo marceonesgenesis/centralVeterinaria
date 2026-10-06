@@ -28,6 +28,9 @@
 - 2026-10-06 · T-20 · onda 4 — xmllint ausente; o teste de parse do XML cobre o menu.xml.
 - 2026-10-06 · T-20 · onda 4 — Relay da T-20 para a T-18 aplicado: TutorForm liga por href sem method, e TutorCommunicationForm/CommunicationComposeForm leem tutor_id do request no construtor.
 - 2026-10-06 · orquestrador · onda 4 — Login admin refeito pelo orquestrador (autorizado na aprovação da 7A).
+- 2026-10-06 · T-21 · onda 5 — Correção autorizada em controllers para textos visíveis errados (status "Em aberto", mensagem "Enviada", assunto traduzido): fe67d5c (RED) + 1905709; revisão rodada 1 aprovada.
+- 2026-10-06 · T-22 · onda 5 — Revisão rodada 1 reprovou (runbook mandava rodar o worker por cron sem modo one-shot, nenhum e-mail sairia na hospedagem compartilhada): worker --once/--max-seconds/--max-jobs com flock (08471bd RED + 244821e, Task: T-15; QueueWorkerLoop.php novo autorizado) e cron nos runbooks (dbdfab6, Task: T-22). Re-validado: SUITE 947/947, --once exit 0, agendador exit 0 (8 chaves, errors 0), logs sem dado pessoal, cron do runbook = parseOptions; re-revisão aprovada. As 6 falhas com `docker compose exec app` foram ambiente (imagem sem autoload-dev), não código.
+- 2026-10-06 · T-15 · onda 5 — Agendador corrigido da onda 4 rodado no container (pendência da onda 4 resolvida).
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -49,6 +52,7 @@
 - Onda 3: board consolidado por task (T-09 NOT_RECORDED e save de template sem status assume active; T-10 not-found vira CrossTenantReferenceException, cancel grava motivo discarded, listForUnit limite 200; T-11 ordem de descarte opt-out→sem consent→sem contato→permitsSending e ReminderRunSummary::toArray(); T-12 constantes RESULT_*/CODE_*, reference msg-<id>, cancel perdido em corrida devolve skipped; T-14 link() na mesma transação de schedule(); 17 mensagens i18n-domínio novas para a T-21).
 - Onda 4: board consolidado por task (T-15 handler/agendador com forEnvironment/forConnection e log com stage; T-16 purposeLabel/channelLabel públicos; T-17 helpers estáticos de status/rótulo e maskRecipient; T-18 onChangeChannel extra; T-19 buildContent como seam e consulta memoizada; T-20 menu, CvNav::group('communication') e ações no TutorForm). Gate: SUITE 936/936, agendador no container exit 0 (created 0, sem fontes elegíveis no dev), logs sem dado pessoal, smoke das 7 telas em 820×1180 (200, console 0, alvos ≥44 px).
 - Onda 4 (i18n para a T-21): textos _t() de T-16..T-20 registrados no board; colisão de chave "Open" (Aberta na Central × Abrir no histórico/SurgeryList); assuntos/finalidades exibidos como código (receivable_open) precisam de mapeamento.
+- [T-22] Runbooks em docs/runbooks (comunicacao, README, shared-hosting-mysql57); cron do worker one-shot e do agendador documentados (dbdfab6).
 
 ## Pendências
 - Envio SMTP real só pode ser conferido com as credenciais do usuário (fora dos gates, que usam o driver `log`).
@@ -76,6 +80,8 @@
 - T-20: sugestão: teste das ações do TutorForm só procura a string no fonte, sem provar tutor existente nem o href renderizado.
 - Onda 4 (validador): execução do agendador com o código corrigido (80a83bc) no container, medida do "Resolver" e ficha com mensagem real na Unit A ficam para a T-23 (após rebuild dos containers app/worker).
 - Onda 4: i18n das telas (T-16..T-20) e colisão da chave "Open" para a T-21.
+- T-22: sugestões: retenção/expurgo de communication_message.recipient e body_text ficam "não definidos" no runbook (sem prazo nem consulta de expurgo); cron do agendador exige variáveis de DB/Redis no ambiente, além de COMMUNICATION_*/SMTP_* (citar em shared-hosting-mysql57.md).
+- Onda 5 (validador): sem pendências de escopo; falhas via `docker compose exec app` são da imagem sem autoload-dev (usar o comando padrão da SUITE).
 
 ## Riscos
 - Volume de WhatsApp manual: com legítimo interesse, todo tutor sem opt-out e com telefone válido gera um WhatsApp `queued` de confirmação D-1 e de retorno, que aparece na Central de Pendências como "aguardando envio". Mitigação: o atendente envia ou descarta pela ficha; o volume é medido no roteiro A (T-23). Se pesar na operação, o próximo passo é um interruptor por canal nas automações (fora do MVP).
@@ -98,5 +104,6 @@
   - Onda 2: BASE dc7f430 → HEAD 812b4a3 (915a000,f71f723,4c37ddd,268109c,62c579d,812b4a3)
   - Onda 3: BASE 6458506 → HEAD 8830515 (d5a6193,f6dc87f,4b762ea,94cff24,cea3501,bfc8276,1a3e831,8f91496,4fb0b8a,ae23b40,91dd851,8830515)
   - Onda 4: BASE cf5eb18 → HEAD 80a83bc (4e84c61,1af3642,d66e876,4a8e09f,3ef250d,11c9473,4f1fe95,2ccec8c,7b90a81,989c1f1,2de5615,cb99fe4,4721664,80a83bc)
-- Último status conhecido: onda 4 concluída (T-15..T-20 [x]); SUITE 936/936 no gate (937/937 após a correção da T-15)
-- Próxima onda recomendada: 5 — T-21, T-22 (i18n e runbook); depois T-23
+  - Onda 5: BASE 1c2876e → HEAD dbdfab6 (1d00c80,dcdcd6a,eb25789,fe67d5c,1905709,08471bd,244821e,dbdfab6)
+- Último status conhecido: onda 5 concluída (T-21, T-22 [x]; T-15 corrigida e [x]); SUITE 947/947
+- Próxima onda recomendada: 6 — T-23
