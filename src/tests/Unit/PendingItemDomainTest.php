@@ -40,7 +40,7 @@ final class PendingItemDomainTest
         string $type = PendingItem::TYPE_EXAM_RESULT,
         string $dueAt = '2026-10-06 12:00:00',
         string $class = 'ExamResultForm',
-        array $params = ['id' => 1],
+        array $params = ['exam_request_id' => 1],
     ): PendingItem {
         return new PendingItem($type, 1, 'Rex', 'Hemograma', self::at($dueAt), 7, $class, $params);
     }
@@ -147,16 +147,16 @@ final class PendingItemDomainTest
     public function testDeepLinkExamResultForm(): void
     {
         Assert::same(
-            'index.php?class=ExamResultForm&id=12',
-            self::item(class: 'ExamResultForm', params: ['id' => 12])->deepLinkUrl(),
+            'index.php?class=ExamResultForm&exam_request_id=12&encounter_id=4',
+            self::item(class: 'ExamResultForm', params: ['exam_request_id' => 12, 'encounter_id' => '4'])->deepLinkUrl(),
         );
     }
 
     public function testDeepLinkAgendaView(): void
     {
         Assert::same(
-            'index.php?class=AgendaView&date=2026-10-07&appointment_id=9',
-            self::item(class: 'AgendaView', params: ['date' => '2026-10-07', 'appointment_id' => 9])->deepLinkUrl(),
+            'index.php?class=AgendaView&date=2026-10-07',
+            self::item(class: 'AgendaView', params: ['date' => '2026-10-07'])->deepLinkUrl(),
         );
     }
 
@@ -191,10 +191,42 @@ final class PendingItemDomainTest
             'Invalid deep-link parameter q',
             self::messageOf(fn () => self::item(params: ['q' => 'Rex da Silva'])->deepLinkUrl()),
         );
-        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['id' => 0])->deepLinkUrl());
-        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['id' => -3])->deepLinkUrl());
-        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['date' => '2026-02-30'])->deepLinkUrl());
-        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['date' => '2026-10-07 10:00'])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['exam_request_id' => 0])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['exam_request_id' => -3])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'AgendaView', params: ['date' => '2026-02-30'])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'AgendaView', params: ['date' => '2026-10-07 10:00'])->deepLinkUrl());
+    }
+
+    public function testDeepLinkRejectsKeysOutsideTheAllowListEvenWithNumericValues(): void
+    {
+        foreach (['phone' => '5585999990000', 'document' => '12345678909', 'cpf' => 12345678909, 'birth_date' => '1990-05-01'] as $key => $value) {
+            Assert::same(
+                'Invalid deep-link parameter ' . $key,
+                self::messageOf(fn () => self::item(params: ['exam_request_id' => 1, $key => $value])->deepLinkUrl()),
+                $key,
+            );
+        }
+
+        // A key allowed for another class is still refused.
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'AgendaView', params: ['patient_id' => 3])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'PaymentForm', params: ['id' => 3])->deepLinkUrl());
+        // Value kind is fixed per key: no date in an id, no id in a date, only the literal in tab.
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'VaccinationCardView', params: ['patient_id' => '1990-05-01'])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'AgendaView', params: ['date' => 20261007])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'HospitalizationView', params: ['id' => 5, 'tab' => 5])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'HospitalizationView', params: ['id' => 'administrations'])->deepLinkUrl());
+    }
+
+    public function testDeepLinkAllowListMatchesTheDestinations(): void
+    {
+        Assert::same([
+            'ExamResultForm' => ['exam_request_id', 'encounter_id'],
+            'AgendaView' => ['date'],
+            'VaccinationCardView' => ['patient_id'],
+            'HospitalizationView' => ['id', 'tab'],
+            'CommunicationMessageView' => ['id'],
+            'PaymentForm' => ['receivable_id'],
+        ], PendingItem::DEEP_LINK_KEYS);
     }
 
     public function testDeepLinkRejectsUnknownClassAndType(): void
@@ -226,5 +258,10 @@ final class PendingItemDomainTest
         Assert::null($candidate->tutorEmail());
         Assert::same('5585999990000', $candidate->tutorPhone());
         Assert::same(['appointment_date' => '07/10/2026', 'appointment_time' => '09:30'], $candidate->variables());
+
+        $withEmail = new ReminderCandidate('vaccine_reminder', 'vaccination', 1, 2, 3, 4, 'f7a.teste@example.invalid', '5585999990000', []);
+        $dump = print_r($withEmail, true);
+        Assert::false(str_contains($dump, 'f7a.teste@example.invalid'), 'print_r must not expose the e-mail');
+        Assert::false(str_contains($dump, '5585999990000'), 'print_r must not expose the phone');
     }
 }
