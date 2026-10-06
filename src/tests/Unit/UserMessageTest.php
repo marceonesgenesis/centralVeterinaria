@@ -322,6 +322,8 @@ final class UserMessageTest
             'Tutor 41 has no e-mail address' => 'The tutor has no e-mail address',
             'Message 52 is no longer awaiting manual send' => 'This message is no longer awaiting manual send',
             'Message 52 is no longer queued' => 'This message is no longer queued',
+            'Message 52 was cancelled because the tutor opted out of whatsapp messages' => 'The tutor refused WhatsApp messages. The message was cancelled',
+            'Message 52 was cancelled because the tutor has not opted in to whatsapp messages' => 'The tutor has not consented to WhatsApp messages. The message was cancelled',
             'Message 52 has not failed' => 'This message has not failed',
             'Message 52 is not a WhatsApp message' => 'This message is not a WhatsApp message',
             'Template 63 does not match the message purpose and channel' => 'This template does not match the message purpose and channel',

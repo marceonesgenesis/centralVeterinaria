@@ -221,6 +221,40 @@ final class CommunicationRepositoryIntegrationTest extends MysqlIntegrationTestC
         Assert::null($messages->findById($workerId)?->cancelledBySystemUserId());
     }
 
+    public function testCancelQueuedForTutorCancelsOnlyQueuedUnclaimedMessagesOfTheChannelInTheTenant(): void
+    {
+        $messages = $this->messages($this->tenantA);
+        $queued = (int) $messages->insertIfNew($this->whatsappMessage())?->id();
+        $alsoQueued = (int) $messages->insertIfNew($this->whatsappMessage())?->id();
+        $alreadySent = (int) $messages->insertIfNew($this->whatsappMessage())?->id();
+        $email = (int) $messages->insertIfNew($this->emailMessage(null))?->id();
+        $at = new DateTimeImmutable('2031-10-01 12:00:00');
+        Assert::true($messages->markManualSent($alreadySent, $this->userId, $at));
+
+        Assert::same(0, $this->messages($this->tenantB)->cancelQueuedForTutor($this->tutorId, CommunicationChannel::WHATSAPP, $this->userId, 'opted_out', $at), 'another tenant changes nothing');
+        Assert::same(2, $messages->cancelQueuedForTutor($this->tutorId, CommunicationChannel::WHATSAPP, $this->userId, 'opted_out', $at));
+        Assert::same(0, $messages->cancelQueuedForTutor($this->tutorId, CommunicationChannel::WHATSAPP, $this->userId, 'opted_out', $at), 'second call finds nothing queued');
+
+        foreach ([$queued, $alsoQueued] as $id) {
+            /** @var OutboundMessage $cancelled */
+            $cancelled = $messages->findById($id);
+            Assert::same(OutboundMessage::STATUS_CANCELLED, $cancelled->status());
+            Assert::same('opted_out', $cancelled->lastErrorCode());
+            Assert::same($this->userId, $cancelled->cancelledBySystemUserId());
+            Assert::same('2031-10-01 12:00:00', $cancelled->cancelledAt()?->format('Y-m-d H:i:s'));
+        }
+
+        Assert::same(OutboundMessage::STATUS_MANUAL, $messages->findById($alreadySent)?->status());
+        Assert::same(OutboundMessage::STATUS_QUEUED, $messages->findById($email)?->status(), 'other channel untouched');
+
+        // An e-mail being delivered (claimed) is left to the worker's own re-check.
+        $claimed = (int) $messages->insertIfNew($this->emailMessage(null))?->id();
+        Assert::true($messages->claim($claimed, $at));
+        Assert::same(1, $messages->cancelQueuedForTutor($this->tutorId, CommunicationChannel::EMAIL, null, 'opted_out', $at));
+        Assert::same(OutboundMessage::STATUS_CANCELLED, $messages->findById($email)?->status());
+        Assert::same(OutboundMessage::STATUS_QUEUED, $messages->findById($claimed)?->status());
+    }
+
     public function testLegalBasisRoundTripAndAllFields(): void
     {
         $messages = $this->messages($this->tenantA);

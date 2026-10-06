@@ -185,6 +185,31 @@ final class FakeOutboundMessageRepository implements OutboundMessageRepositoryIn
         ]);
     }
 
+    public function cancelQueuedForTutor(int $tutorId, string $channel, ?int $systemUserId, string $reasonCode, DateTimeImmutable $cancelledAt): int
+    {
+        $count = 0;
+
+        foreach ($this->rows as $id => $row) {
+            if ($row['tenant_id'] !== $this->tenantId
+                || $row['tutor_id'] !== $tutorId
+                || $row['channel'] !== $channel
+                || $row['status'] !== OutboundMessage::STATUS_QUEUED
+                || $row['claimed_at'] !== null) {
+                continue;
+            }
+
+            $this->update($id, [
+                'status' => OutboundMessage::STATUS_CANCELLED,
+                'last_error_code' => $reasonCode,
+                'cancelled_at' => self::date($cancelledAt),
+                'cancelled_by_system_user_id' => $systemUserId,
+            ]);
+            $count++;
+        }
+
+        return $count;
+    }
+
     public function requeue(int $messageId): bool
     {
         $row = $this->ownRow($messageId);

@@ -8,11 +8,14 @@ use CentralVet\Application\CommunicationPreferenceService;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\CommunicationPreference;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Domain\MessagePurpose;
+use CentralVet\Domain\OutboundMessage;
 use CentralVet\Domain\Tutor;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeAuthorizationPolicy;
 use CentralVet\Tests\Support\FakeCommunicationPreferenceRepository;
+use CentralVet\Tests\Support\FakeOutboundMessageRepository;
 use CentralVet\Tests\Support\FakeTutorRepository;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -21,7 +24,8 @@ use InvalidArgumentException;
  * Unit tests for CommunicationPreferenceService (T-09): channel map with
  * `not_recorded`, recording with tenant-scoped tutor, consent source
  * validation, denied policy without writing and audit metadata without
- * contact data.
+ * contact data; an opt-out cancels the tutor's queued messages of that
+ * channel in the tenant (T-25).
  */
 final class CommunicationPreferenceServiceTest
 {
@@ -30,9 +34,12 @@ final class CommunicationPreferenceServiceTest
     private const USER_ID = 7;
     private const NOW = '2026-10-06 09:30:00';
 
+    private FakeOutboundMessageRepository $messages;
+
     /** @return array{0: CommunicationPreferenceService, 1: FakeCommunicationPreferenceRepository, 2: FakeAuthorizationPolicy} */
     private function build(bool $allowed = true, CommunicationPreference ...$seed): array
     {
+        $this->messages ??= new FakeOutboundMessageRepository(self::TENANT_ID);
         $preferences = new FakeCommunicationPreferenceRepository(self::TENANT_ID, ...$seed);
         $tutors = new FakeTutorRepository(
             self::TENANT_ID,
@@ -42,7 +49,7 @@ final class CommunicationPreferenceServiceTest
         $context = TenantContext::authenticated(self::TENANT_ID, self::USER_ID);
         $clock = static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW);
 
-        return [new CommunicationPreferenceService($preferences, $tutors, $policy, $context, $clock), $preferences, $policy];
+        return [new CommunicationPreferenceService($preferences, $tutors, $policy, $context, $clock, $this->messages), $preferences, $policy];
     }
 
     private static function preference(string $channel, string $status): CommunicationPreference
@@ -164,5 +171,85 @@ final class CommunicationPreferenceServiceTest
         $service->record(1, 'email', 'opted_in', 'online', self::ACTION);
 
         Assert::same('not_recorded', $policy->requests[0]->metadata()['status_before']);
+    }
+
+    public function testOptOutCancelsQueuedMessagesOfTheTutorAndChannelInTheTenant(): void
+    {
+        $this->messages = new FakeOutboundMessageRepository(self::TENANT_ID);
+        $legitimate = self::message(self::TENANT_ID, 1, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $consent = self::message(self::TENANT_ID, 1, 'whatsapp', MessagePurpose::CUSTOM, 6);
+        $email = self::message(self::TENANT_ID, 1, 'email', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $otherTutor = self::message(self::TENANT_ID, 2, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $otherTenant = self::message(self::TENANT_ID + 1, 1, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $alreadySent = self::message(self::TENANT_ID, 1, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $this->messages->seed($legitimate, $consent, $email, $otherTutor, $otherTenant, $alreadySent);
+        $this->messages->simulateConcurrentTransition((int) $alreadySent->id(), OutboundMessage::STATUS_MANUAL);
+
+        [$service] = $this->build(true, self::preference('whatsapp', CommunicationPreference::STATUS_OPTED_IN));
+        $service->record(1, 'whatsapp', 'opted_out', 'phone', self::ACTION);
+
+        $status = [];
+        foreach ($this->messages->all() as $message) {
+            $status[(int) $message->id()] = $message;
+        }
+
+        foreach ([$legitimate, $consent] as $cancelled) {
+            $stored = $status[(int) $cancelled->id()];
+            Assert::same(OutboundMessage::STATUS_CANCELLED, $stored->status(), 'queued WhatsApp of the tutor is cancelled (both legal bases)');
+            Assert::same('opted_out', $stored->lastErrorCode());
+            Assert::same(self::USER_ID, $stored->cancelledBySystemUserId());
+            Assert::same(self::NOW, $stored->cancelledAt()?->format('Y-m-d H:i:s'));
+        }
+
+        Assert::same(OutboundMessage::STATUS_QUEUED, $status[(int) $email->id()]->status(), 'other channel untouched');
+        Assert::same(OutboundMessage::STATUS_QUEUED, $status[(int) $otherTutor->id()]->status(), 'other tutor untouched');
+        Assert::same(OutboundMessage::STATUS_QUEUED, $status[(int) $otherTenant->id()]->status(), 'other tenant untouched');
+        Assert::same(OutboundMessage::STATUS_MANUAL, $status[(int) $alreadySent->id()]->status(), 'only queued messages are cancelled');
+    }
+
+    public function testOptInCancelsNothing(): void
+    {
+        $this->messages = new FakeOutboundMessageRepository(self::TENANT_ID);
+        $queued = self::message(self::TENANT_ID, 1, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $this->messages->seed($queued);
+
+        [$service] = $this->build();
+        $service->record(1, 'whatsapp', 'opted_in', 'phone', self::ACTION);
+
+        Assert::same(OutboundMessage::STATUS_QUEUED, $this->messages->all()[0]->status());
+    }
+
+    public function testDeniedOptOutCancelsNothing(): void
+    {
+        $this->messages = new FakeOutboundMessageRepository(self::TENANT_ID);
+        $queued = self::message(self::TENANT_ID, 1, 'whatsapp', MessagePurpose::APPOINTMENT_CONFIRMATION, 5);
+        $this->messages->seed($queued);
+
+        [$service] = $this->build(false);
+        Assert::throws(AuthorizationDenied::class, fn () => $service->record(1, 'whatsapp', 'opted_out', 'phone', self::ACTION));
+
+        Assert::same(OutboundMessage::STATUS_QUEUED, $this->messages->all()[0]->status());
+    }
+
+    private static function message(int $tenantId, int $tutorId, string $channel, string $purpose, int $unitId): OutboundMessage
+    {
+        return OutboundMessage::compose(
+            tenantId: $tenantId,
+            systemUnitId: $unitId,
+            tutorId: $tutorId,
+            patientId: null,
+            templateId: null,
+            purpose: $purpose,
+            channel: $channel,
+            origin: OutboundMessage::ORIGIN_MANUAL,
+            legalBasis: MessagePurpose::legalBasisFor($purpose),
+            sourceType: null,
+            sourceId: null,
+            dedupeKey: null,
+            recipient: $channel === 'email' ? 'f7a.teste@example.invalid' : '5585999990000',
+            subject: $channel === 'email' ? 'F7A teste' : null,
+            bodyText: 'F7A teste corpo',
+            createdBySystemUserId: self::USER_ID,
+        );
     }
 }

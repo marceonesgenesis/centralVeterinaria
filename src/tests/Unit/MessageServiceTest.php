@@ -504,4 +504,95 @@ final class MessageServiceTest
         Assert::same(self::TENANT_ID, $pushed['tenantId']);
         Assert::same(5, $pushed['maxAttempts']);
     }
+
+    public function testWhatsAppLinkAfterOptOutCancelsTheMessageAndRefuses(): void
+    {
+        $service = $this->build();
+        $id = (int) $service->compose(self::data([
+            'channel' => CommunicationChannel::WHATSAPP,
+            'purpose' => MessagePurpose::APPOINTMENT_CONFIRMATION,
+        ]), self::ACTION)->id();
+
+        $this->preferences->upsert(self::preference(CommunicationChannel::WHATSAPP, CommunicationPreference::STATUS_OPTED_OUT));
+
+        self::expectMessage(
+            'CentralVet\\Domain\\Exception\\MessageCancelledByPreferenceException',
+            "Message {$id} was cancelled because the tutor opted out of whatsapp messages",
+            fn () => $service->whatsAppLink($id, self::ACTION),
+        );
+
+        $stored = $this->messages->all()[0];
+        Assert::same(OutboundMessage::STATUS_CANCELLED, $stored->status());
+        Assert::same('opted_out', $stored->lastErrorCode());
+        Assert::null($stored->cancelledBySystemUserId(), 'cancelled by the preference rule, like the worker');
+        Assert::same(self::NOW, $stored->cancelledAt()?->format('Y-m-d H:i:s'));
+    }
+
+    public function testMarkManualSentAfterOptOutCancelsTheMessageAndRefuses(): void
+    {
+        $service = $this->build();
+        $id = (int) $service->compose(self::data([
+            'channel' => CommunicationChannel::WHATSAPP,
+            'purpose' => MessagePurpose::RETURN_REMINDER,
+        ]), self::ACTION)->id();
+
+        $this->preferences->upsert(self::preference(CommunicationChannel::WHATSAPP, CommunicationPreference::STATUS_OPTED_OUT));
+
+        self::expectMessage(
+            'CentralVet\\Domain\\Exception\\MessageCancelledByPreferenceException',
+            "Message {$id} was cancelled because the tutor opted out of whatsapp messages",
+            fn () => $service->markManualSent($id, self::ACTION),
+        );
+
+        $stored = $this->messages->all()[0];
+        Assert::same(OutboundMessage::STATUS_CANCELLED, $stored->status());
+        Assert::same('opted_out', $stored->lastErrorCode());
+        Assert::null($stored->manualSentBySystemUserId());
+    }
+
+    public function testConsentWhatsAppWithoutOptInIsCancelledAsConsentMissing(): void
+    {
+        $service = $this->build();
+        $message = OutboundMessage::compose(
+            tenantId: self::TENANT_ID,
+            systemUnitId: self::UNIT_ID,
+            tutorId: self::TUTOR_ID,
+            patientId: null,
+            templateId: null,
+            purpose: MessagePurpose::VACCINE_DUE,
+            channel: CommunicationChannel::WHATSAPP,
+            origin: OutboundMessage::ORIGIN_MANUAL,
+            legalBasis: MessagePurpose::LEGAL_BASIS_CONSENT,
+            sourceType: null,
+            sourceId: null,
+            dedupeKey: null,
+            recipient: '5585999990000',
+            subject: null,
+            bodyText: 'F7A teste corpo',
+            createdBySystemUserId: self::USER_ID,
+        );
+        $this->messages->seed($message);
+        $id = (int) $message->id();
+
+        self::expectMessage(
+            'CentralVet\\Domain\\Exception\\MessageCancelledByPreferenceException',
+            "Message {$id} was cancelled because the tutor has not opted in to whatsapp messages",
+            fn () => $service->markManualSent($id, self::ACTION),
+        );
+        Assert::same('consent_missing', $this->messages->all()[0]->lastErrorCode());
+        Assert::same(OutboundMessage::STATUS_CANCELLED, $this->messages->all()[0]->status());
+    }
+
+    public function testConsentWhatsAppWithOptInStillOpensAndIsMarkedSent(): void
+    {
+        $service = $this->build(true, self::preference(CommunicationChannel::WHATSAPP, CommunicationPreference::STATUS_OPTED_IN));
+        $id = (int) $service->compose(self::data([
+            'channel' => CommunicationChannel::WHATSAPP,
+            'purpose' => MessagePurpose::CUSTOM,
+        ]), self::ACTION)->id();
+
+        Assert::stringContains('https://wa.me/5585999990000', $service->whatsAppLink($id, self::ACTION));
+        $service->markManualSent($id, self::ACTION);
+        Assert::same(OutboundMessage::STATUS_MANUAL, $this->messages->all()[0]->status());
+    }
 }

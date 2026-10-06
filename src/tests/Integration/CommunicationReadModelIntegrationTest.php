@@ -154,6 +154,17 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
         Assert::same('index.php?class=PaymentForm&receivable_id=' . $this->a['receivable'], $receivable->deepLinkUrl());
     }
 
+    public function testWhatsAppCancelledByOptOutLeavesThePendingCenter(): void
+    {
+        $at = new DateTimeImmutable(self::NOW);
+        $cancelled = (new \CentralVet\Persistence\OutboundMessageRepository(TenantContext::authenticated($this->tenantA, $this->userId), $this->pdo))
+            ->cancelQueuedForTutor($this->a['tutor'], 'whatsapp', $this->userId, 'opted_out', $at);
+        Assert::same(1, $cancelled);
+
+        Assert::count(0, $this->ofType($this->pendingFor($this->tenantA, $this->unitA), PendingItem::TYPE_MESSAGE_WHATSAPP_MANUAL), 'cancelled WhatsApp is not pending');
+        Assert::count(1, $this->ofType($this->pendingFor($this->tenantB, $this->unitA), PendingItem::TYPE_MESSAGE_WHATSAPP_MANUAL), 'tenant B keeps its queued WhatsApp');
+    }
+
     public function testUnitIsolationKeepsTheOtherUnitOut(): void
     {
         $unitA = $this->pendingFor($this->tenantA, $this->unitA);
