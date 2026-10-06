@@ -91,6 +91,7 @@ final class UserMessage
         'Could not allocate document version' => 'Could not allocate document version',
         'Document body must be between 1 and 20000 characters' => 'Document body must be between 1 and 20000 characters',
         'body must be between 1 and 20000 characters' => 'body must be between 1 and 20000 characters',
+        'Generated document has no id yet' => 'Generated document has no id yet',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -186,6 +187,7 @@ final class UserMessage
         '/^Unknown document kind "[^"]*"$/D' => 'Unknown document kind',
         '/^Document kind "[^"]*" (?:does not accept a body|does not use templates|has no default template)$/D' => 'This document type does not support this option',
         '/^Unknown document template status "[^"]*"$/D' => 'Invalid document template status',
+        '/^Document source type "[^"]*" does not match kind "[^"]*"$/D' => 'The document source does not match the document type',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
         '/^([a-z_]+) is required$/D' => '^1 is required',

@@ -1796,6 +1796,10 @@
     "pt": "Gerar relatório"
   },
   {
+    "en": "Generated document has no id yet",
+    "pt": "O documento ainda não foi salvo"
+  },
+  {
     "en": "Global search",
     "pt": "Busca global"
   },
@@ -4482,6 +4486,10 @@
   {
     "en": "The document could not be generated",
     "pt": "Não foi possível gerar o documento"
+  },
+  {
+    "en": "The document source does not match the document type",
+    "pt": "A origem não corresponde ao tipo de documento"
   },
   {
     "en": "The encounter account is not open",
