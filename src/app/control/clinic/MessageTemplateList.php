@@ -9,7 +9,8 @@
  * `cv-state--empty` com o botão "Novo template".
  *
  * Ativar/Desativar são estáticos e passam por onToggle (`active` = 1/0):
- * chamam MessageTemplateService::setActive() e recarregam a lista.
+ * chamam MessageTemplateService::setActive() e recarregam a lista. As ações
+ * são links próprios (o <a> leva cv-touch-target, 44 px no tablet).
  *
  * @version    1.0
  * @package    control
@@ -49,25 +50,12 @@ class MessageTemplateList extends TPage
         $this->datagrid->addColumn($column_channel);
         $this->datagrid->addColumn($column_status);
 
-        // Ações como botões visíveis (não dropdown): alvo de toque de 44 px no tablet.
-        $action_edit = new TDataGridAction(['MessageTemplateForm', 'onEdit'], ['id' => '{id}', 'register_state' => 'false']);
-        $action_activate = new TDataGridAction([__CLASS__, 'onToggle'], ['id' => '{id}', 'active' => '1', 'static' => '1', 'register_state' => 'false']);
-        $action_activate->setDisplayCondition([__CLASS__, 'canActivate']);
-        $action_deactivate = new TDataGridAction([__CLASS__, 'onToggle'], ['id' => '{id}', 'active' => '0', 'static' => '1', 'register_state' => 'false']);
-        $action_deactivate->setDisplayCondition([__CLASS__, 'canDeactivate']);
-
-        foreach ([
-            [$action_edit, _t('Edit'), 'far:edit'],
-            [$action_activate, _t('Activate'), 'fa:toggle-on'],
-            [$action_deactivate, _t('Deactivate'), 'fa:toggle-off'],
-        ] as [$action, $label, $icon])
-        {
-            $action->setLabel($label);
-            $action->setImage($icon);
-            $action->setUseButton(true);
-            $action->setButtonClass('btn btn-sm btn-outline-secondary cv-touch-target');
-            $this->datagrid->addAction($action);
-        }
+        // Ações como links próprios numa coluna (padrão do CommunicationMessageList):
+        // o <a> é o alvo de toque de 44 px. As ações do TDataGrid põem a classe só
+        // num <span> interno, e o <a> inline ficava com 19 px no tablet.
+        $column_actions = new TDataGridColumn('id', '', 'right');
+        $column_actions->setTransformer(static fn ($value, $object) => self::actionLinks($object));
+        $this->datagrid->addColumn($column_actions);
 
         $this->datagrid->createModel();
 
@@ -197,6 +185,56 @@ class MessageTemplateList extends TPage
         }
 
         parent::show();
+    }
+
+    /**
+     * Editar (MessageTemplateForm::onEdit) e Ativar ou Desativar (onToggle,
+     * estático), cada um um <a> com cv-touch-target. A URL leva só o id.
+     */
+    private static function actionLinks($object): TElement
+    {
+        $id = (int) ($object->id ?? 0);
+
+        $links = new TElement('div');
+        $links->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2); justify-content:flex-end';
+
+        $links->add(self::actionLink(
+            _t('Edit'),
+            'far:edit',
+            'index.php?class=MessageTemplateForm&method=onEdit&id=' . $id . '&register_state=false'
+        ));
+
+        if (self::canDeactivate($object))
+        {
+            $links->add(self::actionLink(
+                _t('Deactivate'),
+                'fa:toggle-off',
+                'index.php?class=MessageTemplateList&method=onToggle&id=' . $id . '&active=0&static=1&register_state=false'
+            ));
+        }
+        elseif (self::canActivate($object))
+        {
+            $links->add(self::actionLink(
+                _t('Activate'),
+                'fa:toggle-on',
+                'index.php?class=MessageTemplateList&method=onToggle&id=' . $id . '&active=1&static=1&register_state=false'
+            ));
+        }
+
+        return $links;
+    }
+
+    private static function actionLink(string $label, string $icon, string $href): TElement
+    {
+        $link = new TElement('a');
+        $link->{'class'} = 'btn btn-sm btn-outline-secondary cv-touch-target';
+        $link->{'href'} = CvFormat::e($href);
+        $link->{'generator'} = 'adianti';
+        $link->{'title'} = CvFormat::e($label);
+        $link->add(new TImage($icon));
+        $link->add(TElement::tag('span', CvFormat::e($label)));
+
+        return $link;
     }
 
     private static function statusBadge(string $status): TElement
