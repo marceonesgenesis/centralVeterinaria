@@ -59,10 +59,11 @@ interface GeneratedDocumentRepositoryInterface
     public function listForUnit(int $systemUnitId, ?int $patientId, int $limit): array;
 
     /**
-     * Ids of `queued` documents stuck before `$olderThan`: never claimed
-     * (`claimed_at` null and `created_at < $olderThan`) or with an
-     * abandoned claim (`claimed_at < $olderThan`); oldest first, at most
-     * `$limit`.
+     * Ids of `queued` documents stuck before `$olderThan`: without a claim
+     * and with no write since (`claimed_at` null and `updated_at <
+     * $olderThan`, so a claim released into the queue backoff is not stale
+     * until the window passes) or with an abandoned claim (`claimed_at <
+     * $olderThan`); oldest first (`created_at`), at most `$limit`.
      *
      * @return list<int>
      */
