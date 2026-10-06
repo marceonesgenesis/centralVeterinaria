@@ -27,9 +27,19 @@ final class DompdfDocumentRenderer implements DocumentRendererInterface
 
     public function render(DocumentContent $content): string
     {
+        return $this->renderHtml($this->htmlBuilder->build($content));
+    }
+
+    /**
+     * Renders already built HTML with the locked-down options(). Public so
+     * tests can prove the effective render (raw remote <img>/<link> is never
+     * fetched); production HTML always comes from render().
+     */
+    public function renderHtml(string $html): string
+    {
         try {
             $dompdf = new Dompdf($this->options());
-            $dompdf->loadHtml($this->htmlBuilder->build($content), 'UTF-8');
+            $dompdf->loadHtml($html, 'UTF-8');
             $dompdf->setPaper('A4');
             $dompdf->render();
             $bytes = $dompdf->output();

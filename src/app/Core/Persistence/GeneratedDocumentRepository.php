@@ -24,7 +24,11 @@ use RuntimeException;
  * 0) + 1` (a locking read, so a retry sees the rows other transactions
  * committed); a duplicate key 1062 on `generated_document_version_uq` means
  * a concurrent request took the same version and the insert is retried, at
- * most 3 times. Never the IGNORE modifier, which on MySQL 8 turns CHECK
+ * most 3 times. A deadlock 1213 of that statement is retried the same
+ * bounded number of times, but only when the call runs outside a caller
+ * transaction: InnoDB rolls the whole transaction back on a deadlock, so
+ * inside one the error surfaces for the caller to redo its unit of work.
+ * Never the IGNORE modifier, which on MySQL 8 turns CHECK
  * violations into warnings. After the insert a document only moves through
  * conditional transitions: one `UPDATE ... WHERE id AND tenant_id AND
  * status = <expected>` per method, whose `rowCount() === 1` is the answer.
@@ -38,6 +42,8 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
     private const CLAIM_TTL = '-10 minutes';
 
     private const DUPLICATE_KEY = 1062;
+
+    private const DEADLOCK = 1213;
 
     private const VERSION_RETRIES = 3;
 
@@ -93,11 +99,19 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
             ':requested_by_system_user_id' => $document->requestedBySystemUserId(),
         ];
 
+        // Read before the insert: after a deadlock the server has already
+        // rolled the caller's transaction back.
+        $retryDeadlock = !$this->connection->inTransaction();
+
         for ($attempt = 0; $attempt <= self::VERSION_RETRIES; $attempt++) {
             try {
                 $statement->execute($parameters);
             } catch (PDOException $exception) {
                 if (self::isVersionCollision($exception)) {
+                    continue;
+                }
+
+                if ($retryDeadlock && self::isDeadlock($exception) && $attempt < self::VERSION_RETRIES) {
                     continue;
                 }
 
@@ -223,6 +237,14 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
         );
     }
 
+    /**
+     * A row without claim is stuck only when its last write (`updated_at`:
+     * the request, a releaseClaim() or a requeueFailed()) is older than
+     * `$olderThan`. A claim released moments ago is waiting in the queue
+     * backoff (seconds to a few minutes), not lost, so it is not republished
+     * until the window passes. `updated_at` is never before `created_at`, so
+     * a request never touched still ages from its creation.
+     */
     public function listStaleQueuedIds(DateTimeImmutable $olderThan, int $limit): array
     {
         $query = $this->tenantQuery()->andEquals('status', GeneratedDocument::STATUS_QUEUED);
@@ -233,7 +255,7 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
             SELECT id FROM generated_document
             WHERE {$query->whereSql()}
               AND (
-                (claimed_at IS NULL AND created_at < :created_before)
+                (claimed_at IS NULL AND updated_at < :released_before)
                 OR claimed_at < :claimed_before
               )
             ORDER BY created_at ASC, id ASC
@@ -242,7 +264,7 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
         );
         $statement->execute([
             ...$query->parameters(),
-            ':created_before' => self::timestamp($olderThan),
+            ':released_before' => self::timestamp($olderThan),
             ':claimed_before' => self::timestamp($olderThan),
         ]);
 
@@ -295,6 +317,11 @@ final class GeneratedDocumentRepository implements GeneratedDocumentRepositoryIn
     {
         return (int) ($exception->errorInfo[1] ?? 0) === self::DUPLICATE_KEY
             && str_contains((string) ($exception->errorInfo[2] ?? $exception->getMessage()), self::VERSION_UNIQUE_KEY);
+    }
+
+    private static function isDeadlock(PDOException $exception): bool
+    {
+        return (int) ($exception->errorInfo[1] ?? 0) === self::DEADLOCK;
     }
 
     private static function timestamp(DateTimeImmutable $value): string

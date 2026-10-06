@@ -61,33 +61,49 @@ final class DocumentRendererTest
     }
 
     /**
-     * The effective render, not only options(): raw HTML with remote <img>
-     * and <link> still yields a PDF and dompdf never opens a connection to
-     * the (listening) remote host.
+     * The effective render, not only options(): raw HTML with remote <img>,
+     * <link> and CSS url() still yields a PDF and dompdf never connects to
+     * the remote host. The host is a child PHP process that answers 404 at
+     * once and reports every connection, so a fetch (curl or
+     * file_get_contents) is detected instead of hanging the suite.
      */
     public function testRenderHtmlNeverFetchesRemoteResources(): void
     {
-        $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
-        Assert::true($server !== false, 'test needs a local listening socket');
-        $address = stream_socket_get_name($server, false);
-        $previousTimeout = ini_set('default_socket_timeout', '2');
+        $server = <<<'PHP'
+            $s = stream_socket_server('tcp://127.0.0.1:0');
+            fwrite(STDOUT, stream_socket_get_name($s, false) . "\n");
+            fflush(STDOUT);
+            while ($c = @stream_socket_accept($s, 60)) {
+                fwrite(STDOUT, "hit\n");
+                fflush(STDOUT);
+                fread($c, 8192);
+                fwrite($c, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+                fclose($c);
+            }
+            PHP;
+        $process = proc_open([PHP_BINARY, '-r', $server], [1 => ['pipe', 'w']], $pipes);
+        Assert::true(is_resource($process), 'test needs a child PHP process');
 
         try {
+            $address = trim((string) fgets($pipes[1]));
+            Assert::true($address !== '', 'the child server must report its address');
+
             $bytes = (new DompdfDocumentRenderer())->renderHtml(
                 '<html><head><link rel="stylesheet" href="http://' . $address . '/s.css"></head>'
                 . '<body><p>F7B teste</p><img src="http://' . $address . '/x.png">'
                 . '<div style="background-image: url(http://' . $address . '/bg.png)">x</div></body></html>',
             );
 
-            stream_set_blocking($server, false);
-            $connection = @stream_socket_accept($server, 0);
-
-            Assert::same('%PDF-', substr($bytes, 0, 5));
-            Assert::false($connection !== false, 'dompdf must not connect to a remote host');
+            stream_set_blocking($pipes[1], false);
+            $hits = substr_count((string) stream_get_contents($pipes[1]), 'hit');
         } finally {
-            ini_set('default_socket_timeout', (string) $previousTimeout);
-            fclose($server);
+            proc_terminate($process);
+            fclose($pipes[1]);
+            proc_close($process);
         }
+
+        Assert::same('%PDF-', substr($bytes, 0, 5));
+        Assert::same(0, $hits, 'dompdf must not connect to a remote host');
     }
 
     public function testDompdfOptionsAreLockedDown(): void

@@ -14,6 +14,11 @@ use CentralVet\Tenancy\TenantContext;
  * can never read each other's objects. The root must live outside the web
  * root: files are only ever served through an authorized controller.
  *
+ * Reads, existence checks and deletes resolve the path with realpath():
+ * a symlink inside the root that leads outside it is never followed (the
+ * object reads as not found and is neither read nor deleted); writes check
+ * the resolved directory the same way. Links that stay inside the root work.
+ *
  * Exception messages never carry absolute paths or object keys.
  */
 final class LocalFilesystemStorage implements StorageInterface
@@ -92,8 +97,8 @@ final class LocalFilesystemStorage implements StorageInterface
 
     public function get(string $key): string
     {
-        $path = $this->path($this->objectKey($key));
-        if (!is_file($path)) {
+        $path = $this->existingFile($this->objectKey($key));
+        if ($path === null) {
             throw new StorageException('Stored object not found');
         }
 
@@ -107,13 +112,22 @@ final class LocalFilesystemStorage implements StorageInterface
 
     public function exists(string $key): bool
     {
-        return is_file($this->path($this->objectKey($key)));
+        return $this->existingFile($this->objectKey($key)) !== null;
     }
 
     public function delete(string $key): void
     {
-        $path = $this->path($this->objectKey($key));
-        if (is_file($path) && !@unlink($path) && is_file($path)) {
+        $objectKey = $this->objectKey($key);
+        $path = $this->path($objectKey);
+        if (!is_file($path)) {
+            return;
+        }
+
+        if ($this->existingFile($objectKey) === null) {
+            throw new StorageException('Resolved storage path escapes the local storage root');
+        }
+
+        if (!@unlink($path) && file_exists($path)) {
             throw new StorageException('Could not delete object from local storage');
         }
     }
@@ -136,6 +150,21 @@ final class LocalFilesystemStorage implements StorageInterface
         }
 
         return $path;
+    }
+
+    /**
+     * The resolved path (every symlink followed) of an existing regular
+     * file that stays inside the root; null otherwise.
+     */
+    private function existingFile(string $objectKey): ?string
+    {
+        $resolved = realpath($this->path($objectKey));
+
+        if ($resolved === false || !is_file($resolved) || !self::isWithin($resolved, $this->root)) {
+            return null;
+        }
+
+        return $resolved;
     }
 
     private static function isWithin(string $path, string $base): bool

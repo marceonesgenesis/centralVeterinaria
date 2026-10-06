@@ -20,8 +20,11 @@ use InvalidArgumentException;
  * mirrors `UPDATE ... WHERE <condition>`: it returns false (changing
  * nothing) when the row is missing, belongs to another tenant or is not in
  * the expected state. claim() takes over a claim older than 10 minutes.
- * simulateConcurrentClaim() stamps `claimed_at` with the current time, as
- * another worker would, to prove races.
+ * simulateConcurrentClaim() stamps `claimed_at` (now, or the given instant
+ * when the test drives a fixed clock), as another worker would, to prove
+ * races. listStaleQueuedIds() follows the PDO repository: an unclaimed row
+ * ages from its last write (`updated_at`), so a released claim waiting in
+ * the queue backoff is not stale.
  */
 final class FakeGeneratedDocumentRepository implements GeneratedDocumentRepositoryInterface
 {
@@ -35,19 +38,32 @@ final class FakeGeneratedDocumentRepository implements GeneratedDocumentReposito
     {
     }
 
+    /** Row columns the entity does not carry, settable through seed(). */
+    private const SEEDABLE_COLUMNS = ['claimed_at', 'failed_at', 'size_bytes', 'sha256', 'created_at', 'updated_at'];
+
     /**
      * Stores the document as it is (any tenant, no version check). A
      * document without id gets the next id and version of its source.
+     * `$columns` sets row columns the entity does not carry (claimed_at,
+     * failed_at, size_bytes, sha256, created_at, updated_at; instants as
+     * `Y-m-d H:i:s.u`); any other key is refused.
+     *
+     * @param array<string, int|string|null> $columns
      */
-    public function seed(GeneratedDocument $document): void
+    public function seed(GeneratedDocument $document, array $columns = []): void
     {
+        $unknown = array_diff(array_keys($columns), self::SEEDABLE_COLUMNS);
+        if ($unknown !== []) {
+            throw new InvalidArgumentException('Unknown seed column: ' . implode(', ', $unknown));
+        }
+
         if ($document->id() === null) {
             $document->assignIdentity($this->nextId++, $this->nextVersion($document));
         } else {
             $this->nextId = max($this->nextId, $document->id() + 1);
         }
 
-        $this->rows[(int) $document->id()] = self::toRow($document);
+        $this->rows[(int) $document->id()] = array_merge(self::toRow($document), $columns);
     }
 
     public function insertNextVersion(GeneratedDocument $document): GeneratedDocument
@@ -183,7 +199,7 @@ final class FakeGeneratedDocumentRepository implements GeneratedDocumentReposito
         $rows = array_filter(
             $this->ownRows(),
             static fn (array $row): bool => $row['status'] === GeneratedDocument::STATUS_QUEUED
-                && ($row['claimed_at'] === null ? $row['created_at'] < $limitDate : $row['claimed_at'] < $limitDate),
+                && ($row['claimed_at'] === null ? $row['updated_at'] < $limitDate : $row['claimed_at'] < $limitDate),
         );
         usort($rows, static fn (array $a, array $b): int => [$a['created_at'], $a['id']] <=> [$b['created_at'], $b['id']]);
 
@@ -202,14 +218,24 @@ final class FakeGeneratedDocumentRepository implements GeneratedDocumentReposito
         return array_values(array_map(static fn (array $row): GeneratedDocument => GeneratedDocument::reconstitute($row), $this->rows));
     }
 
-    /** Simulates another worker claiming the document now (`claimed_at` = now, nothing else changes). */
-    public function simulateConcurrentClaim(int $id): void
+    /** The raw stored row (any tenant), or null; for asserting columns the entity does not expose. */
+    public function row(int $id): ?array
+    {
+        return $this->rows[$id] ?? null;
+    }
+
+    /**
+     * Simulates another worker claiming the document (`claimed_at` = `$at`,
+     * default now; nothing else changes). Pass the instant of the test clock
+     * when claim() is called with fixed instants.
+     */
+    public function simulateConcurrentClaim(int $id, ?DateTimeImmutable $at = null): void
     {
         if (!isset($this->rows[$id])) {
             throw new InvalidArgumentException("Generated document {$id} not found");
         }
 
-        $this->rows[$id]['claimed_at'] = self::date(new DateTimeImmutable());
+        $this->rows[$id]['claimed_at'] = self::date($at ?? new DateTimeImmutable());
     }
 
     private function nextVersion(GeneratedDocument $document): int
@@ -289,7 +315,8 @@ final class FakeGeneratedDocumentRepository implements GeneratedDocumentReposito
             'notified_at' => self::date($d->notifiedAt()),
             'requested_by_system_user_id' => $d->requestedBySystemUserId(),
             'created_at' => self::date($d->createdAt()) ?? $now,
-            'updated_at' => $now,
+            // Like the INSERT: both default to the same instant.
+            'updated_at' => self::date($d->createdAt()) ?? $now,
         ];
     }
 }
