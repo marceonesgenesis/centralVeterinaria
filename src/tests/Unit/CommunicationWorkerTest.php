@@ -15,7 +15,11 @@ use CentralVet\Domain\MessagePurpose;
 use CentralVet\Domain\OutboundMessage;
 use CentralVet\Domain\ReminderCandidate;
 use CentralVet\Observability\Logging\LoggerInterface;
+use CentralVet\Observability\ErrorTracking\NullErrorTracker;
+use CentralVet\Observability\Metrics\NullMetrics;
+use CentralVet\Queue\QueueInterface;
 use CentralVet\Queue\QueueMessage;
+use CentralVet\Queue\QueueWorkerLoop;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeCommunicationPreferenceRepository;
@@ -305,6 +309,141 @@ final class CommunicationWorkerTest
 
         Assert::same(1, $second['errors']);
         Assert::true(in_array($createdEmailIds[0], self::publishedIds($queue), true), 'e-mail created before the failure must be swept');
+    }
+
+    public function testWorkerOptionsDefaultToContinuousAndParseOneShotLimits(): void
+    {
+        Assert::same(['once' => false, 'max_jobs' => 0, 'max_seconds' => 0], QueueWorkerLoop::parseOptions(['bin/worker.php']));
+        Assert::same(
+            ['once' => true, 'max_jobs' => 50, 'max_seconds' => 55],
+            QueueWorkerLoop::parseOptions(['bin/worker.php', '--once', '--max-jobs=50', '--max-seconds=55']),
+        );
+        Assert::same(
+            ['once' => true, 'max_jobs' => 0, 'max_seconds' => QueueWorkerLoop::DEFAULT_ONCE_MAX_SECONDS],
+            QueueWorkerLoop::parseOptions(['bin/worker.php', '--once']),
+        );
+        Assert::throws(\InvalidArgumentException::class, static fn () => QueueWorkerLoop::parseOptions(['bin/worker.php', '--max-jobs=-1']));
+        Assert::throws(\InvalidArgumentException::class, static fn () => QueueWorkerLoop::parseOptions(['bin/worker.php', '--bogus']));
+    }
+
+    public function testOneShotDrainProcessesUntilTheQueueIsEmptyAndStops(): void
+    {
+        $queue = self::memoryQueue(3);
+        $handled = [];
+        $loop = $this->workerLoop($queue, static function (QueueMessage $m) use (&$handled): void {
+            $handled[] = $m->id;
+        });
+
+        Assert::same(3, $loop->drain(0, 0));
+        Assert::same(['job-1', 'job-2', 'job-3'], $handled);
+        Assert::same(['job-1', 'job-2', 'job-3'], $queue->acked);
+        Assert::same(0, $queue->remaining());
+    }
+
+    public function testOneShotDrainRespectsTheJobLimit(): void
+    {
+        $queue = self::memoryQueue(3);
+        $loop = $this->workerLoop($queue, static function (QueueMessage $m): void {
+        });
+
+        Assert::same(2, $loop->drain(2, 0));
+        Assert::same(['job-1', 'job-2'], $queue->acked);
+        Assert::same(1, $queue->remaining());
+    }
+
+    public function testOneShotDrainRespectsTheTimeLimit(): void
+    {
+        $queue = self::memoryQueue(5);
+        $now = 1000;
+        $loop = $this->workerLoop(
+            $queue,
+            static function (QueueMessage $m) use (&$now): void {
+                $now += 20;
+            },
+            static function () use (&$now): int {
+                return $now;
+            },
+        );
+
+        // 20 s per job, 50 s budget: jobs start at 0, 20 and 40 s.
+        Assert::same(3, $loop->drain(0, 50));
+        Assert::same(2, $queue->remaining());
+    }
+
+    public function testOneShotDrainFailsAJobWithoutStoppingAndWithoutItsData(): void
+    {
+        $queue = self::memoryQueue(2);
+        $loop = $this->workerLoop($queue, static function (QueueMessage $m): void {
+            if ($m->id === 'job-1') {
+                throw new MessageDeliveryFailed('smtp_connect');
+            }
+        });
+
+        Assert::same(2, $loop->drain(0, 0));
+        Assert::same(['job-1' => 'Message delivery failed: smtp_connect'], $queue->failed);
+        Assert::same(['job-2'], $queue->acked);
+        $failedLog = array_values(array_filter($this->logs, static fn (array $e): bool => $e['message'] === 'queue.job.failed'));
+        Assert::count(1, $failedLog);
+        Assert::same(['queue' => 'default', 'job_id' => 'job-1', 'attempts' => 1, 'max_attempts' => 5], $failedLog[0]['context']);
+    }
+
+    private function workerLoop(QueueInterface $queue, \Closure $handle, ?\Closure $clock = null): QueueWorkerLoop
+    {
+        return new QueueWorkerLoop($queue, ['default'], $handle, $this->logger, new NullMetrics(), new NullErrorTracker(), $clock);
+    }
+
+    private static function memoryQueue(int $jobs): QueueInterface
+    {
+        return new class ($jobs) implements QueueInterface {
+            /** @var list<QueueMessage> */
+            private array $pending = [];
+            /** @var list<string> */
+            public array $acked = [];
+            /** @var array<string, ?string> */
+            public array $failed = [];
+
+            public function __construct(int $jobs)
+            {
+                for ($i = 1; $i <= $jobs; $i++) {
+                    $this->pending[] = new QueueMessage('job-' . $i, 'default', ['type' => 'test.job'], null, 'corr-' . $i, 0, 5, '{}');
+                }
+            }
+
+            public function remaining(): int
+            {
+                return count($this->pending);
+            }
+
+            public function push(string $queue, array $payload, ?int $tenantId = null, ?string $correlationId = null, int $delaySeconds = 0, int $maxAttempts = 5): string
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function pop(string $queue, int $timeoutSeconds = 5): ?QueueMessage
+            {
+                return array_shift($this->pending);
+            }
+
+            public function ack(QueueMessage $message): void
+            {
+                $this->acked[] = $message->id;
+            }
+
+            public function fail(QueueMessage $message, ?string $reason = null): void
+            {
+                $this->failed[$message->id] = $reason;
+            }
+
+            public function recoverDue(string $queue): int
+            {
+                return 0;
+            }
+
+            public function deadLetterCount(string $queue): int
+            {
+                return 0;
+            }
+        };
     }
 
     private function handler(): CommunicationJobHandler
