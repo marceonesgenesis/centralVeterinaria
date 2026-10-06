@@ -2,10 +2,10 @@
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
 |---|---|---|---|---|---|---|---|
-| T-01 | database | Migration 0013 (`document_template`, `generated_document`), verify e provision do banco de teste | — | sim | alta | Darwin | [ ] |
-| T-02 | backend | Domain de documentos (tipo, documento gerado, template, renderizador, padrões, conteúdo, exceções) + contratos | — | sim | média | Platão | [ ] |
-| T-03 | infra | Storage local fora do webroot + `DocumentStorageFactory` + variáveis, volume e pasta na imagem | — | sim | média | Tesla | [ ] |
-| T-04 | infra | Programas RBAC das 4 telas para os grupos 1, 2, 4 e 5 (seed + DML, verify e rollback preparados) | — | sim | simples | Jaspion | [ ] |
+| T-01 | database | Migration 0013 (`document_template`, `generated_document`), verify e provision do banco de teste | — | sim | alta | Darwin | [x] |
+| T-02 | backend | Domain de documentos (tipo, documento gerado, template, renderizador, padrões, conteúdo, exceções) + contratos | — | sim | média | Platão | [x] |
+| T-03 | infra | Storage local fora do webroot + `DocumentStorageFactory` + variáveis, volume e pasta na imagem | — | sim | média | Tesla | [x] |
+| T-04 | infra | Programas RBAC das 4 telas para os grupos 1, 2, 4 e 5 (seed + DML, verify e rollback preparados) | — | sim | simples | Jaspion | [x] |
 | T-05 | shared | Fakes de documento, template, fontes, renderer, fábrica de conteúdo e nomes | T-02 | sim | média | Platão | [ ] |
 | T-06 | backend | Repositórios PDO de documento gerado e de template | T-01, T-02 | sim | alta | Athena | [ ] |
 | T-07 | backend | Consulta PDO das fontes (paciente, vacinas, receita, cirurgia, contato do tutor) | T-02 | sim | média | Sherlock | [ ] |

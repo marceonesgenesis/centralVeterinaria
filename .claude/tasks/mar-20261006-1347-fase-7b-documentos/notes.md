@@ -31,6 +31,9 @@
   - Onda 5: fetch em pt.
   - Onda 6: E2E em dois disparos.
 - 2026-10-06 · plano · onda 0 — **Baseline.** php-lint 0 linhas (593 PHP sem erro) e test-prepare-mysql57 com `Ran 8 tests` / `OK`, gravados em `baseline/`.
+- 2026-10-06 · T-01 · onda 1 — Sete índices nomeados nas colunas de FK além do plano (padrão da 0012); contrato inalterado: aceito.
+- 2026-10-06 · T-02 · onda 1 — Adições públicas extras (`DocumentTemplate::assignId`, `DocumentKind::requiresBodyText`) e interfaces de repositório sem estender `TenantRepositoryInterface`: aceito (registrado no board).
+- 2026-10-06 · T-04 · onda 1 — RBAC: usuário confirmou os grupos 1, 2, 4 e 5 (mesmos da 7A).
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -50,10 +53,16 @@
   - O MinIO está no profile `minio`, sem bucket criado.
   - `surgery` já guarda `consent_signer_name`/`consent_text`/`consent_recorded_at` (6B).
   - `patient` não tem unidade; `vaccination` e `prescription` pegam a unidade pelo `encounter`.
+- [T-03] Local storage: StoredObjectMetadata com provider/bucket 'local', objectKey relativo ao root, get ausente lança StorageException; mensagens i18n-domínio de I/O listadas no board.
+- [T-02] Contratos de documentos commitados em cecca44 com extras públicos aditivos; `DocumentTemplate::create` só aceita kind com template (medical_certificate) e placeholders fechados; `render()` mantém `{{nome}}` quando o valor é null.
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
 - Retenção e expurgo de PDFs e de `generated_document.body_text` não definidos (registrar no runbook T-20).
+- T-02: lacunas de teste (ready sem storage_key, limite exato de 20000, readonly de DocumentContent); `fileName()` com id null devolve `<kind>-0-v0.pdf`; `reconstitute` não confere source_type contra o kind; `TOKEN_PATTERN` ignora `{{a.b}}`/`{{cpf-x}}`; board omite mensagens de validação novas.
+- T-03: get/exists/delete validam o caminho só lexicamente (symlink no root); testes de root fora do webroot/inexistente só conferem o tipo da exceção.
+- Onda 1: aplicar a 0013 (`centralvet` e `centralvet_test`) e a DML da T-04 no bloqueio entre as ondas 1 e 2, com aprovação SQL do usuário.
+- Onda 1: teste "writable" do storage fica para o gate da onda 4.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -69,7 +78,8 @@
 - Pasta: `.claude/tasks/mar-20261006-1347-fase-7b-documentos/`
 - Sessões: f5fb58b5-22f0-470a-ab96-189c6d59a62c
 - Branch de trabalho: feat/fase-7b-documentos (base: feat/fase-7a-comunicacao)
-- BASE da onda 1: {hash7}
-- Commits por onda: {Onda N: BASE <hash7> → HEAD <hash7> (<hashes dos commits>)}
-- Último status conhecido: {resumo}
-- Próxima onda recomendada: {onda}
+- BASE da onda 1: 2ead438
+- Commits por onda:
+  - Onda 1: BASE 2ead438 → HEAD cecca44 (649d988, 78b7b13, 9586797, efb9bbb, 25f9d54, cecca44)
+- Último status conhecido: onda 1 concluída (T-01..T-04 [x]); gate SUITE 998/998, LINT, PYTEST57, preparador 5.7 ok; 0013 e DML T-04 ainda não aplicadas
+- Próxima onda recomendada: bloqueio SQL (0013 + T-04) e depois onda 2 (T-05..T-13 conforme dependências)
