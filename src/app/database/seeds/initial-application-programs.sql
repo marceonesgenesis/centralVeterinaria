@@ -705,4 +705,196 @@ FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
 WHERE p.controller='SurgeryMaterialForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
+-- Fase 7A — Comunicação e Central de Pendências: 7 programas, concedidos aos grupos 1, 2,
+-- 'Clínico – Internação' e 'Clínico – Cirurgia' (o grupo 3 não recebe nada).
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Message Template List', 'MessageTemplateList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='MessageTemplateList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='MessageTemplateList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='MessageTemplateList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='MessageTemplateList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='MessageTemplateList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Message Template Form', 'MessageTemplateForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='MessageTemplateForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='MessageTemplateForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='MessageTemplateForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='MessageTemplateForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='MessageTemplateForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Communication Message List', 'CommunicationMessageList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='CommunicationMessageList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='CommunicationMessageList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='CommunicationMessageList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='CommunicationMessageList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='CommunicationMessageList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Communication Message View', 'CommunicationMessageView'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='CommunicationMessageView');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='CommunicationMessageView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='CommunicationMessageView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='CommunicationMessageView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='CommunicationMessageView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Communication Compose Form', 'CommunicationComposeForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='CommunicationComposeForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='CommunicationComposeForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='CommunicationComposeForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='CommunicationComposeForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='CommunicationComposeForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Tutor Communication Form', 'TutorCommunicationForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='TutorCommunicationForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='TutorCommunicationForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='TutorCommunicationForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='TutorCommunicationForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='TutorCommunicationForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Pending Center', 'PendingCenter'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='PendingCenter');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='PendingCenter'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 2, p.id
+FROM system_program p WHERE p.controller='PendingCenter'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=2 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Internação'
+WHERE p.controller='PendingCenter'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
+WHERE p.controller='PendingCenter'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
 COMMIT;
