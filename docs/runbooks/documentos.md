@@ -73,9 +73,10 @@ republica o job.
 
 ## Download e RBAC
 
-O PDF só sai por `DocumentList::onDownload&id=`, com RBAC, tenant e unidade
-ativa. Não há URL pré-assinada nem link público. Documento inexistente, de
-outra unidade, `queued`, sem sessão ou sem permissão devolve o mesmo 404
+O PDF só sai pelo controller, em
+`engine.php?class=DocumentList&method=onDownload&id=<id>&static=1` (nova aba),
+com RBAC, tenant e unidade ativa. Não há URL pré-assinada nem link público.
+Documento inexistente, de outra unidade, `queued`, sem sessão ou sem permissão devolve o mesmo 404
 ("Document not found"), sem oráculo sobre a existência. O nome do arquivo é
 `<kind>-<id>-v<versão>.pdf`, sem dado pessoal. Download e retry são auditados
 com `entityId` = id e metadata `{document_id, kind, version}`.
