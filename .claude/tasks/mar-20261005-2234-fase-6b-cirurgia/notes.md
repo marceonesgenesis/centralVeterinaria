@@ -21,6 +21,9 @@
 - 2026-10-05 · plano · onda 0 — Branch de trabalho `feat/fase-6b-cirurgia` (nome dado pelo orquestrador; o padrão da skill seria `task/fase-6b-cirurgia`), base `feat/fase-6a-internacao` @ `09ce2d5`.
 - 2026-10-06 · T-01..T-04 · onda 1 — Sem rulings novos além do ruling da T-03: público extra `SurgeryChecklist::assertItemOfPhase()` (reuso por entidade e service da T-09), contrato intacto.
 - 2026-10-06 · T-05/T-06 · onda 2 — Semântica oficial do save condicional de cirurgia = a do PDO: status esperado = último status gravado pela própria instância (WeakMap) → `loadedStatus()` → `scheduled`; mesma instância salva várias vezes, cópia antiga de outra instância lança "changed status concurrently". Fake e docblock de `SurgeryRepositoryInterface` corrigidos (701e4cb RED, f1dc5d8); substitui a nota do board que mandava recarregar a entidade entre saves.
+- 2026-10-06 · T-08 · onda 3 — Correção só de testes (21dbc10): resourceUnitId do atendimento/cirurgia e caminho negado, mutações provadas em worktree removida; ausência de RED aceita (código já correto).
+- 2026-10-06 · T-10 · onda 3 — Remoção dupla concorrente gerava evento fantasma: corrigido já (4678b75 RED + 6929b48). Novo `delete(): int` com rowCount no contrato/repositório/Fake da T-06 (`remove()` void delega; desvio aceito); service lança "Material <id> was already removed" sem evento. Caminhos autorizados por ruling.
+- 2026-10-06 · T-09 · onda 3 — `confirmPhase` sem `lockStatus`; toque duplo fica com o UNIQUE (aceito pela revisão).
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -38,6 +41,8 @@
 - [T-02] `Surgery` com getters extras (scheduledBy/consentRecordedBy/completedBy/cancelledBy, createdAt/updatedAt); `SurgeryRoom` e `SurgeryTeamMember` com `reconstitute(array)`; transições inválidas lançam `InvalidStatusTransitionException`.
 - [T-05] `FakeSurgeryRepository::findById` devolve cópia nova (reconstitute), como o PDO; checklist duplicado lança `InvalidStatusTransitionException`; eventos `remove()` lança `LogicException`; Team/Checklist/Event sem seed no construtor.
 - [T-06] `SurgeryRepository::save` UPDATE grava só status, consentimento, started/completed/cancelled e `followup_appointment_id` (sala, horário, procedimento e notas imutáveis; remarcar = cancelar e agendar); `SurgeryTeamRepository::save` só insere (use `replaceForSurgery`); checklist/evento com id → `LogicException`; material sem UPDATE.
+- [T-10] Correção: `SurgeryMaterialRepositoryInterface::delete(SurgeryMaterial): int` (linhas apagadas, DELETE com tenant+id+surgery_id); `remove()` void delega; Fake ganhou `storedMaterialOfAnyTenant(int)`; "Material <id> was already removed" sem evento. i18n pt: "O material <id> já foi removido" (T-19).
+- [T-07..T-11] SurgeryService: sala de outra unidade → InvalidArgumentException `Surgery room <id> belongs to another unit`; cirurgia inexistente → CrossTenantReferenceException; eventos scheduled/consent/status/cancellation; replaceTeam confere lockStatus (T-08). SurgeryCompletionService não abre transação: T-14 envolve em TTransaction único e `complete()` sem leitura prévia; `scheduleFollowUp` valida antes de agendar (T-11).
 
 ## Pendências
 - Herdadas da 6A e fora do escopo: Central de Pendências (PRD §8.23); `docs/runbooks/migrations.md` cita `$MIGRATION_USER`; admissões simultâneas do mesmo paciente sem guarda no banco.
@@ -47,6 +52,12 @@
 - T-04: [sugestão] rollback só apaga concessões nos grupos 1 e Cirurgia (FK pode parar o script); lacunas de `frontpage_id`/`tenant_group`; nome sem `COLLATE utf8mb4_bin` casa sem acento.
 - T-05: [sugestão] `FakeSurgeryChecklistRepository::listBySurgery` ordena só por id (PDO: `checked_at ASC, id ASC`); regravar item de checklist com id lança `InvalidStatusTransitionException` no fake e `LogicException` no PDO.
 - T-06: [sugestão] caminho do WeakMap (mesma instância salva 2x) sem teste de integração; WeakMap guarda status mesmo após rollback da transação (falso conflito se a instância for reaproveitada); round trip não relê campos de cancelamento; inserts não validam tenant/unidade (T-08..T-10 conferem sala/unidade e carregam a cirurgia antes de gravar filhos); `replaceForSurgery` com membro repetido e corrida de código de sala sobem `PDOException` crua (services deduplicam/checam antes); docblock de `Surgery.php:21-23` ainda cita `loadedStatus()` como único status esperado.
+- T-07: [sugestão] corrida de código de sala entre findByCode e INSERT sobe PDOException crua (já registrado na T-06).
+- T-08: [sugestão] nada prova a ordem trava → checagem de sobreposição de sala; sem teste de corrida cancel x start; recordClinicalEvent confere cancelled sem trava; tenant só exercitado com id 404; replaceTeam cai para status carregado quando lockStatus é null (deveria recusar).
+- T-09: [sugestão] toque duplo em corrida real vira mensagem genérica (PDOException encadeada em SurgeryChecklistRepository.php:92-96 + CvFormat::userError) — cobrar em T-16/final; sem lockStatus (cancelamento concorrente pode gravar itens); cancelled/completed sem teste.
+- T-10: [sugestão] teste não distingue lockStatus de leitura velha; unidade da cirurgia = do contexto no fixture, falta teste de AuthorizationDenied em removeMaterial/listMaterials; Fake devolve 0 para material de outro tenant e o real lança (SurgeryFakesTest assere o 0).
+- T-11: [sugestão] atomicidade depende do TTransaction da T-14 (2+ produtos: consume do 1º grava antes do 2º lançar; pré-checar saldo ou testar 2 produtos); `complete()` na T-14 sem leitura prévia na transação (snapshot REPEATABLE READ); testCompletionUsesLockedStatusNotStaleRead não distingue trava; conclusão x close da conta não serializam (herdado da 6A, levar à revisão final).
+- T-19: i18n "Material <id> was already removed" → "O material <id> já foi removido".
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
@@ -65,5 +76,6 @@
 - Commits por onda:
   - Onda 1: BASE 09ce2d5 → HEAD 1451d0d (be36b80, 6952e1d, e8d6c93, 3936273, e416aa6, 1451d0d)
   - Onda 2: BASE 817a4f3 → HEAD f1dc5d8 (0887153, 223a94b, f245d7a, 98523b5, 701e4cb, f1dc5d8)
-- Último status conhecido: onda 2 concluída (T-05, T-06 [x]); SUITE 659/659; 0011 e DML RBAC aplicadas em centralvet e centralvet_test.
-- Próxima onda recomendada: onda 3 (T-07..T-11)
+  - Onda 3: BASE 9c5bb04 → HEAD 21dbc10 (ddaadf0, a26b298, 6e68554, 96f0567, 3f2038a, 8dacf73, 41cfbee, 063e263, d9b5a81, 5ecd21e, 4678b75, 6929b48, 21dbc10)
+- Último status conhecido: onda 3 concluída (T-07..T-11 [x]); SUITE 711/711, LINT ok, PYTEST57 OK.
+- Próxima onda recomendada: onda 4 (T-12..T-18)

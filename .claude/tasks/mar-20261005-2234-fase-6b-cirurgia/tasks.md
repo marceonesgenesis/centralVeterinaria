@@ -8,11 +8,11 @@
 | T-04 | infra | Programas RBAC das 9 telas e grupo `Clínico – Cirurgia` (seed + DML, verify e rollback preparados) | — | sim | média | Jaspion | [x] |
 | T-05 | shared | Fakes dos 6 repositórios da cirurgia | T-02, T-03 | sim | média | Platão | [x] |
 | T-06 | backend | Repositórios PDO (trava de sala, trava de status, UPDATE condicional) + integração | T-01, T-02, T-03 | sim | alta | Athena | [x] |
-| T-07 | backend | `SurgeryRoomService` — cadastro de salas por unidade | T-02, T-05 | sim | simples | Jaspion | [ ] |
-| T-08 | backend | `SurgeryService` — agendamento, equipe, consentimento, pré-op, início, cancelamento, eventos | T-02, T-03, T-05 | sim | alta | Athena | [ ] |
-| T-09 | backend | `SurgeryChecklistService` — confirmação das fases | T-02, T-03, T-05 | sim | média | Arquimedes | [ ] |
-| T-10 | backend | `SurgeryMaterialService` — registro e remoção de materiais sob trava | T-02, T-03, T-05 | sim | média | Saitama | [ ] |
-| T-11 | backend | Conclusão integrada e retorno — `SurgeryCompletionService` + `addSourcedItem` com tipos de cirurgia | T-02, T-03, T-05 | sim | alta | Aang | [ ] |
+| T-07 | backend | `SurgeryRoomService` — cadastro de salas por unidade | T-02, T-05 | sim | simples | Jaspion | [x] |
+| T-08 | backend | `SurgeryService` — agendamento, equipe, consentimento, pré-op, início, cancelamento, eventos | T-02, T-03, T-05 | sim | alta | Athena | [x] |
+| T-09 | backend | `SurgeryChecklistService` — confirmação das fases | T-02, T-03, T-05 | sim | média | Arquimedes | [x] |
+| T-10 | backend | `SurgeryMaterialService` — registro e remoção de materiais sob trava | T-02, T-03, T-05 | sim | média | Saitama | [x] |
+| T-11 | backend | Conclusão integrada e retorno — `SurgeryCompletionService` + `addSourcedItem` com tipos de cirurgia | T-02, T-03, T-05 | sim | alta | Aang | [x] |
 | T-12 | frontend | Telas de salas (`SurgeryRoomList`, `SurgeryRoomForm`) | T-06, T-07 | sim | média | Saitama | [ ] |
 | T-13 | frontend | Agendamento a partir do atendimento e troca de equipe (`SurgeryScheduleForm`) | T-06, T-07, T-08 | sim | média | Naruto | [ ] |
 | T-14 | frontend | Ficha da cirurgia (`SurgeryView`): status, cancelamento, conclusão, retorno, internar | T-06, T-08, T-09, T-10, T-11 | sim | alta | Aang | [ ] |
