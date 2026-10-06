@@ -222,6 +222,46 @@ final class DocumentGenerationServiceTest
         Assert::false($this->storage->exists((string) $rows[0]['object_key']));
     }
 
+    public function testLosingAStaleClaimRaceIsSkippedWithoutTouchingTheWinner(): void
+    {
+        $id = $this->seedQueued(false);
+        $winnerKey = "documents/{$id}/winner.pdf";
+        $documents = $this->documents;
+        $storage = $this->storage;
+        // Another worker reclaimed the stale claim and finished first: our markReady() finds the row ready.
+        $transaction = static function (Closure $work) use ($documents, $storage, $id, $winnerKey): mixed {
+            $storage->put($winnerKey, '%PDF-winner', 'application/pdf');
+            $documents->markReady($id, 999, $winnerKey, 11, str_repeat('a', 64), new DateTimeImmutable());
+
+            return $work();
+        };
+
+        $result = $this->service(transaction: $transaction)->generate($id, false);
+
+        Assert::same(DocumentGenerationResult::SKIPPED, $result->status());
+        $doc = $this->documents->findById($id);
+        Assert::same(GeneratedDocument::STATUS_READY, $doc->status());
+        Assert::same($winnerKey, $doc->storageKey());
+        Assert::null($doc->lastErrorCode());
+        Assert::true($this->storage->exists($winnerKey), 'the winner object must stay');
+        $rows = $this->objects->allRows();
+        Assert::count(1, $rows);
+        Assert::false($this->storage->exists((string) $rows[0]['object_key']), 'the loser object is removed');
+
+        // Final attempt: still skipped, never failed.
+        $id2 = $this->seedQueued(false);
+        $winnerKey = "documents/{$id2}/winner.pdf";
+        $transaction2 = static function (Closure $work) use ($documents, $storage, $id2, $winnerKey): mixed {
+            $storage->put($winnerKey, '%PDF-winner', 'application/pdf');
+            $documents->markReady($id2, 998, $winnerKey, 11, str_repeat('b', 64), new DateTimeImmutable());
+
+            return $work();
+        };
+
+        Assert::same(DocumentGenerationResult::SKIPPED, $this->service(transaction: $transaction2)->generate($id2, true)->status());
+        Assert::same(GeneratedDocument::STATUS_READY, $this->documents->findById($id2)->status());
+    }
+
     public function testNotifyWithoutPreferenceCreatesNoMessage(): void
     {
         $id = $this->seedQueued(true);
@@ -263,6 +303,57 @@ final class DocumentGenerationServiceTest
         Assert::same(self::EMAIL, $message->recipient());
         Assert::stringContains('F7B teste Rex', $message->bodyText());
         Assert::same([$message->id()], $result->emailMessageIds());
+    }
+
+    public function testOptOutOnEmailBlocksItAndOptInOnWhatsAppStillQueues(): void
+    {
+        $id = $this->seedQueued(true);
+        $this->preferences->upsert(CommunicationPreference::record(
+            self::TENANT_ID,
+            self::TUTOR_ID,
+            CommunicationChannel::EMAIL,
+            CommunicationPreference::STATUS_OPTED_OUT,
+            'in_person',
+            self::USER_ID,
+            new DateTimeImmutable('2026-10-01 09:00:00'),
+        ));
+        $this->preferences->upsert(CommunicationPreference::record(
+            self::TENANT_ID,
+            self::TUTOR_ID,
+            CommunicationChannel::WHATSAPP,
+            CommunicationPreference::STATUS_OPTED_IN,
+            'in_person',
+            self::USER_ID,
+            new DateTimeImmutable('2026-10-01 09:00:00'),
+        ));
+
+        $emailIds = $this->notifier()->notify($this->documents->findById($id));
+
+        Assert::same([], $emailIds);
+        $messages = $this->messages->all();
+        Assert::count(1, $messages);
+        Assert::same(CommunicationChannel::WHATSAPP, $messages[0]->channel());
+        Assert::same("document_ready:document:{$id}:whatsapp", $messages[0]->dedupeKey());
+    }
+
+    public function testOptOutOnEveryChannelCreatesNoMessage(): void
+    {
+        $id = $this->seedQueued(true);
+
+        foreach (CommunicationChannel::all() as $channel) {
+            $this->preferences->upsert(CommunicationPreference::record(
+                self::TENANT_ID,
+                self::TUTOR_ID,
+                $channel,
+                CommunicationPreference::STATUS_OPTED_OUT,
+                'in_person',
+                self::USER_ID,
+                new DateTimeImmutable('2026-10-01 09:00:00'),
+            ));
+        }
+
+        Assert::same([], $this->notifier()->notify($this->documents->findById($id)));
+        Assert::count(0, $this->messages->all());
     }
 
     public function testNotifierCreatesNothingWithoutUnitNames(): void

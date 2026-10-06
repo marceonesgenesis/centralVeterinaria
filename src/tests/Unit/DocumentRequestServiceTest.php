@@ -6,6 +6,9 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\DocumentJobPublisher;
 use CentralVet\Application\DocumentRequestService;
+use CentralVet\Authorization\AuthorizationDecision;
+use CentralVet\Authorization\AuthorizationRequest;
+use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\DocumentKind;
 use CentralVet\Domain\DocumentTemplate;
@@ -17,6 +20,7 @@ use CentralVet\Storage\StorageInterface;
 use CentralVet\Storage\StoredObjectMetadata;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\CountingDocumentSourceQuery;
 use CentralVet\Tests\Support\FakeAuthorizationPolicy;
 use CentralVet\Tests\Support\FakeDocumentSourceQuery;
 use CentralVet\Tests\Support\FakeDocumentTemplateRepository;
@@ -25,6 +29,7 @@ use CentralVet\Tests\Support\FakeQueue;
 use CentralVet\Tests\Support\FakeStorage;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * Unit tests for DocumentRequestService (request, retry, list, download)
@@ -162,6 +167,20 @@ final class DocumentRequestServiceTest
             $spy,
             $this->policy,
             $context,
+            static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-06 10:00:00'),
+        );
+    }
+
+    /** Same collaborators as build(), with another source query or policy. */
+    private function service(\CentralVet\Domain\Contract\DocumentSourceQueryInterface $sources, AuthorizationPolicyInterface $policy): DocumentRequestService
+    {
+        return new DocumentRequestService(
+            $this->documents,
+            $sources,
+            $this->templates,
+            $this->storage,
+            $policy,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
             static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-06 10:00:00'),
         );
     }
@@ -336,6 +355,86 @@ final class DocumentRequestServiceTest
         Assert::throws(DocumentNotAvailableException::class, fn () => $service->retry(6, self::ACTION));
         Assert::throws(DocumentNotAvailableException::class, fn () => $service->retry(7, self::ACTION));
         Assert::throws(DocumentNotAvailableException::class, fn () => $service->retry(999, self::ACTION));
+    }
+
+    public function testRetryThatLosesTheRequeueRaceThrows(): void
+    {
+        $this->build();
+        $this->seedDocument(5, GeneratedDocument::STATUS_FAILED, self::UNIT_ID);
+        $documents = $this->documents;
+        // Another request requeues the document between the read and the conditional update.
+        $racing = new class ($documents) implements AuthorizationPolicyInterface {
+            public function __construct(private readonly FakeGeneratedDocumentRepository $documents)
+            {
+            }
+
+            public function decide(AuthorizationRequest $request): AuthorizationDecision
+            {
+                $this->documents->requeueFailed(5);
+
+                return new AuthorizationDecision(true, 'granted', 'test-correlation-id');
+            }
+        };
+
+        Assert::throws(RuntimeException::class, fn () => $this->service($this->sources, $racing)->retry(5, self::ACTION));
+        Assert::same(GeneratedDocument::STATUS_QUEUED, $this->documents->findById(5)?->status());
+    }
+
+    public function testRetryAndDownloadAuditCarryOnlyDocumentIdKindAndVersion(): void
+    {
+        $service = $this->build();
+        $this->seedDocument(5, GeneratedDocument::STATUS_FAILED, self::UNIT_ID);
+        $this->storage->put('k/ready.pdf', '%PDF-1.7 fake');
+        $this->seedDocument(3, GeneratedDocument::STATUS_READY, self::UNIT_ID, 'k/ready.pdf');
+
+        $service->retry(5, self::ACTION);
+        $service->download(3, self::ACTION);
+
+        Assert::count(2, $this->policy->requests);
+        $expected = [
+            [5, ['document_id' => 5, 'kind' => DocumentKind::VACCINATION_CARD, 'version' => 1]],
+            [3, ['document_id' => 3, 'kind' => DocumentKind::VACCINATION_CARD, 'version' => 1]],
+        ];
+
+        foreach ($expected as $i => [$id, $metadata]) {
+            $request = $this->policy->requests[$i];
+            Assert::same(self::ACTION, $request->action());
+            Assert::same('generated_document', $request->entityType());
+            Assert::same($id, $request->entityId());
+            Assert::same(self::UNIT_ID, $request->resourceUnitId());
+            Assert::same($metadata, $request->metadata());
+        }
+    }
+
+    public function testRequestReadsThePatientSummaryOnce(): void
+    {
+        $this->build();
+        $counting = new CountingDocumentSourceQuery($this->sources);
+        $service = $this->service($counting, $this->policy);
+        $cases = [
+            [DocumentKind::VACCINATION_CARD, self::PATIENT_ID, null],
+            [DocumentKind::PRESCRIPTION, self::PRESCRIPTION_ID, null],
+            [DocumentKind::SURGERY_CONSENT, self::SURGERY_ID, null],
+            [DocumentKind::MEDICAL_CERTIFICATE, self::PATIENT_ID, 'Atesto que Rex está apto.'],
+        ];
+        $expected = 0;
+
+        foreach ($cases as [$kind, $sourceId, $body]) {
+            $service->request($kind, $sourceId, null, $body, false, self::ACTION);
+            Assert::same(++$expected, $counting->calls('patientSummary'), "patientSummary once for {$kind}");
+        }
+    }
+
+    public function testMedicalCertificateResolvesOptionalBreedAndRefusesUnknownTokens(): void
+    {
+        $service = $this->build();
+
+        $document = $service->request(DocumentKind::MEDICAL_CERTIFICATE, self::PATIENT_ID, null, 'Atesto que Rex ({{breed}}) está apto.', false, self::ACTION);
+        Assert::same('Atesto que Rex (—) está apto.', $document->bodyText());
+
+        Assert::throws(InvalidArgumentException::class, fn () => $service->request(DocumentKind::MEDICAL_CERTIFICATE, self::PATIENT_ID, null, 'Atesto {{cpf}}.', false, self::ACTION));
+        Assert::throws(InvalidArgumentException::class, fn () => $service->request(DocumentKind::MEDICAL_CERTIFICATE, self::PATIENT_ID, null, 'Atesto {{tutor_name}} e {{breed}}.', false, self::ACTION));
+        Assert::count(1, $this->documents->all());
     }
 
     public function testListForUnitReturnsOnlyActiveUnitDocuments(): void

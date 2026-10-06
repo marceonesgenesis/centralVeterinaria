@@ -19,6 +19,7 @@ use CentralVet\Tests\Support\FakeDocumentTemplateRepository;
 use CentralVet\Tests\Support\FakeSenderNamesQuery;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use PDOException;
 
 /**
  * Unit tests for DocumentTemplateService (T-13): tenant-wide catalog of
@@ -257,5 +258,78 @@ final class DocumentTemplateServiceTest
         [$service] = $this->build(false);
 
         Assert::throws(AuthorizationDenied::class, fn () => $service->mergeForPatient(0, self::PATIENT_ID, self::ACTION));
+    }
+
+    public function testDuplicateKeyFromTheDatabaseBecomesTheDuplicateNameMessage(): void
+    {
+        $service = $this->serviceSavingWith(self::pdoException(1062));
+
+        self::expectMessage(
+            InvalidArgumentException::class,
+            'A document template with this name already exists',
+            fn () => $service->save(self::data(), self::ACTION),
+        );
+    }
+
+    public function testOtherDatabaseErrorsAreRethrown(): void
+    {
+        $error = self::pdoException(1213);
+        $service = $this->serviceSavingWith($error);
+        $caught = null;
+
+        try {
+            $service->save(self::data(), self::ACTION);
+        } catch (\Throwable $e) {
+            $caught = $e;
+        }
+
+        Assert::same($error, $caught);
+    }
+
+    private static function pdoException(int $driverCode): PDOException
+    {
+        $exception = new PDOException("SQLSTATE driver error {$driverCode}");
+        $exception->errorInfo = ['23000', $driverCode, 'driver message'];
+
+        return $exception;
+    }
+
+    /** A service whose repository has no templates and fails every save with $error (race after the name check). */
+    private function serviceSavingWith(PDOException $error): DocumentTemplateService
+    {
+        $context = TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID);
+        $templates = new class ($error) implements \CentralVet\Domain\Contract\DocumentTemplateRepositoryInterface {
+            public function __construct(private readonly PDOException $error)
+            {
+            }
+
+            public function findById(int $id): ?DocumentTemplate
+            {
+                return null;
+            }
+
+            public function listAll(): array
+            {
+                return [];
+            }
+
+            public function listActive(string $kind): array
+            {
+                return [];
+            }
+
+            public function save(DocumentTemplate $template): DocumentTemplate
+            {
+                throw $this->error;
+            }
+        };
+
+        return new DocumentTemplateService(
+            $templates,
+            new FakeDocumentSourceQuery(),
+            new FakeSenderNamesQuery([]),
+            new FakeAuthorizationPolicy(),
+            $context,
+        );
     }
 }

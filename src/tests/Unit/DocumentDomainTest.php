@@ -80,6 +80,24 @@ final class DocumentDomainTest
         Assert::same('vaccination_card-42-v3.pdf', $document->fileName());
     }
 
+    public function testFileNameBeforeIdentityIsRefused(): void
+    {
+        $document = self::request('vaccination_card', null);
+
+        Assert::throws(\LogicException::class, static fn () => $document->fileName());
+    }
+
+    public function testReconstituteRefusesSourceTypeThatDoesNotMatchTheKind(): void
+    {
+        $row = [
+            'id' => 7, 'tenant_id' => 1, 'system_unit_id' => 2, 'patient_id' => 3, 'tutor_id' => 4,
+            'kind' => 'prescription', 'source_type' => 'surgery', 'source_id' => 9, 'version' => 1,
+            'title' => 'Receita', 'status' => 'queued', 'requested_by_system_user_id' => 5,
+        ];
+
+        Assert::throws(InvalidArgumentException::class, static fn () => GeneratedDocument::reconstitute($row));
+    }
+
     public function testReadyDocumentWithKeyIsDownloadable(): void
     {
         $document = GeneratedDocument::reconstitute([
@@ -99,6 +117,22 @@ final class DocumentDomainTest
     public function testUnknownPlaceholders(): void
     {
         Assert::same(['cpf'], DocumentTemplateRenderer::unknownPlaceholders('{{cpf}} {{patient_name}}'));
+    }
+
+    public function testUnknownPlaceholdersCatchTokensWithAnyCharacters(): void
+    {
+        Assert::same(['cpf-x', 'a.b'], DocumentTemplateRenderer::unknownPlaceholders('{{cpf-x}} {{ a.b }} {{patient_name}}'));
+        Assert::same([], DocumentTemplateRenderer::unresolvedPlaceholders('{{cpf-x}}'));
+    }
+
+    public function testOptionalBreedResolvesToDashWhenMissing(): void
+    {
+        $text = DocumentTemplateRenderer::render('{{patient_name}} ({{breed}}) / {{tutor_name}}', ['patient_name' => 'Rex', 'breed' => null]);
+
+        Assert::same('Rex (—) / {{tutor_name}}', $text);
+        Assert::same(['tutor_name'], DocumentTemplateRenderer::unresolvedPlaceholders($text));
+        Assert::same('— e —', DocumentTemplateRenderer::render('{{breed}} e {{ breed }}', ['breed' => '  ']));
+        Assert::same('Labrador', DocumentTemplateRenderer::render('{{breed}}', ['breed' => 'Labrador']));
     }
 
     public function testRenderKeepsMissingValuesAndReportsUnresolved(): void

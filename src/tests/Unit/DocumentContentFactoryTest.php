@@ -173,6 +173,38 @@ final class DocumentContentFactoryTest
         Assert::same('Data prevista: 10/10/2026 08:00', $content->subjectLines[4]);
     }
 
+    public function testSurgeryConsentWithBlankSignerKeepsTheFirstLineAsText(): void
+    {
+        $this->sources->seedSurgery([
+            'surgery_id' => self::SURGERY_ID + 1,
+            'patient_id' => self::PATIENT_ID,
+            'system_unit_id' => self::UNIT_ID,
+            'procedure_name' => 'Orquiectomia',
+            'scheduled_start_at' => '2026-10-10 08:00:00',
+            'surgeon_name' => 'Dr. Bruno',
+            'consent_signer_name' => '  ',
+            'consent_text' => "Autorizo o procedimento.\n\nEstou ciente dos riscos.",
+            'consent_recorded_at' => '2026-10-05 15:00:00',
+        ]);
+
+        // Snapshot of a blank signer: GeneratedDocument::request() trims the leading blank lines.
+        $content = $this->factory()->build(self::document(
+            DocumentKind::SURGERY_CONSENT,
+            self::SURGERY_ID + 1,
+            "  \n\nAutorizo o procedimento.\n\nEstou ciente dos riscos.",
+        ));
+
+        Assert::null($content->signatureName);
+        Assert::same(['Autorizo o procedimento.', 'Estou ciente dos riscos.'], $content->paragraphs);
+    }
+
+    public function testUnknownKindIsRefusedInsteadOfEmptyContent(): void
+    {
+        $document = self::documentWithKind('invoice');
+
+        Assert::throws(\InvalidArgumentException::class, fn () => $this->factory()->build($document));
+    }
+
     public function testMissingSenderNamesBecomeEmpty(): void
     {
         $factory = new DocumentContentFactory($this->sources, new FakeSenderNamesQuery([]));
@@ -191,6 +223,22 @@ final class DocumentContentFactoryTest
     {
         $this->assertSourceNotFound(self::document(DocumentKind::PRESCRIPTION, 999));
         $this->assertSourceNotFound(self::document(DocumentKind::SURGERY_CONSENT, 999, "X\n\nY"));
+    }
+
+    /** A document whose kind DocumentKind does not know (built past its guards, as a future kind would be). */
+    private static function documentWithKind(string $kind): GeneratedDocument
+    {
+        $valid = self::document(DocumentKind::VACCINATION_CARD, self::PATIENT_ID);
+
+        return (static function (GeneratedDocument $from, string $kind): GeneratedDocument {
+            $clone = (new \ReflectionClass(GeneratedDocument::class))->newInstanceWithoutConstructor();
+
+            foreach (get_object_vars($from) as $property => $value) {
+                $clone->{$property} = $property === 'kind' ? $kind : $value;
+            }
+
+            return $clone;
+        })->bindTo(null, GeneratedDocument::class)($valid, $kind);
     }
 
     private function assertSourceNotFound(GeneratedDocument $document): void
