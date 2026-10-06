@@ -175,32 +175,78 @@ class CommunicationComposeForm extends TPage
 
         try
         {
-            $context = self::resolveTenantContext();
+            $rendered = static::renderTemplateData($templateId, $tutorId, $patientId > 0 ? $patientId : null);
 
-            TTransaction::open('permission');
-
-            $connection = TTransaction::get();
-            $rendered = self::makeMessageService($context)->renderTemplate($templateId, $tutorId, $patientId > 0 ? $patientId : null, self::ACTION_CHANGE_TEMPLATE);
-            $template = (new \CentralVet\Persistence\MessageTemplateRepository($context, $connection))->findById($templateId);
-
-            TTransaction::close();
-
-            $data = new stdClass;
-            $data->subject = (string) ($rendered['subject'] ?? '');
-            $data->body_text = (string) $rendered['body'];
-
-            if ($template instanceof \CentralVet\Domain\MessageTemplate)
+            if ($rendered === null)
             {
-                $data->purpose = $template->purpose();
+                return;
             }
 
-            TForm::sendData(self::FORM_NAME, $data, false, false);
+            $data = [
+                'subject' => $rendered['subject'],
+                'body_text' => $rendered['body'],
+            ];
+
+            if ($rendered['purpose'] !== null)
+            {
+                $data['purpose'] = $rendered['purpose'];
+            }
+
+            self::sendTemplateData($data);
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . get_class($e) . ' template_id=' . $templateId . ' tutor_id=' . $tutorId);
             new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Assunto e corpo renderizados e a finalidade do template (null quando
+     * o template não é encontrado na leitura da finalidade).
+     *
+     * @return array{subject: string, body: string, purpose: ?string}|null
+     */
+    protected static function renderTemplateData(int $templateId, int $tutorId, ?int $patientId): ?array
+    {
+        $context = self::resolveTenantContext();
+
+        TTransaction::open('permission');
+
+        $connection = TTransaction::get();
+        $rendered = self::makeMessageService($context)->renderTemplate($templateId, $tutorId, $patientId, self::ACTION_CHANGE_TEMPLATE);
+        $template = (new \CentralVet\Persistence\MessageTemplateRepository($context, $connection))->findById($templateId);
+
+        TTransaction::close();
+
+        return [
+            'subject' => (string) ($rendered['subject'] ?? ''),
+            'body' => (string) $rendered['body'],
+            'purpose' => $template instanceof \CentralVet\Domain\MessageTemplate ? $template->purpose() : null,
+        ];
+    }
+
+    /**
+     * Preenche o formulário como TForm::sendData (sem disparar eventos), mas
+     * com cada valor como literal JS em JSON com JSON_HEX_*: o texto do
+     * template é livre e TForm::sendData só aplica addslashes, o que deixava
+     * `</script>` fechar o script e injetar HTML (revisão final, T-24).
+     *
+     * @param array<string, string> $data
+     */
+    private static function sendTemplateData(array $data): void
+    {
+        $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+        $form = json_encode(self::FORM_NAME, $flags);
+
+        foreach ($data as $field => $value)
+        {
+            $name = json_encode((string) $field, $flags);
+            $literal = json_encode($value, $flags);
+
+            TScript::create(" tform_send_data({$form}, {$name}, {$literal}, false, '0'); ");
+            TScript::create(" tform_send_data_by_id({$form}, {$name}, {$literal}, false, '0'); ");
         }
     }
 

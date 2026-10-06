@@ -19,8 +19,9 @@ use PDO;
  * unit of its source).
  *
  * Every table of every join is filtered by the current tenant; `system_unit`
- * (Adianti, no tenant column) is joined by the source's unit id and
- * `tenant` by the source's tenant id. Instants are converted to the
+ * is joined by the source's unit id and tenant (LEFT JOIN: a unit of
+ * another tenant never lends its name; `unit_name` reads as empty, the rule
+ * of SenderNamesQuery) and `tenant` by the source's tenant id. Instants are converted to the
  * application timezone and compared as wall-clock strings, the convention
  * of {@see AppointmentRepository::listByUnitAndDate()}.
  *
@@ -68,7 +69,7 @@ final class ReminderSourceQuery implements ReminderSourceQueryInterface
                 INNER JOIN patient p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id
                 INNER JOIN tutor t ON t.id = p.tutor_id AND t.tenant_id = a.tenant_id
                 INNER JOIN tenant tn ON tn.id = a.tenant_id
-                INNER JOIN system_unit su ON su.id = a.system_unit_id
+                LEFT JOIN system_unit su ON su.id = a.system_unit_id AND su.tenant_id = a.tenant_id
                 WHERE {$query->whereSql()}
                   AND a.scheduled_at >= :window_start AND a.scheduled_at < :window_end
                   AND a.status IN ('agendado', 'confirmado')
@@ -121,7 +122,7 @@ final class ReminderSourceQuery implements ReminderSourceQueryInterface
             INNER JOIN tutor t ON t.id = p.tutor_id AND t.tenant_id = v.tenant_id
             INNER JOIN vaccine_catalog_item vc ON vc.id = v.vaccine_catalog_item_id AND vc.tenant_id = v.tenant_id
             INNER JOIN tenant tn ON tn.id = v.tenant_id
-            INNER JOIN system_unit su ON su.id = e.system_unit_id
+            LEFT JOIN system_unit su ON su.id = e.system_unit_id AND su.tenant_id = v.tenant_id
             WHERE {$query->whereSql()}
               AND v.next_dose_at >= :from_date AND v.next_dose_at <= :to_date
               AND NOT EXISTS (
@@ -172,7 +173,7 @@ final class ReminderSourceQuery implements ReminderSourceQueryInterface
             INNER JOIN tutor t ON t.id = r.tutor_id AND t.tenant_id = r.tenant_id
             INNER JOIN patient p ON p.id = ea.patient_id AND p.tenant_id = r.tenant_id
             INNER JOIN tenant tn ON tn.id = r.tenant_id
-            INNER JOIN system_unit su ON su.id = ea.system_unit_id
+            LEFT JOIN system_unit su ON su.id = ea.system_unit_id AND su.tenant_id = r.tenant_id
             WHERE {$query->whereSql()}
               AND r.status IN ('open', 'partially_paid')
               AND r.created_at < :created_before
