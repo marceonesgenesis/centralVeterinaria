@@ -73,7 +73,7 @@ class DocumentTemplateForm extends TPage
         $container = new TVBox;
         $container->style = 'width: 100%';
         $container->add(CvPage::header($this->templateId !== null ? _t('Edit document template') : _t('New document template'), _t('Documents'), [
-            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=DocumentTemplateList'],
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=DocumentTemplateList', 'class' => 'btn btn-default cv-touch-target'],
         ]));
         $container->add($this->form);
         $container->add(self::placeholderHelp());
