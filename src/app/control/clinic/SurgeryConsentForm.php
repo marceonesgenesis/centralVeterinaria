@@ -54,7 +54,8 @@ class SurgeryConsentForm extends TPage
         }
 
         $this->form = new BootstrapFormBuilder(self::FORM_NAME);
-        $this->form->setFormTitle($title . ' — #' . $surgeryId);
+        // BootstrapFormBuilder não escapa o título
+        $this->form->setFormTitle(CvFormat::e($title . ' — #' . $surgeryId));
 
         $surgery_id = new THidden('surgery_id');
         $surgery_id->setValue($surgeryId);

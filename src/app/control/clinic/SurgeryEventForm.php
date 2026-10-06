@@ -54,10 +54,12 @@ class SurgeryEventForm extends TPage
             return;
         }
 
-        $procedure = self::loadProcedureName($surgeryId);
+        $procedure = static::loadProcedureName($surgeryId);
 
         $this->form = new BootstrapFormBuilder(self::FORM_NAME);
-        $this->form->setFormTitle($title . ' — #' . $surgeryId . ($procedure !== null ? ' · ' . $procedure : ''));
+        // BootstrapFormBuilder não escapa o título: tudo que entra nele é
+        // escapado aqui (o nome do procedimento é texto livre do catálogo)
+        $this->form->setFormTitle(CvFormat::e($title . ' — #' . $surgeryId . ($procedure !== null ? ' · ' . $procedure : '')));
 
         $surgery_id = new THidden('surgery_id');
         $surgery_id->setValue($surgeryId);
@@ -148,11 +150,12 @@ class SurgeryEventForm extends TPage
     }
 
     /**
-     * Nome do procedimento para o título, ou null. Sem sessão, sem conexão
-     * ou sem permissão o formulário abre sem ele: o erro real aparece ao
-     * salvar.
+     * Nome do procedimento (cru, do banco) para o título, ou null; quem
+     * exibe escapa. Protegido para o teste injetar um nome hostil. Sem
+     * sessão, sem conexão ou sem permissão o formulário abre sem ele: o
+     * erro real aparece ao salvar.
      */
-    private static function loadProcedureName(int $surgeryId): ?string
+    protected static function loadProcedureName(int $surgeryId): ?string
     {
         try
         {
