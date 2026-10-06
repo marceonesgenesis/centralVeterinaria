@@ -82,12 +82,12 @@ final class SurgeryClinicalFormsIntegrationTest
             . '$out["key"] = SurgeryConsentForm::DEFAULT_TEXT_KEY;'
             . '$out["expected"] = _t(SurgeryConsentForm::DEFAULT_TEXT_KEY);'
             . '$out["value"] = (string) $form->getField("consent_text")->getValue();'
-            . '$out["type"] = get_class($form->getField("consent_text"));'
+            . '$out["is_text"] = $form->getField("consent_text") instanceof TText;'
         );
 
         Assert::true(!isset($result['error']), 'SurgeryConsentForm threw: ' . (string) ($result['error'] ?? ''));
         Assert::same('Surgery consent default text', $result['key']);
-        Assert::same('TText', $result['type']);
+        Assert::true($result['is_text'] === true, 'consent_text must be a TText');
         Assert::same($result['expected'], $result['value']);
     }
 
