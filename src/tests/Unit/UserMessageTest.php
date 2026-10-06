@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(62, UserMessage::STATIC);
-        Assert::count(86, UserMessage::PATTERNS);
+        Assert::count(72, UserMessage::STATIC);
+        Assert::count(92, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -391,6 +391,53 @@ final class UserMessageTest
             ['MessageTemplate*.php', 'Communication*.php', 'TutorCommunicationForm.php', 'PendingCenter.php', 'TutorForm.php'],
             8,
         );
+    }
+
+    public function testDocumentDomainMessagesResolve(): void
+    {
+        // Fase 7B, T-19: pedido, download, nova tentativa, templates e geração de documentos.
+        $translations = self::translations();
+        $cases = [
+            'Document not found' => ['Document not found', []],
+            'Document source not found' => ['Document source not found', []],
+            'Patient has no vaccinations to print' => ['Patient has no vaccinations to print', []],
+            'Surgery consent has not been recorded' => ['Surgery consent has not been recorded', []],
+            'Document text has unresolved placeholders' => ['Document text has unresolved placeholders', []],
+            'Document template is not available' => ['Document template is not available', []],
+            'A document template with this name already exists' => ['A document template with this name already exists', []],
+            'Could not allocate document version' => ['Could not allocate document version', []],
+            'Document body must be between 1 and 20000 characters' => ['Document body must be between 1 and 20000 characters', []],
+            'body must be between 1 and 20000 characters' => ['body must be between 1 and 20000 characters', []],
+            'Unknown document kind "x"' => ['Unknown document kind', []],
+            'Document kind "vaccination_card" does not accept a body' => ['This document type does not support this option', []],
+            'Document kind "prescription" does not use templates' => ['This document type does not support this option', []],
+            'Document kind "prescription" has no default template' => ['This document type does not support this option', []],
+            'Unknown document template status "x"' => ['Invalid document template status', []],
+            'Document generation failed: render_failed' => ['The document could not be generated', []],
+            'Document 7 can no longer be retried' => ['Document ^1 can no longer be retried', ['7']],
+            'Unknown placeholder: {{cpf}}' => ['Unknown placeholder: {{^1}}', ['cpf']],
+        ];
+
+        foreach ($cases as $message => [$key, $params]) {
+            Assert::same(['key' => $key, 'params' => $params], UserMessage::resolve($message), "Wrong resolution for: {$message}");
+            $pt = $translations[$key] ?? '';
+            Assert::true($pt !== '' && $pt !== $key && !str_contains($pt, '_'), "Translation for {$key} must exist in Portuguese without field names");
+        }
+
+        Assert::same('Documento não encontrado', $translations['Document not found'] ?? null);
+        Assert::true(str_contains($translations['Document ^1 can no longer be retried'] ?? '', '^1'), 'The retry message must keep the document id');
+        Assert::same('O paciente não tem vacinas para imprimir', $translations['Patient has no vaccinations to print'] ?? null);
+    }
+
+    public function testEveryDocumentScreenKeyHasATranslation(): void
+    {
+        // Fase 7B, T-19: _t('...') das 4 telas novas, _t{...} do menu, CvNav('documents'),
+        // card da central de pendências e links das telas clínicas da T-18.
+        $keys = [
+            'Documents', 'Document templates', 'Failed documents', 'Archive PDF', 'Consent PDF',
+            'Medical certificate', 'Vaccination card', 'Prescription', 'Surgery consent',
+        ];
+        self::assertScreenKeysTranslated($keys, ['Document*.php', 'PrescriptionForm.php', 'PatientForm.php', 'VaccinationCardView.php', 'SurgeryView.php'], 8);
     }
 
     /**
