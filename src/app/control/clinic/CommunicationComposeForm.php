@@ -153,7 +153,7 @@ class CommunicationComposeForm extends TPage
             $channel = self::DEFAULT_CHANNEL;
         }
 
-        TCombo::reload(self::FORM_NAME, 'template_id', static::loadTemplateOptions($channel, self::ACTION_CHANGE_CHANNEL), true, false);
+        CvCombo::reload(self::FORM_NAME, 'template_id', static::loadTemplateOptions($channel, self::ACTION_CHANGE_CHANNEL), true, false);
     }
 
     /**
