@@ -379,6 +379,9 @@ class TutorCommunicationForm extends TPage
                 new \CentralVet\Audit\PdoAuditLogWriter($connection),
             ),
             $context,
+            null,
+            // opt-out cancela as mensagens na fila do tutor naquele canal (T-25)
+            new \CentralVet\Persistence\OutboundMessageRepository($context, $connection),
         );
     }
 

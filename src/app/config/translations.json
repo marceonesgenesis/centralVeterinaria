@@ -4376,12 +4376,20 @@
     "pt": "O tutor não consentiu em receber mensagens por WhatsApp"
   },
   {
+    "en": "The tutor has not consented to WhatsApp messages. The message was cancelled",
+    "pt": "O tutor não consentiu em receber mensagens por WhatsApp. A mensagem foi cancelada"
+  },
+  {
     "en": "The tutor refused e-mail messages",
     "pt": "O tutor recusou mensagens por e-mail"
   },
   {
     "en": "The tutor refused WhatsApp messages",
     "pt": "O tutor recusou mensagens por WhatsApp"
+  },
+  {
+    "en": "The tutor refused WhatsApp messages. The message was cancelled",
+    "pt": "O tutor recusou mensagens por WhatsApp. A mensagem foi cancelada"
   },
   {
     "en": "The user registration is disabled",

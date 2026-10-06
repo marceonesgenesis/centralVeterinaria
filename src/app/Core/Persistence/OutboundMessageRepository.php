@@ -227,6 +227,29 @@ final class OutboundMessageRepository extends AbstractTenantRepository implement
         )->rowCount() === 1;
     }
 
+    public function cancelQueuedForTutor(int $tutorId, string $channel, ?int $systemUserId, string $reasonCode, DateTimeImmutable $cancelledAt): int
+    {
+        $query = $this->tenantQuery()
+            ->andEquals('tutor_id', $tutorId)
+            ->andEquals('channel', $channel)
+            ->andEquals('status', OutboundMessage::STATUS_QUEUED);
+
+        $statement = $this->connection->prepare(
+            'UPDATE communication_message SET status = :new_status, last_error_code = :reason_code, '
+            . 'cancelled_at = :cancelled_at, cancelled_by_system_user_id = :user_id '
+            . "WHERE {$query->whereSql()} AND claimed_at IS NULL",
+        );
+        $statement->execute([
+            ...$query->parameters(),
+            ':new_status' => OutboundMessage::STATUS_CANCELLED,
+            ':reason_code' => $reasonCode,
+            ':cancelled_at' => self::timestamp($cancelledAt),
+            ':user_id' => $systemUserId,
+        ]);
+
+        return $statement->rowCount();
+    }
+
     public function requeue(int $messageId): bool
     {
         return $this->conditionalUpdate(

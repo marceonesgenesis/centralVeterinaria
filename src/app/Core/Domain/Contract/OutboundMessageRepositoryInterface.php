@@ -30,6 +30,8 @@ use DateTimeImmutable;
  *   `discarded`, `opted_out` or `consent_missing`; `cancelled_at`,
  *   `cancelled_by_system_user_id`).
  * - `requeue`: `failed` → `queued` (clears `failed_at` and `claimed_at`).
+ * - `cancelQueuedForTutor`: every `queued`, unclaimed message of the tutor
+ *   on one channel → `cancelled` (bulk form of `cancel`, used on opt-out).
  *
  * @template TEntity of object
  * @extends TenantRepositoryInterface<TEntity>
@@ -59,6 +61,15 @@ interface OutboundMessageRepositoryInterface extends TenantRepositoryInterface
     public function cancel(int $messageId, ?int $systemUserId, string $reasonCode, DateTimeImmutable $cancelledAt): bool;
 
     public function requeue(int $messageId): bool;
+
+    /**
+     * Cancels, in one conditional UPDATE, every `queued` message of the
+     * tutor on `$channel` within the tenant (all units: the preference is
+     * tenant-wide) that is not claimed by a worker; a claimed e-mail is
+     * left to the worker's own preference re-check. Returns how many rows
+     * changed.
+     */
+    public function cancelQueuedForTutor(int $tutorId, string $channel, ?int $systemUserId, string $reasonCode, DateTimeImmutable $cancelledAt): int;
 
     /**
      * Messages of a unit ordered by `created_at DESC`, at most `$limit`.

@@ -120,7 +120,7 @@ final class UserMessageTest
     public function testCatalogHasExactlyTheContractEntries(): void
     {
         Assert::count(62, UserMessage::STATIC);
-        Assert::count(84, UserMessage::PATTERNS);
+        Assert::count(86, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);

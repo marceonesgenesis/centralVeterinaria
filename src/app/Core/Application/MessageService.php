@@ -18,6 +18,7 @@ use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CommunicationConsentRequiredException;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
+use CentralVet\Domain\Exception\MessageCancelledByPreferenceException;
 use CentralVet\Domain\MessagePurpose;
 use CentralVet\Domain\MessageTemplate;
 use CentralVet\Domain\MessageTemplateRenderer;
@@ -41,7 +42,11 @@ use InvalidArgumentException;
  * `TTransaction` and calls `MessageQueuePublisher::publish` after commit.
  *
  * The LGPD legal basis comes from `MessagePurpose::legalBasisFor` and is
- * stored on the message; `CommunicationPreference::permitsSending` decides.
+ * stored on the message; `CommunicationPreference::permitsSending` decides,
+ * at compose time and again before a queued WhatsApp is opened or marked as
+ * sent (T-25): a message the preference no longer allows is cancelled with
+ * `opted_out`/`consent_missing`, like the e-mail worker does, and
+ * `MessageCancelledByPreferenceException` tells the caller to commit.
  * Status changes go only through the repository's conditional transitions;
  * when one returns false (a concurrent touch won) the service raises a
  * domain `InvalidStatusTransitionException`. Exception messages carry ids
@@ -54,6 +59,8 @@ final class MessageService
     private const LIST_LIMIT = 200;
     private const LIST_FILTERS = ['status', 'channel', 'purpose', 'tutor_id'];
     private const CANCEL_REASON = 'discarded';
+    private const CODE_OPTED_OUT = 'opted_out';
+    private const CODE_CONSENT_MISSING = 'consent_missing';
 
     private readonly Closure $clock;
 
@@ -197,9 +204,16 @@ final class MessageService
         ];
     }
 
+    /**
+     * @throws MessageCancelledByPreferenceException when the preference no longer allows the message (already cancelled: commit).
+     */
     public function markManualSent(int $messageId, string $action): void
     {
-        $this->requireMessage($messageId, $action);
+        $message = $this->requireMessage($messageId, $action);
+
+        if ($message->channel() === CommunicationChannel::WHATSAPP && $message->status() === OutboundMessage::STATUS_QUEUED) {
+            $this->cancelUnlessPreferencePermits($message);
+        }
 
         if (!$this->messages->markManualSent($messageId, $this->context->userId(), $this->now())) {
             throw new InvalidStatusTransitionException("Message {$messageId} is no longer awaiting manual send");
@@ -227,7 +241,12 @@ final class MessageService
         return $this->loadMessage($messageId);
     }
 
-    /** wa.me link with the message text, only for a `queued` WhatsApp message. */
+    /**
+     * wa.me link with the message text, only for a `queued` WhatsApp message
+     * the tutor's preference still allows.
+     *
+     * @throws MessageCancelledByPreferenceException when the preference no longer allows the message (already cancelled: commit).
+     */
     public function whatsAppLink(int $messageId, string $action): string
     {
         $message = $this->requireMessage($messageId, $action);
@@ -239,6 +258,8 @@ final class MessageService
         if ($message->status() !== OutboundMessage::STATUS_QUEUED) {
             throw new InvalidStatusTransitionException("Message {$messageId} is no longer awaiting manual send");
         }
+
+        $this->cancelUnlessPreferencePermits($message);
 
         return WhatsAppLinkBuilder::build($message->recipient(), $message->bodyText());
     }
@@ -284,6 +305,35 @@ final class MessageService
         }
 
         return $this->messages->listForUnit($unitId, $clean, self::LIST_LIMIT);
+    }
+
+    /**
+     * Re-checks the tutor's preference for the message's channel and legal
+     * basis (opt-out always blocks; `consent` needs an opt-in). When it no
+     * longer permits sending, cancels the message with a conditional UPDATE
+     * (`queued` only) and raises; a concurrent touch that won the race is
+     * reported as a status transition.
+     */
+    private function cancelUnlessPreferencePermits(OutboundMessage $message): void
+    {
+        $messageId = (int) $message->id();
+        $channel = $message->channel();
+        $preference = $this->preferences->findForTutor($message->tutorId())[$channel] ?? null;
+
+        if (CommunicationPreference::permitsSending($preference, $message->legalBasis())) {
+            return;
+        }
+
+        $optedOut = $preference !== null && !$preference->isOptedIn();
+        $code = $optedOut ? self::CODE_OPTED_OUT : self::CODE_CONSENT_MISSING;
+
+        if (!$this->messages->cancel($messageId, null, $code, $this->now())) {
+            throw new InvalidStatusTransitionException("Message {$messageId} is no longer awaiting manual send");
+        }
+
+        throw $optedOut
+            ? MessageCancelledByPreferenceException::optedOut($messageId, $channel)
+            : MessageCancelledByPreferenceException::notOptedIn($messageId, $channel);
     }
 
     private function requireMessage(int $messageId, string $action): OutboundMessage

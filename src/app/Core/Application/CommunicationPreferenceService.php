@@ -9,6 +9,7 @@ use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Domain\CommunicationChannel;
 use CentralVet\Domain\CommunicationPreference;
 use CentralVet\Domain\Contract\CommunicationPreferenceRepositoryInterface;
+use CentralVet\Domain\Contract\OutboundMessageRepositoryInterface;
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Tenancy\TenantContext;
@@ -21,6 +22,10 @@ use DateTimeImmutable;
  * with an audit trail carrying channel, status before/after and consent
  * source only — never the tutor's e-mail or phone. Whether a message may be
  * sent is not decided here: that is `CommunicationPreference::permitsSending`.
+ * An opt-out cancels, in the same transaction, every queued message of the
+ * tutor on that channel in the tenant (`opted_out`; an opt-out blocks both
+ * legal bases), so neither the worker nor the Central/ficha offers it again
+ * (T-25); an opt-in cancels nothing. Production must pass `$messages`.
  * No transaction is opened: the controller owns it.
  */
 final class CommunicationPreferenceService
@@ -37,6 +42,7 @@ final class CommunicationPreferenceService
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
         ?Closure $clock = null,
+        private readonly ?OutboundMessageRepositoryInterface $messages = null,
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -84,6 +90,16 @@ final class CommunicationPreferenceService
         ]);
 
         $this->preferences->upsert($preference);
+
+        if (!$preference->isOptedIn()) {
+            $this->messages?->cancelQueuedForTutor(
+                $tutorId,
+                $preference->channel(),
+                $this->context->userId(),
+                CommunicationPreference::STATUS_OPTED_OUT,
+                $preference->changedAt(),
+            );
+        }
 
         return $preference;
     }

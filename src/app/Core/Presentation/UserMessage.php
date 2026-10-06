@@ -161,6 +161,8 @@ final class UserMessage
         '/^Appointment \d+ and encounter \d+ belong to different patients$/D' => 'The appointment and the encounter belong to different patients',
         '/^Message \d+ is no longer awaiting manual send$/D' => 'This message is no longer awaiting manual send',
         '/^Message \d+ is no longer queued$/D' => 'This message is no longer queued',
+        '/^Message \d+ was cancelled because the tutor opted out of whatsapp messages$/D' => 'The tutor refused WhatsApp messages. The message was cancelled',
+        '/^Message \d+ was cancelled because the tutor has not opted in to whatsapp messages$/D' => 'The tutor has not consented to WhatsApp messages. The message was cancelled',
         '/^Message \d+ has not failed$/D' => 'This message has not failed',
         '/^Message \d+ is not a WhatsApp message$/D' => 'This message is not a WhatsApp message',
         '/^Template \d+ does not match the message purpose and channel$/D' => 'This template does not match the message purpose and channel',

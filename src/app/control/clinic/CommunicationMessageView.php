@@ -11,7 +11,9 @@
  * - WhatsApp `queued`: "Abrir WhatsApp" (link wa.me de
  *   MessageService::whatsAppLink, nova aba com rel="noopener noreferrer";
  *   o link só existe no HTML da ficha, nunca em log nem em banco),
- *   "Marcar como enviado" e "Descartar";
+ *   "Marcar como enviado" e "Descartar"; se a preferência do tutor não
+ *   permite mais a mensagem, o service a cancela (opted_out ou
+ *   consent_missing), a ficha grava o cancelamento e avisa (T-25);
  * - e-mail `queued`: "Descartar";
  * - `failed`: "Reenviar" (retry; depois do commit, o e-mail é publicado na
  *   fila; falha no push só vai para o error_log com o id, e o agendador
@@ -213,6 +215,12 @@ class CommunicationMessageView extends TPage
 
             self::reloadAfterChange($id, $success);
         }
+        catch (\CentralVet\Domain\Exception\MessageCancelledByPreferenceException $e)
+        {
+            // o cancelamento por opt-out/consentimento já foi gravado: commit, avisa e recarrega a ficha
+            TTransaction::close();
+            new TMessage('warning', CvFormat::userError($e), self::reloadAction((int) $id));
+        }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
@@ -250,10 +258,20 @@ class CommunicationMessageView extends TPage
             $message = $service->find($id, self::ACTION_READ);
 
             $whatsAppUrl = null;
+            $cancelledNotice = null;
             if ($message->channel() === \CentralVet\Domain\CommunicationChannel::WHATSAPP
                 && $message->status() === \CentralVet\Domain\OutboundMessage::STATUS_QUEUED)
             {
-                $whatsAppUrl = $service->whatsAppLink($id, self::ACTION_READ);
+                try
+                {
+                    $whatsAppUrl = $service->whatsAppLink($id, self::ACTION_READ);
+                }
+                catch (\CentralVet\Domain\Exception\MessageCancelledByPreferenceException $e)
+                {
+                    // o tutor recusou (ou não consentiu): a mensagem foi cancelada agora; o commit abaixo grava
+                    $cancelledNotice = CvFormat::userError($e);
+                    $message = $service->find($id, self::ACTION_READ);
+                }
             }
 
             $tutorName = self::lookupName($connection, 'SELECT full_name FROM tutor WHERE tenant_id = ? AND id = ?', $context->tenantId(), $message->tutorId());
@@ -262,6 +280,11 @@ class CommunicationMessageView extends TPage
                 : null;
 
             TTransaction::close();
+
+            if ($cancelledNotice !== null)
+            {
+                new TMessage('warning', $cancelledNotice);
+            }
 
             return [
                 'message' => $message,
@@ -557,6 +580,14 @@ class CommunicationMessageView extends TPage
      * com o novo status e as ações dele (padrão de SurgeryMaterialForm e
      * HospitalizationEventForm). A URL leva só o id.
      */
+    private static function reloadAction(int $id): TAction
+    {
+        $action = new TAction([__CLASS__, 'onReload']);
+        $action->setParameter('id', $id);
+
+        return $action;
+    }
+
     private static function reloadAfterChange(int $id, string $success): void
     {
         TToast::show('success', $success);
