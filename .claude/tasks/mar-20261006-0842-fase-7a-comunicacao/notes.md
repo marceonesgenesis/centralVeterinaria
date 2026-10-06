@@ -21,6 +21,8 @@
 - 2026-10-06 · T-01 · onda 1 — 4 UNIQUEs na 0012 (a Interface define 4; o critério dizia 3).
 - 2026-10-06 · T-03 · onda 1 — Achado plano-mandou (deep-link aceitava qualquer chave; telefone/CPF/data de nascimento numéricos iam para a URL) corrigido: allowlist fechada `PendingItem::DEEP_LINK_KEYS` por destino com valores tipados (RED eb4832d + fix 7bd7b70); re-revisão rodada 2 aprovada. A T-08 deve usar só essas chaves.
 - 2026-10-06 · T-02 · onda 1 — Desvio aceito: CommunicationPreferenceRepositoryInterface e AppointmentFollowupRepositoryInterface não estendem TenantRepositoryInterface.
+- 2026-10-06 · T-07 · onda 2 — Quatro diferenças PDO×Fake aceitas (sem impacto nos contratos usados pelos services): save() só insere e remove() lança LogicException; link() valida tenant (TenantBoundaryViolation); varredura de presos por claimed_at; link repetido idempotente só no fake.
+- 2026-10-06 · T-08 · onda 2 — PendingItemQuery e ReminderSourceQuery sem AbstractTenantRepository (TenantQuery::forTenant em cada SQL) aceito; instantes convertidos para date_default_timezone_get().
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -38,6 +40,7 @@
 - Exploração: `src/bin/worker.php` é placeholder (sem tipos de job, sem banco); não há cron no compose; `MailService`/`TMail` leem SMTP de `SystemPreference` (não usados); `FakeRedis` não tem lista nem zset (fila testada por `FakeQueue`); `appointment` não marca retorno; `receivable` sem vencimento e sem unidade; vários repositórios antigos marcados "DO NOT WIRE YET" (a 7A usa consultas próprias em vez deles).
 
 - Onda 1: board consolidado em notas por task (contratos T-02 com símbolos extras; provedores T-05 com códigos smtp_connect/smtp_auth/smtp_recipient_rejected/smtp_error; 12 variáveis em .env.example/docker-compose; programas T-04 com 7 controllers; mensagens i18n-domínio registradas no board para a T-21). Rebuild/restart do worker/app fica com o orquestrador.
+- Onda 2: board consolidado por task (fakes T-06 com extras seed()/all()/simulateConcurrentTransition; PDO T-07 com PdoConnectionFactory::fromEnvironment e 3 mensagens i18n-domínio; consultas T-08 com ReminderCandidate::variables incluindo tutor_name). Services da onda 3 usam só insertIfNew + transições.
 
 ## Pendências
 - Envio SMTP real só pode ser conferido com as credenciais do usuário (fora dos gates, que usam o driver `log`).
@@ -46,6 +49,10 @@
 - T-02: sugestões: OutboundMessage::compose não confere base legal com MessagePurpose::legalBasisFor (vigiar T-10/T-11/T-12); TOKEN_PATTERN só [A-Za-z0-9_]; gate registrou 15 PASS/12 PHP, real 13/13.
 - T-03: sugestões: gate registrou 18 PASS/5 PHP, real 19/6 (reproduzido 19 PASS; a sugestão de teste de __debugInfo foi coberta no RED eb4832d).
 - T-05: sugestões: link wa.me leva telefone e corpo na URL (T-10/T-17: não logar nem persistir, sem GET da aplicação, rel="noopener noreferrer"); SMTP_ENCRYPTION=none com usuário envia credenciais em claro; SMTP_FROM_ADDRESS inválido classificado como smtp_recipient_rejected; retorno de send() ignorado; #[\SensitiveParameter] no password; faltam testes de CRLF, hash em maiúsculas e STARTTLS.
+- T-06: sugestões: borda do claim do fake (10 min exatos) e insertIfNew com id divergem do PDO; simulateConcurrentTransition aceita status inválido.
+- T-07: sugestões: T-10/T-11/T-12 usam só insertIfNew + transições (nunca save/remove); alinhar docblock/fake de listStaleQueuedEmailIds; fuso da sessão MySQL × PHP na varredura de presos (nota no runbook T-22 ou SET time_zone); teste de CHECK/FK com dedupe_key não nula; fábrica não testa EMULATE_PREPARES/FETCH_ASSOC.
+- T-08: sugestões: fuso (cobrir na T-11); isolamento por unidade e fronteiras de janela sem fixture; appointmentsBetween sem índice (tenant_id, scheduled_at); failed sem failed_at vira agora.
+- Onda 2 (validador): COUNT(*) de communication_message antes/depois da SUITE não reproduzido (relatório da T-07 declara 0/0).
 
 ## Riscos
 - Volume de WhatsApp manual: com legítimo interesse, todo tutor sem opt-out e com telefone válido gera um WhatsApp `queued` de confirmação D-1 e de retorno, que aparece na Central de Pendências como "aguardando envio". Mitigação: o atendente envia ou descarta pela ficha; o volume é medido no roteiro A (T-23). Se pesar na operação, o próximo passo é um interruptor por canal nas automações (fora do MVP).
@@ -65,5 +72,6 @@
 - BASE da onda 1: bf2178d
 - Commits por onda:
   - Onda 1: BASE bf2178d → HEAD 7bd7b70 (cc8c534,3bf14d8,bcfa8c2,61fa5dd,3c6331b,52ba96d,6938b0a,0b40507,eb4832d,7bd7b70)
-- Último status conhecido: onda 1 concluída (T-01..T-05 [x]); 0012 e programas aplicados em centralvet e centralvet_test; SUITE 796/796
-- Próxima onda recomendada: 2 — T-06, T-07, T-08, T-09..T-14 conforme dependências (T-06 antes de T-09..T-14)
+  - Onda 2: BASE dc7f430 → HEAD 812b4a3 (915a000,f71f723,4c37ddd,268109c,62c579d,812b4a3)
+- Último status conhecido: onda 2 concluída (T-06..T-08 [x]); SUITE 833/833, PYTEST57 OK, LINT 18
+- Próxima onda recomendada: 3 — T-09..T-14 (T-06, T-07, T-08 prontas)

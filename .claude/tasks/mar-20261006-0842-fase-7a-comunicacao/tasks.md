@@ -7,9 +7,9 @@
 | T-03 | backend | Domain da Central de Pendências e do candidato a lembrete + contratos das consultas | — | sim | média | Arquimedes | [x] |
 | T-04 | infra | Programas RBAC das 7 telas para os grupos 1, 2, 4 e 5 (seed + DML, verify e rollback preparados) | — | sim | média | Jaspion | [x] |
 | T-05 | backend | Provedores desacoplados (log, SMTP por env, link wa.me) + variáveis em .env.example e docker-compose | — | sim | média | Tesla | [x] |
-| T-06 | shared | Fakes dos repositórios, consultas, fila e provedor | T-02, T-03, T-05 | sim | média | Platão | [ ] |
-| T-07 | backend | Repositórios PDO de comunicação + PdoConnectionFactory | T-01, T-02 | sim | alta | Athena | [ ] |
-| T-08 | backend | Consultas PDO de pendências e de candidatos a lembrete | T-01, T-03 | sim | alta | Sherlock | [ ] |
+| T-06 | shared | Fakes dos repositórios, consultas, fila e provedor | T-02, T-03, T-05 | sim | média | Platão | [x] |
+| T-07 | backend | Repositórios PDO de comunicação + PdoConnectionFactory | T-01, T-02 | sim | alta | Athena | [x] |
+| T-08 | backend | Consultas PDO de pendências e de candidatos a lembrete | T-01, T-03 | sim | alta | Sherlock | [x] |
 | T-09 | backend | CommunicationPreferenceService e MessageTemplateService | T-02, T-06 | sim | média | Jaspion | [ ] |
 | T-10 | backend | MessageService (ciclo manual com base legal) e MessageQueuePublisher | T-02, T-05, T-06 | sim | alta | Athena | [ ] |
 | T-11 | backend | ReminderGenerationService (lembretes idempotentes com base legal e opt-out) | T-02, T-03, T-06 | sim | alta | Sherlock | [ ] |
