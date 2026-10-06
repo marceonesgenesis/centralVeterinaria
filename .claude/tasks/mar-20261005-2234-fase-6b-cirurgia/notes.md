@@ -81,13 +81,13 @@
 - T-19: [sugestão] status misturam gêneros nos badges (`Scheduled` "Agendado" ao lado de "Concluída"/"Cancelada"; exige chave própria na tela); mensagens `duration_minutes is required`, `quantity must be >= 1`, `cancellation_reason_text`/`consent_signer_name` com limite de tamanho ainda pelo genérico com nome técnico; `Hospitalize post-op` não criada (nenhuma tela usa).
 - T-19: gate de tela em pt (sessão admin expirada, "Message not found" não verificável) → T-21.
 - T-20: [sugestão] runbook trata `SurgeryAgendaView` como tela (é classe auxiliar de SurgeryList); passo 2 fixa "esperado 4/117/127" (marcar como contagens de 2026-10-05, delta +1/+9/+18).
-- T-21: executar sql/T-21-cleanup.sql após a revisão final (backup, ensaio com ROLLBACK, aprovação SQL explícita).
+- T-21: RESOLVIDA 2026-10-06: sql/T-21-cleanup.sql executado pelo orquestrador com aprovação SQL explícita do usuário. Backup var/backups/centralvet-20261006T114006Z.sql.gz (gzip -t ok). Ensaio (+ROLLBACK) sem erro e com contagens iguais ao pré-gate; execução com COMMIT: surgery 0, surgery_room 0, encounter 7, encounter_account 4, encounter_account_item 6, stock_movement 1, appointment 15, hospitalization 0, pacientes F6B 0, system_program 126. Tutor 1595 (reutilizado, sem prefixo) mantido.
 - T-21: [sugestão] cabeçalho do SQL descreve só o estado pré-gate; registrar os ids reais antes do ensaio (sql/T-21-cleanup.sql:15-22).
 - T-21: [sugestão] queue_entry 818 e appointment 832 saem em 3.11 por patient_id sem contagem antes/depois nem linha de revisão (sql/T-21-cleanup.sql:76-88, 300-327).
 - T-21: [sugestão] tabela do gate por tela (Tela|Fluxos|Console|Rede|Erro|Veredito|Task dona) não registrada; só linha agregada de 14 telas x 2 viewports.
 - T-21: [sugestão] arquivo vazio não rastreado `=` na raiz do repositório; remover antes do fechamento.
 - T-21: fora do escopo: QueueEntryView::onAdvance mostra "Status atualizado" mas queue_entry 818 seguiu "aguardando" (provável bug anterior à fase).
-- Onda 7: execução do sql/T-21-cleanup.sql (pelo orquestrador, com backup, ensaio e aprovação SQL); aviso eficiencia.py: onda 7 (correção) sem tasks em plan.md, eficiência não gravada.
+- Onda 7: [RESOLVIDA] execução do sql/T-21-cleanup.sql (ver T-21 acima); aviso eficiencia.py: onda 7 (correção) sem tasks em plan.md, eficiência não gravada.
 - Final: [sugestão] isActive() da sala do snapshot; mensagem genérica no toque duplo concorrente do checklist (confirmPhase); QueueEntryView::onAdvance fora do escopo.
 
 ## Riscos
@@ -112,5 +112,5 @@
   - Onda 5: BASE c7ce164 → HEAD 5283aaa (193840a, 44343f2, 5283aaa)
   - Onda 6: BASE 2422d4a → HEAD dd2aa3c (dd2aa3c)
   - Onda 7: BASE be11483 → HEAD f1c0688 (219f1e2, aeeb85d, f1c0688)
-- Último status conhecido: onda 7 (correção da revisão final) concluída; T-06/T-08 [x]; SUITE 751/751, teste de duas conexões e PYTEST57 OK; re-revisão aprovada.
-- Próxima onda recomendada: nenhuma; executar sql/T-21-cleanup.sql (backup, ensaio, aprovação SQL)
+- Último status conhecido: plano concluído (2026-10-06); onda 7 concluída, T-06/T-08 [x], SUITE 751/751; cleanup SQL executado.
+- Próxima onda recomendada: nenhuma; plano concluído
