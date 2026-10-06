@@ -48,6 +48,11 @@
 - 2026-10-06 · T-14 · onda 4 — `DocumentSweeper::forConnection` público, fora do plano, aceito.
 - 2026-10-06 · T-17 · onda 4 — Edição filtra `listAll()` por id (T-13 sem `find`), aceito.
 - 2026-10-06 · T-19 · onda 5 — Desvios aceitos: "Unknown document kind" como padrão com aspas; código de falha não exibido na tela; "Modelos de documento" segue o termo da 7A; mensagens internas de storage ficam fora do catálogo.
+- 2026-10-06 · T-21 · onda 6 — "Tentar novamente"/document_failed e usuário sem permissão não exercitados em E2E: cobertos por T-09/T-12/testes de RBAC.
+- 2026-10-06 · T-21 · onda 6 — RF1 outro tenant: ambiente com 1 tenant; cobertura por testes de integração (T-06/T-07) + 404 único E2E (outra unidade, queued, inexistente); pendência para ambiente com 2 tenants.
+- 2026-10-06 · T-21 · onda 6 — Critério plan.md:386 "curl /var/documents/ ≠ 200" substituído por "nenhum caminho sob /var/documents serve %PDF" (front controller devolve shell HTML).
+- 2026-10-06 · T-21 · onda 6 — Ações de estado no gate (local): worker parado/religado, DEL da fila Redis pending para simular job perdido, listener php -S 127.0.0.1:9 no worker (encerrado, sem processo restante).
+- 2026-10-06 · T-16 · onda 6 — Fix do gate (RED bc70e62, fix 1087d3c): "Baixar" passa por engine.php?class=DocumentList&method=onDownload&id=<id>&static=1 com target _blank (index.php devolvia o shell HTML); substitui a rota de download da Interface da T-16.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -85,6 +90,7 @@
 - [T-15] DocumentRequestForm: kind/source_id, template_id (0 = Default text), body_text só no atestado, notify_tutor; redireciona a DocumentList&patient_id. i18n para a T-19: New document, Invalid document request, Document type, Default text, Notify the tutor when ready, Communication consent unavailable, authorized/not authorized, Document requested…, permissão, nomes dos 4 tipos.
 - [gate onda 4] Volume app_documents gravável; PDF real ready (19757 bytes); download 200 %PDF / 404 sem oráculo / anônimo negado; document-sweep exit 0; logs sem PII; smoke 4 telas 1366x768; alvos 44–48 px.
 - [gate onda 4] Dados criados para o SQL de limpeza da T-21: tutor 15447, patient 13321, encounter 11105, vaccination 2983, stored_object 2132, generated_document 1, arquivo var/documents/cv/development/tenant/1/objects/documents/1/5ce0f90572413f32.pdf; contagens pré-gate: generated_document 0, tutor 7/13876, patient 7/9180, vaccination 0, stored_object 9/2131. A fixture da T-09 usa título "F7A teste documento" (fora do prefixo F7B).
+- [gate onda 6] Ids criados para o SQL de limpeza (sql/T-21-cleanup.sql, NÃO executado; exige aprovação SQL e backup): tutor 15447, patient 13321, encounter 11105, vaccination 2983, prescription 6124, prescription_item 9108, surgery 4, surgery_room 2, document_template 1-2, generated_document 1-9, stored_object 2132-2140 (+ arquivos no volume, 9 rm comentados), communication_preference 8, communication_message 53.
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
@@ -110,9 +116,16 @@
 - T-17: cabeçalho Actions alinhado à direita; onEdit varre listAll(); DocumentTemplateList depende de DocumentTemplateForm::kindLabel (mover para helper/DocumentKind).
 - T-18: testes de telas clínicas só conferem o prefixo da rota, não o id concatenado; link Archive PDF sem cv-touch-target (PrescriptionForm:165).
 - Onda 4: mensagens i18n das telas (T-15..T-18, ver Descobertas) para a T-19.
-- T-20: runbook documentos.md:76 escreve a rota como `DocumentList::onDownload&id=`; a real é `index.php?class=DocumentList&method=onDownload&id=<id>&static=1`.
+- T-20: runbook documentos.md:76 escreve a rota como `DocumentList::onDownload&id=`; a real é `engine.php?class=DocumentList&method=onDownload&id=<id>&static=1` (corrigir o runbook).
 - Onda 5: botão "PDF do termo" na SurgeryView não visto em tela (sem cirurgia no banco) → verificar no E2E da T-21.
 - Onda 5: critério do plano "curl /var/documents/ ≠ 200" (plan.md:386) a reescrever: o front controller devolve 200 para qualquer caminho e nenhum arquivo é servido.
+- T-21: SQL sql/T-21-cleanup.sql preparado e NÃO executado (aprovação SQL explícita + backup; os 9 `rm` de arquivos também).
+- T-21: RF1 outro tenant só por testes (T-06/T-07) + 404 único E2E; repetir em ambiente com 2 tenants.
+- T-21: "Tentar novamente"/document_failed e usuário sem permissão fora do E2E (cobertos por T-09/T-12/RBAC).
+- T-21: interface da T-16 (tasks.md:937) ainda cita index.php para o download; a real é engine.php (ver Decisões).
+- T-21: cabeçalho do SQL diz que erro interrompe o script, mas no `mysql> source` interativo o cliente segue; ler os erros antes do COMMIT ou rodar em lote.
+- T-21: DEL da chave Redis cv:development:queue_default:pending no roteiro B: conteúdo apagado (só o job do doc 7) não verificável.
+- T-21: atestado a partir do template "F7B teste Atestado" não exercitado E2E (template só criado).
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -135,5 +148,6 @@
   - Onda 3: BASE 0ccd300 → HEAD 12c8479 (e6577fd, 3d00204, b7f46cd, 49faf9f, a41359a, 66446c0, fa09830, 12c8479)
   - Onda 4: BASE e412e11 → HEAD e378577 (c3f1c9c, d20f911, 6c0b820, 0896446, 6820f0f, fd34d69, 265520d, 0b2852a, c85c010, e378577)
   - Onda 5: BASE 6f259c1 → HEAD 098f9c1 (eac4852, de25718, 098f9c1)
-- Último status conhecido: onda 5 concluída (T-19, T-20 [x]); SUITE 1111/1111, gate aprovado (PYTEST57, rebuild, 4 telas em pt)
-- Próxima onda recomendada: onda 6 (T-21 validação final ponta a ponta)
+  - Onda 6: BASE 4c29344 → HEAD 893e10a (96938c1, bc70e62, 1087d3c, 0f0f10f, 4e6df97, 893e10a)
+- Último status conhecido: onda 6 concluída (T-21 [x]); SUITE 1111/1111, PYTEST57 OK; SQL de limpeza preparado e não executado
+- Próxima onda recomendada: nenhuma (revisão final; limpeza SQL pendente de aprovação)
