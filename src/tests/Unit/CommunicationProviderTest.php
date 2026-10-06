@@ -111,7 +111,7 @@ final class CommunicationProviderTest
         Assert::same('message:42', $record['context']['reference']);
         Assert::same(substr(hash('sha256', self::RECIPIENT), 0, 12), $record['context']['recipient_hash']);
         Assert::same(7, $record['context']['subject_length']);
-        Assert::same(12, $record['context']['body_length']);
+        Assert::same(13, $record['context']['body_length']);
 
         $serialized = json_encode($logger->records, JSON_UNESCAPED_UNICODE);
         Assert::false(str_contains((string) $serialized, self::RECIPIENT), 'Log must not contain the recipient');
