@@ -54,6 +54,9 @@ final class MessageServiceTest
     private FakeCommunicationPreferenceRepository $preferences;
     private FakeAuthorizationPolicy $policy;
 
+    /** @var array{unit_name: ?string, clinic_name: ?string}|null */
+    private ?array $senderNames = null;
+
     private function build(bool $allowed = true, CommunicationPreference ...$preferences): MessageService
     {
         $this->messages = new FakeOutboundMessageRepository(self::TENANT_ID);
@@ -82,7 +85,36 @@ final class MessageServiceTest
             $this->policy,
             TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
             static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW),
+            $this->senderNames === null ? null : self::senderNamesQuery($this->senderNames),
         );
+    }
+
+    /**
+     * Dublê da consulta de nomes da unidade e da clínica (tenant). Só é criado
+     * depois de conferir a interface, para o RED falhar por asserção.
+     *
+     * @param array{unit_name: ?string, clinic_name: ?string} $names
+     */
+    private static function senderNamesQuery(array $names): object
+    {
+        Assert::true(
+            interface_exists(\CentralVet\Domain\Contract\SenderNamesQueryInterface::class),
+            'SenderNamesQueryInterface must exist',
+        );
+
+        return new class ($names, self::UNIT_ID) implements \CentralVet\Domain\Contract\SenderNamesQueryInterface {
+            /** @param array{unit_name: ?string, clinic_name: ?string} $names */
+            public function __construct(private readonly array $names, private readonly int $unitId)
+            {
+            }
+
+            public function namesForUnit(int $unitId): array
+            {
+                Assert::same($this->unitId, $unitId, 'names must come from the active unit');
+
+                return $this->names;
+            }
+        };
     }
 
     private static function tutor(int $id, ?string $email, string $phone): Tutor
@@ -371,7 +403,79 @@ final class MessageServiceTest
 
         $rendered = $service->renderTemplate((int) $template->id(), self::TUTOR_ID, self::PATIENT_ID, self::ACTION);
 
-        Assert::same(['subject' => 'Olá F7A teste Tutor 10', 'body' => 'Notícias de F7A teste Rex em .'], $rendered);
+        // Sem nome da unidade, o marcador fica visível para o atendente completar
+        // (antes saía vazio: "em .").
+        Assert::same(['subject' => 'Olá F7A teste Tutor 10', 'body' => 'Notícias de F7A teste Rex em {{unit_name}}.'], $rendered);
+    }
+
+    public function testRenderTemplateFillsUnitAndClinicNamesFromTheActiveUnit(): void
+    {
+        // Gate T-23: {{unit_name}} e {{clinic_name}} saíam vazios ("aqui é a .").
+        $this->senderNames = ['unit_name' => 'F7A teste Unidade', 'clinic_name' => 'F7A teste Clínica'];
+        $service = $this->build();
+        $template = $this->templates->save(MessageTemplate::create(
+            self::TENANT_ID,
+            MessagePurpose::CUSTOM,
+            CommunicationChannel::EMAIL,
+            'F7A teste modelo',
+            'Mensagem da {{clinic_name}}',
+            'Olá {{tutor_name}}, aqui é a {{clinic_name}} ({{unit_name}}).',
+            self::USER_ID,
+        ));
+
+        $rendered = $service->renderTemplate((int) $template->id(), self::TUTOR_ID, null, self::ACTION);
+
+        Assert::same([
+            'subject' => 'Mensagem da F7A teste Clínica',
+            'body' => 'Olá F7A teste Tutor 10, aqui é a F7A teste Clínica (F7A teste Unidade).',
+        ], $rendered);
+    }
+
+    public function testRenderTemplateKeepsPlaceholdersWithoutValueVisible(): void
+    {
+        // Mensagem manual não tem agendamento, vacina nem recebível: data, hora,
+        // vacina, vencimento e valor ficam como {{marcador}} para o atendente
+        // trocar pelo texto, em vez de sumirem do texto.
+        $this->senderNames = ['unit_name' => 'F7A teste Unidade', 'clinic_name' => 'F7A teste Clínica'];
+        $service = $this->build();
+        $template = $this->templates->save(MessageTemplate::create(
+            self::TENANT_ID,
+            MessagePurpose::APPOINTMENT_CONFIRMATION,
+            CommunicationChannel::WHATSAPP,
+            'F7A teste confirmação',
+            null,
+            'Consulta de {{patient_name}} em {{appointment_date}} às {{appointment_time}} na {{unit_name}}.',
+            self::USER_ID,
+        ));
+
+        $rendered = $service->renderTemplate((int) $template->id(), self::TUTOR_ID, self::PATIENT_ID, self::ACTION);
+
+        Assert::same(
+            'Consulta de F7A teste Rex em {{appointment_date}} às {{appointment_time}} na F7A teste Unidade.',
+            $rendered['body'],
+        );
+    }
+
+    public function testComposeRefusesUnfilledPlaceholders(): void
+    {
+        $service = $this->build(true, self::preference(CommunicationChannel::EMAIL, CommunicationPreference::STATUS_OPTED_IN));
+
+        foreach ([
+            ['body_text' => 'Consulta em {{appointment_date}} às {{ appointment_time }}.'],
+            ['subject' => 'Lembrete da {{clinic_name}}'],
+        ] as $overrides) {
+            self::expectMessage(
+                InvalidArgumentException::class,
+                'Replace the template placeholders before sending the message',
+                fn () => $service->compose(self::data($overrides), self::ACTION),
+            );
+        }
+
+        Assert::count(0, $this->messages->all(), 'a message with unfilled placeholders must not be stored');
+
+        // Chaves fora da lista fechada não são marcadores: o texto segue como está.
+        $message = $service->compose(self::data(['body_text' => 'Código {{abc}} do portal']), self::ACTION);
+        Assert::same('Código {{abc}} do portal', $message->bodyText());
     }
 
     public function testListForUnitReturnsActiveUnitMessages(): void
