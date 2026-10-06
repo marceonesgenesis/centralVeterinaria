@@ -27,6 +27,7 @@
 | T-23 | qa | Validação final ponta a ponta e SQL de limpeza `F7A teste` | T-21, T-22 | não | média | Spock | [x] |
 | T-24 | backend | Onda 7 (correção da revisão final): XSS do template no compose + JOIN system_unit com tenant em ReminderSourceQuery | T-23 | sim | média | — | [x] |
 | T-25 | backend | Onda 7 (correção da revisão final): opt-out barra WhatsApp manual na fila (reconferência em whatsAppLink/markManualSent, cancelamento em lote ao registrar opt-out) | T-23 | sim | média | — | [x] |
+| T-26 | backend | Onda 8 (correção da revisão final, rodada 2): XSS via TCombo::reload, novo CvCombo em CommunicationComposeForm, PrescriptionForm e LoginForm | T-23 | não | média | — | [x] |
 
 ## Detalhamento
 
