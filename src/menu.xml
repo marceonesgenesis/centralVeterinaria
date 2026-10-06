@@ -101,6 +101,20 @@
         </menu>
     </menuitem>
 
+    <menuitem label='_t{Documents}'>
+        <icon>fas:file-pdf fa-fw</icon>
+        <menu>
+            <menuitem label='_t{Documents}'>
+                <icon>fas:file-pdf fa-fw</icon>
+                <action>DocumentList</action>
+            </menuitem>
+            <menuitem label='_t{Document templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>DocumentTemplateList</action>
+            </menuitem>
+        </menu>
+    </menuitem>
+
     <menuitem label='_t{Reports}'>
         <icon>fas:chart-column fa-fw</icon>
         <action>CvShellController#method=onComingSoon#item=reports</action>

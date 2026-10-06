@@ -159,6 +159,14 @@ class PrescriptionForm extends TPage
                     $pdfLink->add(new TImage('fa:file-pdf'));
                     $pdfLink->add(' ' . CvFormat::e(_t('Generate PDF')));
                     $main->add($pdfLink);
+
+                    $archiveLink = new TElement('a');
+                    $archiveLink->href = 'index.php?class=DocumentRequestForm&kind=prescription&source_id=' . $this->savedPrescriptionId;
+                    $archiveLink->class = 'btn btn-sm btn-outline-secondary cv-rx-pdf-link';
+                    $archiveLink->generator = 'adianti';
+                    $archiveLink->add(new TImage('fa:box-archive'));
+                    $archiveLink->add(' ' . CvFormat::e(_t('Archive PDF')));
+                    $main->add($archiveLink);
                 }
 
                 $main->add($this->form);
