@@ -14,6 +14,7 @@ use CentralVet\Domain\Exception\DocumentGenerationFailed;
 use CentralVet\Domain\GeneratedDocument;
 use DateTimeImmutable;
 use Exception;
+use InvalidArgumentException;
 
 /**
  * Turns the sources of a requested document into neutral content, per kind
@@ -105,11 +106,20 @@ final class DocumentContentFactory implements DocumentContentFactoryInterface
                 $subjectLines[] = 'Data prevista: ' . self::dateTime($surgery['scheduled_start_at'] ?? null);
 
                 // Snapshot written at request time: signer name, blank line, consent text.
+                // A blank signer was trimmed away with the leading blank lines, so the
+                // first line is then consent text, never the signature.
                 $lines = self::lines($document->bodyText());
-                $signer = array_shift($lines);
-                $signatureName = $signer === null || $signer === '' ? null : $signer;
+
+                if (trim((string) ($surgery['consent_signer_name'] ?? '')) !== '') {
+                    $signer = array_shift($lines);
+                    $signatureName = $signer === null || $signer === '' ? null : $signer;
+                }
+
                 $paragraphs = $lines;
                 break;
+
+            default:
+                throw new InvalidArgumentException("Unknown document kind \"{$document->kind()}\"");
         }
 
         $names = $this->names->namesForUnit($document->systemUnitId());

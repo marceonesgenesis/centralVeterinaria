@@ -38,6 +38,8 @@ use RuntimeException;
  * wrong state, before any authorization or storage read, so they cannot
  * be used as an oracle of other units' documents. Exception messages carry
  * ids only, never names or document text.
+ *
+ * @phpstan-type PatientSummary array{patient_id: int, patient_name: string, species: string, breed: ?string, tutor_id: int, tutor_name: string}
  */
 final class DocumentRequestService
 {
@@ -75,14 +77,13 @@ final class DocumentRequestService
         DocumentKind::assertValid($kind);
         $unitId = $this->context->requireUnitId();
 
-        [$patientId, $bodyText, $templateId] = match ($kind) {
+        // Each resolver reads the patient summary exactly once.
+        [$patient, $bodyText, $templateId] = match ($kind) {
             DocumentKind::VACCINATION_CARD => $this->resolveVaccinationCard($sourceId),
             DocumentKind::PRESCRIPTION => $this->resolvePrescription($sourceId, $unitId),
             DocumentKind::SURGERY_CONSENT => $this->resolveSurgeryConsent($sourceId, $unitId),
             DocumentKind::MEDICAL_CERTIFICATE => $this->resolveMedicalCertificate($sourceId, $templateId, $bodyText),
         };
-
-        $patient = $this->requirePatient($patientId);
 
         $this->authorization->decide(new AuthorizationRequest(
             context: $this->context,
@@ -181,19 +182,19 @@ final class DocumentRequestService
         ];
     }
 
-    /** @return array{0: int, 1: null, 2: null} */
+    /** @return array{0: PatientSummary, 1: null, 2: null} */
     private function resolveVaccinationCard(int $patientId): array
     {
-        $this->requirePatient($patientId);
+        $patient = $this->requirePatient($patientId);
 
         if ($this->sources->vaccinations($patientId) === []) {
             throw new InvalidArgumentException('Patient has no vaccinations to print');
         }
 
-        return [$patientId, null, null];
+        return [$patient, null, null];
     }
 
-    /** @return array{0: int, 1: null, 2: null} */
+    /** @return array{0: PatientSummary, 1: null, 2: null} */
     private function resolvePrescription(int $prescriptionId, int $unitId): array
     {
         $prescription = $this->sources->prescription($prescriptionId);
@@ -202,10 +203,10 @@ final class DocumentRequestService
             throw new DocumentSourceNotFoundException();
         }
 
-        return [(int) $prescription['patient_id'], null, null];
+        return [$this->requirePatient((int) $prescription['patient_id']), null, null];
     }
 
-    /** @return array{0: int, 1: string, 2: null} */
+    /** @return array{0: PatientSummary, 1: string, 2: null} */
     private function resolveSurgeryConsent(int $surgeryId, int $unitId): array
     {
         $surgery = $this->sources->surgery($surgeryId);
@@ -221,16 +222,23 @@ final class DocumentRequestService
         // Snapshot of the consent recorded on the surgery; the request text is ignored.
         $bodyText = (string) $surgery['consent_signer_name'] . "\n\n" . (string) $surgery['consent_text'];
 
-        return [(int) $surgery['patient_id'], $bodyText, null];
+        return [$this->requirePatient((int) $surgery['patient_id']), $bodyText, null];
     }
 
-    /** @return array{0: int, 1: ?string, 2: ?int} */
+    /** @return array{0: PatientSummary, 1: ?string, 2: ?int} */
     private function resolveMedicalCertificate(int $patientId, ?int $templateId, ?string $bodyText): array
     {
-        $this->requirePatient($patientId);
+        $patient = $this->requirePatient($patientId);
 
-        if ($bodyText !== null && DocumentTemplateRenderer::unresolvedPlaceholders($bodyText) !== []) {
-            throw new InvalidArgumentException('Document text has unresolved placeholders');
+        if ($bodyText !== null) {
+            // Optional variables (a patient without breed) resolve to a dash; a required
+            // variable still unmerged or any token outside the closed list is refused.
+            $bodyText = DocumentTemplateRenderer::render($bodyText, ['breed' => $patient['breed']]);
+
+            if (DocumentTemplateRenderer::unresolvedPlaceholders($bodyText) !== []
+                || DocumentTemplateRenderer::unknownPlaceholders($bodyText) !== []) {
+                throw new InvalidArgumentException('Document text has unresolved placeholders');
+            }
         }
 
         if ($templateId !== null) {
@@ -244,10 +252,10 @@ final class DocumentRequestService
         }
 
         // A missing or blank text is refused by GeneratedDocument::request().
-        return [$patientId, $bodyText, $templateId];
+        return [$patient, $bodyText, $templateId];
     }
 
-    /** @return array{patient_id: int, patient_name: string, species: string, breed: ?string, tutor_id: int, tutor_name: string} */
+    /** @return PatientSummary */
     private function requirePatient(int $patientId): array
     {
         return $this->sources->patientSummary($patientId) ?? throw new DocumentSourceNotFoundException();

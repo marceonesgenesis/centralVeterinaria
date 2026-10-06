@@ -15,7 +15,6 @@ use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
 use Closure;
 use DateTimeImmutable;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -23,8 +22,10 @@ use Throwable;
  * `document.generate`). System actor: no authorization; the transaction is
  * injected (`$transaction`, run directly by default) and never opened here.
  *
- * Idempotent under redelivery: a missing or non-`queued` document, or a
- * failed conditional claim, is `skipped`. The PDF is stored under a fresh
+ * Idempotent under redelivery: a missing or non-`queued` document, a
+ * failed conditional claim, or a conditional `markReady` lost to a worker
+ * that reclaimed a stale claim (own object deleted, no failure, no retry),
+ * is `skipped`. The PDF is stored under a fresh
  * key `documents/<id>/<random>.pdf`; the `stored_object` row, the
  * conditional `markReady`, the `document_ready` notice and `markNotified`
  * run inside the transaction, and when it fails the stored object is
@@ -117,7 +118,7 @@ final class DocumentGenerationService
                 $now = $this->now();
 
                 if (!$this->documents->markReady($documentId, (int) $row['id'], $key, strlen($pdf), hash('sha256', $pdf), $now)) {
-                    throw new RuntimeException('Document is no longer claimed');
+                    throw new DocumentClaimLostException();
                 }
 
                 $emailIds = $document->notifyTutor() ? $this->notifier->notify($document) : [];
@@ -125,11 +126,17 @@ final class DocumentGenerationService
 
                 return $emailIds;
             });
-        } catch (Throwable) {
+        } catch (Throwable $failure) {
+            // Only this attempt's own fresh key is deleted, never the object of another worker.
             try {
                 $this->storage->delete($key);
             } catch (Throwable) {
                 // Best effort: an orphan object holds no reference and is never served.
+            }
+
+            if ($failure instanceof DocumentClaimLostException) {
+                // A worker that reclaimed the stale claim already made it ready: nothing to fail or retry.
+                return DocumentGenerationResult::skipped();
             }
 
             return $this->handleFailure($documentId, DocumentGenerationFailed::PERSIST_FAILED, $finalAttempt);

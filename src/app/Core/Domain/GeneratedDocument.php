@@ -6,6 +6,7 @@ namespace CentralVet\Domain;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * One requested PDF document and its generation state (domain entity for
@@ -142,6 +143,12 @@ final class GeneratedDocument
         $kind = (string) $row['kind'];
         DocumentKind::assertValid($kind);
 
+        $sourceType = (string) $row['source_type'];
+
+        if ($sourceType !== DocumentKind::sourceTypeFor($kind)) {
+            throw new InvalidArgumentException("Document source type \"{$sourceType}\" does not match kind \"{$kind}\"");
+        }
+
         return new self(
             id: (int) $row['id'],
             tenantId: (int) $row['tenant_id'],
@@ -149,7 +156,7 @@ final class GeneratedDocument
             patientId: (int) $row['patient_id'],
             tutorId: (int) $row['tutor_id'],
             kind: $kind,
-            sourceType: (string) $row['source_type'],
+            sourceType: $sourceType,
             sourceId: (int) $row['source_id'],
             version: (int) $row['version'],
             templateId: self::nullableInt($row, 'template_id'),
@@ -187,10 +194,18 @@ final class GeneratedDocument
         $this->version = $version;
     }
 
-    /** `<kind>-<id>-v<version>.pdf`, with no personal data. */
+    /**
+     * `<kind>-<id>-v<version>.pdf`, with no personal data.
+     *
+     * @throws LogicException before the repository assigned the id and version.
+     */
     public function fileName(): string
     {
-        return sprintf('%s-%d-v%d.pdf', $this->kind, (int) $this->id, $this->version);
+        if ($this->id === null) {
+            throw new LogicException('Generated document has no id yet');
+        }
+
+        return sprintf('%s-%d-v%d.pdf', $this->kind, $this->id, $this->version);
     }
 
     public function isDownloadable(): bool

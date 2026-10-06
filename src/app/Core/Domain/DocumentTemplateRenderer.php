@@ -9,15 +9,22 @@ namespace CentralVet\Domain;
  *
  * Only the closed list of placeholders is replaced. A listed name whose
  * value is missing (absent or null) stays as `{{name}}`, so the caller can
- * detect it through `unresolvedPlaceholders()`; any other `{{token}}` is
- * left untouched and reported by `unknownPlaceholders()`. No HTML escaping:
- * the output is plain text.
+ * detect it through `unresolvedPlaceholders()`, except the optional ones
+ * (`OPTIONAL_PLACEHOLDERS`, e.g. the breed of a patient without one),
+ * which become `—` when missing or blank. Any other `{{token}}`, whatever
+ * its characters (`{{cpf-x}}`, `{{a.b}}`), is left untouched and reported
+ * by `unknownPlaceholders()`. No HTML escaping: the output is plain text.
  */
 final class DocumentTemplateRenderer
 {
     public const PLACEHOLDERS = ['patient_name', 'species', 'breed', 'tutor_name', 'unit_name', 'clinic_name', 'today'];
 
-    private const TOKEN_PATTERN = '/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/';
+    /** Placeholders that may have no value: rendered as MISSING_OPTIONAL instead of staying unresolved. */
+    public const OPTIONAL_PLACEHOLDERS = ['breed'];
+
+    public const MISSING_OPTIONAL = '—';
+
+    private const TOKEN_PATTERN = '/\{\{\s*([^{}\s]+)\s*\}\}/';
 
     private function __construct()
     {
@@ -36,6 +43,11 @@ final class DocumentTemplateRenderer
                 }
 
                 $value = $variables[$name] ?? null;
+
+                if (in_array($name, self::OPTIONAL_PLACEHOLDERS, true)
+                    && ($value === null || trim((string) $value) === '')) {
+                    return self::MISSING_OPTIONAL;
+                }
 
                 return $value === null ? $match[0] : (string) $value;
             },

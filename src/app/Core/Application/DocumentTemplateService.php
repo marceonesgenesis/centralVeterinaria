@@ -139,7 +139,8 @@ final class DocumentTemplateService
      * Merges the active template `$templateId` (0 = built-in default of the
      * medical certificate) with the patient summary, the names of the active
      * unit and today's date (`d/m/Y`). A variable without value stays as
-     * `{{name}}` (see DocumentTemplateRenderer).
+     * `{{name}}`, except an optional one (the breed), which becomes `—`
+     * (see DocumentTemplateRenderer).
      *
      * @throws InvalidArgumentException when the template is missing, foreign or inactive.
      * @throws DocumentSourceNotFoundException when the patient is not in the tenant.
