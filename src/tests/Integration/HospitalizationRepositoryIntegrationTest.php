@@ -234,6 +234,42 @@ final class HospitalizationRepositoryIntegrationTest extends MysqlIntegrationTes
         Assert::same([], $otherTenant->listBoardRows($this->unitId, $from, $to), 'other tenant sees no board rows');
     }
 
+    public function testSavingAStaleAdmittedCopyAfterDischargeIsRefusedWithoutOverwriting(): void
+    {
+        $hospitalizations = new HospitalizationRepository($this->contextFor($this->tenantA), $this->pdo);
+        $hospitalization = $this->admit($this->createBed('F6-L9'), '2031-08-01 07:30:00');
+        $otherBed = $this->createBed('F6-L10');
+        $id = (int) $hospitalization->id();
+
+        /** @var Hospitalization $unchanged */
+        $unchanged = $hospitalizations->findById($id);
+        $hospitalizations->save($unchanged);
+        Assert::same(Hospitalization::STATUS_ADMITTED, $hospitalizations->findById($id)?->status(), 'saving an unchanged admitted copy is a no-op');
+
+        // A transfer loads the admitted row, then the discharge commits.
+        /** @var Hospitalization $transferCopy */
+        $transferCopy = $hospitalizations->findById($id);
+        /** @var Hospitalization $dischargeCopy */
+        $dischargeCopy = $hospitalizations->findById($id);
+        $dischargeCopy->discharge(new DateTimeImmutable('2031-08-02 09:00:00'), $this->userId, 'Alta F6 teste');
+        $hospitalizations->save($dischargeCopy);
+
+        $transferCopy->moveToBed((int) $otherBed->id());
+        $message = '';
+        try {
+            $hospitalizations->save($transferCopy);
+        } catch (InvalidStatusTransitionException $e) {
+            $message = $e->getMessage();
+        }
+        Assert::same("Hospitalization {$id} is not admitted", $message, 'stale admitted save signals the lost race');
+
+        /** @var Hospitalization $current */
+        $current = $hospitalizations->findById($id);
+        Assert::same(Hospitalization::STATUS_DISCHARGED, $current->status(), 'discharge is not undone');
+        Assert::same('2031-08-02 09:00:00', $current->dischargedAt()?->format('Y-m-d H:i:s'));
+        Assert::same($hospitalization->bedId(), $current->bedId(), 'bed_id is not overwritten');
+    }
+
     public function testSavingAStaleAdministrationNoLongerPendingIsRefusedWithoutOverwriting(): void
     {
         $administrations = new HospitalizationAdministrationRepository($this->contextFor($this->tenantA), $this->pdo);
