@@ -47,6 +47,7 @@
 - 2026-10-06 · T-15/T-17 · onda 4 — Ajustes de teste após o RED (comparar com _t(); nome curto da classe) aceitos.
 - 2026-10-06 · T-14 · onda 4 — `DocumentSweeper::forConnection` público, fora do plano, aceito.
 - 2026-10-06 · T-17 · onda 4 — Edição filtra `listAll()` por id (T-13 sem `find`), aceito.
+- 2026-10-06 · T-19 · onda 5 — Desvios aceitos: "Unknown document kind" como padrão com aspas; código de falha não exibido na tela; "Modelos de documento" segue o termo da 7A; mensagens internas de storage ficam fora do catálogo.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -109,6 +110,9 @@
 - T-17: cabeçalho Actions alinhado à direita; onEdit varre listAll(); DocumentTemplateList depende de DocumentTemplateForm::kindLabel (mover para helper/DocumentKind).
 - T-18: testes de telas clínicas só conferem o prefixo da rota, não o id concatenado; link Archive PDF sem cv-touch-target (PrescriptionForm:165).
 - Onda 4: mensagens i18n das telas (T-15..T-18, ver Descobertas) para a T-19.
+- T-20: runbook documentos.md:76 escreve a rota como `DocumentList::onDownload&id=`; a real é `index.php?class=DocumentList&method=onDownload&id=<id>&static=1`.
+- Onda 5: botão "PDF do termo" na SurgeryView não visto em tela (sem cirurgia no banco) → verificar no E2E da T-21.
+- Onda 5: critério do plano "curl /var/documents/ ≠ 200" (plan.md:386) a reescrever: o front controller devolve 200 para qualquer caminho e nenhum arquivo é servido.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -130,5 +134,6 @@
   - Onda 2: BASE f2b8947 → HEAD 54183c2 (15fc70a, baa5fe1, 18b2438, c7d5652, 5b5470a, fe64748, 54f4273, 993a5f6, cf7e01b, e743d30, 54183c2)
   - Onda 3: BASE 0ccd300 → HEAD 12c8479 (e6577fd, 3d00204, b7f46cd, 49faf9f, a41359a, 66446c0, fa09830, 12c8479)
   - Onda 4: BASE e412e11 → HEAD e378577 (c3f1c9c, d20f911, 6c0b820, 0896446, 6820f0f, fd34d69, 265520d, 0b2852a, c85c010, e378577)
-- Último status conhecido: onda 4 concluída (T-14..T-18 [x]); gate com rebuild aprovado, SUITE 1108/1109 (falha alheia Consent PDF, T-19)
-- Próxima onda recomendada: onda 5 (T-19 i18n, escritor único, e demais conforme tasks.md)
+  - Onda 5: BASE 6f259c1 → HEAD 098f9c1 (eac4852, de25718, 098f9c1)
+- Último status conhecido: onda 5 concluída (T-19, T-20 [x]); SUITE 1111/1111, gate aprovado (PYTEST57, rebuild, 4 telas em pt)
+- Próxima onda recomendada: onda 6 (T-21 validação final ponta a ponta)
