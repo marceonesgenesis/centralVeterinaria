@@ -325,6 +325,54 @@ final class HospitalizationServiceTest
         Assert::same($newBed, $transfers[0]->toBedId());
     }
 
+    public function testTransferWhoseOldBedWasReleasedConcurrentlyThrows(): void
+    {
+        $oldBed = $this->bed('L1');
+        $newBed = $this->bed('L2');
+        $hospitalization = $this->admit($this->encounter(7), $oldBed);
+        $id = (int) $hospitalization->id();
+        // A concurrent discharge already released the old bed.
+        Assert::true($this->beds->release($oldBed, $id));
+
+        $message = '';
+        try {
+            $this->service()->transfer($id, $newBed, self::ACTION);
+        } catch (InvalidStatusTransitionException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same("Bed {$oldBed} is not occupied by hospitalization {$id}", $message);
+        Assert::same($oldBed, $this->hospitalizations->findById($id)->bedId(), 'hospitalization is not moved');
+        Assert::count(0, $this->eventsOfType(HospitalizationEvent::TYPE_TRANSFER));
+    }
+
+    public function testFakeRefusesStaleAdmittedSaveAfterDischarge(): void
+    {
+        $bedId = $this->bed('L1');
+        $hospitalization = $this->admit($this->encounter(7), $bedId);
+        $id = (int) $hospitalization->id();
+        $stale = Hospitalization::reconstitute([
+            'id' => $id,
+            'tenant_id' => self::TENANT_ID,
+            'system_unit_id' => self::UNIT_ID,
+            'patient_id' => $hospitalization->patientId(),
+            'encounter_id' => $hospitalization->encounterId(),
+            'bed_id' => $bedId,
+            'responsible_system_user_id' => self::RESPONSIBLE_ID,
+            'admitted_by_system_user_id' => self::USER_ID,
+            'reason_text' => $hospitalization->reasonText(),
+            'daily_rate_cents' => $hospitalization->dailyRateCents(),
+            'status' => Hospitalization::STATUS_ADMITTED,
+            'admitted_at' => $hospitalization->admittedAt()->format('Y-m-d H:i:s'),
+        ]);
+
+        $hospitalization->discharge(new DateTimeImmutable(self::NOW), self::USER_ID, '');
+        $this->hospitalizations->save($hospitalization);
+
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $this->hospitalizations->save($stale));
+        Assert::same(Hospitalization::STATUS_DISCHARGED, $this->hospitalizations->findById($id)->status());
+    }
+
     public function testTransferToOccupiedBedThrowsAndKeepsOldBed(): void
     {
         $oldBed = $this->bed('L1');
