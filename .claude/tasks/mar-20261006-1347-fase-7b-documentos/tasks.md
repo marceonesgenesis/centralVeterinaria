@@ -24,6 +24,11 @@
 | T-20 | docs | Runbook de documentos, índice e passo da 0013 e cron na hospedagem 5.7 | T-01, T-03, T-04, T-14 | sim | simples | Gandalf | [x] |
 | T-21 | qa | Validação final ponta a ponta e SQL de limpeza `F7B teste` | T-19, T-20 | não | média | Spock | [x] |
 | T-22 | frontend | Correção pós-revisão final (onda 7): alvos ≥44 px (PrescriptionForm, voltar da DocumentTemplateForm) e rota de download no runbook | T-21 | não | simples | correção | [x] |
+| T-23 | backend | Onda 8 (correção da revisão final): domínio/aplicação (fileName sem id, source_type x kind, TOKEN_PATTERN, breed opcional, signatário, objeto da tentativa) | T-22 | não | média | correção | [x] |
+| T-24 | backend | Onda 8: persistência/storage/varredor (updated_at, deadlock 1213, realpath, renderHtml) | T-22 | não | média | correção | [x] |
+| T-25 | frontend | Onda 8: telas/i18n/CSS 44 px/docs (consentimento com RBAC e unidade, retry com patient_id, título traduzido, ações à esquerda) | T-22 | não | média | correção | [x] |
+| T-26 | database | Onda 8: SQL de limpeza dos registros do gate da onda 8 | T-23, T-24, T-25 | não | simples | correção | [x] |
+| T-27 | qa | Onda 8: E2E cross-tenant com segundo tenant de teste (setup e limpeza SQL) | T-26 | não | média | correção | [x] |
 
 ## Detalhamento
 

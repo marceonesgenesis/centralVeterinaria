@@ -55,6 +55,10 @@
 - 2026-10-06 · T-16 · onda 6 — Fix do gate (RED bc70e62, fix 1087d3c): "Baixar" passa por engine.php?class=DocumentList&method=onDownload&id=<id>&static=1 com target _blank (index.php devolvia o shell HTML); substitui a rota de download da Interface da T-16.
 - 2026-10-06 · T-21 · onda 7 — Limpeza SQL F7B autorizada pelo usuário e executada pelo orquestrador: backup var/backups/centralvet-20261006T183746Z.sql.gz (gzip -t ok), dry run com ROLLBACK (contagens batem com o pré-gate), COMMIT sem erro. Estado final: generated_document 0, document_template 0, stored_object 9/2131, tutor 7/13876, patient 7/9180, surgery 0, surgery_room 0, communication_message 0, communication_preference 0, encounter 7, appointment 15, payment 3; os 9 PDFs de teste removidos do volume app_documents (0 restantes).
 - 2026-10-06 · T-22 · onda 7 — Correção pós-revisão final aprovada pelo usuário (RED 25a3a7f, fix d24e252, runbook 31009a4; SUITE 1112/1112): "Gerar PDF" também ganhou cv-touch-target (irmão do "Arquivar PDF"); voltar da DocumentTemplateForm sem teste próprio; orquestrador mediu no navegador todos os botões da DocumentTemplateForm ≥44 px.
+- 2026-10-06 · T-23/T-24/T-25 · onda 8 — Correção das pendências da revisão final (RED b859f1e/4e56f6d/d91bf90/c458ef7; fix eb348e1, db3de1e, e18c4ca, 9ca61a9, 316737b): SUITE 1157/1157, PYTEST57, lint 37 PHP, cabeçalho 44x44 em 820/1366, document_failed + "Tentar novamente" e usuário sem acesso negado exercitados, {{breed}} → "—"; revisões aprovadas com sugestões.
+- 2026-10-06 · T-26 · onda 8 — Usuário autorizou e o orquestrador executou a limpeza do gate da onda 8 (1d8bf7d): backup centralvet-20261006T191904Z.sql.gz, dry run, COMMIT, PDF removido; system_access_log 62/63 do usuário de teste ficam (sem FK).
+- 2026-10-06 · T-27 · onda 8 — Usuário autorizou e o orquestrador executou a criação do 2º tenant de teste (ff14b07): backup centralvet-20261006T192246Z.sql.gz, dry run, COMMIT (tenant 41190, unidade 3, usuário 2). E2E cross-tenant aprovado (404 único nos dois sentidos, formulários/busca/listas/pendências isolados, chaves por tenant, logs sem PII); RF1 cross-tenant resolvido.
+- 2026-10-06 · T-27 · onda 8 — Usuário autorizou a limpeza completa do 2º tenant incluindo a variante 3.8-OPCIONAL (16 linhas de audit_log do tenant 41190 apagadas; f3997a4): backup centralvet-20261006T193219Z.sql.gz, dry run (audit_outro_tenant 0, resíduos vazios), COMMIT; 2 PDFs removidos. Estado final: tenant 1 único, system_unit 2, system_users 1, generated_document 0, stored_object 9/2131, tutor 7/13876, patient 7/9180, volume app_documents sem arquivos.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -93,6 +97,10 @@
 - [gate onda 4] Volume app_documents gravável; PDF real ready (19757 bytes); download 200 %PDF / 404 sem oráculo / anônimo negado; document-sweep exit 0; logs sem PII; smoke 4 telas 1366x768; alvos 44–48 px.
 - [gate onda 4] Dados criados para o SQL de limpeza da T-21: tutor 15447, patient 13321, encounter 11105, vaccination 2983, stored_object 2132, generated_document 1, arquivo var/documents/cv/development/tenant/1/objects/documents/1/5ce0f90572413f32.pdf; contagens pré-gate: generated_document 0, tutor 7/13876, patient 7/9180, vaccination 0, stored_object 9/2131. A fixture da T-09 usa título "F7A teste documento" (fora do prefixo F7B).
 - [gate onda 6] Ids criados para o SQL de limpeza (sql/T-21-cleanup.sql, NÃO executado; exige aprovação SQL e backup): tutor 15447, patient 13321, encounter 11105, vaccination 2983, prescription 6124, prescription_item 9108, surgery 4, surgery_room 2, document_template 1-2, generated_document 1-9, stored_object 2132-2140 (+ arquivos no volume, 9 rm comentados), communication_preference 8, communication_message 53.
+- [T-23] Domínio/Aplicação (RED b859f1e, fix eb348e1): GeneratedDocument::fileName() sem id lança LogicException e reconstitute recusa source_type ≠ DocumentKind::sourceTypeFor(kind); TOKEN_PATTERN de DocumentTemplateRenderer agora casa `{{[^{}\s]+}}` (também DocumentTemplate) e `breed` é opcional (OPTIONAL_PLACEHOLDERS → "—"); DocumentRequestService resolve {{breed}} no pedido e recusa tokens desconhecidos com a mensagem existente; markReady=false vira skipped (DocumentClaimLostException interna); fake novo src/tests/Support/CountingDocumentSourceQuery.php. i18n-domínio (internas, não cheg...
+- [T-25] Onda 8 pronta (RED d91bf90/c458ef7, fix 9ca61a9/316737b): consentSummaryFor com unidade+RBAC (DocumentRequestForm::onLoad), onSave/onRetry com ganchos testados, retry volta com patient_id, título da lista por CvDocumentKind::title (_t), Ações à esquerda, topo 44 px em cv-components.css (custom.css/layout.html protegidos por hash), runbook/SQL; i18n: Prescription document → Receita, Surgical consent form → Termo de consentimento cirúrgico, + 2 mensagens da T-23 no UserMessage (73/93). Pendente: find por id no DocumentTemplateService.
+- [T-24] Persistence/Storage/Document pronto (RED 4e56f6d, fix e18c4ca): varredor usa updated_at p/ linha sem claim (sem migration); deadlock 1213 retentado só fora de transação; storage resolve realpath; DompdfDocumentRenderer::renderHtml público; fakes com seed(colunas)/row()/simulateConcurrentClaim($at). Nenhuma mensagem i18n nova. Docblock da interface (Domain:63) ainda cita created_at.
+- [T-23] Docblock de listStaleQueuedIds na interface alinhado ao updated_at da T-24 (e18c4ca).
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
@@ -131,6 +139,11 @@
 - Controles globais do cabeçalho (menu, notificações, ajuda) com 40 px: pré-existentes, fora da 7B, violam a regra de 44 px do CLAUDE.md.
 - T-22: voltar da DocumentTemplateForm sem teste próprio; linha reflowada longa em docs/runbooks/documentos.md:79; sugestões em reviews/final.md e reviews/T-22.md.
 - T-22: aviso do eficiencia.py "onda 7 sem tasks em plan.md" (onda de correção pós-final; T-22 registrada só em tasks.md).
+- T-23: signatário decidido pela fonte viva e não pelo snapshot do pedido (termo legado com signatário em branco); TOKEN_PATTERN não detecta token com espaço interno; fixture 'F7A teste documento' (T-09) sem tratamento.
+- T-24: retry de deadlock só fora de transação (no controller o 1213 sobe); "link dentro do root" aceito entre tenants e delete() de link apaga só o link; teste de render depende de proc_open.
+- T-25: resumo de consentimento audita por abertura (duas linhas com listActive no atestado); onEdit do DocumentTemplateForm varre listAll() (DocumentTemplateService sem find por id); Interface da T-16 em tasks.md ainda cita index.php.
+- Onda 8: carteira de vacinação exige vacinas (restante).
+- Onda 8: aviso do eficiencia.py "onda 8 sem tasks em plan.md" (onda de correção registrada só em tasks.md); nada gravado em eficiencia/tasks.jsonl.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -155,5 +168,6 @@
   - Onda 5: BASE 6f259c1 → HEAD 098f9c1 (eac4852, de25718, 098f9c1)
   - Onda 6: BASE 4c29344 → HEAD 893e10a (96938c1, bc70e62, 1087d3c, 0f0f10f, 4e6df97, 893e10a)
   - Onda 7: BASE 3bb514d → HEAD 31009a4 (25a3a7f, d24e252, 31009a4)
-- Último status conhecido: onda 7 concluída (T-22 [x]); SUITE 1112/1112; limpeza SQL F7B executada e verificada
+  - Onda 8: BASE 820fdc4 → HEAD f3997a4 (d91bf90, b859f1e, 4e56f6d, eb348e1, c458ef7, 9ca61a9, 316737b, e18c4ca, db3de1e, 1d8bf7d, ff14b07, f3997a4)
+- Último status conhecido: onda 8 concluída (T-23..T-27 [x]); SUITE 1157/1157; E2E cross-tenant aprovado; limpezas SQL do gate e do 2º tenant executadas e verificadas
 - Próxima onda recomendada: nenhuma
