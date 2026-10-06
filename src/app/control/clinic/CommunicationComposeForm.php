@@ -157,8 +157,10 @@ class CommunicationComposeForm extends TPage
     }
 
     /**
-     * Template escolhido: assunto e corpo renderizados (tutor_name e
-     * patient_name) e a finalidade do template, para casar no compose.
+     * Template escolhido: assunto e corpo renderizados (tutor, paciente,
+     * unidade ativa e clínica; marcadores sem valor, como data e hora do
+     * agendamento, ficam visíveis como {{nome}} para o atendente trocar, e o
+     * compose recusa o texto enquanto houver um) e a finalidade do template.
      */
     public static function onChangeTemplate($param)
     {
@@ -497,6 +499,7 @@ class CommunicationComposeForm extends TPage
             new \CentralVet\Persistence\PatientRepository($context, $connection),
             self::makeAuthorization($connection),
             $context,
+            senderNames: new \CentralVet\Persistence\SenderNamesQuery($context, $connection),
         );
     }
 
