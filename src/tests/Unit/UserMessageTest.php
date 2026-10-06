@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(72, UserMessage::STATIC);
-        Assert::count(92, UserMessage::PATTERNS);
+        Assert::count(73, UserMessage::STATIC);
+        Assert::count(93, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -416,6 +416,9 @@ final class UserMessageTest
             'Document generation failed: render_failed' => ['The document could not be generated', []],
             'Document 7 can no longer be retried' => ['Document ^1 can no longer be retried', ['7']],
             'Unknown placeholder: {{cpf}}' => ['Unknown placeholder: {{^1}}', ['cpf']],
+            // T-23 da 7B (onda 8): internas do domínio, catalogadas para nunca sair cruas.
+            'Generated document has no id yet' => ['Generated document has no id yet', []],
+            'Document source type "surgery" does not match kind "prescription"' => ['The document source does not match the document type', []],
         ];
 
         foreach ($cases as $message => [$key, $params]) {
