@@ -88,5 +88,6 @@
   - Onda 1: BASE 09ce2d5 → HEAD 1451d0d (be36b80, 6952e1d, e8d6c93, 3936273, e416aa6, 1451d0d)
   - Onda 2: BASE 817a4f3 → HEAD f1dc5d8 (0887153, 223a94b, f245d7a, 98523b5, 701e4cb, f1dc5d8)
   - Onda 3: BASE 9c5bb04 → HEAD 21dbc10 (ddaadf0, a26b298, 6e68554, 96f0567, 3f2038a, 8dacf73, 41cfbee, 063e263, d9b5a81, 5ecd21e, 4678b75, 6929b48, 21dbc10)
+  - Onda 4: BASE e09d03d → HEAD 1f7718f (dd31bcb, 24a5c00, b502111, 0388aee, aafdb9c, 192a950, 1a42185, c577b6d, d75ee63, 765b946, f872e4e, a5104a1, 1859572, 92daa99, 118f066, 2d05dd9, 78aa2e0, 1f7718f)
 - Último status conhecido: onda 4 concluída (T-12..T-18 [x]); SUITE 746/746, LINT 19, PYTEST57 OK.
 - Próxima onda recomendada: onda 5 (T-19)
