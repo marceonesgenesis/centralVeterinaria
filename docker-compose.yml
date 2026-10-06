@@ -49,8 +49,13 @@ x-php-service: &php-service
     S3_BUCKET: ${S3_BUCKET:-centralvet-local}
     S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
     S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
+    DOCUMENT_STORAGE_DRIVER: ${DOCUMENT_STORAGE_DRIVER:-local}
+    DOCUMENT_STORAGE_LOCAL_ROOT: ${DOCUMENT_STORAGE_LOCAL_ROOT:-/var/www/html/var/documents}
+    DOCUMENT_SYSTEM_USER_ID: ${DOCUMENT_SYSTEM_USER_ID:-1}
+    DOCUMENT_SWEEP_INTERVAL_SECONDS: ${DOCUMENT_SWEEP_INTERVAL_SECONDS:-600}
   volumes:
     - app_files:/var/www/html/src/files
+    - app_documents:/var/www/html/var/documents
   networks:
     - backend
   security_opt:
@@ -231,3 +236,4 @@ volumes:
   redis_data:
   minio_data:
   app_files:
+  app_documents:
