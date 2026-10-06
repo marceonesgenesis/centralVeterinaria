@@ -41,6 +41,7 @@
 
 - Onda 1: board consolidado em notas por task (contratos T-02 com símbolos extras; provedores T-05 com códigos smtp_connect/smtp_auth/smtp_recipient_rejected/smtp_error; 12 variáveis em .env.example/docker-compose; programas T-04 com 7 controllers; mensagens i18n-domínio registradas no board para a T-21). Rebuild/restart do worker/app fica com o orquestrador.
 - Onda 2: board consolidado por task (fakes T-06 com extras seed()/all()/simulateConcurrentTransition; PDO T-07 com PdoConnectionFactory::fromEnvironment e 3 mensagens i18n-domínio; consultas T-08 com ReminderCandidate::variables incluindo tutor_name). Services da onda 3 usam só insertIfNew + transições.
+- Onda 3: board consolidado por task (T-09 NOT_RECORDED e save de template sem status assume active; T-10 not-found vira CrossTenantReferenceException, cancel grava motivo discarded, listForUnit limite 200; T-11 ordem de descarte opt-out→sem consent→sem contato→permitsSending e ReminderRunSummary::toArray(); T-12 constantes RESULT_*/CODE_*, reference msg-<id>, cancel perdido em corrida devolve skipped; T-14 link() na mesma transação de schedule(); 17 mensagens i18n-domínio novas para a T-21).
 
 ## Pendências
 - Envio SMTP real só pode ser conferido com as credenciais do usuário (fora dos gates, que usam o driver `log`).
@@ -53,6 +54,13 @@
 - T-07: sugestões: T-10/T-11/T-12 usam só insertIfNew + transições (nunca save/remove); alinhar docblock/fake de listStaleQueuedEmailIds; fuso da sessão MySQL × PHP na varredura de presos (nota no runbook T-22 ou SET time_zone); teste de CHECK/FK com dedupe_key não nula; fábrica não testa EMULATE_PREPARES/FETCH_ASSOC.
 - T-08: sugestões: fuso (cobrir na T-11); isolamento por unidade e fronteiras de janela sem fixture; appointmentsBetween sem índice (tenant_id, scheduled_at); failed sem failed_at vira agora.
 - Onda 2 (validador): COUNT(*) de communication_message antes/depois da SUITE não reproduzido (relatório da T-07 declara 0/0).
+- Onda 3 (validador): grep de dado pessoal nos logs do worker e contagens antes/depois ficam para as ondas 4/6.
+- T-09: sugestões: um template ativo por finalidade/canal é check-then-act sem lock/UNIQUE; falta teste de edição que colida com outro ativo; auditoria de template sem metadata de status/finalidade/canal.
+- T-10: sugestões: compose/renderTemplate aceitam template inativo; sem teste de e-mail com assunto vazio; sem teste de autorização por resourceUnitId da mensagem persistida; link wa.me leva telefone e corpo na URL (T-17 só abre, sem gravar nem logar).
+- T-11: sugestões: candidato envenenado (compose lança InvalidArgumentException) derruba a execução do tenant, sem isolamento por candidato; volume em memória sem paginação (vigiar T-23); corrida real comando × tick coberta só pela UNIQUE.
+- T-12: sugestões: retorno de markSent ignorado (claim expirado/cancelada no meio do envio devolve sent); cancel do worker exige só queued e pode cancelar mensagem já reivindicada por outro worker; outro tenant → skipped sem teste.
+- T-13: sugestões: list e countsByType no mesmo render consultam duas vezes com now próprio (carregar uma vez na T-19); countsByType limitado a 200 por tipo sem indicar truncamento.
+- T-14: sugestões: sem teste automatizado da ligação dentro de EncounterView::onScheduleFollowUp (atomicidade só por leitura; cobrir no roteiro A da T-23).
 
 ## Riscos
 - Volume de WhatsApp manual: com legítimo interesse, todo tutor sem opt-out e com telefone válido gera um WhatsApp `queued` de confirmação D-1 e de retorno, que aparece na Central de Pendências como "aguardando envio". Mitigação: o atendente envia ou descarta pela ficha; o volume é medido no roteiro A (T-23). Se pesar na operação, o próximo passo é um interruptor por canal nas automações (fora do MVP).
@@ -73,5 +81,6 @@
 - Commits por onda:
   - Onda 1: BASE bf2178d → HEAD 7bd7b70 (cc8c534,3bf14d8,bcfa8c2,61fa5dd,3c6331b,52ba96d,6938b0a,0b40507,eb4832d,7bd7b70)
   - Onda 2: BASE dc7f430 → HEAD 812b4a3 (915a000,f71f723,4c37ddd,268109c,62c579d,812b4a3)
-- Último status conhecido: onda 2 concluída (T-06..T-08 [x]); SUITE 833/833, PYTEST57 OK, LINT 18
-- Próxima onda recomendada: 3 — T-09..T-14 (T-06, T-07, T-08 prontas)
+  - Onda 3: BASE 6458506 → HEAD 8830515 (d5a6193,f6dc87f,4b762ea,94cff24,cea3501,bfc8276,1a3e831,8f91496,4fb0b8a,ae23b40,91dd851,8830515)
+- Último status conhecido: onda 3 concluída (T-09..T-14 [x]); SUITE 904/904, PYTEST57 OK, LINT 17
+- Próxima onda recomendada: 4 — T-15..T-20 (T-15 a T-19 e T-20 conforme plan.md)

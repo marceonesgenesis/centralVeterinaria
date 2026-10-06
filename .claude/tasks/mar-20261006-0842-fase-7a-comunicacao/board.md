@@ -51,3 +51,25 @@ EOF
 - [T-07] i18n-domínio: Outbound message with the same dedupe key already exists
 - [T-07] i18n-domínio: Outbound messages are never removed
 - [T-08] PendingItemQuery e ReminderSourceQuery prontos (sem herdar AbstractTenantRepository; só SELECT). ReminderCandidate::variables() traz tutor_name, patient_name, unit_name, clinic_name e as da fonte (appointment_date/appointment_time; vaccine_name/due_date; amount_due) — T-11 pode usar tutor_name direto. appointmentsBetween: [from, to) convertidos ao fuso da aplicação; vaccinesDueBetween inclusivo; openReceivablesCreatedBefore estrito (<). E-mail vazio vira null. subjectLabel: exame, serviço, vacina, descrição da prescrição (administração), código da finalidade (mensagens) e 'receivable_open' (recebível). sourceId: exam_request.id (exam_result), exam_result.id (exam_review), demais o id da própria linha; responsável da mensagem = created_by (null na automação), do recebível = null. Ordem de listForUnit = PendingItem::TYPES, cada tipo por prazo.
+- [T-14] i18n-domínio: Appointment <id> and encounter <id> belong to different patients
+- [T-14] i18n-domínio: appointment_id <id> was not found for the authenticated tenant
+- [T-14] EncounterView::onScheduleFollowUp agora guarda o Appointment devolvido por schedule() e chama makeAppointmentFollowupService($context)->link($appointment->id, $id) na mesma transação; AppointmentService/Appointment/AppointmentRepository intocados.
+- [T-12] MessageDeliveryService pronto (RED 4b762ea, impl ae23b40): constantes públicas RESULT_SENT/SKIPPED/CANCELLED/FAILED e CODE_OPTED_OUT/CODE_CONSENT_MISSING/CODE_PROVIDER_ERROR; reference do OutgoingMessage = 'msg-<id>'; cancel perdido em corrida ou mensagem de outro tenant devolvem 'skipped'. T-15: deliver relança MessageDeliveryFailed só em tentativa não final.
+- [T-09] Services prontos em CentralVet\Application: CommunicationPreferenceService (constante pública NOT_RECORDED = 'not_recorded'; preferencesFor também autoriza com entityType communication_preference/entityId tutor; tutor ausente lança CrossTenantReferenceException antes da autorização) e MessageTemplateService (entityType message_template, requiresUnitScope false; save sem 'status' assume active; id inexistente/alheio lança CrossTenantReferenceException `template_id <id> was not found for the authenticated tenant`). Os dois sem transação.
+- [T-09] i18n-domínio: Another active template already exists for this purpose and channel
+- [T-09] i18n-domínio: Unknown message template status "<status>"
+- [T-09] i18n-domínio: tutor_id <id> was not found for the authenticated tenant
+- [T-09] i18n-domínio: template_id <id> was not found for the authenticated tenant
+- [T-11] ReminderGenerationService pronto (CentralVet\Application): ordem dos descartes por canal = opt-out (skippedOptedOut) → consent sem preferência (skippedNoConsent) → sem contato (skippedNoContact) → permitsSending; ReminderRunSummary::toArray() = {created, duplicates, skipped_no_consent, skipped_no_contact, skipped_opted_out}; emailMessageIds() só dos e-mails criados nesta execução (duplicatas não entram). Recipient do WhatsApp = telefone normalizado (55...). Template ativo de e-mail sem assunto cai no assunto do MessageTemplateDefaults. Sem mensagens i18n novas.
+- [T-10] MessageService e MessageQueuePublisher prontos em CentralVet\Application. compose autoriza antes de validar; não encontrado (tutor, paciente fora do tutor, template, mensagem) lança CrossTenantReferenceException; template_id tem de casar finalidade e canal; cancel grava motivo `discarded`; listForUnit aceita só status/channel/purpose/tutor_id (vazios ignorados), limite 200; retry devolve a mensagem recarregada (controller publica depois do commit só se for e-mail); whatsAppLink em mensagem de e-mail lança InvalidArgumentException.
+- [T-10] i18n-domínio: Tutor <id> has no e-mail address
+- [T-10] i18n-domínio: Message <id> is no longer awaiting manual send
+- [T-10] i18n-domínio: Message <id> is no longer queued
+- [T-10] i18n-domínio: Message <id> has not failed
+- [T-10] i18n-domínio: Message <id> is not a WhatsApp message
+- [T-10] i18n-domínio: Template <id> does not match the message purpose and channel
+- [T-10] i18n-domínio: message_id <id> was not found for the authenticated tenant
+- [T-10] i18n-domínio: patient_id <id> was not found for tutor_id <id>
+- [T-10] i18n-domínio: template_id <id> was not found for the authenticated tenant
+- [T-10] i18n-domínio: Identifiers must be positive integers
+- [T-10] i18n-domínio: body must be between 1 and 2000 characters (já registrada pela T-02, reutilizada)

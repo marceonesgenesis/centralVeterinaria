@@ -10,12 +10,12 @@
 | T-06 | shared | Fakes dos repositórios, consultas, fila e provedor | T-02, T-03, T-05 | sim | média | Platão | [x] |
 | T-07 | backend | Repositórios PDO de comunicação + PdoConnectionFactory | T-01, T-02 | sim | alta | Athena | [x] |
 | T-08 | backend | Consultas PDO de pendências e de candidatos a lembrete | T-01, T-03 | sim | alta | Sherlock | [x] |
-| T-09 | backend | CommunicationPreferenceService e MessageTemplateService | T-02, T-06 | sim | média | Jaspion | [ ] |
-| T-10 | backend | MessageService (ciclo manual com base legal) e MessageQueuePublisher | T-02, T-05, T-06 | sim | alta | Athena | [ ] |
-| T-11 | backend | ReminderGenerationService (lembretes idempotentes com base legal e opt-out) | T-02, T-03, T-06 | sim | alta | Sherlock | [ ] |
-| T-12 | backend | MessageDeliveryService (entrega no worker, reconferindo a base legal) | T-02, T-05, T-06 | sim | alta | Tesla | [ ] |
-| T-13 | backend | PendingCenterService | T-03, T-06 | sim | simples | Arquimedes | [ ] |
-| T-14 | backend | Ligação de retorno (AppointmentFollowupService + EncounterView::onScheduleFollowUp) | T-02, T-06, T-07 | sim | média | Aang | [ ] |
+| T-09 | backend | CommunicationPreferenceService e MessageTemplateService | T-02, T-06 | sim | média | Jaspion | [x] |
+| T-10 | backend | MessageService (ciclo manual com base legal) e MessageQueuePublisher | T-02, T-05, T-06 | sim | alta | Athena | [x] |
+| T-11 | backend | ReminderGenerationService (lembretes idempotentes com base legal e opt-out) | T-02, T-03, T-06 | sim | alta | Sherlock | [x] |
+| T-12 | backend | MessageDeliveryService (entrega no worker, reconferindo a base legal) | T-02, T-05, T-06 | sim | alta | Tesla | [x] |
+| T-13 | backend | PendingCenterService | T-03, T-06 | sim | simples | Arquimedes | [x] |
+| T-14 | backend | Ligação de retorno (AppointmentFollowupService + EncounterView::onScheduleFollowUp) | T-02, T-06, T-07 | sim | média | Aang | [x] |
 | T-15 | infra | Worker e agendador (handler do job, CommunicationScheduler, worker.php, comando) | T-05, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [ ] |
 | T-16 | frontend | Telas de templates (lista e formulário) | T-07, T-09 | sim | média | Saitama | [ ] |
 | T-17 | frontend | Histórico e ficha da mensagem | T-05, T-07, T-10 | sim | média | Kratos | [ ] |
