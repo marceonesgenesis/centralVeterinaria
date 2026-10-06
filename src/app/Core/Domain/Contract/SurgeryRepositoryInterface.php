@@ -37,6 +37,12 @@ interface SurgeryRepositoryInterface extends TenantRepositoryInterface
      * `scheduled`/`pre_op`/`in_progress` whose period overlaps
      * (`scheduled_start_at < $endAt AND scheduled_end_at > $startAt`),
      * ignoring `$exceptSurgeryId`, within the current tenant.
+     *
+     * It is a current read (locking, `FOR UPDATE`), not a snapshot read: it
+     * sees bookings committed after the caller's transaction started and
+     * waits on pending ones. Call it after
+     * `SurgeryRoomRepositoryInterface::lockForScheduling()` and before the
+     * insert (lock -> check -> insert).
      */
     public function hasOverlapInRoom(
         int $roomId,

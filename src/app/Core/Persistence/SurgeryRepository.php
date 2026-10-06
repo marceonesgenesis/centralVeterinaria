@@ -87,6 +87,12 @@ final class SurgeryRepository extends AbstractTenantRepository implements Surger
         DateTimeImmutable $endAt,
         ?int $exceptSurgeryId,
     ): bool {
+        // Locking (current) read: under REPEATABLE READ a plain SELECT would
+        // answer from the transaction snapshot, which may predate a booking
+        // committed by the request that held the room lock before us. FOR
+        // UPDATE reads the latest committed rows and waits on pending ones
+        // (MySQL 5.7 and 8). Callers take SurgeryRoomRepository::lockForScheduling()
+        // first, so concurrent bookings of the same room queue on the room row.
         $query = $this->tenantQuery()->andEquals('room_id', $roomId);
         $except = $exceptSurgeryId !== null ? ' AND id <> :except_id' : '';
         $parameters = [
@@ -109,6 +115,7 @@ final class SurgeryRepository extends AbstractTenantRepository implements Surger
               AND scheduled_start_at < :end_at AND scheduled_end_at > :start_at
               AND status IN (:status_scheduled, :status_pre_op, :status_in_progress){$except}
             LIMIT 1
+            FOR UPDATE
             SQL
         );
         $statement->execute($parameters);
