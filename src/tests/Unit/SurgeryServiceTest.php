@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\SurgeryService;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccount;
+use CentralVet\Domain\Contract\SurgeryRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\SurgeryRoomUnavailableException;
@@ -379,13 +380,79 @@ final class SurgeryServiceTest
     public function testConcurrentCancellationMakesStartPreOpFail(): void
     {
         $id = (int) $this->scheduledSurgery()->id();
-        $this->surgeries->forceStatus($id, Surgery::STATUS_CANCELLED);
+        $fake = $this->surgeries;
+
+        // Another tab cancels the surgery right after this request read it
+        // (between findById and save): forceStatus runs inside findById.
+        $racing = new class ($fake, $id) implements SurgeryRepositoryInterface {
+            public function __construct(private readonly FakeSurgeryRepository $inner, private readonly int $raceId)
+            {
+            }
+
+            public function tenantId(): int
+            {
+                return $this->inner->tenantId();
+            }
+
+            public function findById(int|string $id): ?object
+            {
+                $found = $this->inner->findById($id);
+
+                if ((int) $id === $this->raceId) {
+                    $this->inner->forceStatus($this->raceId, Surgery::STATUS_CANCELLED);
+                }
+
+                return $found;
+            }
+
+            public function save(object $entity): object
+            {
+                return $this->inner->save($entity);
+            }
+
+            public function remove(object $entity): void
+            {
+                $this->inner->remove($entity);
+            }
+
+            public function listByUnitAndDay(int $systemUnitId, DateTimeImmutable $day): array
+            {
+                return $this->inner->listByUnitAndDay($systemUnitId, $day);
+            }
+
+            public function hasOverlapInRoom(int $roomId, DateTimeImmutable $startAt, DateTimeImmutable $endAt, ?int $exceptSurgeryId): bool
+            {
+                return $this->inner->hasOverlapInRoom($roomId, $startAt, $endAt, $exceptSurgeryId);
+            }
+
+            public function lockStatus(int $surgeryId): ?string
+            {
+                return $this->inner->lockStatus($surgeryId);
+            }
+        };
+
+        $service = new SurgeryService(
+            $racing,
+            $this->rooms,
+            $this->team,
+            $this->checklist,
+            $this->events,
+            $this->encounters,
+            $this->accounts,
+            $this->procedures,
+            FakeTenantUserDirectory::allowingAll(),
+            $this->policy,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+            static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW),
+        );
 
         self::expectThrows(
             InvalidStatusTransitionException::class,
             'changed status concurrently',
-            fn () => $this->service()->startPreOp($id, self::ACTION),
+            fn () => $service->startPreOp($id, self::ACTION),
         );
+        Assert::same(Surgery::STATUS_CANCELLED, $fake->lockStatus($id));
+        Assert::count(0, $this->eventsOfType($id, SurgeryEvent::TYPE_STATUS));
     }
 
     public function testCancelRecordsReasonAndEvent(): void
