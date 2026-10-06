@@ -13,13 +13,13 @@
 | T-09 | backend | `SurgeryChecklistService` — confirmação das fases | T-02, T-03, T-05 | sim | média | Arquimedes | [x] |
 | T-10 | backend | `SurgeryMaterialService` — registro e remoção de materiais sob trava | T-02, T-03, T-05 | sim | média | Saitama | [x] |
 | T-11 | backend | Conclusão integrada e retorno — `SurgeryCompletionService` + `addSourcedItem` com tipos de cirurgia | T-02, T-03, T-05 | sim | alta | Aang | [x] |
-| T-12 | frontend | Telas de salas (`SurgeryRoomList`, `SurgeryRoomForm`) | T-06, T-07 | sim | média | Saitama | [ ] |
-| T-13 | frontend | Agendamento a partir do atendimento e troca de equipe (`SurgeryScheduleForm`) | T-06, T-07, T-08 | sim | média | Naruto | [ ] |
-| T-14 | frontend | Ficha da cirurgia (`SurgeryView`): status, cancelamento, conclusão, retorno, internar | T-06, T-08, T-09, T-10, T-11 | sim | alta | Aang | [ ] |
-| T-15 | frontend | Consentimento e eventos clínicos (`SurgeryConsentForm`, `SurgeryEventForm`) | T-06, T-08 | sim | média | Kratos | [ ] |
-| T-16 | frontend | Checklist (tablet) e materiais (`SurgeryChecklistForm`, `SurgeryMaterialForm`) + CSS `cv-checklist-*` | T-06, T-09, T-10 | sim | alta | Tesla | [ ] |
-| T-17 | frontend | Agenda cirúrgica do dia (`SurgeryList`) + `SurgeryAgendaView` | T-06, T-08 | sim | média | Batman | [ ] |
-| T-18 | frontend | Navegação: menu, abas `CvNav`, ação no `EncounterView` | T-04 | sim | simples | Jaspion | [ ] |
+| T-12 | frontend | Telas de salas (`SurgeryRoomList`, `SurgeryRoomForm`) | T-06, T-07 | sim | média | Saitama | [x] |
+| T-13 | frontend | Agendamento a partir do atendimento e troca de equipe (`SurgeryScheduleForm`) | T-06, T-07, T-08 | sim | média | Naruto | [x] |
+| T-14 | frontend | Ficha da cirurgia (`SurgeryView`): status, cancelamento, conclusão, retorno, internar | T-06, T-08, T-09, T-10, T-11 | sim | alta | Aang | [x] |
+| T-15 | frontend | Consentimento e eventos clínicos (`SurgeryConsentForm`, `SurgeryEventForm`) | T-06, T-08 | sim | média | Kratos | [x] |
+| T-16 | frontend | Checklist (tablet) e materiais (`SurgeryChecklistForm`, `SurgeryMaterialForm`) + CSS `cv-checklist-*` | T-06, T-09, T-10 | sim | alta | Tesla | [x] |
+| T-17 | frontend | Agenda cirúrgica do dia (`SurgeryList`) + `SurgeryAgendaView` | T-06, T-08 | sim | média | Batman | [x] |
+| T-18 | frontend | Navegação: menu, abas `CvNav`, ação no `EncounterView` | T-04 | sim | simples | Jaspion | [x] |
 | T-19 | frontend | i18n pt/en e mensagens de domínio da cirurgia | T-12, T-13, T-14, T-15, T-16, T-17, T-18 | sim | média | Levi | [ ] |
 | T-20 | docs | Runbook da cirurgia e seção 5.7 da 0011 | T-01, T-04, T-11 | sim | simples | Gandalf | [ ] |
 | T-21 | qa | Validação final ponta a ponta e SQL de limpeza `F6B teste` | T-19, T-20 | não | média | Spock | [ ] |

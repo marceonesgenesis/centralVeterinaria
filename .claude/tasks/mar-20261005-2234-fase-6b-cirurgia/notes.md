@@ -24,7 +24,9 @@
 - 2026-10-06 · T-08 · onda 3 — Correção só de testes (21dbc10): resourceUnitId do atendimento/cirurgia e caminho negado, mutações provadas em worktree removida; ausência de RED aceita (código já correto).
 - 2026-10-06 · T-10 · onda 3 — Remoção dupla concorrente gerava evento fantasma: corrigido já (4678b75 RED + 6929b48). Novo `delete(): int` com rowCount no contrato/repositório/Fake da T-06 (`remove()` void delega; desvio aceito); service lança "Material <id> was already removed" sem evento. Caminhos autorizados por ruling.
 - 2026-10-06 · T-09 · onda 3 — `confirmPhase` sem `lockStatus`; toque duplo fica com o UNIQUE (aceito pela revisão).
-
+- 2026-10-05 · T-12..T-18 · onda 4 — Fluxos do Review Focus no navegador (sala sobreposta, iniciar sem consentimento/checklist, toque duplo no checklist, material/conclusão com e sem estoque, outra unidade) adiados para a T-21 (roteiro B do gate final) por limite de turnos; nenhum registro de teste criado na onda 4.
+- 2026-10-05 · T-15 · onda 4 — Revisão rodada 1 reprovou (XSS armazenado: nome do procedimento sem escape no título do SurgeryEventForm) → 2d05dd9 (RED) + 78aa2e0 (CvFormat::e; varredura do SurgeryConsentForm sem outros casos); re-validada (SUITE 746/746); re-revisão rodada 2 aprovada.
+- 2026-10-05 · T-12..T-18 · onda 4 — Login admin no Playwright refeito pelo orquestrador (autorização do usuário para a 6B).
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
   1. `./scripts/backup.sh` e `gzip -t`.
@@ -43,7 +45,8 @@
 - [T-06] `SurgeryRepository::save` UPDATE grava só status, consentimento, started/completed/cancelled e `followup_appointment_id` (sala, horário, procedimento e notas imutáveis; remarcar = cancelar e agendar); `SurgeryTeamRepository::save` só insere (use `replaceForSurgery`); checklist/evento com id → `LogicException`; material sem UPDATE.
 - [T-10] Correção: `SurgeryMaterialRepositoryInterface::delete(SurgeryMaterial): int` (linhas apagadas, DELETE com tenant+id+surgery_id); `remove()` void delega; Fake ganhou `storedMaterialOfAnyTenant(int)`; "Material <id> was already removed" sem evento. i18n pt: "O material <id> já foi removido" (T-19).
 - [T-07..T-11] SurgeryService: sala de outra unidade → InvalidArgumentException `Surgery room <id> belongs to another unit`; cirurgia inexistente → CrossTenantReferenceException; eventos scheduled/consent/status/cancellation; replaceTeam confere lockStatus (T-08). SurgeryCompletionService não abre transação: T-14 envolve em TTransaction único e `complete()` sem leitura prévia; `scheduleFollowUp` valida antes de agendar (T-11).
-
+- [onda 4] Telas prontas: SurgeryRoomList/Form, SurgeryScheduleForm (`onChangeProcedure` extra), SurgeryView (abas summary|checklist|materials|events), SurgeryConsentForm/EventForm (`typeLabels()` público), SurgeryChecklistForm/MaterialForm (`onAskRemove` extra, CSS `cv-checklist-*`), SurgeryList + SurgeryAgendaView, navegação (menu, CvNav 'surgery', EncounterView::PLAN_ACTIONS). Detalhes e chaves i18n no board.md.
+- [onda 4] Gate: SUITE 744/744 (746 após fix T-15), LINT 19, PYTEST57 OK; smoke Playwright 820×1180 nas 9 telas vazias (alvos 44 px, console 0, rede sem ≥400).
 ## Pendências
 - Herdadas da 6A e fora do escopo: Central de Pendências (PRD §8.23); `docs/runbooks/migrations.md` cita `$MIGRATION_USER`; admissões simultâneas do mesmo paciente sem guarda no banco.
 - T-01: [sugestão] FKs de coluna única não garantem consistência tenant/unidade (T-06/T-08 devem validar); `surgery_cancelled_ck` não exige autor do cancelamento; consulta de sobreposição de sala sem limite inferior de janela varre histórico.
@@ -58,7 +61,15 @@
 - T-10: [sugestão] teste não distingue lockStatus de leitura velha; unidade da cirurgia = do contexto no fixture, falta teste de AuthorizationDenied em removeMaterial/listMaterials; Fake devolve 0 para material de outro tenant e o real lança (SurgeryFakesTest assere o 0).
 - T-11: [sugestão] atomicidade depende do TTransaction da T-14 (2+ produtos: consume do 1º grava antes do 2º lançar; pré-checar saldo ou testar 2 produtos); `complete()` na T-14 sem leitura prévia na transação (snapshot REPEATABLE READ); testCompletionUsesLockedStatusNotStaleRead não distingue trava; conclusão x close da conta não serializam (herdado da 6A, levar à revisão final).
 - T-19: i18n "Material <id> was already removed" → "O material <id> já foi removido".
-
+- T-12: [sugestão] sem teste de tela para ativar/desativar e edição de sala; critério 2 (badge Ativa com dados) só na T-21.
+- T-13: [sugestão] onSave/onSaveTeam capturam só `Exception` (Error deixa TTransaction aberta até o fim do request); onChangeProcedure sobrescreve a duração digitada; patient_id da rota ignorado sem conferência.
+- T-14: [sugestão] ficha concluída não mostra itens lançados/produtos baixados (só no TMessage); Review Focus 3 sem teste automatizado; onAskComplete sem validar id > 0.
+- T-15: [sugestão] sem teste de que consent_signer_name/consent_text da query string são ignorados; makeSurgeryService/resolveTenantContext duplicados nas telas (e na 6A), candidato a helper.
+- T-16: [sugestão] toque duplo concorrente vira mensagem genérica (confirmPhase sem trava); link Remover sem static=1; segundo Remover do mesmo material mostra texto enganoso de outra clínica.
+- T-17: [sugestão] SELECT IN diretos no controller (seguros, mas únicos entre os clínicos); badges pre_op e in_progress com o mesmo tom; smoke com dados só na T-21.
+- T-18: [sugestão] teste de menu não prova posição após `_t{Beds}` nem a ação do item Surgeries; docblock de `onInlineAction` desatualizado em EncounterView.
+- T-19: chaves i18n da onda 4 (T-12..T-18) estão em board.md; "Message not found" é tolerado até lá. Mensagens de domínio para UserMessage anotadas em [T-16] do board.
+- T-21: fluxos em navegador da onda 4 adiados (sala sobreposta, iniciar sem consentimento/checklist, toque duplo, material/conclusão com e sem estoque, outra unidade).
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
 - Conclusão não atômica fora do controller (services não abrem transação). Mitigação: `SurgeryView::onComplete` com `TTransaction` único; Review Focus 3 conferido no roteiro B da T-21.
@@ -77,5 +88,5 @@
   - Onda 1: BASE 09ce2d5 → HEAD 1451d0d (be36b80, 6952e1d, e8d6c93, 3936273, e416aa6, 1451d0d)
   - Onda 2: BASE 817a4f3 → HEAD f1dc5d8 (0887153, 223a94b, f245d7a, 98523b5, 701e4cb, f1dc5d8)
   - Onda 3: BASE 9c5bb04 → HEAD 21dbc10 (ddaadf0, a26b298, 6e68554, 96f0567, 3f2038a, 8dacf73, 41cfbee, 063e263, d9b5a81, 5ecd21e, 4678b75, 6929b48, 21dbc10)
-- Último status conhecido: onda 3 concluída (T-07..T-11 [x]); SUITE 711/711, LINT ok, PYTEST57 OK.
-- Próxima onda recomendada: onda 4 (T-12..T-18)
+- Último status conhecido: onda 4 concluída (T-12..T-18 [x]); SUITE 746/746, LINT 19, PYTEST57 OK.
+- Próxima onda recomendada: onda 5 (T-19)
