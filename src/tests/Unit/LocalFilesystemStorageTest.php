@@ -65,6 +65,49 @@ final class LocalFilesystemStorageTest
         });
     }
 
+    /**
+     * A symlink planted inside the root that points outside it must not be
+     * followed: neither a linked directory nor a linked file is read,
+     * reported as existing, deleted or written through.
+     */
+    public function testSymlinkLeavingTheRootIsNotFollowed(): void
+    {
+        $this->withTempRoot(function (string $root): void {
+            $this->withTempRoot(function (string $outside) use ($root): void {
+                file_put_contents($outside . '/v1.pdf', 'outside-secret');
+                $storage = $this->storage($root, 101);
+                $objects = $root . '/cv/testing/tenant/101/objects';
+                mkdir($objects, 0750, true);
+                symlink($outside, $objects . '/linked-dir');
+                symlink($outside . '/v1.pdf', $objects . '/linked-file.pdf');
+
+                foreach (['linked-dir/v1.pdf', 'linked-file.pdf'] as $key) {
+                    Assert::false($storage->exists($key), "exists() must not follow {$key}");
+                    Assert::throws(StorageException::class, static fn () => $storage->get($key), "get() must not follow {$key}");
+                    Assert::throws(StorageException::class, static fn () => $storage->delete($key), "delete() must not follow {$key}");
+                }
+
+                Assert::throws(StorageException::class, static fn () => $storage->put('linked-dir/v2.pdf', 'x'));
+                Assert::same('outside-secret', file_get_contents($outside . '/v1.pdf'));
+                Assert::false(file_exists($outside . '/v2.pdf'));
+                Assert::true(is_link($objects . '/linked-file.pdf'), 'the link itself is left alone');
+            });
+        });
+    }
+
+    public function testSymlinkInsideTheRootIsAllowed(): void
+    {
+        $this->withTempRoot(function (string $root): void {
+            $storage = $this->storage($root, 101);
+            $storage->put('documents/1/v1.pdf', 'inside');
+            $objects = $root . '/cv/testing/tenant/101/objects';
+            symlink($objects . '/documents', $objects . '/alias');
+
+            Assert::true($storage->exists('alias/1/v1.pdf'));
+            Assert::same('inside', $storage->get('alias/1/v1.pdf'));
+        });
+    }
+
     public function testRootInsideWebRootIsRejected(): void
     {
         $this->withTempRoot(function (string $webRoot): void {
@@ -165,8 +208,9 @@ final class LocalFilesystemStorageTest
 
     private function removeTree(string $path): void
     {
-        if (!is_dir($path)) {
-            if (file_exists($path)) {
+        // A link is removed itself, never followed (it may point outside the tree).
+        if (is_link($path) || !is_dir($path)) {
+            if (is_link($path) || file_exists($path)) {
                 unlink($path);
             }
 

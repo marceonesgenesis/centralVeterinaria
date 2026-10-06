@@ -60,6 +60,36 @@ final class DocumentRendererTest
         Assert::same('%PDF-', substr($bytes, 0, 5));
     }
 
+    /**
+     * The effective render, not only options(): raw HTML with remote <img>
+     * and <link> still yields a PDF and dompdf never opens a connection to
+     * the (listening) remote host.
+     */
+    public function testRenderHtmlNeverFetchesRemoteResources(): void
+    {
+        $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+        Assert::true($server !== false, 'test needs a local listening socket');
+        $address = stream_socket_get_name($server, false);
+        $previousTimeout = ini_set('default_socket_timeout', '2');
+
+        try {
+            $bytes = (new DompdfDocumentRenderer())->renderHtml(
+                '<html><head><link rel="stylesheet" href="http://' . $address . '/s.css"></head>'
+                . '<body><p>F7B teste</p><img src="http://' . $address . '/x.png">'
+                . '<div style="background-image: url(http://' . $address . '/bg.png)">x</div></body></html>',
+            );
+
+            stream_set_blocking($server, false);
+            $connection = @stream_socket_accept($server, 0);
+
+            Assert::same('%PDF-', substr($bytes, 0, 5));
+            Assert::false($connection !== false, 'dompdf must not connect to a remote host');
+        } finally {
+            ini_set('default_socket_timeout', (string) $previousTimeout);
+            fclose($server);
+        }
+    }
+
     public function testDompdfOptionsAreLockedDown(): void
     {
         $options = (new DompdfDocumentRenderer())->options();

@@ -217,6 +217,34 @@ final class DocumentRepositoryIntegrationTest extends MysqlIntegrationTestCase
         Assert::count(1, $documents->listStaleQueuedIds($now->modify('+1 year -10 minutes'), 1));
     }
 
+    /**
+     * A released claim (the job is waiting in the queue backoff) is not
+     * stuck: the sweep must not republish it while its release is recent,
+     * even if the request itself is old. Once the release is older than the
+     * window (the queued job was lost), it is stuck again.
+     */
+    public function testReleasedClaimInQueueBackoffIsNotStaleUntilTheWindowPasses(): void
+    {
+        $documents = $this->documents($this->tenantA);
+        $neverClaimed = (int) $documents->insertNextVersion($this->cardRequest())->id();
+        $inBackoff = (int) $documents->insertNextVersion($this->cardRequest())->id();
+        $lostAfterRelease = (int) $documents->insertNextVersion($this->cardRequest())->id();
+
+        $this->pdo->exec(
+            'UPDATE generated_document SET created_at = NOW(6) - INTERVAL 1 HOUR, updated_at = NOW(6) - INTERVAL 1 HOUR '
+            . "WHERE id IN ({$neverClaimed}, {$inBackoff}, {$lostAfterRelease})",
+        );
+        $dbNow = new DateTimeImmutable((string) $this->pdo->query('SELECT NOW(6)')->fetchColumn());
+
+        Assert::true($documents->claim($inBackoff, $dbNow));
+        Assert::true($documents->releaseClaim($inBackoff, 'storage_failed'));
+        Assert::true($documents->claim($lostAfterRelease, $dbNow->modify('-30 minutes')));
+        Assert::true($documents->releaseClaim($lostAfterRelease, 'storage_failed'));
+        $this->pdo->exec("UPDATE generated_document SET updated_at = NOW(6) - INTERVAL 11 MINUTE WHERE id = {$lostAfterRelease}");
+
+        Assert::same([$neverClaimed, $lostAfterRelease], $documents->listStaleQueuedIds($dbNow->modify('-10 minutes'), 10));
+    }
+
     public function testTemplateListActiveIgnoresInactiveAndOtherTenant(): void
     {
         $templates = $this->templates($this->tenantA);

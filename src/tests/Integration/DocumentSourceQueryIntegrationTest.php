@@ -148,6 +148,29 @@ final class DocumentSourceQueryIntegrationTest extends MysqlIntegrationTestCase
         Assert::same('F7B teste Rex B', $this->query($this->tenantB)->patientSummary($this->b['patient'])['patient_name'] ?? null, 'tenant B reads its own patient');
     }
 
+    /** `system_users.name` is nullable: a professional without a name reads as '' in every source. */
+    public function testMissingProfessionalNameReadsAsEmptyString(): void
+    {
+        $nameless = (int) $this->pdo->query('SELECT MAX(id) + 1000 FROM system_users')->fetchColumn();
+        $this->pdo->prepare('INSERT INTO system_users (id, name, login, active) VALUES (:id, NULL, :login, :active)')
+            ->execute(['id' => $nameless, 'login' => 'f7b-teste-' . bin2hex(random_bytes(4)), 'active' => 'Y']);
+
+        foreach (['vaccination' => 'patient_id', 'prescription' => 'patient_id'] as $table => $column) {
+            $this->pdo->prepare("UPDATE {$table} SET professional_system_user_id = :u WHERE tenant_id = :t AND {$column} = :p")
+                ->execute(['u' => $nameless, 't' => $this->tenantA, 'p' => $this->a['patient']]);
+        }
+        $this->pdo->prepare('UPDATE surgery SET surgeon_system_user_id = :u WHERE tenant_id = :t AND id = :id')
+            ->execute(['u' => $nameless, 't' => $this->tenantA, 'id' => $this->a['surgery']]);
+
+        $query = $this->query($this->tenantA);
+        $vaccinations = $query->vaccinations($this->a['patient']);
+
+        Assert::count(2, $vaccinations);
+        Assert::same(['', ''], array_column($vaccinations, 'professional_name'));
+        Assert::same('', $query->prescription($this->a['prescription'])['professional_name'] ?? null);
+        Assert::same('', $query->surgery($this->a['surgery'])['surgeon_name'] ?? null);
+    }
+
     public function testMissingIdsAreNotFound(): void
     {
         $query = $this->query($this->tenantA);

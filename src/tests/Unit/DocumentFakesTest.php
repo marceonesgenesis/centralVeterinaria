@@ -181,6 +181,85 @@ final class DocumentFakesTest
         Assert::notNull($query->tutorContact(7));
     }
 
+    public function testTemplateRepositoryListActiveSkipsInactiveAndOtherKinds(): void
+    {
+        $repo = new FakeDocumentTemplateRepository(self::context());
+        $active = $repo->save(DocumentTemplate::create(self::TENANT_ID, DocumentKind::MEDICAL_CERTIFICATE, 'B ativo', 'Texto', self::USER_ID));
+        $inactive = $repo->save(DocumentTemplate::create(self::TENANT_ID, DocumentKind::MEDICAL_CERTIFICATE, 'A inativo', 'Texto', self::USER_ID));
+        $inactive->update('A inativo', 'Texto', DocumentTemplate::STATUS_INACTIVE, self::USER_ID);
+        $repo->save($inactive);
+
+        $listed = $repo->listActive(DocumentKind::MEDICAL_CERTIFICATE);
+
+        Assert::count(1, $listed);
+        Assert::same($active->id(), $listed[0]->id());
+        Assert::same([], $repo->listActive(DocumentKind::VACCINATION_CARD));
+        Assert::same(['A inativo', 'B ativo'], array_map(static fn (DocumentTemplate $t): string => $t->name(), $repo->listAll()));
+        Assert::same(DocumentTemplate::STATUS_INACTIVE, $repo->findById((int) $inactive->id())?->status());
+    }
+
+    public function testSourceQueryReturnsSeededPrescriptionAndSurgery(): void
+    {
+        $query = new FakeDocumentSourceQuery();
+        $prescription = [
+            'prescription_id' => 31, 'patient_id' => 10, 'system_unit_id' => self::UNIT_ID, 'professional_name' => '',
+            'orientation_text' => null, 'created_at' => '2026-10-06 10:00:00', 'items' => [],
+        ];
+        $surgery = [
+            'surgery_id' => 41, 'patient_id' => 10, 'system_unit_id' => self::UNIT_ID, 'procedure_name' => 'F7B teste',
+            'scheduled_start_at' => '2026-10-07 08:00:00', 'surgeon_name' => '', 'consent_signer_name' => null,
+            'consent_text' => null, 'consent_recorded_at' => null,
+        ];
+        $query->seedPrescription($prescription);
+        $query->seedSurgery($surgery);
+
+        Assert::same($prescription, $query->prescription(31));
+        Assert::same($surgery, $query->surgery(41));
+        Assert::null($query->prescription(41));
+        Assert::null($query->surgery(31));
+    }
+
+    public function testSimulateConcurrentClaimUsesTheGivenInstant(): void
+    {
+        $repo = new FakeGeneratedDocumentRepository(self::context());
+        $id = (int) $repo->insertNextVersion(self::card())->id();
+        $at = new DateTimeImmutable('2031-10-01 10:00:00');
+
+        $repo->simulateConcurrentClaim($id, $at);
+
+        Assert::false($repo->claim($id, $at->modify('+5 minutes')), 'a fresh claim blocks');
+        Assert::true($repo->claim($id, $at->modify('+11 minutes')), 'an abandoned claim is retaken');
+    }
+
+    public function testSeedKeepsTheGivenColumns(): void
+    {
+        $repo = new FakeGeneratedDocumentRepository(self::context());
+        $repo->seed(self::card(), ['claimed_at' => '2031-10-01 10:00:00.000000', 'sha256' => str_repeat('b', 64), 'size_bytes' => 12]);
+        $id = $repo->all()[0]->id();
+
+        Assert::false($repo->claim((int) $id, new DateTimeImmutable('2031-10-01 10:01:00')), 'seeded as claimed');
+        Assert::same(str_repeat('b', 64), $repo->row((int) $id)['sha256']);
+        Assert::same(12, $repo->row((int) $id)['size_bytes']);
+        Assert::throws(\InvalidArgumentException::class, static fn () => $repo->seed(self::card(11), ['unknown_column' => 1]));
+    }
+
+    /** Mirrors the PDO repository: a released claim waits in the queue backoff and is not stale until its release ages. */
+    public function testReleasedClaimIsNotStaleUntilTheWindowPasses(): void
+    {
+        $repo = new FakeGeneratedDocumentRepository(self::context());
+        $hourAgo = (new DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s.u');
+        $repo->seed(self::card(10), ['created_at' => $hourAgo, 'updated_at' => $hourAgo]);
+        $repo->seed(self::card(11), ['created_at' => $hourAgo, 'updated_at' => $hourAgo]);
+        [$neverClaimed, $inBackoff] = array_map(static fn (GeneratedDocument $d): int => (int) $d->id(), $repo->all());
+        $now = new DateTimeImmutable();
+
+        Assert::true($repo->claim($inBackoff, $now));
+        Assert::true($repo->releaseClaim($inBackoff, 'storage_failed'));
+
+        Assert::same([$neverClaimed], $repo->listStaleQueuedIds($now->modify('-10 minutes'), 10));
+        Assert::same([$neverClaimed, $inBackoff], $repo->listStaleQueuedIds($now->modify('+11 minutes'), 10));
+    }
+
     public function testSenderNamesQueryReturnsNullsForUnknownUnit(): void
     {
         $query = new FakeSenderNamesQuery([self::UNIT_ID => ['unit_name' => 'Unit', 'clinic_name' => 'Clinic']]);

@@ -235,6 +235,47 @@ final class DocumentWorkerTest
         Assert::false(str_contains((string) json_encode($this->logs), 'F7B teste'));
     }
 
+    public function testSweeperOnlyRepublishesDocumentsOlderThanTenMinutes(): void
+    {
+        $requestedAt = new DateTimeImmutable();
+        $stuck = $this->seedQueued(false);
+
+        $nineMinutesLater = $this->sweeper($requestedAt->modify('+9 minutes'))->runOnce();
+        Assert::same(['tenants' => 1, 'republished' => 0, 'errors' => 0], $nineMinutesLater);
+        Assert::count(0, $this->queue->pushed());
+
+        $elevenMinutesLater = $this->sweeper($requestedAt->modify('+11 minutes'))->runOnce();
+        Assert::same(['tenants' => 1, 'republished' => 1, 'errors' => 0], $elevenMinutesLater);
+        Assert::same($stuck, $this->queue->pushed()[0]['payload']['document_id']);
+    }
+
+    public function testSweeperRepublishesAtMostOneHundredOldestPerTenant(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 101; $i++) {
+            $ids[] = $this->seedQueued(false);
+        }
+
+        $result = $this->sweeper(new DateTimeImmutable('+1 hour'))->runOnce();
+
+        Assert::same(['tenants' => 1, 'republished' => 100, 'errors' => 0], $result);
+        Assert::same(
+            array_slice($ids, 0, 100),
+            array_map(static fn (array $p): int => $p['payload']['document_id'], $this->queue->pushed()),
+        );
+    }
+
+    private function sweeper(DateTimeImmutable $now): DocumentSweeper
+    {
+        return new DocumentSweeper(
+            static fn (): array => [self::TENANT_ID],
+            fn (int $tenantId): FakeGeneratedDocumentRepository => $this->documents,
+            new DocumentJobPublisher($this->queue),
+            $this->logger,
+            static fn (): DateTimeImmutable => $now,
+        );
+    }
+
     private function handler(): DocumentJobHandler
     {
         return new DocumentJobHandler(
