@@ -19,16 +19,21 @@
 --   tutor/patient/message_template 'F7A teste%': 0; tutor com e-mail f7a.teste@...: 0.
 --
 -- Estado lido em 2026-10-06 10:51 (só SELECT), DEPOIS dos gates (roteiro A, revalidação 1, roteiro B;
--- mensagens e templates relidos depois do complemento da rodada 2 e da onda 7):
+-- mensagens e templates relidos depois do complemento da rodada 2 e das ondas 7 e 8):
 --   tutor 9 (MAX 15446), patient 9 (MAX 13320), appointment 20 (MAX 838), encounter 8 (MAX 11104),
 --   communication_message 13 (MAX 42; 30 e 36 do complemento da rodada 2, 42 da onda 7),
---   communication_preference 3, message_template 7 (MAX 7; 7 da onda 7),
+--   communication_preference 3, message_template 8 (MAX 8; 7 da onda 7, 8 da onda 8),
+--   prescription_template 4 (MAX 2640; pré-gate 3/395), prescription_template_item 7 (MAX 5049; pré-gate 5/767),
 --   appointment_followup 3; encounter_account 4, receivable 3, payment 3, vaccination 0,
 --   queue_entry 4, system_program 133 (inalterados); audit_log MAX(id) 5856.
 --   Ids criados nos gates (todos alvo deste script):
 --     tutor                    15445 'F7A teste Tutor', 15446 'F7A teste Tutor 2'
 --     patient                  13319 'F7A teste Pet' (tutor 15445), 13320 'F7A teste Pet 2' (tutor 15446)
---     message_template         1-7 ('F7A teste confirmação/retorno/vacina/cobrança/whatsapp/unidade/xss')
+--     message_template         1-8 ('F7A teste confirmação/retorno/vacina/cobrança/whatsapp/unidade/xss',
+--                              8 'F7A teste \x3cimg ...'; nenhuma mensagem usa o 8)
+--     prescription_template    2640 'F7A teste gate8 <b>x</b> \x3c' (onda 8), com itens
+--     prescription_template_item 5048, 5049 (FK template_id → prescription_template; nenhuma outra
+--                              tabela referencia prescription_template)
 --     communication_preference 1, 2 (tutor 15445), 3 (tutor 15446)
 --     communication_message    1-7, 17, 18, 19, 30, 36, 42 (8-16, 20-29, 31-35 e 37-41 são lacunas
 --                              do auto_increment; 19, 30, 36 e 42 têm patient_id NULL e entram pelo
@@ -80,7 +85,8 @@
 --
 -- Ordem das FKs: communication_message → communication_preference → message_template →
 -- appointment_followup → receivable → encounter_account_item → encounter_account → vaccination
--- → exam_result → exam_request → prescription_item → prescription → encounter → queue_entry →
+-- → exam_result → exam_request → prescription_item → prescription → prescription_template_item →
+-- prescription_template → encounter → queue_entry →
 -- appointment → patient → tutor. procedure_execution, sale, hospitalization e surgery de
 -- atendimento F7A não são esperados (o gate não os cria): a FK RESTRICT interrompe o script se
 -- existirem; ROLLBACK e reveja.
@@ -109,6 +115,9 @@ SELECT COUNT(*) AS communication_message_total    FROM communication_message;   
 SELECT COUNT(*) AS communication_preference_total FROM communication_preference;  -- pré-gate: 0
 SELECT COUNT(*) AS message_template_total         FROM message_template;          -- pré-gate: 0
 SELECT COUNT(*) AS appointment_followup_total     FROM appointment_followup;      -- pré-gate: 0
+SELECT COUNT(*) AS prescription_template_total    FROM prescription_template;     -- pré-gate: 3 (MAX 395)
+SELECT COUNT(*) AS prescription_template_item_total FROM prescription_template_item; -- pré-gate: 5 (MAX 767)
+SELECT COUNT(*) AS rx_template_f7a FROM prescription_template WHERE name LIKE 'F7A teste%';
 SELECT COUNT(*) AS tutor_f7a    FROM tutor            WHERE full_name LIKE 'F7A teste%';
 SELECT COUNT(*) AS patient_f7a  FROM patient          WHERE name LIKE 'F7A teste%';
 SELECT COUNT(*) AS template_f7a FROM message_template WHERE name LIKE 'F7A teste%';
@@ -119,7 +128,7 @@ SELECT COUNT(*) AS template_f7a FROM message_template WHERE name LIKE 'F7A teste
 -- =============================================================================================
 DROP TEMPORARY TABLE IF EXISTS tmp_f7a_tutor, tmp_f7a_patient, tmp_f7a_template, tmp_f7a_message,
     tmp_f7a_encounter, tmp_f7a_appointment, tmp_f7a_followup, tmp_f7a_account, tmp_f7a_receivable,
-    tmp_f7a_vaccination, tmp_f7a_exam_request, tmp_f7a_prescription;
+    tmp_f7a_vaccination, tmp_f7a_exam_request, tmp_f7a_prescription, tmp_f7a_rx_template;
 
 CREATE TEMPORARY TABLE tmp_f7a_tutor        (id BIGINT UNSIGNED PRIMARY KEY);
 CREATE TEMPORARY TABLE tmp_f7a_patient      (id BIGINT UNSIGNED PRIMARY KEY);
@@ -133,10 +142,13 @@ CREATE TEMPORARY TABLE tmp_f7a_receivable   (id BIGINT UNSIGNED PRIMARY KEY);
 CREATE TEMPORARY TABLE tmp_f7a_vaccination  (id BIGINT UNSIGNED PRIMARY KEY);
 CREATE TEMPORARY TABLE tmp_f7a_exam_request (id BIGINT UNSIGNED PRIMARY KEY);
 CREATE TEMPORARY TABLE tmp_f7a_prescription (id BIGINT UNSIGNED PRIMARY KEY);
+CREATE TEMPORARY TABLE tmp_f7a_rx_template  (id BIGINT UNSIGNED PRIMARY KEY);
 
 -- 2.1 Cadastros com o prefixo
 INSERT INTO tmp_f7a_tutor    SELECT id FROM tutor            WHERE full_name LIKE 'F7A teste%' AND id > 13876;
 INSERT INTO tmp_f7a_template SELECT id FROM message_template WHERE name LIKE 'F7A teste%';
+-- modelo de prescrição do gate 8 (pré-gate: MAX(id) 395)
+INSERT INTO tmp_f7a_rx_template SELECT id FROM prescription_template WHERE name LIKE 'F7A teste%' AND id > 395;
 INSERT IGNORE INTO tmp_f7a_patient SELECT id FROM patient WHERE name LIKE 'F7A teste%' AND id > 9180;
 INSERT IGNORE INTO tmp_f7a_patient SELECT id FROM patient WHERE tutor_id IN (SELECT id FROM tmp_f7a_tutor) AND id > 9180;
 
@@ -185,6 +197,8 @@ SELECT 'payment' AS t, p.id, p.receivable_id, p.amount_cents FROM payment p WHER
 SELECT 'vaccination' AS t, v.id, v.patient_id, v.encounter_id, v.next_dose_at FROM vaccination v WHERE v.id IN (SELECT id FROM tmp_f7a_vaccination);
 SELECT COUNT(*) AS exam_requests FROM tmp_f7a_exam_request;
 SELECT COUNT(*) AS prescriptions FROM tmp_f7a_prescription;
+SELECT 'rx_template' AS t, r.id, r.name, r.created_at FROM prescription_template r WHERE r.id IN (SELECT id FROM tmp_f7a_rx_template);
+SELECT 'rx_template_item' AS t, i.id, i.template_id FROM prescription_template_item i WHERE i.template_id IN (SELECT id FROM tmp_f7a_rx_template);
 -- ^ dependentes não esperados (devem ser 0; a FK interrompe o DELETE do atendimento):
 SELECT COUNT(*) AS procedure_executions FROM procedure_execution WHERE encounter_id IN (SELECT id FROM tmp_f7a_encounter);
 SELECT COUNT(*) AS sales                FROM sale                WHERE patient_id   IN (SELECT id FROM tmp_f7a_patient);
@@ -196,7 +210,10 @@ SELECT COUNT(*) AS account_items        FROM encounter_account_item WHERE accoun
 -- 2.5 Conferência das listas derivadas contra os ids explícitos do gate (confere = 1 em todas)
 SELECT 'tutor' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '15445,15446' AS confere FROM tmp_f7a_tutor;
 SELECT 'patient' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '13319,13320' AS confere FROM tmp_f7a_patient;
-SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7' AS confere FROM tmp_f7a_template;
+SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,8' AS confere FROM tmp_f7a_template;
+SELECT 'rx_template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2640' AS confere FROM tmp_f7a_rx_template;
+SELECT 'rx_template_item' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '5048,5049' AS confere
+  FROM prescription_template_item WHERE template_id IN (SELECT id FROM tmp_f7a_rx_template);
 SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,17,18,19,30,36,42' AS confere FROM tmp_f7a_message;
 SELECT 'appointment' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '834,835,836,837,838' AS confere FROM tmp_f7a_appointment;
 SELECT 'encounter' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '11104' AS confere FROM tmp_f7a_encounter;
@@ -230,6 +247,10 @@ DELETE FROM exam_result       WHERE exam_request_id IN (SELECT id FROM tmp_f7a_e
 DELETE FROM exam_request      WHERE id IN (SELECT id FROM tmp_f7a_exam_request);
 DELETE FROM prescription_item WHERE prescription_id IN (SELECT id FROM tmp_f7a_prescription);
 DELETE FROM prescription      WHERE id IN (SELECT id FROM tmp_f7a_prescription);
+
+-- 3.3b Modelo de prescrição do gate 8: itens → modelo (FK prescription_template_item.template_id)
+DELETE FROM prescription_template_item WHERE template_id IN (SELECT id FROM tmp_f7a_rx_template);
+DELETE FROM prescription_template      WHERE id IN (SELECT id FROM tmp_f7a_rx_template) AND id > 395 AND name LIKE 'F7A teste%';
 
 -- 3.4 Atendimento (antes do agendamento: FK encounter.appointment_id → appointment)
 DELETE FROM encounter WHERE id IN (SELECT id FROM tmp_f7a_encounter) AND id > 4304;
@@ -284,6 +305,9 @@ SELECT MAX(id) AS tutor_max_depois       FROM tutor;        -- pré-gate 13876
 SELECT MAX(id) AS patient_max_depois     FROM patient;      -- pré-gate 9180
 SELECT MAX(id) AS appointment_max_depois FROM appointment;  -- pré-gate 831
 SELECT MAX(id) AS encounter_max_depois   FROM encounter;    -- pré-gate 4304
+SELECT COUNT(*) AS rx_template_f7a_depois FROM prescription_template WHERE id IN (SELECT id FROM tmp_f7a_rx_template);
+SELECT COUNT(*) AS prescription_template_total_depois, MAX(id) AS prescription_template_max_depois FROM prescription_template;  -- pré-gate 3 / 395
+SELECT COUNT(*) AS prescription_template_item_total_depois, MAX(id) AS prescription_template_item_max_depois FROM prescription_template_item;  -- pré-gate 5 / 767
 
 -- Confira tudo acima. Se bater, descomente e rode o COMMIT; senão, ROLLBACK.
 -- ROLLBACK;
