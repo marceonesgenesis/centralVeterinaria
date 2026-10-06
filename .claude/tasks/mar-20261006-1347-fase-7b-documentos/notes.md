@@ -42,6 +42,11 @@
 - 2026-10-06 · T-11 · onda 3 — Signatário do snapshot em `signatureName`, `subjectLines` "Rótulo: valor", `DocumentGenerationFailed` conforme o plano com docblock da interface desatualizado: aceito.
 - 2026-10-06 · T-12 · onda 3 — Passo 3 aceita também `DocumentSourceNotFoundException` (contrato T-02); teste de transação não prova rollback (fake não transacional): aceito, pendência para o gate E2E/integração.
 - 2026-10-06 · T-13 · onda 3 — Template ausente/inativo no merge → `InvalidArgumentException('Document template is not available')`: aceito.
+- 2026-10-06 · T-18 · onda 4 — UserMessageTest "Missing translation: Consent PDF" é a única falha da SUITE (1108/1109); fica para a T-19 (escritor único de i18n). Textos "Message not found: …" nas telas até a T-19.
+- 2026-10-06 · plano · onda 4 — Critério "curl /var/documents/ ≠ 200" (plan.md:386): o 200 é o fallback HTML do app no nginx e nem o caminho real do PDF devolve %PDF; aceito. Revisor sugere reescrever o critério.
+- 2026-10-06 · T-15/T-17 · onda 4 — Ajustes de teste após o RED (comparar com _t(); nome curto da classe) aceitos.
+- 2026-10-06 · T-14 · onda 4 — `DocumentSweeper::forConnection` público, fora do plano, aceito.
+- 2026-10-06 · T-17 · onda 4 — Edição filtra `listAll()` por id (T-13 sem `find`), aceito.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -72,6 +77,13 @@
 - [T-11] DocumentContentFactory: subjectLines "Rótulo: valor"; surgery_consent com signatário em signatureName e só o consent_text em paragraphs; fonte ausente → DocumentGenerationFailed(source_not_found); sem i18n novo.
 - [T-12] DocumentGenerationService: transação padrão `static fn (Closure $work) => $work()` (o handler da T-14 deve injetar Closure que recebe o trabalho e devolve o resultado); DocumentGenerationResult com fábricas ready/skipped/failed.
 - [T-13] DocumentTemplateService: nome duplicado case-insensitive (listAll) e via PDOException 1062; sem unidade ativa unit_name/clinic_name ficam como {{nome}}; 4 mensagens i18n-domínio no board para a T-19.
+- [T-18] Menu Documents após CRM/Communication; CvNav grupo documents (abas documents/templates); links por href em PatientForm (DocumentList e atestado), VaccinationCardView, SurgeryView e PrescriptionForm ("Archive PDF", onGeneratePdf intacto). i18n para a T-19: Documents, Document templates, Medical certificate, Consent PDF, Archive PDF.
+- [T-17] DocumentTemplateList/Form prontos; extra público `DocumentTemplateForm::kindLabel`. i18n para a T-19: Kind, Actions, Document templates, Documents, Medical certificate, No document templates registered, Edit/New document template, Text, Available placeholders, mensagem de permissão.
+- [T-16] DocumentList: onDownload&id=&static=1 com 404 único (`Document not found`), onAskRetry→onRetry (recarrega sem patient_id). i18n para a T-19: Refresh, Document, Version, Requested at, Download, Try again, Processing…, Ready, Queued, Failed, No documents yet, Document not found.
+- [T-14] DocumentJobHandler/DocumentSweeper em `CentralVet\Document`; `worker.php` despacha document.generate; `bin/document-sweep.php` roda o varredor.
+- [T-15] DocumentRequestForm: kind/source_id, template_id (0 = Default text), body_text só no atestado, notify_tutor; redireciona a DocumentList&patient_id. i18n para a T-19: New document, Invalid document request, Document type, Default text, Notify the tutor when ready, Communication consent unavailable, authorized/not authorized, Document requested…, permissão, nomes dos 4 tipos.
+- [gate onda 4] Volume app_documents gravável; PDF real ready (19757 bytes); download 200 %PDF / 404 sem oráculo / anônimo negado; document-sweep exit 0; logs sem PII; smoke 4 telas 1366x768; alvos 44–48 px.
+- [gate onda 4] Dados criados para o SQL de limpeza da T-21: tutor 15447, patient 13321, encounter 11105, vaccination 2983, stored_object 2132, generated_document 1, arquivo var/documents/cv/development/tenant/1/objects/documents/1/5ce0f90572413f32.pdf; contagens pré-gate: generated_document 0, tutor 7/13876, patient 7/9180, vaccination 0, stored_object 9/2131. A fixture da T-09 usa título "F7A teste documento" (fora do prefixo F7B).
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
@@ -90,6 +102,13 @@
 - T-12: ramo `opted_out` do notifier sem teste; dedupe via `insertIfNew` não exercitado; contagem de objetos no FakeStorage não afirmada; teste de transação não prova rollback (fake não transacional), cobrir no gate E2E/integração.
 - T-13: retry em 1062 sem teste; sem unidade ativa o texto sai com {{unit_name}}/{{clinic_name}} literais (tratar na T-10/T-15); edição com template de outro kind lança CrossTenantReferenceException.
 - Onda 3: mensagens i18n-domínio do board de T-10 (6) e T-13 (4) para a T-19.
+- Onda 4 (gate): aviso notify_tutor (document_ready) não exercitado; 404 cross-tenant não exercitado (só 1 tenant); transação real de forEnvironment sem teste unitário.
+- T-14: janela de 10 min e limite 100 do varredor sem teste (fake grava created_at null); SUITE Failed: 1 alheio (Consent PDF, T-19).
+- T-15: caminho onSave sem teste automatizado; loadConsentSummary lê preferências sem RbacAuthorizationService.
+- T-16: critério curl /var/documents/ (plan.md:386) a reescrever; outra unidade/queued → 404 só pelo roteiro B da T-21; onRetry recarrega sem patient_id.
+- T-17: cabeçalho Actions alinhado à direita; onEdit varre listAll(); DocumentTemplateList depende de DocumentTemplateForm::kindLabel (mover para helper/DocumentKind).
+- T-18: testes de telas clínicas só conferem o prefixo da rota, não o id concatenado; link Archive PDF sem cv-touch-target (PrescriptionForm:165).
+- Onda 4: mensagens i18n das telas (T-15..T-18, ver Descobertas) para a T-19.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -110,5 +129,6 @@
   - Onda 1: BASE 2ead438 → HEAD cecca44 (649d988, 78b7b13, 9586797, efb9bbb, 25f9d54, cecca44)
   - Onda 2: BASE f2b8947 → HEAD 54183c2 (15fc70a, baa5fe1, 18b2438, c7d5652, 5b5470a, fe64748, 54f4273, 993a5f6, cf7e01b, e743d30, 54183c2)
   - Onda 3: BASE 0ccd300 → HEAD 12c8479 (e6577fd, 3d00204, b7f46cd, 49faf9f, a41359a, 66446c0, fa09830, 12c8479)
-- Último status conhecido: onda 3 concluída (T-01..T-13 [x]); gate SUITE 1081/1081, LINT, RED válidos
-- Próxima onda recomendada: onda 4 (T-14..T-18; gate com rebuild, PDF real pelo worker --once, varredor e smoke das telas)
+  - Onda 4: BASE e412e11 → HEAD e378577 (c3f1c9c, d20f911, 6c0b820, 0896446, 6820f0f, fd34d69, 265520d, 0b2852a, c85c010, e378577)
+- Último status conhecido: onda 4 concluída (T-14..T-18 [x]); gate com rebuild aprovado, SUITE 1108/1109 (falha alheia Consent PDF, T-19)
+- Próxima onda recomendada: onda 5 (T-19 i18n, escritor único, e demais conforme tasks.md)

@@ -52,3 +52,39 @@ EOF
 - [T-10] i18n-domínio: Document <id> can no longer be retried
 - [T-10] i18n-domínio: Tenant id and document id must be positive
 - [T-12] DocumentGenerationService/DocumentReadyNotifier/DocumentGenerationResult prontos (RED b7f46cd, impl fa09830). Passo 3 aceita DocumentSourceNotFoundException (contrato de DocumentContentFactoryInterface) e DocumentGenerationFailed(SOURCE_NOT_FOUND) → markFailed na hora; outra exceção de build → render_failed. Transação padrão: static fn (Closure $work) => $work() — o handler da T-14 deve passar um Closure que recebe o trabalho e devolve o resultado dele. DocumentGenerationResult tem fábricas extras ready()/skipped()/failed(). Nenhuma mensagem i18n nova.
+- [T-18] Navegação pronta (RED c3f1c9c, impl 6c0b820): menu Documents (fas:file-pdf) após CRM / Communication com Documents → DocumentList e Document templates → DocumentTemplateList; CvNav::group('documents') com abas documents/templates; links por href: PatientForm (edição) DocumentList&patient_id= e DocumentRequestForm&kind=medical_certificate&source_id=<patient_id>; VaccinationCardView kind=vaccination_card&source_id=<patient_id>; SurgeryView kind=surgery_consent&source_id=<surgery_id>; PrescriptionForm "Archive PDF" kind=prescription&source_id=<prescription_id> (onGeneratePdf intacto).
+- [T-18] UserMessageTest::testEverySurgeryScreenKeyHasATranslation falha até a T-19 traduzir 'Consent PDF' (varre _t() de Surgery*.php).
+- [T-18] i18n: Documents → Documentos (rótulo de menu/aba/ação; já existe no AdiantiTemplateTranslator, conferir pt)
+- [T-18] i18n: Document templates → Modelos de documento
+- [T-18] i18n: Medical certificate → Atestado
+- [T-18] i18n: Consent PDF → PDF do termo
+- [T-18] i18n: Archive PDF → Arquivar PDF
+- [T-17] DocumentTemplateList/DocumentTemplateForm prontos (RED d20f911). Edição carrega pelo listAll() do service (sem find no contrato); id ausente/alheio → CrossTenantReferenceException → "The selected record does not belong to this clinic". Extra público: DocumentTemplateForm::kindLabel(string). Programas ACTION_*: DocumentTemplateList::onReload, DocumentTemplateForm::onSave/onEdit.
+- [T-17] i18n: Kind → Tipo
+- [T-17] i18n: Actions → Ações
+- [T-17] i18n: Document templates → Templates de documento
+- [T-17] i18n: Documents → Documentos
+- [T-17] i18n: Medical certificate → Atestado
+- [T-17] i18n: No document templates registered → Nenhum template de documento cadastrado
+- [T-17] i18n: You are not allowed to manage document templates → Você não tem permissão para gerenciar templates de documento
+- [T-17] i18n: Edit document template → Editar template de documento
+- [T-17] i18n: New document template → Novo template de documento
+- [T-17] i18n: Text → Texto
+- [T-17] i18n: Available placeholders → Variáveis disponíveis
+- [T-16] DocumentList pronto (RED fd34d69). Rotas: DocumentList[&patient_id=], onDownload&id=&static=1 (404 único com _t('Document not found') para inexistente/outra unidade/queued/sem sessão/sem permissão; error_log só com a classe), onAskRetry&id= (TQuestion) → onRetry&id= (retry + publish; recarrega DocumentList sem patient_id). Subtítulo: nome do paciente (patientSummary) ou TSession userunitname.
+- [T-16] i18n: Documents → Documentos (já existe) / Refresh / Document / Version / Requested at / Actions / Download / Try again / Processing… / Ready / Queued / Failed / No documents yet / Document not found (texto do 404; hoje sai "Message not found: Document not found") / Try to generate this document again? / Document requeued / You are not allowed to view the documents / You are not allowed to change this document — pt a definir na T-19 (sugestões: Atualizar, Documento, Versão, Pedido em, Ações, Baixar, Tentar de novo, Processando…, Pronto, Na fila, Falhou, Nenhum documento ainda, Documento não encontrado, Gerar este documento novamente?, Documento reenfileirado, Você não tem permissão para ver os documentos, Você não tem permissão para alterar este documento)
+- [T-14] DocumentJobHandler/DocumentSweeper prontos (namespace CentralVet\Document; RED 6820f0f, impl 0b2852a). Extra público DocumentSweeper::forConnection(PDO, DocumentJobPublisher, LoggerInterface, int $systemUserId). worker.php: despacho document.generate (handler lazy com a fila do loop), tick do varredor DOCUMENT_SWEEP_INTERVAL_SECONDS (600, 0 desliga) só no contínuo, DOCUMENT_SYSTEM_USER_ID (1). Logs: document.job.<ready|skipped|failed|invalid>, document.sweep.completed/tenant_failed/failed. Nenhuma mensagem i18n nova.
+- [T-15] DocumentRequestForm pronto (RED 0896446). Campos: hidden kind/source_id, kind_label (só leitura), template_id (0 = Default text) e body_text só no atestado, notify_tutor (TCheckButton índice '1'), botão onSave. Ganchos protegidos estáticos (loadTemplateOptions/loadInitialBody/loadConsentSummary/mergeTemplate). Voltar: PatientForm&method=onEdit (paciente), SurgeryView&id (termo), DocumentList (receita). Redireciona para DocumentList&patient_id=<GeneratedDocument::patientId()>.
+- [T-15] i18n: New document → Novo documento
+- [T-15] i18n: Invalid document request → Pedido de documento inválido
+- [T-15] i18n: Document type → Tipo de documento
+- [T-15] i18n: Default text → Texto padrão
+- [T-15] i18n: Text → Texto
+- [T-15] i18n: The consent text recorded on the surgery will be used → Será usado o texto do termo registrado na cirurgia
+- [T-15] i18n: Notify the tutor when ready → Avisar o tutor quando estiver pronto
+- [T-15] i18n: Communication consent unavailable → Consentimento de comunicação indisponível
+- [T-15] i18n: authorized → autorizado
+- [T-15] i18n: not authorized → não autorizado
+- [T-15] i18n: Document requested. It will be available in the list in a few moments. → Documento solicitado. Ele estará disponível na lista em instantes.
+- [T-15] i18n: You are not allowed to request documents → Você não tem permissão para solicitar documentos
+- [T-15] i18n: Vaccination card / Prescription / Medical certificate / Surgery consent → Carteira de vacinação / Receita / Atestado / Termo de consentimento cirúrgico (conferir se já existem; Generate PDF já traduz para Gerar PDF)

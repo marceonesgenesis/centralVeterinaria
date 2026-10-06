@@ -15,11 +15,11 @@
 | T-11 | backend | DocumentContentFactory (conteúdo por tipo) | T-02, T-05 | sim | média | Sherlock | [x] |
 | T-12 | backend | DocumentGenerationService + DocumentReadyNotifier (geração idempotente e aviso com consentimento) | T-02, T-05 | sim | alta | Naruto | [x] |
 | T-13 | backend | DocumentTemplateService (cadastro e merge para paciente) | T-02, T-05 | sim | simples | Saitama | [x] |
-| T-14 | infra | Worker: handler `document.generate`, varredor, `worker.php` e `bin/document-sweep.php` | T-03, T-06, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [ ] |
-| T-15 | frontend | Tela de pedido de documento | T-06, T-07, T-10, T-13 | sim | média | Kratos | [ ] |
-| T-16 | frontend | Lista de documentos, download e nova tentativa | T-03, T-06, T-10 | sim | média | Yoda | [ ] |
-| T-17 | frontend | Telas de template de documento (lista e formulário) | T-06, T-13 | sim | simples | Saitama | [ ] |
-| T-18 | frontend | Navegação (menu, CvNav, ações em PatientForm, VaccinationCardView, SurgeryView e PrescriptionForm) | T-04 | sim | simples | Jaspion | [ ] |
+| T-14 | infra | Worker: handler `document.generate`, varredor, `worker.php` e `bin/document-sweep.php` | T-03, T-06, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [x] |
+| T-15 | frontend | Tela de pedido de documento | T-06, T-07, T-10, T-13 | sim | média | Kratos | [x] |
+| T-16 | frontend | Lista de documentos, download e nova tentativa | T-03, T-06, T-10 | sim | média | Yoda | [x] |
+| T-17 | frontend | Telas de template de documento (lista e formulário) | T-06, T-13 | sim | simples | Saitama | [x] |
+| T-18 | frontend | Navegação (menu, CvNav, ações em PatientForm, VaccinationCardView, SurgeryView e PrescriptionForm) | T-04 | sim | simples | Jaspion | [x] |
 | T-19 | frontend | i18n pt/en das telas e mensagens de domínio | T-09, T-14, T-15, T-16, T-17, T-18 | sim | média | Levi | [ ] |
 | T-20 | docs | Runbook de documentos, índice e passo da 0013 e cron na hospedagem 5.7 | T-01, T-03, T-04, T-14 | sim | simples | Gandalf | [ ] |
 | T-21 | qa | Validação final ponta a ponta e SQL de limpeza `F7B teste` | T-19, T-20 | não | média | Spock | [ ] |
