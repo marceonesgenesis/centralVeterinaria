@@ -38,3 +38,17 @@ EOF
 - [T-06] GeneratedDocumentRepository/DocumentTemplateRepository prontos; não estendem AbstractTenantRepository (findById(int) do contrato T-02). claim incrementa attempt_count (releaseClaim não); markFailed exige só status queued (sem claim). Template com nome duplicado no tenant sobe como PDOException 1062 (o service traduz).
 - [T-06] i18n-domínio: Could not allocate document version
 - [T-09] Ruling aplicado: CommunicationReadModelIntegrationTest ganhou um generated_document failed por tenant na unidade A (contagens 9→10 e 8→9; teste renomeado para testEachTypeAppearsWithTheDeepLinkOfTheDomain). SUITE Failed: 0.
+- [T-11] DocumentContentFactory pronta (RED e6577fd, impl no commit seguinte). subjectLines são strings "Rótulo: valor" (Paciente, Espécie "Cão (Raça)", Tutor; termo + Procedimento, Data prevista d/m/Y H:i). Texto livre vira uma linha não vazia por parágrafo. surgery_consent: 1ª linha do snapshot = signatureName e fica FORA de paragraphs (só o consent_text). Fonte ausente lança DocumentGenerationFailed(source_not_found) (o docblock de DocumentContentFactoryInterface cita DocumentSourceNotFoundException; vale o plano). Sem mensagens i18n novas.
+- [T-13] DocumentTemplateService pronto (RED 3d00204). save: id inexistente/alheio → CrossTenantReferenceException; nome duplicado checado sem diferenciar maiúsculas (listAll) e também via PDOException 1062. mergeForPatient: template 0 → padrão; template ausente/alheio/inativo → InvalidArgumentException('Document template is not available'); sem unidade ativa, unit_name/clinic_name ficam null e o renderer mantém {{unit_name}}/{{clinic_name}}; variável null fica como {{nome}}.
+- [T-13] i18n-domínio: Unknown placeholder: {{<nome>}}
+- [T-13] i18n-domínio: A document template with this name already exists
+- [T-13] i18n-domínio: Document template is not available
+- [T-13] i18n-domínio: Unknown document template status "<status>" (mesmo texto da entidade T-02)
+- [T-10] DocumentRequestService/DocumentJobPublisher prontos (RED 49faf9f). download/retry: inexistente, outra unidade ou estado errado → DocumentNotAvailableException antes de autorizar e sem ler o storage; só StorageException do get vira DocumentNotAvailableException. Autorização de download/retry com entityId = id e metadata {document_id, kind, version}; listForUnit autoriza sem metadata. medical_certificate sem template_id é aceito (texto livre); bodyText nulo/vazio cai no 'Document body must be between 1 and 20000 characters' do domínio. Publisher valida ids > 0.
+- [T-10] i18n-domínio: Patient has no vaccinations to print
+- [T-10] i18n-domínio: Surgery consent has not been recorded
+- [T-10] i18n-domínio: Document text has unresolved placeholders
+- [T-10] i18n-domínio: Document template is not available
+- [T-10] i18n-domínio: Document <id> can no longer be retried
+- [T-10] i18n-domínio: Tenant id and document id must be positive
+- [T-12] DocumentGenerationService/DocumentReadyNotifier/DocumentGenerationResult prontos (RED b7f46cd, impl fa09830). Passo 3 aceita DocumentSourceNotFoundException (contrato de DocumentContentFactoryInterface) e DocumentGenerationFailed(SOURCE_NOT_FOUND) → markFailed na hora; outra exceção de build → render_failed. Transação padrão: static fn (Closure $work) => $work() — o handler da T-14 deve passar um Closure que recebe o trabalho e devolve o resultado dele. DocumentGenerationResult tem fábricas extras ready()/skipped()/failed(). Nenhuma mensagem i18n nova.

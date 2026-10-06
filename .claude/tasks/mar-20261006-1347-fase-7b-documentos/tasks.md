@@ -11,10 +11,10 @@
 | T-07 | backend | Consulta PDO das fontes (paciente, vacinas, receita, cirurgia, contato do tutor) | T-02 | sim | média | Sherlock | [x] |
 | T-08 | backend | HTML escapado e renderizador dompdf seguro | T-02 | sim | média | Arquimedes | [x] |
 | T-09 | backend | Pendência `document_failed` na Central de Pendências | T-01 | sim | média | Batman | [x] |
-| T-10 | backend | DocumentRequestService (pedir, tentar de novo, listar, baixar) e DocumentJobPublisher | T-02, T-05 | sim | alta | Athena | [ ] |
-| T-11 | backend | DocumentContentFactory (conteúdo por tipo) | T-02, T-05 | sim | média | Sherlock | [ ] |
-| T-12 | backend | DocumentGenerationService + DocumentReadyNotifier (geração idempotente e aviso com consentimento) | T-02, T-05 | sim | alta | Naruto | [ ] |
-| T-13 | backend | DocumentTemplateService (cadastro e merge para paciente) | T-02, T-05 | sim | simples | Saitama | [ ] |
+| T-10 | backend | DocumentRequestService (pedir, tentar de novo, listar, baixar) e DocumentJobPublisher | T-02, T-05 | sim | alta | Athena | [x] |
+| T-11 | backend | DocumentContentFactory (conteúdo por tipo) | T-02, T-05 | sim | média | Sherlock | [x] |
+| T-12 | backend | DocumentGenerationService + DocumentReadyNotifier (geração idempotente e aviso com consentimento) | T-02, T-05 | sim | alta | Naruto | [x] |
+| T-13 | backend | DocumentTemplateService (cadastro e merge para paciente) | T-02, T-05 | sim | simples | Saitama | [x] |
 | T-14 | infra | Worker: handler `document.generate`, varredor, `worker.php` e `bin/document-sweep.php` | T-03, T-06, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [ ] |
 | T-15 | frontend | Tela de pedido de documento | T-06, T-07, T-10, T-13 | sim | média | Kratos | [ ] |
 | T-16 | frontend | Lista de documentos, download e nova tentativa | T-03, T-06, T-10 | sim | média | Yoda | [ ] |

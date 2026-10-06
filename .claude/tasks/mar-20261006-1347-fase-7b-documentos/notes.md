@@ -38,6 +38,10 @@
 - 2026-10-06 · T-06 · onda 2 — Repositórios sem estender `AbstractTenantRepository` (escopo via `TenantQuery`) e retry após 1062 sem teste: aceito (revisor aprovou).
 - 2026-10-06 · T-08 · onda 2 — Extras públicos `options()` e construtor com `DocumentHtmlBuilder` opcional: aceito.
 - 2026-10-06 · onda 2 — Pré-condição: migration 0013 aplicada em `centralvet` e `centralvet_test` (sha e5d9f164f91ff5bd1cddecd77e51f177c40de87e3805d083496fe00fe7dc5adf, backup `var/backups/centralvet-20261006T171637Z.sql.gz`); DML T-04 aplicada em `centralvet` (system_program 133→137, system_group_program 173→189; grupos 1,2,4,5 com 4 cada, grupo 3 com 0).
+- 2026-10-06 · T-10 · onda 3 — Teste ajustado após o RED (spy de storage lança StorageException como os drivers reais): aceito, sem enfraquecer asserção; caminho `requeueFailed() === false` sem teste (fake final).
+- 2026-10-06 · T-11 · onda 3 — Signatário do snapshot em `signatureName`, `subjectLines` "Rótulo: valor", `DocumentGenerationFailed` conforme o plano com docblock da interface desatualizado: aceito.
+- 2026-10-06 · T-12 · onda 3 — Passo 3 aceita também `DocumentSourceNotFoundException` (contrato T-02); teste de transação não prova rollback (fake não transacional): aceito, pendência para o gate E2E/integração.
+- 2026-10-06 · T-13 · onda 3 — Template ausente/inativo no merge → `InvalidArgumentException('Document template is not available')`: aceito.
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -64,6 +68,10 @@
 - [T-07] `system_users` sem `tenant_id` (LEFT JOIN por id, nome ausente → ''); itens da receita por id; datas TIMESTAMP(6) truncadas a `Y-m-d H:i:s`.
 - [T-08] `DocumentHtmlBuilder`/`DompdfDocumentRenderer` em `src/app/Core/Document/`; sujeito "Rótulo: valor" com rótulo em `<strong>`; saída sem `%PDF-` vira RENDER_FAILED.
 - [T-09] `PendingItem::TYPE_DOCUMENT_FAILED` (9º tipo), prioridade sempre high, deep-link `DocumentList&patient_id`; i18n: "Failed documents" → "Documentos com falha" (T-19).
+- [T-10] DocumentRequestService/DocumentJobPublisher: download/retry fora do estado ou de outra unidade → DocumentNotAvailableException sem ler o storage; auditoria com metadata {document_id, kind, version}; 6 mensagens i18n-domínio no board para a T-19.
+- [T-11] DocumentContentFactory: subjectLines "Rótulo: valor"; surgery_consent com signatário em signatureName e só o consent_text em paragraphs; fonte ausente → DocumentGenerationFailed(source_not_found); sem i18n novo.
+- [T-12] DocumentGenerationService: transação padrão `static fn (Closure $work) => $work()` (o handler da T-14 deve injetar Closure que recebe o trabalho e devolve o resultado); DocumentGenerationResult com fábricas ready/skipped/failed.
+- [T-13] DocumentTemplateService: nome duplicado case-insensitive (listAll) e via PDOException 1062; sem unidade ativa unit_name/clinic_name ficam como {{nome}}; 4 mensagens i18n-domínio no board para a T-19.
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
@@ -77,6 +85,11 @@
 - T-07: regra "nome de profissional ausente → ''" sem teste.
 - T-08: teste confere `options()` e não as opções efetivas do render; ordem das seções do HTML não afirmada em teste.
 - T-09: docblock de `PendingCenterService::totalsByType` ainda diz "8 types"; assunto `Receita v1` fixo em pt (`DocumentKind::titleFor`), avaliar na T-19; fixture usa 'F7A teste documento' (fora do prefixo `F7B teste`); relatório diz 24 testes, são 23.
+- T-10: `requeueFailed() === false` sem teste; `medical_certificate` sem bodyText sem teste próprio; `patientSummary` consultado 2x por pedido; metadata de auditoria de download/retry não afirmada no teste.
+- T-11: kind desconhecido devolve conteúdo vazio em silêncio (switch sem default); docblock de DocumentContentFactoryInterface cita DocumentSourceNotFoundException.
+- T-12: ramo `opted_out` do notifier sem teste; dedupe via `insertIfNew` não exercitado; contagem de objetos no FakeStorage não afirmada; teste de transação não prova rollback (fake não transacional), cobrir no gate E2E/integração.
+- T-13: retry em 1062 sem teste; sem unidade ativa o texto sai com {{unit_name}}/{{clinic_name}} literais (tratar na T-10/T-15); edição com template de outro kind lança CrossTenantReferenceException.
+- Onda 3: mensagens i18n-domínio do board de T-10 (6) e T-13 (4) para a T-19.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -96,5 +109,6 @@
 - Commits por onda:
   - Onda 1: BASE 2ead438 → HEAD cecca44 (649d988, 78b7b13, 9586797, efb9bbb, 25f9d54, cecca44)
   - Onda 2: BASE f2b8947 → HEAD 54183c2 (15fc70a, baa5fe1, 18b2438, c7d5652, 5b5470a, fe64748, 54f4273, 993a5f6, cf7e01b, e743d30, 54183c2)
-- Último status conhecido: onda 2 concluída (T-01..T-09 [x]); gate SUITE 1035/1035, LINT; 0013 e DML T-04 aplicadas
-- Próxima onda recomendada: onda 3 (T-10..T-13, dependências T-02/T-05 atendidas)
+  - Onda 3: BASE 0ccd300 → HEAD 12c8479 (e6577fd, 3d00204, b7f46cd, 49faf9f, a41359a, 66446c0, fa09830, 12c8479)
+- Último status conhecido: onda 3 concluída (T-01..T-13 [x]); gate SUITE 1081/1081, LINT, RED válidos
+- Próxima onda recomendada: onda 4 (T-14..T-18; gate com rebuild, PDF real pelo worker --once, varredor e smoke das telas)
