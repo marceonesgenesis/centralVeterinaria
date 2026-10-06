@@ -111,7 +111,9 @@ final class MessageTemplateScreensIntegrationTest
             . '$grid = (new ReflectionProperty($page, "datagrid"))->getValue($page);'
             . '$grid->addItem((object) ["id" => 1, "name" => "<script>alert(1)</script>", "purpose" => "custom", "channel" => "email", "status" => "active"]);'
             . 'ob_start(); $grid->show(); $html = ob_get_clean();'
-            . 'preg_match_all("/<a [^>]*href=\"[^\"]*(onEdit|onToggle)[^\"]*\"[^>]*>\\s*<span[^>]*class=\"([^\"]*)\"/", $html, $m);'
+            . 'preg_match_all("/<a [^>]*href=\"[^\"]*(onEdit|onToggle)[^\"]*\"[^>]*>/", $html, $links);'
+            . '$m = [1 => [], 2 => []];'
+            . 'foreach ($links[0] as $i => $tag) { $m[1][] = $links[1][$i]; $m[2][] = preg_match("/class=\"([^\"]*)\"/", $tag, $c) ? $c[1] : ""; }'
             . '$touch = array_filter($m[2], fn ($c) => str_contains($c, "cv-touch-target"));'
             . 'echo "@@MSGTEMPLATE@@", json_encode(['
             . ' "raw" => str_contains($html, "<script>alert(1)</script>"),'
@@ -119,7 +121,9 @@ final class MessageTemplateScreensIntegrationTest
             . ' "actions" => count($m[2]), "touch" => count($touch)]);'
         );
 
-        // template ativo: Editar e Desativar visíveis (Ativar oculto)
+        // template ativo: Editar e Desativar visíveis (Ativar oculto). O próprio <a>
+        // (o que o toque aciona) leva cv-touch-target: um <span> interno com 44 px
+        // dentro de um <a> inline deixava o link com 19 px no tablet (gate T-23).
         Assert::same(['raw' => false, 'escaped' => true, 'actions' => 2, 'touch' => 2], $result);
     }
 }
