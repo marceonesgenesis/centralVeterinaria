@@ -29,7 +29,8 @@ use Throwable;
  * OutboundMessageRepositoryInterface]`, generates the reminders in the
  * tenant time zone and publishes the e-mails just created plus the e-mails
  * left `queued` for more than 10 minutes (lost publish). A failure in one
- * tenant is logged (tenant id + exception class only) and counted in
+ * tenant stage (services, generate, sweep, publish) is logged (tenant id,
+ * stage and exception class only) and counted in
  * `errors`; the other tenants still run.
  */
 final class CommunicationScheduler
@@ -122,31 +123,64 @@ final class CommunicationScheduler
                 $reminders = $services['reminders'];
                 /** @var OutboundMessageRepositoryInterface $messages */
                 $messages = $services['messages'];
+            } catch (Throwable $exception) {
+                $this->recordFailure($totals, $tenantId, 'services', $exception);
+                continue;
+            }
 
+            // Generation, sweep and publish are isolated: a candidate that
+            // makes generate() throw on every run must not keep the
+            // tenant's queued e-mails from being swept and published.
+            $emailIds = [];
+
+            try {
                 $summary = $reminders->generate(new DateTimeZone((string) $tenant['timezone']), $this->receivableReminderDays);
 
                 foreach ($summary->toArray() as $key => $count) {
                     $totals[$key] += $count;
                 }
 
-                $staleIds = $messages->listStaleQueuedEmailIds(($this->clock)()->modify(self::STALE_AFTER), self::STALE_LIMIT);
-                $ids = array_values(array_unique(array_merge($summary->emailMessageIds(), $staleIds)));
+                $emailIds = $summary->emailMessageIds();
+            } catch (Throwable $exception) {
+                $this->recordFailure($totals, $tenantId, 'generate', $exception);
+            }
 
-                foreach ($ids as $messageId) {
+            try {
+                $staleIds = $messages->listStaleQueuedEmailIds(($this->clock)()->modify(self::STALE_AFTER), self::STALE_LIMIT);
+            } catch (Throwable $exception) {
+                $staleIds = [];
+                $this->recordFailure($totals, $tenantId, 'sweep', $exception);
+            }
+
+            try {
+                foreach (array_values(array_unique(array_merge($emailIds, $staleIds))) as $messageId) {
                     $this->publisher->publish($tenantId, (int) $messageId);
                     $totals['published']++;
                 }
             } catch (Throwable $exception) {
-                $totals['errors']++;
-                $this->logger->error('communication.scheduler.tenant_failed', [
-                    'tenant_id' => $tenantId,
-                    'exception' => $exception::class,
-                ]);
+                $this->recordFailure($totals, $tenantId, 'publish', $exception);
             }
         }
 
         $this->logger->info('communication.scheduler.completed', $totals);
 
         return $totals;
+    }
+
+    /**
+     * Counts the failure and logs only the tenant id, the stage
+     * (services, generate, sweep or publish) and the exception class:
+     * exception messages may carry personal data and are never logged.
+     *
+     * @param array<string, int> $totals
+     */
+    private function recordFailure(array &$totals, int $tenantId, string $stage, Throwable $exception): void
+    {
+        $totals['errors']++;
+        $this->logger->error('communication.scheduler.tenant_failed', [
+            'tenant_id' => $tenantId,
+            'stage' => $stage,
+            'exception' => $exception::class,
+        ]);
     }
 }
