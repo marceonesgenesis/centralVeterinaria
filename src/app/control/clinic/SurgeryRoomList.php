@@ -225,8 +225,8 @@ class SurgeryRoomList extends TPage
     private static function statusBadge(string $status): TElement
     {
         return $status === \CentralVet\Domain\SurgeryRoom::STATUS_ACTIVE
-            ? CvBadge::create(_t('Active'), 'success')
-            : CvBadge::create(_t('Inactive'), 'neutral');
+            ? CvBadge::create(_t('Active operating room'), 'success')
+            : CvBadge::create(_t('Inactive operating room'), 'neutral');
     }
 
     private static function emptyState(): TElement
