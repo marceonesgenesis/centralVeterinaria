@@ -20,7 +20,8 @@ use InvalidArgumentException;
  * - `hospitalization_administration`: `scheduled_at` + 30 min;
  * - `message_failed`: `failed_at`;
  * - `message_whatsapp_manual`: `created_at` + 4 h;
- * - `receivable_open`: `created_at` + 7 days.
+ * - `receivable_open`: `created_at` + 7 days;
+ * - `document_failed`: `failed_at` (Fase 7B).
  *
  * Priority comes from {@see PendingItemPriority::classify()}; status is
  * `overdue` when `$now > dueAt`, otherwise `open`.
@@ -43,6 +44,7 @@ final class PendingItem
     public const TYPE_MESSAGE_FAILED = 'message_failed';
     public const TYPE_MESSAGE_WHATSAPP_MANUAL = 'message_whatsapp_manual';
     public const TYPE_RECEIVABLE_OPEN = 'receivable_open';
+    public const TYPE_DOCUMENT_FAILED = 'document_failed';
 
     public const TYPES = [
         self::TYPE_EXAM_RESULT,
@@ -53,6 +55,7 @@ final class PendingItem
         self::TYPE_MESSAGE_FAILED,
         self::TYPE_MESSAGE_WHATSAPP_MANUAL,
         self::TYPE_RECEIVABLE_OPEN,
+        self::TYPE_DOCUMENT_FAILED,
     ];
 
     public const STATUS_OVERDUE = 'overdue';
@@ -65,6 +68,7 @@ final class PendingItem
         'HospitalizationView',
         'CommunicationMessageView',
         'PaymentForm',
+        'DocumentList',
     ];
 
     /**
@@ -77,6 +81,7 @@ final class PendingItem
         'HospitalizationView' => ['id', 'tab'],
         'CommunicationMessageView' => ['id'],
         'PaymentForm' => ['receivable_id'],
+        'DocumentList' => ['patient_id'],
     ];
 
     private const VALUE_ID = 'id';

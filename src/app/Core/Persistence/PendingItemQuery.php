@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Persistence;
 
 use CentralVet\Domain\Contract\PendingItemQueryInterface;
+use CentralVet\Domain\DocumentKind;
 use CentralVet\Domain\PendingItem;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
@@ -53,6 +54,7 @@ final class PendingItemQuery implements PendingItemQueryInterface
             ...$this->failedMessages($systemUnitId, $limitPerType),
             ...$this->manualWhatsAppMessages($systemUnitId, $limitPerType),
             ...$this->openReceivables($systemUnitId, $limitPerType),
+            ...$this->failedDocuments($systemUnitId, $limitPerType),
         ];
     }
 
@@ -379,6 +381,44 @@ final class PendingItemQuery implements PendingItemQueryInterface
                 null,
                 'PaymentForm',
                 ['receivable_id' => (int) $row['id']],
+            ),
+            $rows,
+        );
+    }
+
+    /**
+     * Generated documents (Fase 7B) that ran out of attempts, newest failure
+     * first. The subject is `<kind title> v<version>`; the deep-link only
+     * carries the patient id (never the name).
+     *
+     * @return list<PendingItem>
+     */
+    private function failedDocuments(int $unitId, int $limit): array
+    {
+        $query = $this->tenantQuery('d')->andEquals('status', 'failed', 'd')->andEquals('system_unit_id', $unitId, 'd');
+        $rows = $this->fetch(
+            <<<SQL
+            SELECT d.id, d.patient_id, d.kind, d.version, d.failed_at, d.requested_by_system_user_id,
+                   p.name AS patient_name
+            FROM generated_document d
+            INNER JOIN patient p ON p.id = d.patient_id AND p.tenant_id = d.tenant_id
+            WHERE {$query->whereSql()}
+            ORDER BY d.failed_at DESC, d.id DESC
+            LIMIT {$limit}
+            SQL,
+            $query->parameters(),
+        );
+
+        return array_map(
+            static fn (array $row): PendingItem => new PendingItem(
+                PendingItem::TYPE_DOCUMENT_FAILED,
+                (int) $row['id'],
+                (string) $row['patient_name'],
+                DocumentKind::titleFor((string) $row['kind']) . ' v' . (int) $row['version'],
+                new DateTimeImmutable((string) $row['failed_at']),
+                (int) $row['requested_by_system_user_id'],
+                'DocumentList',
+                ['patient_id' => (int) $row['patient_id']],
             ),
             $rows,
         );

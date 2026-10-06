@@ -33,6 +33,7 @@ class PendingCenter extends TPage
         'message_failed'                 => ['Failed messages', 'fa:exclamation-triangle', 'danger'],
         'message_whatsapp_manual'        => ['WhatsApp messages to send', 'fab:whatsapp', 'success'],
         'receivable_open'                => ['Open receivables', 'fa:file-invoice-dollar', 'warning'],
+        'document_failed'                => ['Failed documents', 'fas:file-circle-exclamation', 'danger'],
     ];
 
     /** PendingItemPriority → [rótulo en, tom do CvBadge]. */
