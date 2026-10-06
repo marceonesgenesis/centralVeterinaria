@@ -23,6 +23,7 @@ use CentralVet\Persistence\SurgeryTeamRepository;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\MysqlIntegrationTestCase;
+use CentralVet\Tests\Support\TestDatabase;
 use DateTimeImmutable;
 
 /**
@@ -178,6 +179,55 @@ final class SurgeryRepositoryIntegrationTest extends MysqlIntegrationTestCase
         Assert::false($surgeries->hasOverlapInRoom($roomId, new DateTimeImmutable('2031-09-01 08:30:00'), new DateTimeImmutable('2031-09-01 10:00:00'), null), 'cancelled surgery frees the room');
     }
 
+    /**
+     * Review Focus 1 with two connections: B's transaction already holds a
+     * snapshot (REPEATABLE READ) taken before A booked the room. The overlap
+     * check must be a current (locking) read: instead of answering "free"
+     * from B's stale snapshot, it waits for A's pending booking (here A never
+     * commits, so B's short lock wait expires). No COMMIT on either side.
+     */
+    public function testOverlapCheckIsACurrentReadThatWaitsForAPendingBooking(): void
+    {
+        $room = $this->createRoom('F6B-S6');
+        $roomId = (int) $room->id();
+
+        $other = $this->secondConnection();
+        $other->exec('SET SESSION innodb_lock_wait_timeout = 1');
+        $other->beginTransaction();
+
+        try {
+            // B's first consistent read fixes its snapshot before A's booking.
+            $other->query('SELECT COUNT(*) FROM surgery')->fetchColumn();
+
+            // A books the room and does not commit.
+            $this->schedule($room, '2031-09-01 08:00:00', '2031-09-01 09:00:00');
+
+            $surgeriesB = new SurgeryRepository($this->contextFor($this->tenantA), $other);
+            $answer = 'no answer';
+            $lockWait = false;
+
+            try {
+                $answer = $surgeriesB->hasOverlapInRoom(
+                    $roomId,
+                    new DateTimeImmutable('2031-09-01 08:30:00'),
+                    new DateTimeImmutable('2031-09-01 09:30:00'),
+                    null,
+                ) ? 'booked' : 'free';
+            } catch (\PDOException $e) {
+                $lockWait = (int) ($e->errorInfo[1] ?? 0) === 1205;
+            }
+
+            Assert::true(
+                $lockWait,
+                "The overlap check must wait for the pending booking instead of reading a stale snapshot (answered: {$answer})",
+            );
+        } finally {
+            if ($other->inTransaction()) {
+                $other->rollBack();
+            }
+        }
+    }
+
     public function testStaleCopyCannotOverwriteConcurrentStatusChange(): void
     {
         $surgeries = new SurgeryRepository($this->contextFor($this->tenantA), $this->pdo);
@@ -320,6 +370,21 @@ final class SurgeryRepositoryIntegrationTest extends MysqlIntegrationTestCase
         ]);
 
         return (int) $this->pdo->lastInsertId();
+    }
+
+    private function secondConnection(): \PDO
+    {
+        return new \PDO(
+            sprintf(
+                'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+                getenv('DB_HOST') ?: '127.0.0.1',
+                getenv('DB_PORT') ?: '3306',
+                TestDatabase::resolveName(getenv()),
+            ),
+            (string) (getenv('DB_USERNAME') ?: 'centralvet'),
+            (string) (getenv('DB_PASSWORD') ?: ''),
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
+        );
     }
 
     private function contextFor(int $tenantId): TenantContext
