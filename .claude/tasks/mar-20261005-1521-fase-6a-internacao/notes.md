@@ -37,6 +37,7 @@
 - 2026-10-05 · T-20 · onda 6 — Revisão rodada 1 reprovou (conta 371 do atendimento 4304 sem limpeza; atraso do flowboard sem evidência E2E) → f3c5109 + evidência (administração 20, "Atrasado 1" em desktop/tablet); re-validada; rodada 2 aprovada.
 - 2026-10-05 · T-20 · onda 6 — Aceitos como cobertos sem E2E: Review Focus 1 (dois tablets no mesmo leito; ocupação condicional + teste de integração) e Review Focus 3 (conta fechada antes da alta; testDischargeRefusedWhenAccountClosedTouchesNoStock); re-gate sem desktop (correção só aplica min-height) e sem listagem de status de rede (gate anterior todas 200).
 - 2026-10-05 · T-20 · onda 6 — queue_entry 322: o re-gate relatou avanço por engano, mas o banco mostra 'aguardando' e updated_at = created_at, sem audit; nada a restaurar.
+- 2026-10-05 · T-07/T-09 · onda 7 — Correção da promovida da revisão final (transferência concorrente com a alta desfazia a alta): UPDATE de internação condicional a `admitted` + rowCount → "Hospitalization <id> is not admitted"; transfer lança se release() falhar; Fake espelhado (3cded2e/ebf01c3 RED + b32c7c3/ac52d25). Alta dupla concorrente também para com rollback. Caminhos autorizados por ruling: HospitalizationRepository.php, FakeHospitalizationRepository.php, HospitalizationService.php, HospitalizationRepositoryIntegrationTest.php, HospitalizationServiceTest.php. SUITE 627/627.
 
 ## Bloqueios
 - RESOLVIDO em 2026-10-05 (orquestrador, com aprovação SQL explícita do usuário): bloqueio entre a Onda 1 e a Onda 2.
@@ -83,6 +84,7 @@
 - [T-17] Navegação pronta: menu Internação/Leitos, CvNav group 'hospitalization', PLAN_ACTIONS['hospitalization'] 'Hospitalize'.
 - [onda 4] "Message not found" em textos novos até a T-18 (chaves em board.md). Ids de teste para a T-20: beds 1–3 (F6 teste L1..L3); hospitalization 1 (encounter 1708) e 2 (encounter 2189, paciente 1452); orders 1–3; administrations 1–9; eventos vitals/evolução; lote 'F6 teste lote' (produto 8545); 2 itens hospitalization* na conta 46; 1 stock_movement hospitalization_consumption.
 - [T-20] Gate final E2E (leito→admissão→prescrição→Feito/Não feito→parâmetros/evolução→transferência→alta; rollback por estoque insuficiente; permissão negada em outra unidade; toque duplo → 1 done; console 0 errors; rede 200) OK; reprovou por UX em T-12..T-15, corrigido e re-gateado. Prints em .playwright-mcp/ (ignorado pelo git).
+- [T-07/T-09] Correção da promovida (b32c7c3, ac52d25): save de internação existente só atualiza linha `admitted` (senão InvalidStatusTransitionException `Hospitalization <id> is not admitted`); transfer() lança `Bed <id> is not occupied by hospitalization <id>` se release() falhar; Fake espelha. Sem mensagem nova no catálogo.
 
 ## Pendências
 - Central de Pendências (PRD §8.23) sem tela própria: o item de internação fica para quando a central existir.
@@ -111,6 +113,8 @@
 - T-12: `.cv-touch-target` fixa `44px`; usar `var(--cv-touch-target)` (custom.css:34) manteria um valor só; correção escreveu em cv-components.css fora dos arquivos prováveis da T-12.
 - T-20: comentários de estado do sql/T-20-cleanup.sql desatualizados em relação ao banco pós-gate; os ~312 registros de audit_log dos gates ficam fora da limpeza (documentar).
 - T-20: executar `sql/T-20-cleanup.sql` pelo orquestrador após a revisão final, com backup e aprovação SQL do usuário.
+- Revisão final: prescrição concorrente com a alta deixa administrações pending numa internação discharged (somem do flowboard, nunca cobradas nem canceladas) → HospitalizationOrderService.php prescribe.
+- eficiencia.py: onda 7 sem tasks em plan.md (aviso; nenhuma linha gravada).
 
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) ganha um método (T-11): regressão em `syncAutomaticItems`/`addManualItem`. Mitigação: `EncounterAccountServiceTest` na validação de T-11 e construtor inalterado.
@@ -132,5 +136,6 @@
   - Onda 4: BASE 7d96545 → HEAD 3bc672a (3bc672a, f6cef53, d29e899, 6beb807, c6b2900, 435a93d, f93a63d, ca02c03, cad4416, d805a14, f13a863, d380bb7, f05eef9, 69e0ab0, 8f07c60, 9420e8c)
   - Onda 5: BASE 3f32dab → HEAD 7d16fd8 (7d16fd8, 7c66aa1, 2993ddd, 9e9bf37, ce1912d)
   - Onda 6: BASE a72d78e → HEAD f3c5109 (f3c5109, 9efbe58, 1896eaf, 12c9e28, 909e5bd, d937f32, 8ea5a53, 152b920, 14a0398, 0b5a6c2)
-- Último status conhecido: onda 6 concluída (T-20 [x]; gate final E2E aprovado após correção de UX em T-12..T-15, SUITE 624/624)
-- Próxima onda recomendada: nenhuma (revisão final; depois executar sql/T-20-cleanup.sql com aprovação)
+  - Onda 7 (correção da revisão final): BASE 3aeea3d → HEAD ac52d25 (ac52d25, b32c7c3, ebf01c3, 3cded2e)
+- Último status conhecido: onda 7 (correção da revisão final) concluída (T-07/T-09 [x]; SUITE 627/627; re-revisão aprovada)
+- Próxima onda recomendada: nenhuma (executar sql/T-20-cleanup.sql com backup e aprovação SQL)
