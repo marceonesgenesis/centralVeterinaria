@@ -216,4 +216,35 @@ final class CommunicationMessageScreensIntegrationTest
         Assert::true(str_contains((string) $result['html'], 'Enviada'), 'the list shows the sent status as "Enviada"');
         Assert::true(!str_contains((string) $result['html'], 'Enviado'), 'the list must not show the masculine "Enviado"');
     }
+
+    public function testStatusChangeReloadsTheDetailRightAway(): void
+    {
+        // Gate T-23: depois do "Sim" em "Marcar como enviado" a ficha seguia "Na fila"
+        // com as ações até o usuário recarregar. Como nos outros fluxos do projeto
+        // (SurgeryMaterialForm, HospitalizationEventForm), a transição avisa por
+        // TToast e recarrega a ficha na hora, sem esperar o OK de um TMessage.
+        $result = $this->runAdianti(
+            '$r = new ReflectionClass("CommunicationMessageView");'
+            . '$out["has"] = $r->hasMethod("reloadAfterChange");'
+            . 'if ($out["has"]) { $m = $r->getMethod("reloadAfterChange"); $m->setAccessible(true); $m->invoke(null, 41, "Mensagem marcada como enviada"); }'
+            . '$out["source"] = file_get_contents($r->getFileName());'
+        );
+
+        Assert::true(!isset($result['error']), 'reloadAfterChange threw: ' . (string) ($result['error'] ?? ''));
+        Assert::same(true, $result['has'] ?? null, 'CommunicationMessageView must reload the detail after a status change');
+
+        $html = (string) $result['html'];
+        Assert::true(
+            str_contains($html, "__adianti_goto_page('index.php?class=CommunicationMessageView&id=41')"),
+            'the detail must be reloaded right after the change'
+        );
+        Assert::true(str_contains($html, 'Mensagem marcada como enviada'), 'the success message must be shown');
+
+        $source = (string) ($result['source'] ?? '');
+        Assert::true(
+            preg_match_all('/self::reloadAfterChange\(/', $source) >= 2,
+            'runChange (mark sent, discard) and onRetry must reload the detail'
+        );
+        Assert::true(!str_contains($source, "new TMessage('info'"), 'a successful change must not wait for the OK of a TMessage');
+    }
 }
