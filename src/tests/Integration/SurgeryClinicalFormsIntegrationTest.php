@@ -196,4 +196,42 @@ final class SurgeryClinicalFormsIntegrationTest
             Assert::true(str_contains($class, 'cv-touch-target'), "action button must use cv-touch-target (got '{$class}')");
         }
     }
+
+    /**
+     * Correção 1 (revisão T-15): o nome do procedimento vem do banco (texto
+     * livre do catálogo) e o BootstrapFormBuilder não escapa o título.
+     */
+    public function testProcedureNameIsEscapedInTheEventFormTitle(): void
+    {
+        $result = $this->runAdianti(
+            '$_GET = ["class" => "SurgeryEventForm", "surgery_id" => "1", "type" => "post_op"];'
+            . 'eval(\'class SurgeryEventFormXss extends SurgeryEventForm {'
+            . ' protected static function loadProcedureName(int $surgeryId): ?string { return "<img src=x onerror=alert(1)>"; } }\');'
+            . '$page = new SurgeryEventFormXss($_GET); $page->show();'
+        );
+
+        Assert::true(!isset($result['error']), 'SurgeryEventForm threw: ' . (string) ($result['error'] ?? ''));
+        Assert::true(str_contains((string) $result['html'], '&lt;img src=x onerror=alert(1)&gt;'), 'procedure name must be rendered escaped');
+        Assert::true(!str_contains((string) $result['html'], '<img src=x'), 'procedure name must not be rendered as raw HTML');
+    }
+
+    /** Signatário e texto do consentimento só pelo corpo do POST. */
+    public function testConsentFieldsComeOnlyFromThePostBody(): void
+    {
+        $result = $this->runAdianti(
+            '$_POST = [];'
+            . '$_GET = ["class" => "SurgeryConsentForm", "method" => "onSave", "surgery_id" => "1",'
+            . ' "consent_signer_name" => "VIAURL", "consent_text" => "TEXTOURL"];'
+            . '$page = new SurgeryConsentForm($_GET);'
+            . '$out["label"] = _t("Signer name");'
+            . '$page->onSave($_GET);'
+            . '$form = (new ReflectionProperty($page, "form"))->getValue($page);'
+            . '$out["signer"] = (string) $form->getField("consent_signer_name")->getValue();'
+        );
+
+        Assert::true(!isset($result['error']), 'onSave threw: ' . (string) ($result['error'] ?? ''));
+        Assert::true(str_contains((string) $result['html'], (string) $result['label']), 'signer from the query string must be ignored: ' . (string) $result['html']);
+        Assert::true(!str_contains((string) $result['html'], 'VIAURL'), 'signer from the query string must not be used');
+        Assert::same('', $result['signer']);
+    }
 }
