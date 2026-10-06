@@ -149,10 +149,13 @@ final class DocumentListIntegrationTest
             'ready document must link to onDownload&id='
         );
         Assert::same(
-            'index.php?class=DocumentList&method=onDownload&id=41&static=1',
+            'engine.php?class=DocumentList&method=onDownload&id=41&static=1',
             html_entity_decode($m[1]),
-            'download href must carry only class, method, id and static'
+            'download href must go through engine.php (index.php answers the app shell) with only class, method, id and static'
         );
+        Assert::true(str_contains($m[0], 'target="_blank"'), 'download link must open outside the SPA (target _blank)');
+        Assert::true(preg_match('/rel="[^"]*\bnoopener\b/', $m[0]) === 1, 'download link must carry rel noopener');
+        Assert::true(!str_contains($m[0], 'generator="adianti"'), 'download link must not go through the Adianti router');
         Assert::true(preg_match('/class="[^"]*\bcv-touch-target\b/', $m[0]) === 1, 'download link must carry cv-touch-target');
         Assert::true(!str_contains($html, (string) $result['processing']), 'ready document must not show the processing text');
     }
