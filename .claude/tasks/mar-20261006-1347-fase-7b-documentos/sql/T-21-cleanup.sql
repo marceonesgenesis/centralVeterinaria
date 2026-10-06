@@ -31,8 +31,8 @@ START TRANSACTION;
 --     generated_document 2..6, stored_object 2133..2137, prescription 6124 (+ item 9108), surgery 4
 --     (sala 2, encounter 11105), surgery_room 2 'F7B teste Sala' (code F7BT1), document_template 1,
 --     communication_preference 8 (tutor 15447), communication_message 53 (document_ready do doc 3).
---   ROTEIRO B: ids ainda não conhecidos; entram pela derivação do prefixo e devem ser somados às
---   listas marcadas "ROTEIRO B" da seção 2.7 antes do COMMIT.
+--   Criados pelo roteiro B (reviews/T-21.md § Gate (roteiro B) e complemento):
+--     generated_document 7, 8 e stored_object 2138, 2139; nenhuma mensagem nem preferência nova.
 --
 -- Guardas por id: além do prefixo, as linhas só entram se o id for maior que o MAX(id) pré-gate
 -- da Onda 4 (tutor 13876, patient 9180, encounter 4304, appointment 831, stored_object 2131,
@@ -78,7 +78,9 @@ START TRANSACTION;
 --   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/4/6d879fe68e5148c3.pdf
 --   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/5/7964861c6c73c40a.pdf
 --   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/6/2dfca22f5c5ae841.pdf
---   ROTEIRO B: os objetos novos também saem da seção 2.6.
+--   (stored_object 2138, 2139 = documentos 7, 8, roteiro B:)
+--   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/7/cffae9f0f4d1b35a.pdf
+--   docker compose exec -T app rm -f -- /var/www/html/var/documents/cv/development/tenant/1/objects/documents/8/68f8e88c8349b74d.pdf
 -- Depois do rm: docker compose exec -T app find /var/www/html/var/documents/cv -type f | wc -l
 -- deve bater com o número de stored_object local restantes.
 
@@ -239,24 +241,22 @@ SELECT CONCAT('docker compose exec -T app rm -f -- /var/www/html/var/documents/'
   FROM stored_object o WHERE o.id IN (SELECT id FROM tmp_f7b_object) AND o.storage_provider = 'local';
 
 -- 2.7 Conferência das listas derivadas contra os ids do gate (confere = 1 em todas; se alguma
---     vier 0, PARE). Onda 4 + roteiro A preenchidos (conferidos por SELECT em 2026-10-06).
---     >>> ROTEIRO B: se o roteiro B criar linhas, acrescente os ids nas listas marcadas
---     >>> "ROTEIRO B" abaixo (em ordem crescente) antes de rodar; sem linhas novas, deixe como está.
-SELECT 'tutor'   AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '15447' AS confere FROM tmp_f7b_tutor;          -- ROTEIRO B
-SELECT 'patient' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '13321' AS confere FROM tmp_f7b_patient;        -- ROTEIRO B
-SELECT 'document' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6' AS confere FROM tmp_f7b_document; -- ROTEIRO B
-SELECT 'object'  AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2132,2133,2134,2135,2136,2137' AS confere FROM tmp_f7b_object; -- ROTEIRO B
-SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1' AS confere FROM tmp_f7b_template;          -- ROTEIRO B
-SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '53' AS confere FROM tmp_f7b_message;            -- ROTEIRO B
+--     vier 0, PARE). Onda 4 + roteiros A e B da Onda 6 (conferidos por SELECT em 2026-10-06).
+SELECT 'tutor'   AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '15447' AS confere FROM tmp_f7b_tutor;
+SELECT 'patient' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '13321' AS confere FROM tmp_f7b_patient;
+SELECT 'document' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1,2,3,4,5,6,7,8' AS confere FROM tmp_f7b_document;
+SELECT 'object'  AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2132,2133,2134,2135,2136,2137,2138,2139' AS confere FROM tmp_f7b_object;
+SELECT 'template' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '1' AS confere FROM tmp_f7b_template;
+SELECT 'message' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '53' AS confere FROM tmp_f7b_message;
 SELECT 'preference' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '8' AS confere
-  FROM communication_preference WHERE tutor_id IN (SELECT id FROM tmp_f7b_tutor);                                                         -- ROTEIRO B
-SELECT 'encounter' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '11105' AS confere FROM tmp_f7b_encounter;   -- ROTEIRO B
-SELECT 'vaccination' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2983' AS confere FROM tmp_f7b_vaccination; -- ROTEIRO B
-SELECT 'surgery' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '4' AS confere FROM tmp_f7b_surgery;            -- ROTEIRO B
-SELECT 'room'    AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2' AS confere FROM tmp_f7b_room;               -- ROTEIRO B
-SELECT 'prescription' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '6124' AS confere FROM tmp_f7b_prescription; -- ROTEIRO B
+  FROM communication_preference WHERE tutor_id IN (SELECT id FROM tmp_f7b_tutor);
+SELECT 'encounter' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '11105' AS confere FROM tmp_f7b_encounter;
+SELECT 'vaccination' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2983' AS confere FROM tmp_f7b_vaccination;
+SELECT 'surgery' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '4' AS confere FROM tmp_f7b_surgery;
+SELECT 'room'    AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '2' AS confere FROM tmp_f7b_room;
+SELECT 'prescription' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '6124' AS confere FROM tmp_f7b_prescription;
 SELECT 'prescription_item' AS t, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(id ORDER BY id) = '9108' AS confere
-  FROM prescription_item WHERE prescription_id IN (SELECT id FROM tmp_f7b_prescription);                                                  -- ROTEIRO B
+  FROM prescription_item WHERE prescription_id IN (SELECT id FROM tmp_f7b_prescription);
 -- ^ vazias esperadas (1 = lista vazia): agendamento, conta, recebível, exame, retorno
 SELECT (SELECT COUNT(*) FROM tmp_f7b_appointment) = 0  AS appointment_vazio;
 SELECT (SELECT COUNT(*) FROM tmp_f7b_account) = 0      AS account_vazio;
