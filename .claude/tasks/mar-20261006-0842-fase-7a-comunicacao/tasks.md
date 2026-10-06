@@ -24,7 +24,7 @@
 | T-20 | frontend | Navegação (menu, CvNav, ações no TutorForm) | T-04 | sim | simples | Jaspion | [x] |
 | T-21 | frontend | i18n pt/en das telas e mensagens de domínio | T-15, T-16, T-17, T-18, T-19, T-20 | sim | média | Levi | [x] |
 | T-22 | docs | Runbook de comunicação, índice e passo da 0012 na hospedagem 5.7 | T-01, T-04, T-05, T-15 | sim | simples | Gandalf | [x] |
-| T-23 | qa | Validação final ponta a ponta e SQL de limpeza `F7A teste` | T-21, T-22 | não | média | Spock | [ ] |
+| T-23 | qa | Validação final ponta a ponta e SQL de limpeza `F7A teste` | T-21, T-22 | não | média | Spock | [x] |
 
 ## Detalhamento
 
