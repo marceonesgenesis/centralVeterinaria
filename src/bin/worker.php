@@ -12,14 +12,29 @@ use CentralVet\Observability\CorrelationId\CorrelationIdContext;
 use CentralVet\Observability\ErrorTracking\ErrorTrackerFactory;
 use CentralVet\Observability\Logging\JsonLogger;
 use CentralVet\Observability\Metrics\MetricsFactory;
-use CentralVet\Queue\QueueMessage;
 use CentralVet\Persistence\PdoConnectionFactory;
+use CentralVet\Queue\QueueMessage;
+use CentralVet\Queue\QueueWorkerLoop;
 use CentralVet\Queue\RedisQueue;
 
 const HEARTBEAT_FILE = '/tmp/centralvet-worker.heartbeat';
 const POP_TIMEOUT_SECONDS = 1;
 
 $logger = JsonLogger::fromEnvironment('worker');
+
+/*
+ * Modes: continuous (default, the docker `worker` service) or one-shot for
+ * cron on shared hosting: `php bin/worker.php --once [--max-jobs=N]
+ * [--max-seconds=N]` drains the queue until it is empty or a limit is hit
+ * and exits 0 (no heartbeat, no scheduler tick: cron runs
+ * bin/communication-scheduler.php on its own).
+ */
+try {
+    $options = QueueWorkerLoop::parseOptions(array_values($argv ?? []));
+} catch (\InvalidArgumentException $exception) {
+    fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+    exit(2);
+}
 $metrics = MetricsFactory::fromEnvironment($logger);
 $errorTracker = ErrorTrackerFactory::fromEnvironment($logger);
 
@@ -86,7 +101,39 @@ $handle = static function (QueueMessage $message) use ($logger, $communicationHa
     }
 };
 
-$logger->info('worker.started', ['queues' => $queueNames]);
+$logger->info('worker.started', ['queues' => $queueNames, 'mode' => $options['once'] ? 'once' : 'continuous']);
+
+if ($options['once']) {
+    // Overlapping cron runs are skipped: the conditional claim already
+    // prevents a double send, but on shared hosting a slow run plus the next
+    // cron would pile up PHP processes and Redis/MySQL connections.
+    $lockHandle = fopen(sys_get_temp_dir() . '/centralvet-worker-once-' . md5(__DIR__) . '.lock', 'c');
+    if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+        $logger->info('worker.once_skipped_locked', []);
+        exit(0);
+    }
+
+    try {
+        $queue = RedisQueue::fromEnvironment();
+        $loop = new QueueWorkerLoop($queue, $queueNames, $handle, $logger, $metrics, $errorTracker, null, POP_TIMEOUT_SECONDS);
+        $processed = $loop->drain(
+            $options['max_jobs'],
+            $options['max_seconds'],
+            static function () use (&$running): bool {
+                return $running;
+            },
+        );
+    } catch (\Throwable $exception) {
+        $errorTracker->captureException($exception, ['phase' => 'once']);
+        $logger->error('worker.loop_error', ['exception' => $exception::class]);
+        exit(1);
+    } finally {
+        CorrelationIdContext::clear();
+    }
+
+    $logger->info('worker.stopped', ['mode' => 'once', 'processed' => $processed]);
+    exit(0);
+}
 
 try {
     $queue = RedisQueue::fromEnvironment();
@@ -133,55 +180,15 @@ $runSchedulerTick = static function () use (&$schedulerNextRunAt, $schedulerInte
     }
 };
 
+$loop = new QueueWorkerLoop($queue, $queueNames, $handle, $logger, $metrics, $errorTracker, null, POP_TIMEOUT_SECONDS);
+
 while ($running) {
     touch(HEARTBEAT_FILE);
     CorrelationIdContext::start();
 
     try {
         $runSchedulerTick();
-
-        foreach ($queueNames as $queueName) {
-            $recovered = $queue->recoverDue($queueName);
-            if ($recovered > 0) {
-                $logger->debug('queue.recovered_due', ['queue' => $queueName, 'count' => $recovered]);
-            }
-        }
-
-        $message = null;
-        foreach ($queueNames as $queueName) {
-            $message = $queue->pop($queueName, POP_TIMEOUT_SECONDS);
-            if ($message !== null) {
-                break;
-            }
-        }
-
-        if ($message === null) {
-            continue;
-        }
-
-        CorrelationIdContext::start($message->correlationId);
-        $metrics->increment('queue.job.received', 1, ['queue' => $message->queue]);
-
-        try {
-            $handle($message);
-            $queue->ack($message);
-            $metrics->increment('queue.job.completed', 1, ['queue' => $message->queue]);
-            $logger->info('queue.job.completed', ['queue' => $message->queue, 'job_id' => $message->id]);
-        } catch (\Throwable $jobException) {
-            $errorTracker->captureException($jobException, [
-                'queue' => $message->queue,
-                'job_id' => $message->id,
-                'attempts' => $message->attempts + 1,
-            ]);
-            $queue->fail($message, $jobException->getMessage());
-            $metrics->increment('queue.job.failed', 1, ['queue' => $message->queue]);
-            $logger->warning('queue.job.failed', [
-                'queue' => $message->queue,
-                'job_id' => $message->id,
-                'attempts' => $message->attempts + 1,
-                'max_attempts' => $message->maxAttempts,
-            ]);
-        }
+        $loop->processNext();
     } catch (\Throwable $loopException) {
         $errorTracker->captureException($loopException, ['phase' => 'loop']);
         $logger->error('worker.loop_error', ['reason' => $loopException->getMessage()]);
