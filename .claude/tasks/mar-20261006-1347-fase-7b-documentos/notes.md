@@ -34,6 +34,10 @@
 - 2026-10-06 · T-01 · onda 1 — Sete índices nomeados nas colunas de FK além do plano (padrão da 0012); contrato inalterado: aceito.
 - 2026-10-06 · T-02 · onda 1 — Adições públicas extras (`DocumentTemplate::assignId`, `DocumentKind::requiresBodyText`) e interfaces de repositório sem estender `TenantRepositoryInterface`: aceito (registrado no board).
 - 2026-10-06 · T-04 · onda 1 — RBAC: usuário confirmou os grupos 1, 2, 4 e 5 (mesmos da 7A).
+- 2026-10-06 · T-09 · onda 2 — Autorizada a alterar `CommunicationReadModelIntegrationTest` (54183c2): fixture ganhou documento `failed`, sem excluir o tipo da comparação.
+- 2026-10-06 · T-06 · onda 2 — Repositórios sem estender `AbstractTenantRepository` (escopo via `TenantQuery`) e retry após 1062 sem teste: aceito (revisor aprovou).
+- 2026-10-06 · T-08 · onda 2 — Extras públicos `options()` e construtor com `DocumentHtmlBuilder` opcional: aceito.
+- 2026-10-06 · onda 2 — Pré-condição: migration 0013 aplicada em `centralvet` e `centralvet_test` (sha e5d9f164f91ff5bd1cddecd77e51f177c40de87e3805d083496fe00fe7dc5adf, backup `var/backups/centralvet-20261006T171637Z.sql.gz`); DML T-04 aplicada em `centralvet` (system_program 133→137, system_group_program 173→189; grupos 1,2,4,5 com 4 cada, grupo 3 com 0).
 
 ## Bloqueios
 - **Bloqueio entre a Onda 1 e a Onda 2** (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -55,6 +59,11 @@
   - `patient` não tem unidade; `vaccination` e `prescription` pegam a unidade pelo `encounter`.
 - [T-03] Local storage: StoredObjectMetadata com provider/bucket 'local', objectKey relativo ao root, get ausente lança StorageException; mensagens i18n-domínio de I/O listadas no board.
 - [T-02] Contratos de documentos commitados em cecca44 com extras públicos aditivos; `DocumentTemplate::create` só aceita kind com template (medical_certificate) e placeholders fechados; `render()` mantém `{{nome}}` quando o valor é null.
+- [T-05] Fakes: `failWith` de uma chamada só (a que falha entra em `calls()`); `claim` incrementa `attempt_count`, `releaseClaim` não; `simulateConcurrentClaim` só grava `claimed_at`; `FakeDocumentSourceQuery` não semeado devolve null/[].
+- [T-06] Repositórios PDO não estendem `AbstractTenantRepository`; `markFailed` exige só `queued`; template com nome duplicado sobe PDOException 1062 (o service traduz); i18n-domínio: Could not allocate document version.
+- [T-07] `system_users` sem `tenant_id` (LEFT JOIN por id, nome ausente → ''); itens da receita por id; datas TIMESTAMP(6) truncadas a `Y-m-d H:i:s`.
+- [T-08] `DocumentHtmlBuilder`/`DompdfDocumentRenderer` em `src/app/Core/Document/`; sujeito "Rótulo: valor" com rótulo em `<strong>`; saída sem `%PDF-` vira RENDER_FAILED.
+- [T-09] `PendingItem::TYPE_DOCUMENT_FAILED` (9º tipo), prioridade sempre high, deep-link `DocumentList&patient_id`; i18n: "Failed documents" → "Documentos com falha" (T-19).
 
 ## Pendências
 - Anexos existentes (`PatientForm`, `EncounterView`, `ExamResultForm`) continuam presos a `S3CompatibleStorage::fromEnvironment`. Numa hospedagem sem S3, eles precisam migrar para uma fábrica com driver local (fora do escopo 7B).
@@ -63,6 +72,11 @@
 - T-03: get/exists/delete validam o caminho só lexicamente (symlink no root); testes de root fora do webroot/inexistente só conferem o tipo da exceção.
 - Onda 1: aplicar a 0013 (`centralvet` e `centralvet_test`) e a DML da T-04 no bloqueio entre as ondas 1 e 2, com aprovação SQL do usuário.
 - Onda 1: teste "writable" do storage fica para o gate da onda 4.
+- T-05: `testTemplateRepositoryFiltersTenantAndKind` não exercita filtro por kind/status; sem caso semeado de prescription/surgery; `simulateConcurrentClaim` usa relógio real; `seed()` descarta size_bytes/sha256/claimed_at/failed_at.
+- T-06: retry em 1062 e RuntimeException na 4ª colisão sem teste (testável com PDO stub); avaliar retentar também deadlock 1213 no INSERT ... SELECT.
+- T-07: regra "nome de profissional ausente → ''" sem teste.
+- T-08: teste confere `options()` e não as opções efetivas do render; ordem das seções do HTML não afirmada em teste.
+- T-09: docblock de `PendingCenterService::totalsByType` ainda diz "8 types"; assunto `Receita v1` fixo em pt (`DocumentKind::titleFor`), avaliar na T-19; fixture usa 'F7A teste documento' (fora do prefixo `F7B teste`); relatório diz 24 testes, são 23.
 
 ## Riscos
 - **Container `read_only`**: sem a pasta criada na imagem com dono `www-data`, o volume nomeado nasce com dono root e o `put` falha. Mitigação: T-03 no `Dockerfile` e PDF real no gate da Onda 4.
@@ -81,5 +95,6 @@
 - BASE da onda 1: 2ead438
 - Commits por onda:
   - Onda 1: BASE 2ead438 → HEAD cecca44 (649d988, 78b7b13, 9586797, efb9bbb, 25f9d54, cecca44)
-- Último status conhecido: onda 1 concluída (T-01..T-04 [x]); gate SUITE 998/998, LINT, PYTEST57, preparador 5.7 ok; 0013 e DML T-04 ainda não aplicadas
-- Próxima onda recomendada: bloqueio SQL (0013 + T-04) e depois onda 2 (T-05..T-13 conforme dependências)
+  - Onda 2: BASE f2b8947 → HEAD 54183c2 (15fc70a, baa5fe1, 18b2438, c7d5652, 5b5470a, fe64748, 54f4273, 993a5f6, cf7e01b, e743d30, 54183c2)
+- Último status conhecido: onda 2 concluída (T-01..T-09 [x]); gate SUITE 1035/1035, LINT; 0013 e DML T-04 aplicadas
+- Próxima onda recomendada: onda 3 (T-10..T-13, dependências T-02/T-05 atendidas)
