@@ -27,6 +27,8 @@
 - 2026-10-05 · T-12..T-18 · onda 4 — Fluxos do Review Focus no navegador (sala sobreposta, iniciar sem consentimento/checklist, toque duplo no checklist, material/conclusão com e sem estoque, outra unidade) adiados para a T-21 (roteiro B do gate final) por limite de turnos; nenhum registro de teste criado na onda 4.
 - 2026-10-05 · T-15 · onda 4 — Revisão rodada 1 reprovou (XSS armazenado: nome do procedimento sem escape no título do SurgeryEventForm) → 2d05dd9 (RED) + 78aa2e0 (CvFormat::e; varredura do SurgeryConsentForm sem outros casos); re-validada (SUITE 746/746); re-revisão rodada 2 aprovada.
 - 2026-10-05 · T-12..T-18 · onda 4 — Login admin no Playwright refeito pelo orquestrador (autorização do usuário para a 6B).
+- 2026-10-06 · T-19 · onda 5 — Gate de tela em pt não rodou (sessão admin expirada); transferido para a T-21. Aceitas: mensagens sem id interno; "Circulating nurse" → "Circulante" (plano dizia "Volante"; ajustável depois); obrigatórios "Campo obrigatório: <rótulo>".
+- 2026-10-06 · T-20 · onda 5 — A regex do critério devolve 8 (não casa SurgeryList/SurgeryView); os 9 controllers conferidos um a um.
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
   1. `./scripts/backup.sh` e `gzip -t`.
@@ -70,6 +72,9 @@
 - T-18: [sugestão] teste de menu não prova posição após `_t{Beds}` nem a ação do item Surgeries; docblock de `onInlineAction` desatualizado em EncounterView.
 - T-19: chaves i18n da onda 4 (T-12..T-18) estão em board.md; "Message not found" é tolerado até lá. Mensagens de domínio para UserMessage anotadas em [T-16] do board.
 - T-21: fluxos em navegador da onda 4 adiados (sala sobreposta, iniciar sem consentimento/checklist, toque duplo, material/conclusão com e sem estoque, outra unidade).
+- T-19: [sugestão] status misturam gêneros nos badges (`Scheduled` "Agendado" ao lado de "Concluída"/"Cancelada"; exige chave própria na tela); mensagens `duration_minutes is required`, `quantity must be >= 1`, `cancellation_reason_text`/`consent_signer_name` com limite de tamanho ainda pelo genérico com nome técnico; `Hospitalize post-op` não criada (nenhuma tela usa).
+- T-19: gate de tela em pt (sessão admin expirada, "Message not found" não verificável) → T-21.
+- T-20: [sugestão] runbook trata `SurgeryAgendaView` como tela (é classe auxiliar de SurgeryList); passo 2 fixa "esperado 4/117/127" (marcar como contagens de 2026-10-05, delta +1/+9/+18).
 ## Riscos
 - `EncounterAccountService.php` (Fase 5) muda a lista de tipos de `addSourcedItem` (T-11): regressão na alta da 6A. Mitigação: `EncounterAccountServiceTest` e `HospitalizationDischargeServiceTest` na validação de T-11; diff restrito à lista.
 - Conclusão não atômica fora do controller (services não abrem transação). Mitigação: `SurgeryView::onComplete` com `TTransaction` único; Review Focus 3 conferido no roteiro B da T-21.
@@ -89,5 +94,6 @@
   - Onda 2: BASE 817a4f3 → HEAD f1dc5d8 (0887153, 223a94b, f245d7a, 98523b5, 701e4cb, f1dc5d8)
   - Onda 3: BASE 9c5bb04 → HEAD 21dbc10 (ddaadf0, a26b298, 6e68554, 96f0567, 3f2038a, 8dacf73, 41cfbee, 063e263, d9b5a81, 5ecd21e, 4678b75, 6929b48, 21dbc10)
   - Onda 4: BASE e09d03d → HEAD 1f7718f (dd31bcb, 24a5c00, b502111, 0388aee, aafdb9c, 192a950, 1a42185, c577b6d, d75ee63, 765b946, f872e4e, a5104a1, 1859572, 92daa99, 118f066, 2d05dd9, 78aa2e0, 1f7718f)
-- Último status conhecido: onda 4 concluída (T-12..T-18 [x]); SUITE 746/746, LINT 19, PYTEST57 OK.
-- Próxima onda recomendada: onda 5 (T-19)
+  - Onda 5: BASE c7ce164 → HEAD 5283aaa (193840a, 44343f2, 5283aaa)
+- Último status conhecido: onda 5 concluída (T-19, T-20 [x]); SUITE 749/749, translations 0 True, PYTEST57 OK, LINT ok.
+- Próxima onda recomendada: onda 6 (T-21)
