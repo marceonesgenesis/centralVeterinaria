@@ -27,9 +27,11 @@ use InvalidArgumentException;
  *
  * ## Deep-link
  * {@see self::deepLinkUrl()} only accepts an allow-listed controller class
- * and parameter values that are positive integers, `Y-m-d` dates or the
- * literal `administrations`, so no free text or personal data ever reaches
- * the URL. No Adianti dependency (ADR 0001).
+ * and, per class, the closed key list of {@see self::DEEP_LINK_KEYS}. Each
+ * key has a fixed value kind: internal ids are positive integers, `date` is
+ * a valid `Y-m-d` and `tab` is the literal `administrations`. Any other key
+ * (phone, document, birth date...) or value is refused, so no free text or
+ * personal data reaches the URL. No Adianti dependency (ADR 0001).
  */
 final class PendingItem
 {
@@ -65,7 +67,36 @@ final class PendingItem
         'PaymentForm',
     ];
 
-    private const DEEP_LINK_LITERALS = ['administrations'];
+    /**
+     * Closed list of deep-link keys per destination class (T-08 mapping).
+     */
+    public const DEEP_LINK_KEYS = [
+        'ExamResultForm' => ['exam_request_id', 'encounter_id'],
+        'AgendaView' => ['date'],
+        'VaccinationCardView' => ['patient_id'],
+        'HospitalizationView' => ['id', 'tab'],
+        'CommunicationMessageView' => ['id'],
+        'PaymentForm' => ['receivable_id'],
+    ];
+
+    private const VALUE_ID = 'id';
+    private const VALUE_DATE = 'date';
+    private const VALUE_TAB = 'tab';
+
+    /**
+     * Value kind of each allowed key.
+     */
+    private const DEEP_LINK_VALUE_KINDS = [
+        'id' => self::VALUE_ID,
+        'exam_request_id' => self::VALUE_ID,
+        'encounter_id' => self::VALUE_ID,
+        'patient_id' => self::VALUE_ID,
+        'receivable_id' => self::VALUE_ID,
+        'date' => self::VALUE_DATE,
+        'tab' => self::VALUE_TAB,
+    ];
+
+    private const DEEP_LINK_TABS = ['administrations'];
 
     /**
      * @param array<string, int|string> $deepLinkParams
@@ -133,7 +164,8 @@ final class PendingItem
      * `index.php?class=<class>&<key>=<value>...`, in the given parameter order.
      *
      * @throws InvalidArgumentException `Invalid deep-link parameter <key>`
-     *         when a key or value is not allowed
+     *         when the key is not in {@see self::DEEP_LINK_KEYS} for the
+     *         class or its value does not match the key's kind
      */
     public function deepLinkUrl(): string
     {
@@ -144,7 +176,10 @@ final class PendingItem
             if (preg_match('/^[a-z][a-z0-9_]{0,63}$/', $key) !== 1) {
                 throw new InvalidArgumentException('Invalid deep-link parameter key');
             }
-            if (!self::isAllowedValue($value)) {
+            if (
+                !in_array($key, self::DEEP_LINK_KEYS[$this->deepLinkClass], true)
+                || !self::isAllowedValue(self::DEEP_LINK_VALUE_KINDS[$key], $value)
+            ) {
                 throw new InvalidArgumentException('Invalid deep-link parameter ' . $key);
             }
             $url .= '&' . $key . '=' . $value;
@@ -153,24 +188,19 @@ final class PendingItem
         return $url;
     }
 
-    private static function isAllowedValue(mixed $value): bool
+    private static function isAllowedValue(string $kind, mixed $value): bool
     {
-        if (is_int($value)) {
-            return $value > 0;
-        }
+        return match ($kind) {
+            self::VALUE_ID => (is_int($value) && $value > 0)
+                || (is_string($value) && preg_match('/^[1-9][0-9]{0,18}$/', $value) === 1),
+            self::VALUE_TAB => is_string($value) && in_array($value, self::DEEP_LINK_TABS, true),
+            self::VALUE_DATE => is_string($value) && self::isDate($value),
+            default => false,
+        };
+    }
 
-        if (!is_string($value)) {
-            return false;
-        }
-
-        if (preg_match('/^[1-9][0-9]{0,18}$/', $value) === 1) {
-            return true;
-        }
-
-        if (in_array($value, self::DEEP_LINK_LITERALS, true)) {
-            return true;
-        }
-
+    private static function isDate(string $value): bool
+    {
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
 
         return $date !== false && $date->format('Y-m-d') === $value;
