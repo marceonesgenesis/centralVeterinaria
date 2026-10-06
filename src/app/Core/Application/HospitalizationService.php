@@ -149,6 +149,8 @@ final class HospitalizationService
      * unit: occupies the new bed first (atomic), then releases the old one.
      *
      * @throws BedUnavailableException target bed missing, inactive, occupied or from another unit.
+     * @throws InvalidStatusTransitionException old bed no longer held (concurrent discharge)
+     *         or the hospitalization is no longer admitted.
      */
     public function transfer(int $hospitalizationId, int $toBedId, string $action): Hospitalization
     {
@@ -168,7 +170,15 @@ final class HospitalizationService
             throw BedUnavailableException::forBed($toBedId);
         }
 
-        $this->beds->release($fromBedId, $hospitalizationId);
+        // The old bed must still be held by this hospitalization; otherwise
+        // a concurrent discharge already released it (and the save below
+        // would also refuse the stale admitted copy).
+        if (!$this->beds->release($fromBedId, $hospitalizationId)) {
+            throw new InvalidStatusTransitionException(
+                "Bed {$fromBedId} is not occupied by hospitalization {$hospitalizationId}"
+            );
+        }
+
         $hospitalization->moveToBed($toBedId);
 
         /** @var Hospitalization $hospitalization */
