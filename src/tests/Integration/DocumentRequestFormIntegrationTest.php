@@ -41,6 +41,7 @@ final class DocumentRequestFormIntegrationTest
             . ' "body_text" => $form->getField("body_text") !== null,'
             . ' "template_id" => $form->getField("template_id") !== null,'
             . ' "notify_tutor" => $form->getField("notify_tutor") !== null];'
+            . '$out["label"] = _t("Generate PDF");'
             . '$page->show();'
             . '}'
         );
@@ -54,7 +55,7 @@ final class DocumentRequestFormIntegrationTest
         $save = array_values(array_filter($m[0], static fn (string $b): bool => str_contains($b, 'onSave')));
 
         Assert::same(1, count($save), 'one Generate PDF button: ' . $html);
-        Assert::stringContains('Generate PDF', $save[0], 'button label');
+        Assert::stringContains((string) $result['label'], $save[0], 'button label is _t("Generate PDF")');
         Assert::stringContains('cv-touch-target', $save[0], 'button is a touch target');
         Assert::stringContains('btn-primary', $save[0], 'button is primary');
         Assert::stringContains('F7B teste texto inicial', $html, 'initial body is loaded into the text');
@@ -68,6 +69,7 @@ final class DocumentRequestFormIntegrationTest
             self::SUBCLASS
             . '$page = new DocumentRequestFormT15(["kind" => "foo", "source_id" => "42"]);'
             . '$out["form"] = (new ReflectionProperty(DocumentRequestForm::class, "form"))->getValue($page) !== null;'
+            . '$out["invalid"] = _t("Invalid document request"); $out["label"] = _t("Generate PDF");'
             . '$page->show();'
             . '}'
         );
@@ -75,8 +77,8 @@ final class DocumentRequestFormIntegrationTest
         Assert::true(!isset($result['missing']), 'DocumentRequestForm must exist');
         Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
         Assert::false($result['form'], 'no form for an invalid request');
-        Assert::stringContains('Invalid document request', (string) $result['html']);
-        Assert::false(str_contains((string) $result['html'], 'Generate PDF'), 'no Generate PDF button');
+        Assert::stringContains((string) $result['invalid'], (string) $result['html'], 'shows _t("Invalid document request")');
+        Assert::false(str_contains((string) $result['html'], (string) $result['label']), 'no Generate PDF button');
     }
 
     public function testNonIntegerSourceShowsInvalidRequest(): void
@@ -85,13 +87,14 @@ final class DocumentRequestFormIntegrationTest
             self::SUBCLASS
             . '$page = new DocumentRequestFormT15(["kind" => "vaccination_card", "source_id" => "4x"]);'
             . '$out["form"] = (new ReflectionProperty(DocumentRequestForm::class, "form"))->getValue($page) !== null;'
+            . '$out["invalid"] = _t("Invalid document request"); $out["label"] = _t("Generate PDF");'
             . '$page->show();'
             . '}'
         );
 
         Assert::true(!isset($result['missing']), 'DocumentRequestForm must exist');
         Assert::false($result['form'], 'no form for a non-integer source_id');
-        Assert::stringContains('Invalid document request', (string) $result['html']);
+        Assert::stringContains((string) $result['invalid'], (string) $result['html'], 'shows _t("Invalid document request")');
     }
 
     public function testOnChangeTemplateSendsMergedTextAsSafeScriptLiteral(): void
