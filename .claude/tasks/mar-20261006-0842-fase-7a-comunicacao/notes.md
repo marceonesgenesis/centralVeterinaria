@@ -23,6 +23,11 @@
 - 2026-10-06 · T-02 · onda 1 — Desvio aceito: CommunicationPreferenceRepositoryInterface e AppointmentFollowupRepositoryInterface não estendem TenantRepositoryInterface.
 - 2026-10-06 · T-07 · onda 2 — Quatro diferenças PDO×Fake aceitas (sem impacto nos contratos usados pelos services): save() só insere e remove() lança LogicException; link() valida tenant (TenantBoundaryViolation); varredura de presos por claimed_at; link repetido idempotente só no fake.
 - 2026-10-06 · T-08 · onda 2 — PendingItemQuery e ReminderSourceQuery sem AbstractTenantRepository (TenantQuery::forTenant em cada SQL) aceito; instantes convertidos para date_default_timezone_get().
+- 2026-10-06 · T-15 · onda 4 — Revisão rodada 1 reprovou (varredura/publicação no mesmo try do generate: candidato envenenado travava o tenant) → 4721664 (RED) + 80a83bc (etapas services/generate/sweep/publish isoladas por tenant; log só tenant_id/stage/classe); re-validada (SUITE 937/937); re-revisão rodada 2 aprovada. Execução do agendador no container com o código corrigido fica para a T-23 (após rebuild).
+- 2026-10-06 · T-19 · onda 4 — Central vazia no gate porque a unidade ativa era a Unit B; na Unit A há 3 exam_review + receivable_open (partially_paid aparece, como deve). Medida do "Resolver" e ficha com mensagem real ficam para a T-23 com a Unit A ativa.
+- 2026-10-06 · T-20 · onda 4 — xmllint ausente; o teste de parse do XML cobre o menu.xml.
+- 2026-10-06 · T-20 · onda 4 — Relay da T-20 para a T-18 aplicado: TutorForm liga por href sem method, e TutorCommunicationForm/CommunicationComposeForm leem tutor_id do request no construtor.
+- 2026-10-06 · orquestrador · onda 4 — Login admin refeito pelo orquestrador (autorizado na aprovação da 7A).
 
 ## Bloqueios
 - Bloqueio entre a Onda 1 e a Onda 2 (orquestrador, com aprovação SQL explícita do usuário pela skill `sql-write-approval`):
@@ -42,6 +47,8 @@
 - Onda 1: board consolidado em notas por task (contratos T-02 com símbolos extras; provedores T-05 com códigos smtp_connect/smtp_auth/smtp_recipient_rejected/smtp_error; 12 variáveis em .env.example/docker-compose; programas T-04 com 7 controllers; mensagens i18n-domínio registradas no board para a T-21). Rebuild/restart do worker/app fica com o orquestrador.
 - Onda 2: board consolidado por task (fakes T-06 com extras seed()/all()/simulateConcurrentTransition; PDO T-07 com PdoConnectionFactory::fromEnvironment e 3 mensagens i18n-domínio; consultas T-08 com ReminderCandidate::variables incluindo tutor_name). Services da onda 3 usam só insertIfNew + transições.
 - Onda 3: board consolidado por task (T-09 NOT_RECORDED e save de template sem status assume active; T-10 not-found vira CrossTenantReferenceException, cancel grava motivo discarded, listForUnit limite 200; T-11 ordem de descarte opt-out→sem consent→sem contato→permitsSending e ReminderRunSummary::toArray(); T-12 constantes RESULT_*/CODE_*, reference msg-<id>, cancel perdido em corrida devolve skipped; T-14 link() na mesma transação de schedule(); 17 mensagens i18n-domínio novas para a T-21).
+- Onda 4: board consolidado por task (T-15 handler/agendador com forEnvironment/forConnection e log com stage; T-16 purposeLabel/channelLabel públicos; T-17 helpers estáticos de status/rótulo e maskRecipient; T-18 onChangeChannel extra; T-19 buildContent como seam e consulta memoizada; T-20 menu, CvNav::group('communication') e ações no TutorForm). Gate: SUITE 936/936, agendador no container exit 0 (created 0, sem fontes elegíveis no dev), logs sem dado pessoal, smoke das 7 telas em 820×1180 (200, console 0, alvos ≥44 px).
+- Onda 4 (i18n para a T-21): textos _t() de T-16..T-20 registrados no board; colisão de chave "Open" (Aberta na Central × Abrir no histórico/SurgeryList); assuntos/finalidades exibidos como código (receivable_open) precisam de mapeamento.
 
 ## Pendências
 - Envio SMTP real só pode ser conferido com as credenciais do usuário (fora dos gates, que usam o driver `log`).
@@ -61,6 +68,14 @@
 - T-12: sugestões: retorno de markSent ignorado (claim expirado/cancelada no meio do envio devolve sent); cancel do worker exige só queued e pode cancelar mensagem já reivindicada por outro worker; outro tenant → skipped sem teste.
 - T-13: sugestões: list e countsByType no mesmo render consultam duas vezes com now próprio (carregar uma vez na T-19); countsByType limitado a 200 por tipo sem indicar truncamento.
 - T-14: sugestões: sem teste automatizado da ligação dentro de EncounterView::onScheduleFollowUp (atomicidade só por leitura; cobrir no roteiro A da T-23).
+- T-15: sugestões: tick síncrono do agendador no loop do worker pode deixar o heartbeat expirar (unhealthy) com muitos tenants/candidatos; varredura pode republicar e-mail em backoff (job duplicado, passa de 5 tentativas); teste de isolamento não cobre falha em generate/publish com o tenant seguinte rodando.
+- T-16: sugestões: formulário novo sempre salva como ativo (não cadastra segundo template inativo para a mesma finalidade/canal); status no THidden permite ativar pelo onSave sem o RBAC do onToggle; teste não cobre carga por &id= nem manutenção dos dados no erro.
+- T-17: sugestões: filtros do histórico só por POST, sem teste; ações de estado por GET via TQuestion sem token CSRF (padrão do módulo clinic, dívida transversal).
+- T-18: sugestões: onChangeTemplate não trata AuthorizationDenied/MissingTenantContext (mostra o reason técnico); carga das telas engole permissão negada/tutor fora do tenant e renderiza o formulário; error_log com getMessage() em TutorCommunicationForm; teste não exercita onSave com record/compose nem a recusa por base legal.
+- T-19: sugestões: assunto exibido como código (receivable_open) sem _t (T-21); filtro "Só meus" e contagem dos cards sem teste da tela; Review Focus 5 (histórico, ficha, wa.me) só coberto na parte da Central.
+- T-20: sugestão: teste das ações do TutorForm só procura a string no fonte, sem provar tutor existente nem o href renderizado.
+- Onda 4 (validador): execução do agendador com o código corrigido (80a83bc) no container, medida do "Resolver" e ficha com mensagem real na Unit A ficam para a T-23 (após rebuild dos containers app/worker).
+- Onda 4: i18n das telas (T-16..T-20) e colisão da chave "Open" para a T-21.
 
 ## Riscos
 - Volume de WhatsApp manual: com legítimo interesse, todo tutor sem opt-out e com telefone válido gera um WhatsApp `queued` de confirmação D-1 e de retorno, que aparece na Central de Pendências como "aguardando envio". Mitigação: o atendente envia ou descarta pela ficha; o volume é medido no roteiro A (T-23). Se pesar na operação, o próximo passo é um interruptor por canal nas automações (fora do MVP).
@@ -82,5 +97,5 @@
   - Onda 1: BASE bf2178d → HEAD 7bd7b70 (cc8c534,3bf14d8,bcfa8c2,61fa5dd,3c6331b,52ba96d,6938b0a,0b40507,eb4832d,7bd7b70)
   - Onda 2: BASE dc7f430 → HEAD 812b4a3 (915a000,f71f723,4c37ddd,268109c,62c579d,812b4a3)
   - Onda 3: BASE 6458506 → HEAD 8830515 (d5a6193,f6dc87f,4b762ea,94cff24,cea3501,bfc8276,1a3e831,8f91496,4fb0b8a,ae23b40,91dd851,8830515)
-- Último status conhecido: onda 3 concluída (T-09..T-14 [x]); SUITE 904/904, PYTEST57 OK, LINT 17
-- Próxima onda recomendada: 4 — T-15..T-20 (T-15 a T-19 e T-20 conforme plan.md)
+@@ONDA4@@- Último status conhecido: onda 4 concluída (T-15..T-20 [x]); SUITE 936/936 no gate (937/937 após a correção da T-15)
+- Próxima onda recomendada: 5 — T-21, T-22 (i18n e runbook); depois T-23

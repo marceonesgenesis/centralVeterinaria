@@ -16,12 +16,12 @@
 | T-12 | backend | MessageDeliveryService (entrega no worker, reconferindo a base legal) | T-02, T-05, T-06 | sim | alta | Tesla | [x] |
 | T-13 | backend | PendingCenterService | T-03, T-06 | sim | simples | Arquimedes | [x] |
 | T-14 | backend | Ligação de retorno (AppointmentFollowupService + EncounterView::onScheduleFollowUp) | T-02, T-06, T-07 | sim | média | Aang | [x] |
-| T-15 | infra | Worker e agendador (handler do job, CommunicationScheduler, worker.php, comando) | T-05, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [ ] |
-| T-16 | frontend | Telas de templates (lista e formulário) | T-07, T-09 | sim | média | Saitama | [ ] |
-| T-17 | frontend | Histórico e ficha da mensagem | T-05, T-07, T-10 | sim | média | Kratos | [ ] |
-| T-18 | frontend | Compor mensagem e preferências do tutor | T-07, T-09, T-10 | sim | média | Naruto | [ ] |
-| T-19 | frontend | Central de Pendências (tela) | T-08, T-13 | sim | média | Batman | [ ] |
-| T-20 | frontend | Navegação (menu, CvNav, ações no TutorForm) | T-04 | sim | simples | Jaspion | [ ] |
+| T-15 | infra | Worker e agendador (handler do job, CommunicationScheduler, worker.php, comando) | T-05, T-07, T-08, T-10, T-11, T-12 | sim | alta | Aang | [x] |
+| T-16 | frontend | Telas de templates (lista e formulário) | T-07, T-09 | sim | média | Saitama | [x] |
+| T-17 | frontend | Histórico e ficha da mensagem | T-05, T-07, T-10 | sim | média | Kratos | [x] |
+| T-18 | frontend | Compor mensagem e preferências do tutor | T-07, T-09, T-10 | sim | média | Naruto | [x] |
+| T-19 | frontend | Central de Pendências (tela) | T-08, T-13 | sim | média | Batman | [x] |
+| T-20 | frontend | Navegação (menu, CvNav, ações no TutorForm) | T-04 | sim | simples | Jaspion | [x] |
 | T-21 | frontend | i18n pt/en das telas e mensagens de domínio | T-15, T-16, T-17, T-18, T-19, T-20 | sim | média | Levi | [ ] |
 | T-22 | docs | Runbook de comunicação, índice e passo da 0012 na hospedagem 5.7 | T-01, T-04, T-05, T-15 | sim | simples | Gandalf | [ ] |
 | T-23 | qa | Validação final ponta a ponta e SQL de limpeza `F7A teste` | T-21, T-22 | não | média | Spock | [ ] |
