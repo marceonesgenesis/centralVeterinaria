@@ -137,7 +137,8 @@ class VaccineCatalogForm extends TStandardForm
             $this->form->setData($data ?? null);
 
             // shows the exception error message
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
 
             // undo all pending operations
             TTransaction::rollback();

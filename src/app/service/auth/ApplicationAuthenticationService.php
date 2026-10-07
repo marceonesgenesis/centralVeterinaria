@@ -100,6 +100,9 @@ class ApplicationAuthenticationService
         $programs = $user->getPrograms();
         $programs['LoginForm'] = TRUE;
         
+        // T-15: a login without a previous logout must not inherit the previous user's pending uploads
+        TSession::delValue(\CvUpload::SESSION_KEY);
+        
         TSession::setValue('need_renewal_password', false);
         TSession::setValue('logged', TRUE);
         TSession::setValue('login', $user->login);

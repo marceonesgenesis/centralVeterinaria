@@ -207,7 +207,8 @@ class VaccineCatalogList extends TStandardList
         catch (Exception $e) // in case of exception
         {
             // shows the exception error message
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             // undo all pending operations
             TTransaction::rollback();
         }

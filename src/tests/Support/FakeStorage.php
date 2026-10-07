@@ -45,6 +45,12 @@ final class FakeStorage implements StorageInterface
         return $this->objects[$key]['contents'];
     }
 
+    /** Test helper: content type the object was stored with, or null when absent. */
+    public function contentType(string $key): ?string
+    {
+        return $this->objects[$key]['contentType'] ?? null;
+    }
+
     public function exists(string $key): bool
     {
         return isset($this->objects[$key]);

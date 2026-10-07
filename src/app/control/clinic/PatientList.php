@@ -147,8 +147,10 @@ class PatientList extends TPage
                 $service = $this->buildPatientService();
                 $patients = $service->findByTutor($this->tutor_id);
 
+                $tutor_context = self::resolveTenantContext();
                 $tutor_service = new \CentralVet\Application\TutorService(
-                    new \CentralVet\Persistence\TutorRepository(self::resolveTenantContext(), TTransaction::get())
+                    new \CentralVet\Persistence\TutorRepository($tutor_context, TTransaction::get()),
+                    $tutor_context
                 );
                 $tutor = $tutor_service->findById($this->tutor_id);
                 $tutor_name = $tutor !== null ? $tutor->fullName : null;
@@ -164,7 +166,8 @@ class PatientList extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a 500
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         $total  = count($patients);

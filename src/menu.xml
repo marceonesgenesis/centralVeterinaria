@@ -12,6 +12,11 @@
         <action>CvShellController#method=onComingSoon#item=dashboard</action>
     </menuitem>
 
+    <menuitem label='_t{Pending items}'>
+        <icon>fas:list-check fa-fw</icon>
+        <action>PendingCenter</action>
+    </menuitem>
+
     <menuitem label='_t{Agenda}'>
         <icon>fas:calendar-days fa-fw</icon>
         <action>AgendaView</action>
@@ -47,9 +52,14 @@
         <action>PendingExamResultList</action>
     </menuitem>
 
+    <menuitem label='_t{Hospitalization}'>
+        <icon>fas:bed fa-fw</icon>
+        <action>HospitalizationBoard</action>
+    </menuitem>
+
     <menuitem label='_t{Surgeries}'>
         <icon>fas:kit-medical fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=surgeries</action>
+        <action>SurgeryList</action>
     </menuitem>
 
     <menuitem label='_t{Prescriptions}'>
@@ -79,7 +89,30 @@
 
     <menuitem label='_t{CRM / Communication}'>
         <icon>fas:comments fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=crm</action>
+        <menu>
+            <menuitem label='_t{Messages}'>
+                <icon>fas:envelope fa-fw</icon>
+                <action>CommunicationMessageList</action>
+            </menuitem>
+            <menuitem label='_t{Message templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>MessageTemplateList</action>
+            </menuitem>
+        </menu>
+    </menuitem>
+
+    <menuitem label='_t{Documents}'>
+        <icon>fas:file-pdf fa-fw</icon>
+        <menu>
+            <menuitem label='_t{Documents}'>
+                <icon>fas:file-pdf fa-fw</icon>
+                <action>DocumentList</action>
+            </menuitem>
+            <menuitem label='_t{Document templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>DocumentTemplateList</action>
+            </menuitem>
+        </menu>
     </menuitem>
 
     <menuitem label='_t{Reports}'>
@@ -109,6 +142,15 @@
                 </menu>
             </menuitem>
 
+            <menuitem label='_t{Beds}'>
+                <icon>fas:bed fa-fw</icon>
+                <action>BedList</action>
+            </menuitem>
+            <menuitem label='_t{Surgery rooms}'>
+                <icon>fas:kit-medical fa-fw</icon>
+                <action>SurgeryRoomList</action>
+            </menuitem>
+
             <menuitem label='_t{Administration}'>
                 <icon>fas:sliders fa-fw</icon>
                 <menu>
@@ -135,6 +177,10 @@
                     <menuitem label='_t{Users}'>
                         <icon>fas:user fa-fw</icon>
                         <action>SystemUserList</action>
+                    </menuitem>
+                    <menuitem label='_t{Landing leads}'>
+                        <icon>fas:bullhorn fa-fw</icon>
+                        <action>LandingLeadList</action>
                     </menuitem>
                     <menuitem label='_t{Page management}'>
                         <icon>fab:wikipedia-w fa-fw</icon>

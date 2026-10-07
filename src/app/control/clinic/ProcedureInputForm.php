@@ -64,7 +64,7 @@ class ProcedureInputForm extends TPage
             $tenant_id = -1;
         }
 
-        $tenant_criteria = self::catalogCriteria((int) $tenant_id, $this->procedure_catalog_item_id);
+        $tenant_criteria = CvCatalog::activeOrCurrentCriteria((int) $tenant_id, $this->procedure_catalog_item_id);
 
         // creates the entry form
         $this->form = new BootstrapFormBuilder('form_ProcedureCatalogItemInput');
@@ -181,7 +181,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -243,7 +244,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -292,7 +294,8 @@ class ProcedureInputForm extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -302,7 +305,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a fatal error
         {
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }
@@ -332,29 +336,6 @@ class ProcedureInputForm extends TPage
         $repository = new \CentralVet\Persistence\ProductRepository($tenant_context, $connection);
 
         return new \CentralVet\Application\ProductService($repository, $tenant_context);
-    }
-
-    /**
-     * Critério do combo de catálogo: itens ativos do tenant e, quando há item
-     * atual, também ele (mesmo inativo), para o combo não perder o vínculo.
-     */
-    private static function catalogCriteria(int $tenantId, ?int $currentId): TCriteria
-    {
-        $criteria = new TCriteria;
-        $criteria->add(new TFilter('tenant_id', '=', $tenantId));
-
-        if ($currentId === null)
-        {
-            $criteria->add(new TFilter('active', '=', 1));
-            return $criteria;
-        }
-
-        $visible = new TCriteria;
-        $visible->add(new TFilter('active', '=', 1));
-        $visible->add(new TFilter('id', '=', $currentId), TExpression::OR_OPERATOR);
-        $criteria->add($visible);
-
-        return $criteria;
     }
 
     /**

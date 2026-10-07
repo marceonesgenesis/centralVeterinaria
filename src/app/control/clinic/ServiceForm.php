@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ServiceForm
  *
@@ -10,7 +13,8 @@
  * onEdit carrega o serviço por ServiceCatalogService::findById() (repositório
  * escopado ao tenant da sessão) — nunca pelo ActiveRecord Service, que não
  * filtra tenant. onSave chama update() quando o campo id vem preenchido e
- * create() quando vazio; depois de salvar volta para ServiceList.
+ * create() (com 'active' do form, num único save) quando vazio; depois de
+ * salvar volta para ServiceList.
  *
  * @version    2.0
  * @package    control
@@ -58,7 +62,11 @@ class ServiceForm extends TPage
 
         $duration_minutes->setNumericMask(0, '', '');
         $duration_minutes->setProperty('pattern', '[0-9]*');
-        $price->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $price->setProperty('placeholder', _t('e.g. 12,34'));
+        $price->setProperty('inputmode', 'decimal');
+        $price->setMaxLength(16);
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
@@ -144,7 +152,8 @@ class ServiceForm extends TPage
         {
             TTransaction::rollback();
             $this->form->clear(true);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -170,7 +179,7 @@ class ServiceForm extends TPage
                 'name'              => (string) $data->name,
                 'category'          => $data->category,
                 'duration_minutes'  => (int) $data->duration_minutes,
-                'price_cents'       => self::toCents($data->price),
+                'price_cents'       => MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
             ];
 
             if (!empty($data->id))
@@ -180,12 +189,8 @@ class ServiceForm extends TPage
             }
             else
             {
-                $service = $catalog->create($input);
-
-                if (((string) $data->active) === '0')
-                {
-                    $service = $catalog->update((int) $service->id(), $input + ['active' => false]);
-                }
+                // um único write: create() já grava o serviço inativo
+                $service = $catalog->create($input + ['active' => ((string) $data->active) !== '0']);
             }
 
             TTransaction::close();
@@ -203,20 +208,8 @@ class ServiceForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ServiceCatalogService::create()'s price_cents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

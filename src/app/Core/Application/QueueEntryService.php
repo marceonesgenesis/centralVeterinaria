@@ -12,6 +12,7 @@ use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\QueueEntry;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
+use DomainException;
 use InvalidArgumentException;
 
 /**
@@ -66,6 +67,8 @@ final class QueueEntryService
      *         resolve within the authenticated tenant (missing or belongs
      *         to another tenant — fail closed, same convention
      *         PatientService uses for tutor_id).
+     * @throws DomainException when appointment_id is already in the queue
+     *         ("Appointment {id} is already in the queue").
      * @throws \CentralVet\Authorization\Exception\AuthorizationDenied when
      *         the active unit is missing or does not match system_unit_id,
      *         or the caller lacks permission for $action.
@@ -93,6 +96,14 @@ final class QueueEntryService
             throw new CrossTenantReferenceException(
                 "patient_id {$patientId} was not found for the authenticated tenant"
             );
+        }
+
+        // An appointment enters the queue at most once (T-29): refused after
+        // the tenant check and before authorization, so nothing is saved.
+        // Walk-ins (no appointment_id) are never deduplicated.
+        if ($appointmentId !== null && $appointmentId > 0
+            && $this->queueEntries->findByAppointment($appointmentId) !== null) {
+            throw new DomainException("Appointment {$appointmentId} is already in the queue");
         }
 
         // Unit-scope authorization, run after the cross-tenant patient_id
@@ -200,5 +211,18 @@ final class QueueEntryService
         $entries = $this->queueEntries->listActiveByUnit($systemUnitId);
 
         return $entries;
+    }
+
+    /**
+     * Which of the given appointments already have a queue entry in the
+     * current tenant (T-41): AgendaView calls it once per load with the
+     * day's appointment ids to show "In queue" instead of Check-in.
+     *
+     * @param list<int> $appointmentIds
+     * @return list<int>
+     */
+    public function appointmentIdsInQueue(array $appointmentIds): array
+    {
+        return $this->queueEntries->listAppointmentIdsInQueue($appointmentIds);
     }
 }

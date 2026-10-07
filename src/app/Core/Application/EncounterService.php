@@ -173,13 +173,78 @@ final class EncounterService
      */
     public function finish(int $id, string $action): Encounter
     {
-        $encounter = $this->requireEncounter($id);
-
         // Unit-scope authorization against the encounter's REAL unit (not a
         // caller-supplied one — finish() takes no unit parameter), run
         // after loading the encounter but before mutating it.
         // assertAllowed() throws AuthorizationDenied on denial, left to
         // propagate; nothing is mutated or persisted when that happens.
+        $encounter = $this->requireAuthorizedEncounter($id, $action);
+
+        $encounter->finish(new DateTimeImmutable());
+
+        /** @var Encounter $saved */
+        $saved = $this->encounters->save($encounter);
+
+        return $saved;
+    }
+
+    /**
+     * Pauses an in-progress encounter (status stays `in_progress`,
+     * `paused_at` is stamped). Same authorization as finish(): unit scope
+     * against the encounter's own persisted system_unit_id.
+     *
+     * @param ?DateTimeImmutable $now null = current time.
+     *
+     * @throws InvalidArgumentException when no encounter with this id exists
+     *         for the authenticated tenant.
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied
+     * @throws \CentralVet\Domain\Exception\InvalidStatusTransitionException
+     *         when finished or already paused.
+     */
+    public function pause(int $id, string $action, ?DateTimeImmutable $now = null): Encounter
+    {
+        $encounter = $this->requireAuthorizedEncounter($id, $action);
+
+        $encounter->pause($now ?? new DateTimeImmutable());
+
+        /** @var Encounter $saved */
+        $saved = $this->encounters->save($encounter);
+
+        return $saved;
+    }
+
+    /**
+     * Resumes a paused encounter, adding the paused stretch to
+     * `paused_seconds`. Same authorization as finish().
+     *
+     * @param ?DateTimeImmutable $now null = current time.
+     *
+     * @throws InvalidArgumentException when no encounter with this id exists
+     *         for the authenticated tenant.
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied
+     * @throws \CentralVet\Domain\Exception\InvalidStatusTransitionException
+     *         when the encounter is not paused.
+     */
+    public function resume(int $id, string $action, ?DateTimeImmutable $now = null): Encounter
+    {
+        $encounter = $this->requireAuthorizedEncounter($id, $action);
+
+        $encounter->resume($now ?? new DateTimeImmutable());
+
+        /** @var Encounter $saved */
+        $saved = $this->encounters->save($encounter);
+
+        return $saved;
+    }
+
+    /**
+     * Loads the encounter and runs the same unit-scope authorization as
+     * finish() (the encounter's own system_unit_id, entityType 'encounter').
+     */
+    private function requireAuthorizedEncounter(int $id, string $action): Encounter
+    {
+        $encounter = $this->requireEncounter($id);
+
         $this->authorization->decide(new AuthorizationRequest(
             context: $this->context,
             action: $action,
@@ -189,12 +254,7 @@ final class EncounterService
             entityId: $id,
         ))->assertAllowed();
 
-        $encounter->finish(new DateTimeImmutable());
-
-        /** @var Encounter $saved */
-        $saved = $this->encounters->save($encounter);
-
-        return $saved;
+        return $encounter;
     }
 
     /**

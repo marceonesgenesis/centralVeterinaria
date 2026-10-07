@@ -77,7 +77,11 @@ final class RedisQueue implements QueueInterface
 
     public function recoverDue(string $queue): int
     {
-        $due = $this->redis->zRangeByScore($this->delayedKey($queue), '-inf', (string) microtime(true));
+        // %.17g round-trips the float exactly. A plain (string) cast uses
+        // the `precision` ini (14 digits = 4 decimals for a Unix timestamp)
+        // and could round "now" below a score written microseconds before,
+        // leaving an already-due retry in the delayed set.
+        $due = $this->redis->zRangeByScore($this->delayedKey($queue), '-inf', sprintf('%.17g', microtime(true)));
         $moved = 0;
 
         foreach ($due as $json) {

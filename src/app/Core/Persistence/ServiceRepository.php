@@ -94,6 +94,18 @@ final class ServiceRepository extends AbstractTenantRepository implements Servic
         return $services;
     }
 
+    public function hasAppointments(int $serviceId): bool
+    {
+        $query = $this->tenantQuery()->andEquals('service_id', $serviceId);
+
+        $statement = $this->connection->prepare(
+            "SELECT 1 FROM appointment WHERE {$query->whereSql()} LIMIT 1"
+        );
+        $statement->execute($query->parameters());
+
+        return $statement->fetchColumn() !== false;
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof Service) {

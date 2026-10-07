@@ -88,6 +88,12 @@ class VaccinationCardView extends TPage
                 'icon' => 'fa:arrow-left',
                 'href' => 'index.php?class=VaccinationCardView',
             ];
+            $headerActions[] = [
+                'label' => _t('Generate PDF'),
+                'icon'  => 'fa:file-pdf',
+                'class' => 'btn btn-default cv-touch-target',
+                'href'  => 'index.php?class=DocumentRequestForm&kind=vaccination_card&source_id=' . (int) $this->patient_id,
+            ];
         }
         $container->add(CvPage::header(_t('Vaccination card'), $patient_name, $headerActions));
 
@@ -168,6 +174,7 @@ class VaccinationCardView extends TPage
         $picker_form->setFormTitle(_t('Select a patient'));
 
         $patient_id_picker = new TDBUniqueSearch('patient_id_picker', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
+        $patient_id_picker->setMask(Patient::safeSearchMask('name_safe')); // T-65: rótulo escapado no select2
         $patient_id_picker->addValidation(_t('Patient'), new TRequiredValidator);
 
         $picker_form->addFields( [new TLabel(_t('Patient'))] );
@@ -264,7 +271,8 @@ class VaccinationCardView extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

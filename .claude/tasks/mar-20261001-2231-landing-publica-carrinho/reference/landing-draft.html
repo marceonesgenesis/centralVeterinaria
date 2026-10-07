@@ -1,0 +1,678 @@
+<title>Central Vet Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: prontuário como fio condutor — hero com a ficha de um atendimento real, recursos agrupados pelo fluxo da clínica, planos com carrinho lateral. */
+:root {
+  --bg: #F3F6F5;
+  --surface: #FCFDFC;
+  --surface-2: #E7EEEC;
+  --ink: #12282D;
+  --ink-soft: #46595D;
+  --line: #CFDBD8;
+  --accent: #1B6A73;
+  --accent-ink: #F3FAF9;
+  --amber: #B8741A;
+  --amber-soft: #F6E7CF;
+  --ok: #2D7A4B;
+  --soon: #8A5A12;
+  --soon-bg: #F4E6CC;
+  --shadow: 0 18px 40px -24px rgba(18, 40, 45, .35);
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 14px;
+  --wrap: 1180px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1B1E; --surface: #13252A; --surface-2: #1A3036; --ink: #E6EFED; --ink-soft: #A9BDBA;
+    --line: #29434A; --accent: #5FB6BE; --accent-ink: #082024; --amber: #E2A64F; --amber-soft: #3A2C16;
+    --ok: #6CC48E; --soon: #F0C27A; --soon-bg: #3A2C16; --shadow: 0 18px 40px -24px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1B1E; --surface: #13252A; --surface-2: #1A3036; --ink: #E6EFED; --ink-soft: #A9BDBA;
+  --line: #29434A; --accent: #5FB6BE; --accent-ink: #082024; --amber: #E2A64F; --amber-soft: #3A2C16;
+  --ok: #6CC48E; --soon: #F0C27A; --soon-bg: #3A2C16; --shadow: 0 18px 40px -24px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.55; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+p { margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding-inline: 20px; }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 16px/1 var(--font-body);
+  border-radius: 999px; padding: 14px 22px; border: 1.5px solid transparent; cursor: pointer; text-decoration: none; transition: transform .15s ease, background .15s ease; }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn-ghost:hover { border-color: var(--accent); }
+.btn[disabled] { opacity: .55; cursor: not-allowed; }
+
+/* Header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 20px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 800 20px/1 var(--font-display); color: var(--ink); text-decoration: none; }
+.brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; }
+.brand-mark svg { width: 18px; height: 18px; }
+.nav { display: flex; gap: 22px; margin-left: auto; }
+.nav a { color: var(--ink-soft); text-decoration: none; font-weight: 500; font-size: 15px; }
+.nav a:hover { color: var(--ink); }
+.cart-btn { position: relative; padding: 10px 16px; }
+.cart-count { min-width: 22px; height: 22px; border-radius: 999px; background: var(--amber); color: #fff; font: 700 12px/22px var(--font-body); text-align: center; padding: 0 6px; }
+@media (max-width: 760px) { .nav { display: none; } .top .wrap { justify-content: space-between; } }
+
+/* Hero */
+.hero { padding-block: 64px 56px; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+.hero h1 { font-size: clamp(38px, 5.2vw, 64px); font-weight: 800; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero-copy { display: grid; gap: 22px; min-width: 0; }
+.hero-copy .lead { font-size: 19px; color: var(--ink-soft); max-width: 34em; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-proof { display: flex; gap: 20px; flex-wrap: wrap; color: var(--ink-soft); font-size: 14px; }
+.hero-proof span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
+@media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; } }
+
+/* Ficha de atendimento (mock) */
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+.chart-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--amber-soft); color: var(--amber); display: grid; place-items: center; font: 800 18px/1 var(--font-display); flex: none; }
+.chart-id { min-width: 0; }
+.chart-id strong { font: 700 18px/1.2 var(--font-display); display: block; }
+.chart-id small { color: var(--ink-soft); font-size: 13px; }
+.timer { margin-left: auto; text-align: right; font-size: 12px; color: var(--ink-soft); }
+.timer b { display: block; font: 500 18px/1.1 var(--font-mono); color: var(--ink); }
+.alert-row { margin: 14px 20px 0; padding: 10px 12px; border-radius: 10px; background: var(--amber-soft); color: var(--soon); font-size: 14px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.steps { display: flex; gap: 6px; padding: 16px 20px 6px; flex-wrap: wrap; }
+.step { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); }
+.step.done { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.step.now { background: var(--accent); color: var(--accent-ink); }
+.chart-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px 20px 18px; }
+.vital { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.vital small { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.vital b { font: 500 17px/1.3 var(--font-mono); }
+.rx { margin: 0 20px 18px; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; font-size: 14px; }
+.rx-line { display: flex; justify-content: space-between; gap: 10px; }
+.rx-line span:last-child { color: var(--ink-soft); }
+.chart-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 20px; background: var(--surface-2); font-size: 13px; color: var(--ink-soft); flex-wrap: wrap; }
+.chart-foot b { color: var(--ink); }
+
+/* Fluxo */
+.flow { border-block: 1px solid var(--line); background: var(--surface); }
+.flow .wrap { padding-block: 22px; display: flex; gap: 10px; align-items: center; overflow-x: auto; scrollbar-width: thin; }
+.flow-item { white-space: nowrap; font-weight: 600; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.flow-item::after { content: "→"; color: var(--accent); font-weight: 700; }
+.flow-item:last-child::after { content: ""; }
+.flow-label { white-space: nowrap; font-size: 13px; color: var(--ink-soft); margin-right: 8px; }
+
+/* Seções */
+section.block { padding-block: 80px; }
+.section-head { display: grid; gap: 12px; max-width: 46em; margin-bottom: 40px; }
+.section-head h2 { font-size: clamp(30px, 3.6vw, 44px); font-weight: 800; }
+.section-head p { color: var(--ink-soft); font-size: 18px; }
+
+/* Recursos */
+.modules { display: grid; gap: 22px; }
+.module { display: grid; grid-template-columns: 260px 1fr; gap: 28px; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.module-title { display: grid; gap: 8px; align-content: start; }
+.module-title h3 { font-size: 24px; font-weight: 700; }
+.module-title p { color: var(--ink-soft); font-size: 15px; }
+.features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; list-style: none; padding: 0; margin: 0; }
+.feature { display: grid; gap: 4px; min-width: 0; }
+.feature b { font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feature span { color: var(--ink-soft); font-size: 15px; }
+.tag { font: 700 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; }
+.tag-ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.tag-soon { background: var(--soon-bg); color: var(--soon); }
+@media (max-width: 860px) { .module { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .features { grid-template-columns: 1fr; } .module { padding: 22px; } }
+
+/* Planos */
+.plans-band { background: var(--surface-2); }
+.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.plan { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px 22px; display: flex; flex-direction: column; gap: 18px; position: relative; min-width: 0; }
+.plan.featured { border: 2px solid var(--accent); box-shadow: var(--shadow); }
+.ribbon { position: absolute; top: -13px; left: 22px; background: var(--accent); color: var(--accent-ink); font: 700 12px/1 var(--font-body); padding: 7px 12px; border-radius: 999px; letter-spacing: .04em; }
+.plan h3 { font-size: 26px; font-weight: 800; }
+.plan .for { color: var(--ink-soft); font-size: 15px; margin-top: 4px; }
+.price { display: flex; align-items: baseline; gap: 6px; }
+.price .cur { font-size: 18px; font-weight: 600; color: var(--ink-soft); }
+.price .val { font: 800 46px/1 var(--font-display); letter-spacing: -0.02em; }
+.price .per { color: var(--ink-soft); font-size: 15px; }
+.plan ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-size: 15px; }
+.plan li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; }
+.plan li svg { width: 18px; height: 18px; margin-top: 3px; color: var(--accent); }
+.plan li .tag { margin-left: 4px; vertical-align: 1px; }
+.plan .includes { font-size: 13px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; text-transform: uppercase; }
+.plan .btn { margin-top: auto; width: 100%; }
+.plan.in-cart .btn-primary { background: var(--ok); }
+@media (max-width: 1060px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
+.plans-note { margin-top: 22px; color: var(--ink-soft); font-size: 14px; }
+
+/* Comparativo */
+.compare-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-top: 40px; }
+table.compare { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 15px; }
+.compare th, .compare td { padding: 13px 16px; border-bottom: 1px solid var(--line); text-align: center; }
+.compare th:first-child, .compare td:first-child { text-align: left; }
+.compare thead th { font: 700 15px/1.2 var(--font-display); background: var(--surface-2); }
+.compare tbody tr:last-child td { border-bottom: 0; }
+.yes { color: var(--accent); font-weight: 700; }
+.no { color: var(--ink-soft); }
+
+/* FAQ */
+.faq { display: grid; gap: 12px; max-width: 860px; }
+.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+.faq summary { cursor: pointer; font-weight: 700; font-size: 17px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; color: var(--accent); font-size: 22px; line-height: 1; }
+.faq details[open] summary::after { content: "–"; }
+.faq details p { margin-top: 10px; color: var(--ink-soft); }
+
+/* CTA final + rodapé */
+.cta-final { background: var(--ink); color: var(--bg); border-radius: 22px; padding: 48px; display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: center; }
+.cta-final h2 { font-size: clamp(28px, 3.4vw, 40px); color: var(--bg); }
+.cta-final p { color: color-mix(in srgb, var(--bg) 75%, transparent); margin-top: 10px; }
+.cta-final .btn-primary { background: var(--amber); color: #1B1205; }
+@media (max-width: 760px) { .cta-final { grid-template-columns: 1fr; padding: 30px; } }
+footer { padding-block: 40px 56px; color: var(--ink-soft); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 28px; }
+
+/* Carrinho */
+.scrim { position: fixed; inset: 0; background: rgba(8, 20, 23, .45); z-index: 40; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--surface); z-index: 50; display: flex; flex-direction: column; box-shadow: -20px 0 50px -30px rgba(0,0,0,.5);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); transform: translateX(100%); transition: transform .25s ease; }
+.drawer.open { transform: none; }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.drawer-head h2 { font-size: 22px; }
+.icon-btn { background: none; border: 1px solid var(--line); border-radius: 10px; width: 38px; height: 38px; cursor: pointer; color: var(--ink); font-size: 20px; line-height: 1; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 22px; display: grid; gap: 20px; align-content: start; }
+.empty { text-align: center; color: var(--ink-soft); padding: 30px 10px; display: grid; gap: 14px; justify-items: center; }
+.line-item { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.line-item b { font: 700 18px/1.2 var(--font-display); }
+.line-item .amt { font: 500 18px/1.2 var(--font-mono); text-align: right; }
+.line-item small { color: var(--ink-soft); font-size: 13px; }
+.line-item button { background: none; border: 0; color: var(--accent); font: 600 14px var(--font-body); cursor: pointer; padding: 0; justify-self: end; }
+.totals { display: grid; gap: 8px; font-size: 15px; }
+.totals div { display: flex; justify-content: space-between; }
+.totals .grand { font-size: 18px; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--line); }
+.totals .grand span:last-child { font-family: var(--font-mono); }
+.form { display: grid; gap: 14px; }
+.form h3 { font-size: 19px; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 14px; font-weight: 600; }
+.field input, .field select { font: 400 16px var(--font-body); padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
+.field input:focus, .field select:focus { border-color: var(--accent); outline: none; }
+.field .err { color: #B3412E; font-size: 13px; min-height: 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+.check { display: grid; grid-template-columns: 20px 1fr; gap: 10px; font-size: 14px; color: var(--ink-soft); align-items: start; }
+.check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.drawer-foot { padding: 18px 22px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.status { font-size: 14px; color: var(--ink-soft); }
+.status.bad { color: #B3412E; }
+.done-box { display: grid; gap: 14px; text-align: center; padding: 20px 6px; justify-items: center; }
+.done-box .seal { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); display: grid; place-items: center; }
+.done-box h3 { font-size: 24px; }
+.done-box p { color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } .btn { transition: none; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio" aria-label="Central Vet Pro, início">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="color: var(--accent-ink)"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      Central Vet Pro
+    </a>
+    <nav class="nav" aria-label="Seções">
+      <a href="#recursos">Recursos</a>
+      <a href="#planos">Planos</a>
+      <a href="#comparativo">Comparar</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <button class="btn btn-ghost cart-btn" id="open-cart" type="button" aria-haspopup="dialog" aria-controls="cart">
+      Carrinho <span class="cart-count" id="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">Sistema de gestão veterinária</p>
+        <h1>Da agenda ao retorno, <em>o caso inteiro num lugar só.</em></h1>
+        <p class="lead">O veterinário abre o atendimento e não precisa sair dele até terminar o caso. Prescrição, exames, vacinas, estoque e cobrança se atualizam sozinhos, sem recadastro.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#planos">Escolher meu plano</a>
+          <a class="btn btn-ghost" href="#recursos">Ver os recursos</a>
+        </div>
+        <div class="hero-proof">
+          <span><i class="dot"></i> Dados separados por clínica e unidade</span>
+          <span><i class="dot"></i> Funciona no navegador, sem instalar</span>
+          <span><i class="dot"></i> Assinatura mensal</span>
+        </div>
+      </div>
+
+      <figure class="chart" aria-label="Exemplo de ficha de atendimento no Central Vet Pro">
+        <div class="chart-head">
+          <div class="avatar" aria-hidden="true">T</div>
+          <div class="chart-id">
+            <strong>Thor</strong>
+            <small>Canino · SRD · macho · 6 anos · tutora Ana Ribeiro</small>
+          </div>
+          <div class="timer">Em atendimento<b class="mono">00:14:32</b></div>
+        </div>
+        <div class="alert-row" role="note">⚠ Alergia registrada: Dipirona</div>
+        <div class="steps" aria-label="Etapas do atendimento">
+          <span class="step done">Anamnese</span>
+          <span class="step done">Exame físico</span>
+          <span class="step now">Diagnóstico</span>
+          <span class="step">Plano clínico</span>
+          <span class="step">Finalização</span>
+        </div>
+        <div class="chart-body">
+          <div class="vital"><small>Peso</small><b>12,4 kg</b></div>
+          <div class="vital"><small>Temp.</small><b>38,6 °C</b></div>
+          <div class="vital"><small>FC</small><b>96 bpm</b></div>
+        </div>
+        <div class="rx">
+          <div class="rx-line"><b>Prescrição</b><span>válida até 30/10</span></div>
+          <div class="rx-line"><span>Meloxicam 0,1 mg/kg</span><span>VO · 1×/dia · 5 dias</span></div>
+          <div class="rx-line"><span>Hemograma completo</span><span>pedido de exame</span></div>
+        </div>
+        <div class="chart-foot">
+          <span>Conta do atendimento <b class="mono">R$ 285,00</b></span>
+          <span>Retorno agendado <b>14/10, 10:30</b></span>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <div class="flow" aria-label="Fluxo do atendimento">
+    <div class="wrap">
+      <span class="flow-label">O fluxo da clínica</span>
+      <span class="flow-item">Agenda</span>
+      <span class="flow-item">Check-in e fila</span>
+      <span class="flow-item">Atendimento</span>
+      <span class="flow-item">Diagnóstico e plano</span>
+      <span class="flow-item">Prescrição e exames</span>
+      <span class="flow-item">Procedimentos</span>
+      <span class="flow-item">Estoque e cobrança</span>
+      <span class="flow-item">Retorno</span>
+    </div>
+  </div>
+
+  <section class="block" id="recursos">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Recursos</p>
+        <h2>Tudo o que a rotina da clínica pede</h2>
+        <p>Os recursos marcados como <span class="tag tag-ok">Disponível</span> já funcionam hoje. Os marcados como <span class="tag tag-soon">Em breve</span> estão no roteiro de desenvolvimento.</p>
+      </div>
+
+      <div class="modules">
+        <article class="module">
+          <div class="module-title">
+            <h3>Recepção</h3>
+            <p>Cadastro, agenda e fila de quem chega.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Tutores e pacientes <span class="tag tag-ok">Disponível</span></b><span>Ficha completa, foto do paciente, alerta de alergia e peso.</span></li>
+            <li class="feature"><b>Agenda <span class="tag tag-ok">Disponível</span></b><span>Grade por horário, novo agendamento, remarcação e check-in.</span></li>
+            <li class="feature"><b>Fila de atendimento <span class="tag tag-ok">Disponível</span></b><span>Status de cada paciente, encaixes e início do atendimento pela fila.</span></li>
+            <li class="feature"><b>Busca global <span class="tag tag-ok">Disponível</span></b><span>Encontre tutor ou paciente por nome, documento, telefone ou espécie.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Clínico</h3>
+            <p>O atendimento como centro de tudo.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Central de Atendimento <span class="tag tag-ok">Disponível</span></b><span>Anamnese, exame físico, diagnóstico, plano clínico e finalização numa tela. Salva sozinho, aceita ditado por voz, pausa e anexos.</span></li>
+            <li class="feature"><b>Histórico e retorno <span class="tag tag-ok">Disponível</span></b><span>Linha do tempo do paciente, atendimento anterior à vista e retorno agendado sem sair do caso.</span></li>
+            <li class="feature"><b>Prescrição <span class="tag tag-ok">Disponível</span></b><span>Modelos reutilizáveis, validade da receita e PDF para entregar ao tutor.</span></li>
+            <li class="feature"><b>Exames <span class="tag tag-ok">Disponível</span></b><span>Catálogo, pedido, resultado com anexo e lista de resultados pendentes.</span></li>
+            <li class="feature"><b>Vacinação <span class="tag tag-ok">Disponível</span></b><span>Protocolos, aplicação e carteira de vacinação, com baixa no estoque.</span></li>
+            <li class="feature"><b>Procedimentos <span class="tag tag-ok">Disponível</span></b><span>Catálogo com insumos; cada procedimento consome o estoque sozinho.</span></li>
+            <li class="feature"><b>Cirurgia e internação <span class="tag tag-soon">Em breve</span></b><span>Checklists cirúrgicos, leitos, evoluções e quadro de internados.</span></li>
+            <li class="feature"><b>Prontuário dedicado <span class="tag tag-soon">Em breve</span></b><span>Tela própria do prontuário, além do histórico dentro do atendimento.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Operação e financeiro</h3>
+            <p>A consulta que vira cobrança e baixa de estoque.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Estoque <span class="tag tag-ok">Disponível</span></b><span>Produtos com código e preço, lotes com validade e baixa pelo lote que vence primeiro.</span></li>
+            <li class="feature"><b>PDV <span class="tag tag-ok">Disponível</span></b><span>Venda de produtos e procedimentos no carrinho, com recibo em PDF.</span></li>
+            <li class="feature"><b>Conta do atendimento e caixa <span class="tag tag-ok">Disponível</span></b><span>Desconto autorizado, fechamento da conta e abertura e fechamento do caixa.</span></li>
+            <li class="feature"><b>Contas a pagar e a receber <span class="tag tag-ok">Disponível</span></b><span>Recebimentos, pagamentos e lançamentos com forma de pagamento, inclusive Pix.</span></li>
+            <li class="feature"><b>Visão financeira <span class="tag tag-ok">Disponível</span></b><span>Painel com filtros, contas bancárias com saldo e exportação em CSV.</span></li>
+            <li class="feature"><b>Dashboard e relatórios <span class="tag tag-soon">Em breve</span></b><span>Indicadores da clínica e relatórios gerenciais.</span></li>
+            <li class="feature"><b>Conciliação bancária <span class="tag tag-soon">Em breve</span></b><span>Extrato e vínculo dos lançamentos às contas.</span></li>
+            <li class="feature"><b>Compras e fornecedores <span class="tag tag-soon">Em breve</span></b><span>Movimentos de estoque, fornecedores e transferência entre unidades.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Comunicação e IA</h3>
+            <p>O pós-atendimento e o copiloto clínico.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>WhatsApp e e-mail <span class="tag tag-soon">Em breve</span></b><span>Lembretes de vacina e retorno, confirmação de consulta e mensagens para o tutor.</span></li>
+            <li class="feature"><b>Automações <span class="tag tag-soon">Em breve</span></b><span>Fluxos que disparam sozinhos a partir dos eventos do atendimento.</span></li>
+            <li class="feature"><b>IA contextual <span class="tag tag-soon">Em breve</span></b><span>Resumo do caso e busca em linguagem natural, sempre com as permissões do usuário.</span></li>
+            <li class="feature"><b>Agentes com confirmação <span class="tag tag-soon">Em breve</span></b><span>Ações sugeridas pela IA que só acontecem depois da confirmação humana.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Plataforma e segurança</h3>
+            <p>A base para a clínica crescer com tranquilidade.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Várias unidades <span class="tag tag-ok">Disponível</span></b><span>Cada unidade com sua agenda, caixa e contas, com troca de unidade no topo da tela.</span></li>
+            <li class="feature"><b>Perfis de acesso <span class="tag tag-ok">Disponível</span></b><span>Recepção, veterinário, auxiliar, gestor e administrador, cada um com suas permissões.</span></li>
+            <li class="feature"><b>Isolamento de dados <span class="tag tag-ok">Disponível</span></b><span>Os dados de uma clínica nunca aparecem para outra.</span></li>
+            <li class="feature"><b>Auditoria e backup <span class="tag tag-ok">Disponível</span></b><span>Registro das operações, com dados sensíveis mascarados, e rotina de backup.</span></li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block plans-band" id="planos">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Planos</p>
+        <h2>Escolha o plano do tamanho da sua clínica</h2>
+        <p>Adicione um plano ao carrinho, revise e envie seus dados. Nossa equipe entra em contato para ativar a sua conta.</p>
+      </div>
+      <div class="plans" id="plans"></div>
+      <p class="plans-note">Valores mensais por clínica. Os recursos marcados como Em breve entram no plano quando forem lançados.</p>
+
+      <div class="compare-wrap" id="comparativo">
+        <table class="compare">
+          <caption class="eyebrow" style="text-align:left; padding: 16px 16px 0">Comparativo dos planos</caption>
+          <thead>
+            <tr><th scope="col">Recurso</th><th scope="col">Starter</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr>
+          </thead>
+          <tbody id="compare-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="duvidas">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Dúvidas</p>
+        <h2>Perguntas frequentes</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Preciso instalar alguma coisa?</summary>
+          <p>Não. O Central Vet Pro funciona no navegador. Basta entrar com seu usuário e senha.</p>
+        </details>
+        <details>
+          <summary>Os dados da minha clínica ficam separados das outras?</summary>
+          <p>Sim. Cada clínica tem seus dados isolados, e dentro dela cada unidade tem sua agenda, caixa e contas. Os perfis de acesso definem o que cada pessoa da equipe pode ver e fazer.</p>
+        </details>
+        <details>
+          <summary>Posso trocar de plano depois?</summary>
+          <p>Sim. Você pode subir ou descer de plano conforme a clínica cresce. A diferença é ajustada na próxima mensalidade.</p>
+        </details>
+        <details>
+          <summary>Consigo trazer meus cadastros de outro sistema?</summary>
+          <p>Hoje o catálogo de serviços pode ser importado por planilha CSV. A importação de outros cadastros está no roteiro. Na ativação, nossa equipe ajuda a planejar a migração.</p>
+        </details>
+        <details>
+          <summary>Os recursos marcados como Em breve têm custo extra?</summary>
+          <p>Não. Quando forem lançados, entram nos planos indicados no comparativo sem mudar a mensalidade contratada.</p>
+        </details>
+        <details>
+          <summary>O que acontece depois que eu envio o carrinho?</summary>
+          <p>Recebemos seus dados e o plano escolhido. Nossa equipe entra em contato pelo WhatsApp ou e-mail informado para confirmar a assinatura e liberar o acesso. Nenhum pagamento é cobrado nesta página.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top: 0">
+    <div class="wrap">
+      <div class="cta-final">
+        <div>
+          <h2>Comece pelo plano que cabe na sua rotina.</h2>
+          <p>Escolha um plano, envie seus dados e nossa equipe ativa a sua conta.</p>
+        </div>
+        <a class="btn btn-primary" href="#planos">Ver planos</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Central Vet Pro · Tecnologia que cuida de vidas</span>
+    <span>Clínica. Gestão. Resultado.</span>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="cart" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="cart-title">Seu carrinho</h2>
+    <button class="icon-btn" id="close-cart" type="button" aria-label="Fechar carrinho">×</button>
+  </div>
+  <div class="drawer-body" id="cart-body"></div>
+  <div class="drawer-foot" id="cart-foot"></div>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+
+  var PLANS = [
+    { id: "starter", name: "Starter", price: 57, forWho: "Veterinário autônomo e consultório",
+      items: ["1 unidade", "Tutores, pacientes e agenda", "Central de Atendimento", "Prescrição e documentos em PDF", "Exames e vacinação"] },
+    { id: "pro", name: "Pro", price: 97, forWho: "Clínica com equipe", featured: true,
+      items: ["Tudo do Starter", "Mais usuários na equipe", "Estoque, PDV e caixa", "Financeiro completo", ["Comunicação e automações", true]] },
+    { id: "business", name: "Business", price: 137, forWho: "Clínicas maiores",
+      items: ["Tudo do Pro", "Várias unidades", "Perfis de acesso por equipe", ["Relatórios avançados", true], ["Integrações", true]] },
+    { id: "enterprise", name: "Enterprise", price: 197, forWho: "Redes e hospitais",
+      items: ["Tudo do Business", "Governança da rede", "Suporte dedicado", ["IA e agentes avançados", true], ["SSO e SLA", true]] }
+  ];
+
+  // Comparativo: [recurso, starter, pro, business, enterprise, emBreve]
+  var COMPARE = [
+    ["Tutores, pacientes e agenda", 1, 1, 1, 1],
+    ["Central de Atendimento", 1, 1, 1, 1],
+    ["Prescrição, exames e vacinação", 1, 1, 1, 1],
+    ["Estoque, PDV e caixa", 0, 1, 1, 1],
+    ["Financeiro completo", 0, 1, 1, 1],
+    ["Comunicação e automações", 0, 1, 1, 1, true],
+    ["Várias unidades", 0, 0, 1, 1],
+    ["Relatórios avançados", 0, 0, 1, 1, true],
+    ["Integrações", 0, 0, 1, 1, true],
+    ["IA e agentes avançados", 0, 0, 0, 1, true],
+    ["Suporte dedicado", 0, 0, 0, 1]
+  ];
+
+  var STORE_KEY = "cvp-cart-plan";
+  var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  var state = { planId: null, sent: null };
+  try { var saved = localStorage.getItem(STORE_KEY); if (saved && PLANS.some(function (p) { return p.id === saved; })) state.planId = saved; } catch (e) {}
+
+  var dbPromise = (window.claude && typeof window.claude.use === "function") ? window.claude.use("db").catch(function () { return null; }) : Promise.resolve(null);
+
+  var $ = function (id) { return document.getElementById(id); };
+  var checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function planById(id) { for (var i = 0; i < PLANS.length; i++) if (PLANS[i].id === id) return PLANS[i]; return null; }
+  function persist() { try { if (state.planId) localStorage.setItem(STORE_KEY, state.planId); else localStorage.removeItem(STORE_KEY); } catch (e) {} }
+
+  function renderPlans() {
+    $("plans").innerHTML = PLANS.map(function (p) {
+      var inCart = state.planId === p.id;
+      var lis = p.items.map(function (it) {
+        var label = Array.isArray(it) ? it[0] : it, soon = Array.isArray(it) && it[1];
+        return "<li>" + checkIcon + "<span>" + esc(label) + (soon ? ' <span class="tag tag-soon">Em breve</span>' : "") + "</span></li>";
+      }).join("");
+      return '<article class="plan' + (p.featured ? " featured" : "") + (inCart ? " in-cart" : "") + '">' +
+        (p.featured ? '<span class="ribbon">Mais escolhido</span>' : "") +
+        "<div><h3>" + esc(p.name) + '</h3><p class="for">' + esc(p.forWho) + "</p></div>" +
+        '<div class="price"><span class="cur">R$</span><span class="val mono">' + p.price + '</span><span class="per">/mês</span></div>' +
+        '<p class="includes">Inclui</p><ul>' + lis + "</ul>" +
+        '<button type="button" class="btn ' + (p.featured || inCart ? "btn-primary" : "btn-ghost") + '" data-add="' + p.id + '">' +
+        (inCart ? "No carrinho ✓" : "Adicionar ao carrinho") + "</button></article>";
+    }).join("");
+  }
+
+  function renderCompare() {
+    $("compare-body").innerHTML = COMPARE.map(function (r) {
+      var cells = "";
+      for (var i = 1; i <= 4; i++) cells += r[i] ? '<td class="yes" aria-label="Incluído">✓</td>' : '<td class="no" aria-label="Não incluído">–</td>';
+      return '<tr><td>' + esc(r[0]) + (r[5] ? ' <span class="tag tag-soon">Em breve</span>' : "") + "</td>" + cells + "</tr>";
+    }).join("");
+  }
+
+  function renderCount() { $("cart-count").textContent = state.planId ? "1" : "0"; }
+
+  function renderCart() {
+    var body = $("cart-body"), foot = $("cart-foot"), plan = planById(state.planId);
+    if (state.sent) {
+      body.innerHTML = '<div class="done-box"><div class="seal">' + checkIcon.replace('aria-hidden="true"', 'width="34" height="34" aria-hidden="true"') + '</div>' +
+        "<h3>Pedido recebido</h3><p>Obrigado, " + esc(state.sent.name) + ". Registramos o plano <b>" + esc(state.sent.plan) +
+        "</b> para " + esc(state.sent.clinic) + ". Nossa equipe vai entrar em contato pelo WhatsApp ou e-mail informado para ativar a sua conta.</p></div>";
+      foot.innerHTML = '<button type="button" class="btn btn-ghost" id="new-order">Fechar</button>';
+      return;
+    }
+    if (!plan) {
+      body.innerHTML = '<div class="empty"><p>Seu carrinho está vazio.</p><p>Escolha um plano para continuar.</p><a class="btn btn-primary" href="#planos" id="go-plans">Ver planos</a></div>';
+      foot.innerHTML = "";
+      return;
+    }
+    body.innerHTML =
+      '<div class="line-item"><b>Plano ' + esc(plan.name) + '</b><span class="amt">' + brl.format(plan.price) + '</span>' +
+      "<small>" + esc(plan.forWho) + " · cobrança mensal</small>" + '<button type="button" id="remove-plan">Remover</button></div>' +
+      '<div class="totals"><div><span>Mensalidade</span><span class="mono">' + brl.format(plan.price) + "</span></div>" +
+      '<div class="grand"><span>Total por mês</span><span>' + brl.format(plan.price) + "</span></div></div>" +
+      '<form class="form" id="lead-form" novalidate>' +
+      "<h3>Seus dados para ativação</h3>" +
+      field("lead-name", "Seu nome", "text", "name", "Ex.: Dra. Ana Ribeiro") +
+      field("lead-clinic", "Nome da clínica", "text", "organization", "Ex.: Clínica Patas & Cia") +
+      field("lead-email", "E-mail", "email", "email", "voce@clinica.com.br") +
+      '<div class="row2">' + field("lead-phone", "WhatsApp", "tel", "tel", "(11) 91234-5678") +
+      '<div class="field"><label for="lead-vets">Veterinários</label><select id="lead-vets"><option value="1">Só eu</option><option value="2-4">2 a 4</option><option value="5-10">5 a 10</option><option value="11+">Mais de 10</option></select></div></div>' +
+      '<div class="row2">' + field("lead-city", "Cidade", "text", "address-level2", "Ex.: Campinas") +
+      '<div class="field"><label for="lead-uf">UF</label><select id="lead-uf">' + ufOptions() + "</select></div></div>" +
+      '<label class="check"><input type="checkbox" id="lead-consent"><span>Concordo que a equipe Central Vet Pro entre em contato sobre a assinatura, conforme a LGPD.</span></label>' +
+      '<p class="field"><span class="err" id="consent-err"></span></p>' +
+      "</form>";
+    foot.innerHTML = '<button type="submit" form="lead-form" class="btn btn-primary" id="submit-lead">Enviar pedido · ' + brl.format(plan.price) + "/mês</button>" +
+      '<p class="status" id="lead-status">Nenhum pagamento é cobrado aqui. Confirmamos a assinatura com você.</p>';
+  }
+
+  function field(id, label, type, ac, ph) {
+    return '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + type + '" autocomplete="' + ac +
+      '" placeholder="' + esc(ph) + '"><span class="err" id="' + id + '-err"></span></div>';
+  }
+  function ufOptions() {
+    return ["", "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]
+      .map(function (u) { return '<option value="' + u + '">' + (u || "Selecione") + "</option>"; }).join("");
+  }
+
+  var lastFocus = null;
+  function openCart() {
+    lastFocus = document.activeElement;
+    $("scrim").hidden = false;
+    var d = $("cart"); d.classList.add("open"); d.setAttribute("aria-hidden", "false");
+    renderCart();
+    setTimeout(function () { $("close-cart").focus(); }, 30);
+  }
+  function closeCart() {
+    $("scrim").hidden = true;
+    var d = $("cart"); d.classList.remove("open"); d.setAttribute("aria-hidden", "true");
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+
+  function setErr(id, msg) { var el = $(id + "-err"); if (el) el.textContent = msg || ""; }
+  function val(id) { var el = $(id); return el ? el.value.trim() : ""; }
+
+  function submitLead(ev) {
+    ev.preventDefault();
+    var plan = planById(state.planId); if (!plan) return;
+    var ok = true;
+    var name = val("lead-name"), clinic = val("lead-clinic"), email = val("lead-email"), phone = val("lead-phone");
+    var digits = phone.replace(/\D/g, "");
+    setErr("lead-name", name.length >= 3 ? "" : "Informe seu nome."); ok = ok && name.length >= 3;
+    setErr("lead-clinic", clinic.length >= 2 ? "" : "Informe o nome da clínica."); ok = ok && clinic.length >= 2;
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    setErr("lead-email", emailOk ? "" : "Informe um e-mail válido."); ok = ok && emailOk;
+    var phoneOk = digits.length >= 10 && digits.length <= 13;
+    setErr("lead-phone", phoneOk ? "" : "Informe o WhatsApp com DDD."); ok = ok && phoneOk;
+    var consent = $("lead-consent").checked;
+    $("consent-err").textContent = consent ? "" : "Marque a autorização de contato para enviar.";
+    ok = ok && consent;
+    if (!ok) { var first = document.querySelector(".err:not(:empty)"); if (first) { var f = first.parentElement.querySelector("input,select"); if (f) f.focus(); } return; }
+
+    var btn = $("submit-lead"), status = $("lead-status");
+    btn.disabled = true; btn.textContent = "Enviando…"; status.classList.remove("bad"); status.textContent = "Enviando seu pedido.";
+    var lead = {
+      plan: plan.id, planName: plan.name, monthlyPrice: plan.price,
+      name: name.slice(0, 120), clinic: clinic.slice(0, 160), email: email.slice(0, 160), phone: digits,
+      vets: val("lead-vets"), city: val("lead-city").slice(0, 80), uf: val("lead-uf"),
+      consent: true, createdAt: new Date().toISOString()
+    };
+    dbPromise.then(function (db) {
+      if (!db) throw { code: "no_db" };
+      return db.collection("leads").add(lead);
+    }).then(function () {
+      state.sent = { name: name.split(" ")[0], plan: plan.name, clinic: clinic };
+      state.planId = null; persist(); renderCount(); renderPlans(); renderCart();
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = "Enviar pedido · " + brl.format(plan.price) + "/mês";
+      status.classList.add("bad");
+      if (e && e.code === "no_db") status.textContent = "Não foi possível enviar daqui: esta prévia não está conectada ao cadastro de pedidos. Fale com a equipe Central Vet Pro.";
+      else if (e && e.code === "quota_exceeded") status.textContent = "O cadastro de pedidos está cheio. Avise a equipe Central Vet Pro.";
+      else status.textContent = "Não conseguimos enviar agora. Verifique a conexão e tente de novo.";
+    });
+  }
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest("[data-add],#open-cart,#close-cart,#scrim,#remove-plan,#go-plans,#new-order");
+    if (!t) return;
+    if (t.hasAttribute("data-add")) { state.planId = t.getAttribute("data-add"); state.sent = null; persist(); renderCount(); renderPlans(); openCart(); return; }
+    if (t.id === "open-cart") { openCart(); return; }
+    if (t.id === "close-cart" || t.id === "scrim" || t.id === "go-plans") { closeCart(); return; }
+    if (t.id === "remove-plan") { state.planId = null; persist(); renderCount(); renderPlans(); renderCart(); return; }
+    if (t.id === "new-order") { state.sent = null; renderCart(); closeCart(); return; }
+  });
+  document.addEventListener("submit", function (ev) { if (ev.target && ev.target.id === "lead-form") submitLead(ev); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && $("cart").classList.contains("open")) closeCart(); });
+
+  renderPlans(); renderCompare(); renderCount(); renderCart();
+})();
+</script>

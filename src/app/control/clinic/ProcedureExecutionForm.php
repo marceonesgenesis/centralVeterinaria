@@ -182,7 +182,8 @@ class ProcedureExecutionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('warning', _t('Could not load the procedure catalog') . ': ' . $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('warning', _t('Could not load the procedure catalog') . ': ' . CvFormat::userError($e));
 
             return [];
         }
@@ -241,7 +242,8 @@ class ProcedureExecutionForm extends TPage
         catch (\CentralVet\Domain\Exception\InsufficientStockException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', _t('Insufficient stock to execute this procedure') . ': ' . $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', _t('Insufficient stock to execute this procedure') . ': ' . CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -251,17 +253,20 @@ class ProcedureExecutionForm extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

@@ -21,6 +21,8 @@
  */
 class Product extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'product';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'serial'; // {max, serial}
@@ -38,5 +40,13 @@ class Product extends TRecord
         parent::addAttribute('unit_cost_cents');
         parent::addAttribute('minimum_stock_quantity');
         parent::addAttribute('active');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }

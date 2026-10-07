@@ -8,8 +8,10 @@ use CentralVet\Domain\Contract\QueueEntryRepositoryInterface;
 use CentralVet\Domain\QueueEntry;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
+use DomainException;
 use InvalidArgumentException;
 use PDO;
+use PDOException;
 
 /**
  * PDO-backed persistence for the QueueEntry aggregate. Every query starts
@@ -107,7 +109,7 @@ final class QueueEntryRepository extends AbstractTenantRepository implements Que
                 )
                 SQL
             );
-            $statement->execute([
+            $insert = [
                 ':tenant_id' => $entity->tenantId(),
                 ':system_unit_id' => $entity->systemUnitId(),
                 ':patient_id' => $entity->patientId(),
@@ -118,7 +120,23 @@ final class QueueEntryRepository extends AbstractTenantRepository implements Que
                 ':called_at' => self::formatDateTime($entity->calledAt()),
                 ':started_at' => self::formatDateTime($entity->startedAt()),
                 ':finished_at' => self::formatDateTime($entity->finishedAt()),
-            ]);
+            ];
+
+            try {
+                $statement->execute($insert);
+            } catch (PDOException $e) {
+                // Migration 0008: a concurrent second check-in of the same
+                // appointment passes the service's findByAppointment() check
+                // and is stopped only by the UNIQUE index. Surface it as the
+                // same domain message QueueEntryService::checkIn() uses.
+                $appointmentId = $entity->appointmentId();
+
+                if ($appointmentId !== null && self::isAppointmentUniqueViolation($e)) {
+                    throw new DomainException("Appointment {$appointmentId} is already in the queue", 0, $e);
+                }
+
+                throw $e;
+            }
 
             $entity->assignId((int) $this->connection->lastInsertId());
 
@@ -161,6 +179,40 @@ final class QueueEntryRepository extends AbstractTenantRepository implements Que
 
         $statement = $this->connection->prepare("DELETE FROM queue_entry WHERE {$query->whereSql()}");
         $statement->execute($query->parameters());
+    }
+
+    public function listAppointmentIdsInQueue(array $appointmentIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $appointmentIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = $this->tenantQuery();
+        $parameters = $query->parameters();
+        $placeholders = [];
+
+        foreach ($ids as $index => $id) {
+            $placeholder = ':appointment_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $id;
+        }
+
+        $statement = $this->connection->prepare(
+            "SELECT DISTINCT appointment_id FROM queue_entry WHERE {$query->whereSql()} "
+            . 'AND appointment_id IN (' . implode(', ', $placeholders) . ') ORDER BY appointment_id'
+        );
+        $statement->execute($parameters);
+
+        return array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /** SQLSTATE 23000 on the `queue_entry_appointment_uq` index only (not FKs or other keys). */
+    private static function isAppointmentUniqueViolation(PDOException $e): bool
+    {
+        return (string) $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'queue_entry_appointment_uq');
     }
 
     /** @param array<string, mixed> $row */

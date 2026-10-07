@@ -52,6 +52,7 @@ final class Prescription
         private array $items,
         private readonly ?DateTimeImmutable $createdAt = null,
         private readonly ?DateTimeImmutable $updatedAt = null,
+        private readonly ?DateTimeImmutable $validUntil = null,
     ) {
     }
 
@@ -64,6 +65,10 @@ final class Prescription
      *        $tenantId (PrescriptionService is responsible for building
      *        them with PrescriptionItem::create() using that same tenant
      *        id before calling this).
+     * @param DateTimeImmutable|null $validUntil optional validity date
+     *        (`prescription.valid_until`, date only; rodada 2, T-13). Whether
+     *        it may be in the past is PrescriptionService's rule, not this
+     *        entity's: reconstitute() must still load old prescriptions.
      */
     public static function create(
         int $tenantId,
@@ -72,6 +77,7 @@ final class Prescription
         int $professionalSystemUserId,
         ?string $orientationText,
         array $items,
+        ?DateTimeImmutable $validUntil = null,
     ): self {
         if ($tenantId <= 0) {
             throw new InvalidArgumentException('Tenant id must be positive');
@@ -112,6 +118,7 @@ final class Prescription
             orientationText: $orientationText !== null && trim($orientationText) !== '' ? $orientationText : null,
             status: self::STATUS_DRAFT,
             items: array_values($items),
+            validUntil: $validUntil?->setTime(0, 0),
         );
     }
 
@@ -150,6 +157,9 @@ final class Prescription
                 : null,
             updatedAt: isset($row['updated_at']) && $row['updated_at'] !== null
                 ? new DateTimeImmutable((string) $row['updated_at'])
+                : null,
+            validUntil: isset($row['valid_until']) && $row['valid_until'] !== null
+                ? new DateTimeImmutable((string) $row['valid_until'])
                 : null,
         );
     }
@@ -233,5 +243,11 @@ final class Prescription
     public function updatedAt(): ?DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    /** Validity date (`prescription.valid_until`), or null when none was set. */
+    public function validUntil(): ?DateTimeImmutable
+    {
+        return $this->validUntil;
     }
 }

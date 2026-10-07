@@ -207,4 +207,125 @@ final class PrescriptionServiceTest
 
         Assert::null($prescriptions->findById(1));
     }
+
+    public function testCreateRejectsValidUntilInThePast(): void
+    {
+        [$service, $prescriptions, $encounterId] = $this->allowedServiceWithEncounter();
+
+        self::assertInvalidArgumentMessage(
+            'valid_until cannot be in the past',
+            fn () => $service->create(
+                self::validData($encounterId, (new DateTimeImmutable('yesterday'))->format('Y-m-d')),
+                self::ACTION,
+            ),
+        );
+        Assert::null($prescriptions->findById(1));
+    }
+
+    public function testCreateRejectsMalformedValidUntil(): void
+    {
+        [$service, , $encounterId] = $this->allowedServiceWithEncounter();
+
+        foreach (['30/10/2026', '2026-02-30', 'amanha'] as $invalid) {
+            self::assertInvalidArgumentMessage(
+                'valid_until must be a Y-m-d date',
+                fn () => $service->create(self::validData($encounterId, $invalid), self::ACTION),
+            );
+        }
+    }
+
+    public function testCreateAcceptsFutureValidUntilAsStringOrDate(): void
+    {
+        [$service, , $encounterId] = $this->allowedServiceWithEncounter();
+        $in30Days = (new DateTimeImmutable('today'))->modify('+30 days');
+
+        $fromString = $service->create(self::validData($encounterId, $in30Days->format('Y-m-d')), self::ACTION);
+        Assert::notNull($fromString->validUntil());
+        Assert::same($in30Days->format('Y-m-d'), $fromString->validUntil()->format('Y-m-d'));
+
+        $fromDate = $service->create(self::validData($encounterId, $in30Days), self::ACTION);
+        Assert::same($in30Days->format('Y-m-d'), $fromDate->validUntil()?->format('Y-m-d'));
+
+        $today = $service->create(
+            self::validData($encounterId, (new DateTimeImmutable('today'))->format('Y-m-d')),
+            self::ACTION,
+        );
+        Assert::same((new DateTimeImmutable('today'))->format('Y-m-d'), $today->validUntil()?->format('Y-m-d'));
+    }
+
+    public function testCreateWithoutValidUntilLeavesItNull(): void
+    {
+        [$service, , $encounterId] = $this->allowedServiceWithEncounter();
+
+        Assert::null($service->create(self::validData($encounterId, null), self::ACTION)->validUntil());
+
+        $blank = self::validData($encounterId, null);
+        $blank['valid_until'] = '';
+        Assert::null($service->create($blank, self::ACTION)->validUntil());
+    }
+
+    /** @return array{0: PrescriptionService, 1: FakePrescriptionRepository, 2: int} */
+    private function allowedServiceWithEncounter(): array
+    {
+        $encounters = new FakeEncounterRepository(1);
+        $encounter = Encounter::start(
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            appointmentId: null,
+            professionalSystemUserId: 10,
+            now: new DateTimeImmutable('-10 minutes'),
+        );
+        $encounters->save($encounter);
+
+        $prescriptions = new FakePrescriptionRepository(1);
+        $service = new PrescriptionService(
+            $prescriptions,
+            $encounters,
+            new FakeAuthorizationPolicy(allowed: true),
+            TenantContext::authenticated(1, 1, 1),
+            FakeTenantUserDirectory::allowingAll(),
+        );
+
+        return [$service, $prescriptions, (int) $encounter->id()];
+    }
+
+    /** @return array<string, mixed> */
+    private static function validData(int $encounterId, string|DateTimeImmutable|null $validUntil): array
+    {
+        $data = [
+            'encounter_id' => $encounterId,
+            'patient_id' => 1,
+            'professional_system_user_id' => 10,
+            'items' => [[
+                'medication_name' => 'Amoxicilina',
+                'dose' => '250',
+                'dose_unit' => 'mg',
+                'route' => 'oral',
+                'frequency' => '12/12h',
+                'duration' => '7 dias',
+            ]],
+        ];
+
+        if ($validUntil !== null) {
+            $data['valid_until'] = $validUntil;
+        }
+
+        return $data;
+    }
+
+    private static function assertInvalidArgumentMessage(string $message, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (\InvalidArgumentException $e) {
+            Assert::same($message, $e->getMessage());
+
+            return;
+        }
+
+        throw new \CentralVet\Tests\Support\AssertionFailedException(
+            "Expected InvalidArgumentException \"{$message}\" was not thrown"
+        );
+    }
 }

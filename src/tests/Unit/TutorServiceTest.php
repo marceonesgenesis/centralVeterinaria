@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\TutorService;
 use CentralVet\Domain\Tutor;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\FakeTutorRepository;
 use InvalidArgumentException;
 
@@ -21,7 +22,7 @@ final class TutorServiceTest
     public function testSearchReturnsEmptyListForBlankTerm(): void
     {
         $repository = new FakeTutorRepository(1, $this->makeTutor(1, 'Ana Souza'));
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         Assert::same([], $service->search('   '));
     }
@@ -33,7 +34,7 @@ final class TutorServiceTest
             $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
             $this->makeTutor(1, 'Bruno Lima', document: '55566677788', phone: '85988880000'),
         );
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         $results = $service->search('ana');
 
@@ -47,7 +48,7 @@ final class TutorServiceTest
             1,
             $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
         );
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         $results = $service->search('11122233344');
 
@@ -61,7 +62,7 @@ final class TutorServiceTest
             1,
             $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
         );
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         $results = $service->search('85999990000');
 
@@ -75,7 +76,7 @@ final class TutorServiceTest
             1,
             $this->makeTutor(2, 'Carla Tenant Dois', document: '99988877766', phone: '85977770000'),
         );
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         Assert::same([], $service->search('carla'));
     }
@@ -86,10 +87,9 @@ final class TutorServiceTest
             1,
             $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
         );
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         Assert::throws(InvalidArgumentException::class, static fn () => $service->create([
-            'tenant_id' => 1,
             'full_name' => 'Outro Nome',
             'phone' => '85911112222',
             'document' => '11122233344',
@@ -99,10 +99,9 @@ final class TutorServiceTest
     public function testCreatePersistsNewTutor(): void
     {
         $repository = new FakeTutorRepository(1);
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         $tutor = $service->create([
-            'tenant_id' => 1,
             'full_name' => 'Novo Tutor',
             'phone' => '85911112222',
         ]);
@@ -115,13 +114,193 @@ final class TutorServiceTest
     public function testCreateRejectsMissingRequiredFields(): void
     {
         $repository = new FakeTutorRepository(1);
-        $service = new TutorService($repository);
+        $service = new TutorService($repository, self::context());
 
         Assert::throws(InvalidArgumentException::class, static fn () => $service->create([
-            'tenant_id' => 1,
             'full_name' => '',
             'phone' => '85911112222',
         ]));
+    }
+
+    public function testUpdateChangesNameAndPhoneKeepingIdentity(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $updated = $service->update($a->id, [
+            'full_name' => '  Ana Souza Editada ',
+            'phone' => ' 85933334444 ',
+            'document' => '11122233344',
+            'email' => '',
+        ]);
+
+        Assert::same($a->id, $updated->id);
+        Assert::same($a->publicId, $updated->publicId);
+        Assert::same($a->tenantId, $updated->tenantId);
+        Assert::same('Ana Souza Editada', $updated->fullName);
+        Assert::same('85933334444', $updated->phone);
+        Assert::same('11122233344', $updated->document);
+        Assert::same(null, $updated->email);
+        Assert::same('85933334444', $service->findById($a->id)->phone);
+    }
+
+    public function testUpdateRejectsDocumentOfAnotherTutor(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $this->assertInvalidArgument('A tutor with this document already exists in this tenant', static fn () => $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'document' => '55566677788',
+        ]));
+    }
+
+    public function testUpdateRejectsUnknownTutor(): void
+    {
+        [$repository] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $this->assertInvalidArgument('Tutor 999 not found for this tenant', static fn () => $service->update(999, [
+            'full_name' => 'Ninguem',
+            'phone' => '85900000000',
+        ]));
+    }
+
+    public function testUpdateDoesNotFindAnotherTenantsTutor(): void
+    {
+        $other = $this->makeTutor(2, 'Carla Tenant Dois', document: '99988877766')->withId(50);
+        $repository = new FakeTutorRepository(1, $other);
+        $service = new TutorService($repository, self::context());
+
+        $this->assertInvalidArgument('Tutor 50 not found for this tenant', static fn () => $service->update(50, [
+            'full_name' => 'Invasor',
+            'phone' => '85900000000',
+        ]));
+    }
+
+    public function testUpdateRejectsMissingRequiredFields(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $this->assertInvalidArgument('full_name is required', static fn () => $service->update($a->id, [
+            'full_name' => '   ',
+            'phone' => '85999990000',
+        ]));
+        $this->assertInvalidArgument('phone is required', static fn () => $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '',
+        ]));
+    }
+
+    public function testUpdateTurnsEmptyAddressIntoNull(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $updated = $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'address' => '',
+        ]);
+
+        Assert::same(null, $updated->address);
+        Assert::same(null, $service->findById($a->id)->address);
+    }
+
+    public function testUpdateAcceptsTheTutorsOwnDocument(): void
+    {
+        [$repository, $a] = $this->seedTwoTutors();
+        $service = new TutorService($repository, self::context());
+
+        $updated = $service->update($a->id, [
+            'full_name' => 'Ana Souza',
+            'phone' => '85999990000',
+            'document' => $a->document,
+        ]);
+
+        Assert::same($a->id, $updated->id);
+        Assert::same('11122233344', $updated->document);
+    }
+
+    public function testCreateTrimsAndNullsOptionalFieldsLikeUpdate(): void
+    {
+        $repository = new FakeTutorRepository(1);
+        $service = new TutorService($repository, self::context());
+
+        $tutor = $service->create([
+            'full_name' => '  Novo Tutor ',
+            'phone' => ' 85911112222 ',
+            'document' => '',
+            'email' => '',
+            'address' => '',
+        ]);
+
+        Assert::same('Novo Tutor', $tutor->fullName);
+        Assert::same('85911112222', $tutor->phone);
+        Assert::same(null, $tutor->document);
+        Assert::same(null, $tutor->email);
+        Assert::same(null, $tutor->address);
+    }
+
+    public function testCreateUsesTenantFromContextNotFromData(): void
+    {
+        $repository = new FakeTutorRepository(1);
+        $service = new TutorService($repository, TenantContext::authenticated(1, 1));
+
+        $tutor = $service->create([
+            'tenant_id' => 2,
+            'full_name' => 'Tutor Contexto',
+            'phone' => '85911112222',
+        ]);
+
+        Assert::same(1, $tutor->tenantId);
+    }
+
+    public function testCreateWithoutTenantIdInDataUsesContext(): void
+    {
+        $repository = new FakeTutorRepository(1);
+        $service = new TutorService($repository, TenantContext::authenticated(1, 1));
+
+        $tutor = $service->create([
+            'full_name' => 'Tutor Sem Tenant',
+            'phone' => '85911112222',
+        ]);
+
+        Assert::same(1, $tutor->tenantId);
+        Assert::notNull($service->findById($tutor->id));
+    }
+
+    private static function context(): TenantContext
+    {
+        return TenantContext::authenticated(1, 1);
+    }
+
+    /** @return array{0: FakeTutorRepository, 1: Tutor, 2: Tutor} */
+    private function seedTwoTutors(): array
+    {
+        $repository = new FakeTutorRepository(
+            1,
+            $this->makeTutor(1, 'Ana Souza', document: '11122233344', phone: '85999990000'),
+            $this->makeTutor(1, 'Bruno Lima', document: '55566677788', phone: '85988880000'),
+        );
+        $all = $repository->search('8');
+
+        return [$repository, $all[0], $all[1]];
+    }
+
+    private function assertInvalidArgument(string $message, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (InvalidArgumentException $e) {
+            Assert::same($message, $e->getMessage());
+
+            return;
+        }
+
+        throw new \RuntimeException("Expected InvalidArgumentException('{$message}')");
     }
 
     private function makeTutor(int $tenantId, string $fullName, string $document = '', string $phone = '85900000000'): Tutor

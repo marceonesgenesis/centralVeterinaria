@@ -95,10 +95,10 @@ final class PrescriptionRepository extends AbstractTenantRepository implements P
                 <<<'SQL'
                 INSERT INTO prescription (
                     tenant_id, encounter_id, patient_id, professional_system_user_id,
-                    orientation_text, status
+                    orientation_text, valid_until, status
                 ) VALUES (
                     :tenant_id, :encounter_id, :patient_id, :professional_system_user_id,
-                    :orientation_text, :status
+                    :orientation_text, :valid_until, :status
                 )
                 SQL
             );
@@ -108,6 +108,7 @@ final class PrescriptionRepository extends AbstractTenantRepository implements P
                 ':patient_id' => $entity->patientId(),
                 ':professional_system_user_id' => $entity->professionalSystemUserId(),
                 ':orientation_text' => $entity->orientationText(),
+                ':valid_until' => $entity->validUntil()?->format('Y-m-d'),
                 ':status' => $entity->status(),
             ]);
 
@@ -123,13 +124,14 @@ final class PrescriptionRepository extends AbstractTenantRepository implements P
         $statement = $this->connection->prepare(
             <<<SQL
             UPDATE prescription SET
-                orientation_text = :orientation_text, status = :status
+                orientation_text = :orientation_text, valid_until = :valid_until, status = :status
             WHERE {$query->whereSql()}
             SQL
         );
         $statement->execute([
             ...$query->parameters(),
             ':orientation_text' => $entity->orientationText(),
+            ':valid_until' => $entity->validUntil()?->format('Y-m-d'),
             ':status' => $entity->status(),
         ]);
 

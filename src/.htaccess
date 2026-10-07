@@ -1,0 +1,12 @@
+# Public entry for Apache/shared hosting. The login remains at index.php.
+DirectoryIndex landing.php index.php
+
+# lead.php aceita só POST; os demais métodos recebem 405 aqui (o PHP também
+# responde 405 quando este bloco não roda, ex.: hospedagem sem mod_rewrite).
+# O IP real do visitante não se configura no .htaccess: é o mod_remoteip no
+# servidor (ver runbook de deploy).
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} !^POST$
+    RewriteRule ^lead\.php$ - [R=405,L]
+</IfModule>

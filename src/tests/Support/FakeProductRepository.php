@@ -13,9 +13,11 @@ use InvalidArgumentException;
  * table does not exist yet (migration T-01 not applied), so
  * StockServiceTest/SaleServiceTest exercise their services against this
  * instead of a real database. Tenant-scoped like the real
- * ProductRepository (ADR 0002): findById()/findActive()/findByName() only
+ * ProductRepository (ADR 0002): findById()/findActive()/findByName()/findByCode() only
  * ever return a product whose tenantId() matches this instance's own
- * $tenantId.
+ * $tenantId. The storage itself keeps the products of every tenant (seed
+ * one of another tenant to prove a write never reaches it), and
+ * storedProduct() inspects it without the tenant filter.
  */
 final class FakeProductRepository implements ProductRepositoryInterface
 {
@@ -64,6 +66,34 @@ final class FakeProductRepository implements ProductRepositoryInterface
         }
 
         return null;
+    }
+
+    public function findByCode(string $code): ?object
+    {
+        foreach ($this->products as $product) {
+            // Case-insensitive, like the utf8mb4_0900_ai_ci column in MySQL.
+            // mb_strtolower only folds case: unlike the collation, it does
+            // not equate accents ("é" != "e"), so accent-only differences
+            // are not covered by this fake.
+            if (
+                $product->tenantId() === $this->tenantId
+                && $product->code() !== null
+                && mb_strtolower($product->code()) === mb_strtolower($code)
+            ) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Test-only: the stored product with this id, whatever its tenant (no
+     * tenant filter), to assert that another tenant's row stayed intact.
+     */
+    public function storedProduct(int $id): ?Product
+    {
+        return $this->products[$id] ?? null;
     }
 
     public function save(object $entity): object

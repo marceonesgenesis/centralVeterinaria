@@ -32,6 +32,11 @@ use InvalidArgumentException;
  * `encounter_status_ck` CHECK constraint in the migration:
  * `in_progress` -> `finished`, one-way, via {@see self::finish()} only —
  * there is no "reopen" operation in this plan.
+ *
+ * Pause (rodada 2, T-16) is NOT a third status: an `in_progress` encounter
+ * with a non-null `paused_at` is paused. {@see self::resume()} (and
+ * {@see self::finish()} of a paused encounter) adds the paused stretch, in
+ * whole seconds, to `paused_seconds` and clears `paused_at`.
  */
 final class Encounter
 {
@@ -85,6 +90,8 @@ final class Encounter
         private ?DateTimeImmutable $aiSummaryAcceptedAt,
         private readonly ?DateTimeImmutable $createdAt = null,
         private readonly ?DateTimeImmutable $updatedAt = null,
+        private ?DateTimeImmutable $pausedAt = null,
+        private int $pausedSeconds = 0,
     ) {
     }
 
@@ -192,6 +199,10 @@ final class Encounter
             updatedAt: isset($row['updated_at']) && $row['updated_at'] !== null
                 ? new DateTimeImmutable((string) $row['updated_at'])
                 : null,
+            pausedAt: ($row['paused_at'] ?? null) !== null
+                ? new DateTimeImmutable((string) $row['paused_at'])
+                : null,
+            pausedSeconds: (int) ($row['paused_seconds'] ?? 0),
         );
     }
 
@@ -279,8 +290,79 @@ final class Encounter
             );
         }
 
+        if ($this->pausedAt !== null) {
+            $this->accumulatePause($now);
+        }
+
         $this->status = self::STATUS_FINISHED;
         $this->finishedAt = $now;
+    }
+
+    /**
+     * Pauses an in-progress encounter: stamps `paused_at`; status stays
+     * `in_progress`.
+     *
+     * @throws InvalidStatusTransitionException when finished or already paused.
+     */
+    public function pause(DateTimeImmutable $now): void
+    {
+        if ($this->status === self::STATUS_FINISHED) {
+            throw new InvalidStatusTransitionException(
+                sprintf('Encounter %s is finished and cannot be paused', $this->label())
+            );
+        }
+
+        if ($this->pausedAt !== null) {
+            throw new InvalidStatusTransitionException(
+                sprintf('Encounter %s is already paused', $this->label())
+            );
+        }
+
+        $this->pausedAt = $now;
+    }
+
+    /**
+     * Resumes a paused encounter: adds `now - paused_at` (whole seconds) to
+     * `paused_seconds` and clears `paused_at`.
+     *
+     * @throws InvalidStatusTransitionException when not paused.
+     */
+    public function resume(DateTimeImmutable $now): void
+    {
+        if ($this->pausedAt === null) {
+            throw new InvalidStatusTransitionException(
+                sprintf('Encounter %s is not paused', $this->label())
+            );
+        }
+
+        $this->accumulatePause($now);
+    }
+
+    public function isPaused(): bool
+    {
+        return $this->pausedAt !== null;
+    }
+
+    public function pausedAt(): ?DateTimeImmutable
+    {
+        return $this->pausedAt;
+    }
+
+    public function pausedSeconds(): int
+    {
+        return $this->pausedSeconds;
+    }
+
+    private function accumulatePause(DateTimeImmutable $now): void
+    {
+        $elapsed = $now->getTimestamp() - $this->pausedAt->getTimestamp();
+        $this->pausedSeconds += max(0, $elapsed);
+        $this->pausedAt = null;
+    }
+
+    private function label(): string
+    {
+        return $this->id !== null ? (string) $this->id : '(new)';
     }
 
     /** Records the AI-generated summary the professional accepted, with the acceptance timestamp. */

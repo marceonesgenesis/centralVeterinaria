@@ -99,7 +99,9 @@ class LoginForm extends TPage
         
         if (isset($ini['permission']['user_register']) && $ini['permission']['user_register'] == '1')
         {
-            $this->form->addFooterAction(_t('Create account'), new TAction(['SystemRegistrationForm', 'onLoad']), '');
+            $createAccount = $this->form->addFooterAction(_t('Create account'), new TAction([self::class, 'onCreateAccount']), '');
+            $createAccount->setProperty('type', 'button');
+            $createAccount->setProperty('onclick', "window.location.href = 'landing.php#cart'; return false;");
         }
         
         if (isset($ini['permission']['reset_password']) && $ini['permission']['reset_password'] == '1')
@@ -111,6 +113,11 @@ class LoginForm extends TPage
         parent::add($this->form);
     }
     
+    public static function onCreateAccount(): void
+    {
+        TScript::create("window.location.href = 'landing.php#cart';");
+    }
+
     /**
      * user exit action
      * Populate unit combo
@@ -134,7 +141,7 @@ class LoginForm extends TPage
                         $options[$unit->id] = $unit->name;
                     }
                 }
-                TCombo::reload('form_login', 'unit_id', $options);
+                CvCombo::reload('form_login', 'unit_id', $options);
             }
             
             TTransaction::close();

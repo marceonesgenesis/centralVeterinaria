@@ -14,6 +14,12 @@
  *  - search, category, status ('active'|'inactive'): filtros da barra
  *  - offset, limit, page: paginação (TPageNavigation)
  *
+ * Ações (rodada 2, T-10/T-33): Importar (ServiceImportForm), Duplicar
+ * (onAskDuplicate → TQuestion → onDuplicate → ServiceCatalogService::duplicate(),
+ * a cópia nasce inativa) e Excluir
+ * (onAskDelete → TQuestion → onDelete → ServiceCatalogService::delete();
+ * serviço com agendamento não é excluído e deve ser inativado).
+ *
  * Sem schema para descrição/preparo/ícone do serviço: o painel mostra só os
  * campos existentes e a tabela usa um ícone neutro.
  *
@@ -116,9 +122,13 @@ class ServiceList extends TPage
         $this->datagrid->addColumn($column_duration);
         $this->datagrid->addColumn($column_status);
 
-        $action_edit = new TDataGridAction(['ServiceForm', 'onEdit'], ['id' => '{id}']);
+        $action_edit      = new TDataGridAction(['ServiceForm', 'onEdit'], ['id' => '{id}']);
+        $action_duplicate = new TDataGridAction([$this, 'onAskDuplicate'], ['id' => '{id}']);
+        $action_delete    = new TDataGridAction([$this, 'onAskDelete'], ['id' => '{id}']);
         $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
             ['label' => _t('Edit'), 'action' => $action_edit, 'icon' => 'far:edit'],
+            ['label' => _t('Duplicate'), 'action' => $action_duplicate, 'icon' => 'far:copy'],
+            ['label' => _t('Delete'), 'action' => $action_delete, 'icon' => 'far:trash-alt'],
         ]));
 
         $this->datagrid->createModel();
@@ -136,6 +146,7 @@ class ServiceList extends TPage
         $main->add($this->footerBox);
 
         $header = CvPage::header(_t('Services'), null, [
+            ['label' => _t('Import'), 'href' => 'index.php?class=ServiceImportForm', 'icon' => 'fa:file-import'],
             ['label' => _t('New service'), 'href' => 'index.php?class=ServiceForm', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
         ]);
 
@@ -241,8 +252,142 @@ class ServiceList extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
+        }
+    }
+
+    /**
+     * Duplicar: pede confirmação (TQuestion) antes de chamar onDuplicate.
+     */
+    public static function onAskDuplicate($param = null)
+    {
+        $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+
+        $service = self::findServiceForQuestion($id);
+        if ($service === null)
+        {
+            return;
+        }
+
+        $action = new TAction([__CLASS__, 'onDuplicate']);
+        $action->setParameter('id', $id);
+
+        new TQuestion(_t('Duplicate the service "^1"?', CvFormat::e($service->name())), $action);
+    }
+
+    /**
+     * Duplicar: ServiceCatalogService::duplicate() cria "{nome} (cópia)"
+     * inativo; a lista recarrega com a cópia no painel.
+     */
+    public function onDuplicate($param = null)
+    {
+        $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+
+        try
+        {
+            TTransaction::open('permission');
+
+            $copy = self::buildServiceCatalogService()->duplicate($id, _t('copy'));
+
+            TTransaction::close();
+
+            TToast::show('info', _t('Record saved'));
+            AdiantiCoreApplication::loadPageURL('index.php?class=ServiceList&method=onReload&service_id=' . (int) $copy->id());
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Excluir: pede confirmação (TQuestion) antes de chamar onDelete.
+     */
+    public static function onAskDelete($param = null)
+    {
+        $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+
+        $service = self::findServiceForQuestion($id);
+        if ($service === null)
+        {
+            return;
+        }
+
+        $action = new TAction([__CLASS__, 'onDelete']);
+        $action->setParameter('id', $id);
+
+        new TQuestion(_t('Delete the service "^1"?', CvFormat::e($service->name())), $action);
+    }
+
+    /**
+     * Carrega o serviço do tenant para a pergunta de Duplicar/Excluir.
+     * Id inexistente (ou de outro tenant) mostra "Record not found" e
+     * devolve null, sem pergunta.
+     */
+    private static function findServiceForQuestion(int $id)
+    {
+        try
+        {
+            TTransaction::open('permission');
+            $service = $id > 0 ? self::buildServiceCatalogService()->findById($id) : null;
+            TTransaction::close();
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+            return null;
+        }
+
+        if ($service === null)
+        {
+            new TMessage('error', _t('Record not found'));
+            return null;
+        }
+
+        return $service;
+    }
+
+    /**
+     * Exclui pelo ServiceCatalogService::delete(). Serviço com agendamento
+     * (DomainException; FK RESTRICT) não é excluído: a mensagem orienta a
+     * inativá-lo.
+     */
+    public function onDelete($param = null)
+    {
+        $id = is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+
+        try
+        {
+            TTransaction::open('permission');
+
+            try
+            {
+                self::buildServiceCatalogService()->delete($id);
+            }
+            catch (DomainException $e)
+            {
+                TTransaction::rollback();
+                error_log(__METHOD__ . ': ' . $e->getMessage());
+                new TMessage('error', _t('This service has appointments; deactivate it instead'));
+                return;
+            }
+
+            TTransaction::close();
+
+            TToast::show('info', _t('Record deleted'));
+            AdiantiCoreApplication::loadPageURL('index.php?class=ServiceList&method=onReload');
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -331,6 +476,22 @@ class ServiceList extends TPage
         $edit->add(new TImage('far:edit'));
         $edit->add(TElement::tag('span', CvFormat::e(_t('Edit')), ['class' => 'ms-1']));
         $content->add($edit);
+
+        $duplicate = new TElement('a');
+        $duplicate->{'class'}     = 'btn btn-default ms-2';
+        $duplicate->{'href'}      = 'index.php?class=ServiceList&method=onAskDuplicate&static=1&id=' . $id;
+        $duplicate->{'generator'} = 'adianti';
+        $duplicate->add(new TImage('far:copy'));
+        $duplicate->add(TElement::tag('span', CvFormat::e(_t('Duplicate')), ['class' => 'ms-1']));
+        $content->add($duplicate);
+
+        $delete = new TElement('a');
+        $delete->{'class'}     = 'btn btn-outline-danger ms-2';
+        $delete->{'href'}      = 'index.php?class=ServiceList&method=onAskDelete&static=1&id=' . $id;
+        $delete->{'generator'} = 'adianti';
+        $delete->add(new TImage('far:trash-alt'));
+        $delete->add(TElement::tag('span', CvFormat::e(_t('Delete')), ['class' => 'ms-1']));
+        $content->add($delete);
 
         $panel = CvCard::create($service->name(), $content);
         $panel->{'data-service-id'} = (string) $id;

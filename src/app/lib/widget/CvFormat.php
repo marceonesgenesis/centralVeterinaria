@@ -66,4 +66,60 @@ class CvFormat
     {
         return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
+
+    /**
+     * Escapa duas vezes, para atributo HTML cujo valor decodificado volta a
+     * ser interpretado como HTML (ex.: [title], que o Adianti transforma em
+     * tooltip tippy com allowHTML). O navegador decodifica o atributo uma
+     * vez e o tooltip recebe texto escapado, não marcação.
+     */
+    public static function forHtmlSink(?string $text): string
+    {
+        return self::e(self::e($text));
+    }
+
+    /**
+     * Mensagem de erro para a tela, já segura para TMessage (HTML).
+     * PDOException ou SQLSTATE[ em $e ou em qualquer getPrevious() vira o
+     * texto genérico traduzido (regra antes das demais, T-53).
+     * CrossTenantReferenceException vira texto traduzido e sem o id (a
+     * mensagem original fica só no error_log do controller); as demais
+     * seguem a regra de userMessage().
+     */
+    public static function userError(\Throwable $e): string
+    {
+        // Falha de banco/driver (PDOException ou SQLSTATE em qualquer elo da
+        // cadeia): texto genérico, sem detalhe de SQL na tela (T-53).
+        for ($current = $e; $current !== null; $current = $current->getPrevious())
+        {
+            if ($current instanceof \PDOException || str_contains($current->getMessage(), 'SQLSTATE['))
+            {
+                return self::e(_t('Could not complete the operation. Please try again'));
+            }
+        }
+
+        if ($e instanceof \CentralVet\Domain\Exception\CrossTenantReferenceException)
+        {
+            return _t('The selected record does not belong to this clinic');
+        }
+
+        return self::userMessage($e->getMessage());
+    }
+
+    /**
+     * Mensagem de domínio → texto seguro para TMessage: quando o catálogo
+     * UserMessage a reconhece, a chave traduzida com os parâmetros escapados;
+     * senão, a própria mensagem escapada.
+     */
+    public static function userMessage(string $message): string
+    {
+        $resolved = \CentralVet\Presentation\UserMessage::resolve($message);
+
+        if ($resolved === null)
+        {
+            return self::e($message);
+        }
+
+        return _t($resolved['key'], ...array_map([self::class, 'e'], $resolved['params']));
+    }
 }

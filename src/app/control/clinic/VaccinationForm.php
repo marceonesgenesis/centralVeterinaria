@@ -188,7 +188,8 @@ class VaccinationForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('warning', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('warning', CvFormat::userError($e));
 
             return [];
         }
@@ -251,7 +252,8 @@ class VaccinationForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -272,13 +274,15 @@ class VaccinationForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

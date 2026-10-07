@@ -35,7 +35,9 @@ class SystemDriveList extends TPage
         $this->dataview = new TIconView;
         //$this->dataview->enableDoubleClick();
         $this->dataview->setIconAttribute('icon');
-        $this->dataview->setLabelAttribute('title');
+        // T-63: corpo ({label}) e tooltip ([title], tippy com allowHTML) usam
+        // campos separados, preparados em addDriveItem()
+        $this->dataview->setLabelAttribute('label');
         $this->dataview->setInfoAttributes(['type', 'id', 'title']);
         $this->dataview->setItemTemplate( file_get_contents( 'app/resources/system/docs/file_item.html') );
         $this->dataview->enableMoveAction( new TAction( [$this, 'onDragMove'] ), ['type' => ['file', 'folder']], ['type'=> ['folder', 'folder_back']] );
@@ -135,7 +137,8 @@ class SystemDriveList extends TPage
                 arsort($items);
                 foreach($items as $key => $name)
                 {
-                    $breadcrumb->addItem($name, $key == 0);
+                    // T-63: nome da pasta (usuário) vira HTML no TBreadCrumb
+                    $breadcrumb->addItem(CvFormat::e((string) $name), $key == 0);
                 }
                 TTransaction::close();
             }
@@ -218,7 +221,7 @@ class SystemDriveList extends TPage
         $folder = SystemFolder::find($folder_target_id);
         
         TScript::create("$('#{$param['source_id']}').remove()");
-        TToast::show('success', _t('Sent to ^1', $folder->name), 'bottom right');
+        TToast::show('success', _t('Sent to ^1', CvFormat::e((string) $folder->name)), 'bottom right');
     }
 
     /**
@@ -253,7 +256,7 @@ class SystemDriveList extends TPage
         $folder = SystemFolder::find($folder_id);
         
         TScript::create("$('#{$param['source_id']}').remove()");
-        TToast::show('success', _t('Sent to ^1', $folder->name), 'bottom right');
+        TToast::show('success', _t('Sent to ^1', CvFormat::e((string) $folder->name)), 'bottom right');
     }
 
     /**
@@ -475,7 +478,8 @@ class SystemDriveList extends TPage
                     
                     if (in_array($extension, ['txt', 'html', 'sql']))
                     {
-                        self::showContent($object, file_get_contents($file), basename($file));
+                        // T-63: conteúdo de arquivo enviado é texto, não HTML
+                        self::showContent($object, '<pre style="white-space:pre-wrap;margin:0">' . CvFormat::e((string) file_get_contents($file)) . '</pre>', basename($file));
                     }
                     else if ($extension == 'pdf' && !TPage::isMobile())
                     {
@@ -536,7 +540,8 @@ class SystemDriveList extends TPage
         $page->setProperty('override', 'true');
         $page->setPageName(__CLASS__);
         
-        $panel = new TPanelGroup($title);
+        // T-63: título (do usuário ou do nome do arquivo) é texto
+        $panel = new TPanelGroup(CvFormat::e((string) $title));
         $panel->class = 'card noborder';
         $btn_close = new TButton('closeCurtain');
         $btn_close->onClick = "Template.closeRightPanel();";
@@ -838,7 +843,7 @@ class SystemDriveList extends TPage
             $object = new stdClass;
             $object->{'icon'} = 'fas fa-chevron-left';
             $object->{'info'} = '';
-            $object->{'title'} = _t('Back');
+            $title = _t('Back');
             $object->{'connector'} = '';
             $object->{'type'} = 'folder_back';
             $object->{'id'} = 'folder_back_'.TSession::getValue(__CLASS__. 'path');
@@ -846,8 +851,26 @@ class SystemDriveList extends TPage
             $object->{'in_trash'} = false;
             $object->{'date'} = '';
             $object->{'key'} = $object->{'info'};
-            $this->dataview->addItem($object);
+            $this->addDriveItem($object, $title);
         }
+    }
+
+    /**
+     * T-63: adiciona o item com o nome vindo do usuário preparado por sink.
+     * - label: corpo do file_item.html ({label}), interpolado como HTML → escape simples;
+     * - title: vira o atributo [title] do <li>, que o Adianti transforma em
+     *   tooltip tippy com allowHTML (o navegador decodifica o atributo uma vez
+     *   e o tippy reinjeta como HTML) → escape duplo;
+     * - data-title: só lido como texto pela busca fuse → escape simples
+     *   (sobrescreve o data-title das info attributes).
+     */
+    private function addDriveItem(stdClass $object, ?string $rawTitle): void
+    {
+        $object->{'label'} = CvFormat::e($rawTitle);
+        $object->{'title'} = CvFormat::forHtmlSink($rawTitle);
+
+        $properties = $this->dataview->addItem($object);
+        $properties->{'data-title'} = CvFormat::e($rawTitle);
     }
 
     public static function onSearchGlobal($param)
@@ -964,7 +987,8 @@ class SystemDriveList extends TPage
                 }
 
                 $object = new stdClass;
-                $object->{'title'} = AdiantiStringConversion::assureUnicode($folder->name);
+                // T-63: nome da pasta vem do usuário; escape em addDriveItem()
+                $title = AdiantiStringConversion::assureUnicode($folder->name);
                 $object->{'type'} = 'folder';
                 $object->{'id'} = 'system_folder_' . $folder->id;
                 $object->{'icon'} = 'far fa-folder orange';
@@ -972,7 +996,7 @@ class SystemDriveList extends TPage
                 $object->{'bookmark'} = $folder->isBookmark(TSession::getValue('userid'));
                 $object->{'in_trash'} = $folder->in_trash;
 
-                $this->dataview->addItem($object);
+                $this->addDriveItem($object, $title);
             }
         }
     }
@@ -1080,7 +1104,9 @@ class SystemDriveList extends TPage
             foreach ($documents as $document)
             {
                 $object = new stdClass;
-                $object->{'title'} = AdiantiStringConversion::assureUnicode($document->title);
+                // T-63: o título vem do usuário (e do nome original do upload);
+                // escape em addDriveItem()
+                $title = AdiantiStringConversion::assureUnicode($document->title);
                 $object->{'type'} = 'file';
                 $object->{'system_user_id'} = $document->system_user_id;
                 $object->{'id'} = 'system_document_' . $document->id;
@@ -1103,7 +1129,7 @@ class SystemDriveList extends TPage
                 $object->{'icon'} .= ' blue';
                 $object->{'in_trash'} = $document->in_trash;
 
-                $this->dataview->addItem($object);
+                $this->addDriveItem($object, $title);
             }
         }
     }

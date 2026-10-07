@@ -19,6 +19,8 @@
  */
 class VaccineCatalogItem extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'vaccine_catalog_item';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'serial'; // {max, serial}
@@ -34,5 +36,13 @@ class VaccineCatalogItem extends TRecord
         parent::addAttribute('manufacturer');
         parent::addAttribute('stock_quantity');
         parent::addAttribute('active');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }

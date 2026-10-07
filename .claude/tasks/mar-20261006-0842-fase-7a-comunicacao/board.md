@@ -1,0 +1,247 @@
+# Board — mar-20261006-0842-fase-7a-comunicacao
+
+Log append-only de fatos que afetam outras tasks desta execução: contrato divergente, símbolo renomeado, arquivo compartilhado alterado, decisão que outra task precisa conhecer. Uma linha por fato, acrescentada por append com heredoc (abaixo; o delimitador entre aspas aceita qualquer caractere no fato); nunca edite ou remova linhas. Leia antes de começar uma task e antes de usar cada `Consome`. O fechador consolida as linhas em `notes.md § Descobertas`.
+
+Formato: `- [T-NN] <fato>`
+
+Append:
+
+```bash
+cat >> "/var/www/html/centralvet/.claude/tasks/mar-20261006-0842-fase-7a-comunicacao/board.md" <<'EOF'
+- [T-NN] <fato>
+EOF
+```
+- [T-04] Programas RBAC prontos (seed + sql/T-04-programs*.sql, commit 3bf14d8): controllers MessageTemplateList, MessageTemplateForm, CommunicationMessageList, CommunicationMessageView, CommunicationComposeForm, TutorCommunicationForm, PendingCenter; aplicação no banco pendente do bloqueio Onda 1→2.
+- [T-03] i18n-domínio: Invalid deep-link parameter <chave> (sufixo variável: nome da chave)
+- [T-03] i18n-domínio: Invalid deep-link parameter key
+- [T-03] i18n-domínio: Invalid deep-link class
+- [T-03] i18n-domínio: Invalid pending item type
+- [T-03] i18n-domínio: Invalid pending item priority
+- [T-03] PendingItem valida tipo e classe de deep-link no construtor (InvalidArgumentException); deepLinkUrl aceita int > 0, string só de dígitos sem zero à esquerda, data Y-m-d válida ou 'administrations', na ordem do array; PendingItem::DEEP_LINK_CLASSES pública; ReminderCandidate::__debugInfo omite e-mail e telefone
+- [T-05] Provedores prontos em `CentralVet\Communication` (52ba96d): `channel()` = `email` em `LogEmailProvider` e `SmtpEmailProvider`; `deliver` do log devolve null; SMTP devolve `getLastMessageID()` ou null. Códigos de `MessageDeliveryFailed`: `smtp_connect`, `smtp_auth`, `smtp_recipient_rejected`, `smtp_error` (sem previous encadeado).
+- [T-05] i18n-domínio: Invalid phone number for WhatsApp
+- [T-05] i18n-domínio: Invalid SMTP encryption
+- [T-05] i18n-domínio: Unknown communication e-mail driver
+- [T-05] i18n-domínio: Message delivery failed: <code>
+- [T-05] `.env.example` e `docker-compose.yml` (`x-php-service.environment`) ganharam as 12 variáveis da 7A, logo depois de `QUEUE_BACKOFF_SECONDS`. Rebuild/restart do worker/app fica com o orquestrador.
+- [T-02] Contratos: MessageTemplateRepositoryInterface e OutboundMessageRepositoryInterface estendem TenantRepositoryInterface (fakes/PDO implementam também tenantId() e remove()); CommunicationPreferenceRepositoryInterface e AppointmentFollowupRepositoryInterface NÃO estendem (só findForTutor/upsert e link/isFollowup), pois não têm findById/save no contrato.
+- [T-02] Símbolos extras disponíveis: reconstitute(array $row) + assignId(int) + tenantId() em CommunicationPreference, MessageTemplate e OutboundMessage; CommunicationChannel::assertValid, MessagePurpose::assertValid/assertValidLegalBasis/legalBases; MessageTemplate::STATUS_ACTIVE/STATUS_INACTIVE; OutboundMessage::SOURCE_APPOINTMENT/SOURCE_VACCINATION/SOURCE_RECEIVABLE; getters extras de OutboundMessage (provider, providerMessageId, claimedAt, cancelledAt, manualSentBySystemUserId, cancelledBySystemUserId, createdBySystemUserId, updatedAt). OutboundMessage::compose ignora assunto vazio no WhatsApp (vira null) e exige source_type e source_id juntos. MessageTemplateRenderer::render deixa intacto {{token}} fora da lista.
+- [T-02] i18n-domínio: Tutor <id> has not opted in to <channel> messages
+- [T-02] i18n-domínio: Tutor <id> has opted out of <channel> messages
+- [T-02] i18n-domínio: Unknown placeholder "<nome>" in template
+- [T-02] i18n-domínio: subject is required for email templates
+- [T-02] i18n-domínio: subject must be at most 190 characters
+- [T-02] i18n-domínio: body must be between 1 and 2000 characters
+- [T-02] i18n-domínio: name must be between 1 and 120 characters
+- [T-02] i18n-domínio: Unknown communication channel "<canal>"
+- [T-02] i18n-domínio: Unknown message purpose "<finalidade>"
+- [T-02] i18n-domínio: Unknown legal basis "<base>"
+- [T-02] i18n-domínio: Unknown consent source "<origem>"
+- [T-02] i18n-domínio: Unknown communication preference status "<status>"
+- [T-02] i18n-domínio: recipient must be between 1 and 190 characters
+- [T-02] i18n-domínio: subject must be between 1 and 190 characters for email messages
+- [T-02] i18n-domínio: body must not be empty
+- [T-02] i18n-domínio: source_type and a positive source_id must be given together
+- [T-01] 0012 commitada (0b40507): 4 tabelas, 18 CHECKs, 18 FKs e 4 UNIQUEs (não 3 como diz o critério; a Interface lista 4, inclusive appointment_followup_appointment_uq); colunas e nomes exatamente como na Interface da T-01.
+- [T-03] Correção 1: PendingItem::DEEP_LINK_KEYS (pública) fecha as chaves por classe — ExamResultForm [exam_request_id, encounter_id], AgendaView [date], VaccinationCardView [patient_id], HospitalizationView [id, tab], CommunicationMessageView [id], PaymentForm [receivable_id]; tipo do valor fixo por chave (ids inteiro > 0, date Y-m-d, tab = administrations). Chave fora da lista lança `Invalid deep-link parameter <chave>` (mensagem já registrada). T-08 deve montar o deep-link só com essas chaves.
+- [T-06] Dublês prontos em CentralVet\Tests\Support: construtores FakeOutboundMessageRepository(int $tenantId, OutboundMessage ...$seed) (+ seed(), all(), simulateConcurrentTransition), FakeCommunicationPreferenceRepository(int $tenantId, ...$seed) (+ $upsertCount), FakeMessageTemplateRepository(int $tenantId, ...$seed), FakeAppointmentFollowupRepository(int $tenantId, array $seed = [appointmentId => encounterId]) (+ links()), FakePendingItemQuery(array $items) (limita por tipo), FakeReminderSourceQuery(appointments:, vaccines:, receivables:) (sem filtro de data; calls() = [método, ...args]), FakeQueue() (pushed(): [queue, payload, tenantId, maxAttempts]; pop devolve null), FakeEmailProvider(string $name = 'fake') (deliver devolve 'fake-N'; failWith/succeed). claim exige e-mail e claim nulo ou > 10 min; markSent exige claimed_at.
+- [T-07] Repositórios PDO prontos em `CentralVet\Persistence` (OutboundMessageRepository, MessageTemplateRepository, CommunicationPreferenceRepository, AppointmentFollowupRepository) + PdoConnectionFactory::fromEnvironment (native prepares, FETCH_ASSOC, DB_STRICT_MODE como em database.php). Diferenças do fake T-06: OutboundMessageRepository::save só insere (duplicata de dedupe_key lança; mensagem com id lança LogicException) e remove() sempre lança LogicException; insertIfNew de outro tenant lança TenantBoundaryViolation; listStaleQueuedEmailIds também exige claimed_at nulo ou anterior a olderThan; AppointmentFollowupRepository::link lança TenantBoundaryViolation se appointment ou encounter não forem do tenant.
+- [T-07] i18n-domínio: Database connection failed (code <código>)
+- [T-07] i18n-domínio: Outbound messages change only through conditional transitions
+- [T-07] i18n-domínio: Outbound message with the same dedupe key already exists
+- [T-07] i18n-domínio: Outbound messages are never removed
+- [T-08] PendingItemQuery e ReminderSourceQuery prontos (sem herdar AbstractTenantRepository; só SELECT). ReminderCandidate::variables() traz tutor_name, patient_name, unit_name, clinic_name e as da fonte (appointment_date/appointment_time; vaccine_name/due_date; amount_due) — T-11 pode usar tutor_name direto. appointmentsBetween: [from, to) convertidos ao fuso da aplicação; vaccinesDueBetween inclusivo; openReceivablesCreatedBefore estrito (<). E-mail vazio vira null. subjectLabel: exame, serviço, vacina, descrição da prescrição (administração), código da finalidade (mensagens) e 'receivable_open' (recebível). sourceId: exam_request.id (exam_result), exam_result.id (exam_review), demais o id da própria linha; responsável da mensagem = created_by (null na automação), do recebível = null. Ordem de listForUnit = PendingItem::TYPES, cada tipo por prazo.
+- [T-14] i18n-domínio: Appointment <id> and encounter <id> belong to different patients
+- [T-14] i18n-domínio: appointment_id <id> was not found for the authenticated tenant
+- [T-14] EncounterView::onScheduleFollowUp agora guarda o Appointment devolvido por schedule() e chama makeAppointmentFollowupService($context)->link($appointment->id, $id) na mesma transação; AppointmentService/Appointment/AppointmentRepository intocados.
+- [T-12] MessageDeliveryService pronto (RED 4b762ea, impl ae23b40): constantes públicas RESULT_SENT/SKIPPED/CANCELLED/FAILED e CODE_OPTED_OUT/CODE_CONSENT_MISSING/CODE_PROVIDER_ERROR; reference do OutgoingMessage = 'msg-<id>'; cancel perdido em corrida ou mensagem de outro tenant devolvem 'skipped'. T-15: deliver relança MessageDeliveryFailed só em tentativa não final.
+- [T-09] Services prontos em CentralVet\Application: CommunicationPreferenceService (constante pública NOT_RECORDED = 'not_recorded'; preferencesFor também autoriza com entityType communication_preference/entityId tutor; tutor ausente lança CrossTenantReferenceException antes da autorização) e MessageTemplateService (entityType message_template, requiresUnitScope false; save sem 'status' assume active; id inexistente/alheio lança CrossTenantReferenceException `template_id <id> was not found for the authenticated tenant`). Os dois sem transação.
+- [T-09] i18n-domínio: Another active template already exists for this purpose and channel
+- [T-09] i18n-domínio: Unknown message template status "<status>"
+- [T-09] i18n-domínio: tutor_id <id> was not found for the authenticated tenant
+- [T-09] i18n-domínio: template_id <id> was not found for the authenticated tenant
+- [T-11] ReminderGenerationService pronto (CentralVet\Application): ordem dos descartes por canal = opt-out (skippedOptedOut) → consent sem preferência (skippedNoConsent) → sem contato (skippedNoContact) → permitsSending; ReminderRunSummary::toArray() = {created, duplicates, skipped_no_consent, skipped_no_contact, skipped_opted_out}; emailMessageIds() só dos e-mails criados nesta execução (duplicatas não entram). Recipient do WhatsApp = telefone normalizado (55...). Template ativo de e-mail sem assunto cai no assunto do MessageTemplateDefaults. Sem mensagens i18n novas.
+- [T-10] MessageService e MessageQueuePublisher prontos em CentralVet\Application. compose autoriza antes de validar; não encontrado (tutor, paciente fora do tutor, template, mensagem) lança CrossTenantReferenceException; template_id tem de casar finalidade e canal; cancel grava motivo `discarded`; listForUnit aceita só status/channel/purpose/tutor_id (vazios ignorados), limite 200; retry devolve a mensagem recarregada (controller publica depois do commit só se for e-mail); whatsAppLink em mensagem de e-mail lança InvalidArgumentException.
+- [T-10] i18n-domínio: Tutor <id> has no e-mail address
+- [T-10] i18n-domínio: Message <id> is no longer awaiting manual send
+- [T-10] i18n-domínio: Message <id> is no longer queued
+- [T-10] i18n-domínio: Message <id> has not failed
+- [T-10] i18n-domínio: Message <id> is not a WhatsApp message
+- [T-10] i18n-domínio: Template <id> does not match the message purpose and channel
+- [T-10] i18n-domínio: message_id <id> was not found for the authenticated tenant
+- [T-10] i18n-domínio: patient_id <id> was not found for tutor_id <id>
+- [T-10] i18n-domínio: template_id <id> was not found for the authenticated tenant
+- [T-10] i18n-domínio: Identifiers must be positive integers
+- [T-10] i18n-domínio: body must be between 1 and 2000 characters (já registrada pela T-02, reutilizada)
+- [T-20] Navegação pronta: menu.xml com Pending items → PendingCenter após Dashboard e CRM / Communication como submenu (CommunicationMessageList, MessageTemplateList); CvNav::group('communication') com abas messages/templates; TutorForm com links href para TutorCommunicationForm&tutor_id= e CommunicationComposeForm&tutor_id= (sem method, a tela lê tutor_id do request).
+- [T-20] i18n: Pending items → Pendências
+- [T-20] i18n: Messages → Mensagens
+- [T-20] i18n: Message templates → Modelos de mensagem
+- [T-20] i18n: Communication → Comunicação
+- [T-20] i18n: Send message → Enviar mensagem
+- [T-16] Telas MessageTemplateList/MessageTemplateForm prontas (RED 4e84c61). MessageTemplateForm::purposeLabel(string) e ::channelLabel(string) são públicos e devolvem texto puro (quem imprime escapa) — reutilizáveis por T-17/T-18. onToggle recebe id + active=1|0. Sem CvNav::tabs (T-20 decide).
+- [T-16] i18n: Purpose → Finalidade
+- [T-16] i18n: Channel → Canal
+- [T-16] i18n: Subject (e-mail only) → Assunto (só e-mail)
+- [T-16] i18n: Message text → Texto da mensagem
+- [T-16] i18n: Edit message template → Editar template de mensagem
+- [T-16] i18n: New message template → Novo template de mensagem
+- [T-16] i18n: Communication → Comunicação
+- [T-16] i18n: You are not allowed to manage message templates → Você não tem permissão para gerenciar templates de mensagem
+- [T-16] i18n: Appointment confirmation → Confirmação de agendamento
+- [T-16] i18n: Vaccine due → Vacina a vencer
+- [T-16] i18n: Return reminder → Lembrete de retorno
+- [T-16] i18n: Open receivable → Cobrança em aberto
+- [T-16] i18n: Document ready → Documento pronto
+- [T-16] i18n: Custom message → Mensagem personalizada
+- [T-16] i18n: Available placeholders (subject and message text) → Marcadores disponíveis (assunto e texto da mensagem)
+- [T-16] i18n: Message templates → Templates de mensagem
+- [T-16] i18n: New template → Novo template
+- [T-16] i18n: Message template activated → Template de mensagem ativado
+- [T-16] i18n: Message template deactivated → Template de mensagem desativado
+- [T-16] i18n: No message templates registered → Nenhum template de mensagem cadastrado
+- [T-19] PendingCenter pronto (RED 1af3642, impl 2ccec8c): rota index.php?class=PendingCenter[&type=<tipo>][&mine=1]; seam público PendingCenter::buildContent(PendingCenterService, array $param, callable $userNames): TElement; query memoizada (uma leitura das 8 fontes por render); CSS só seção cv-pending-* no fim de cv-components.css. Erro de permissão: _t('You are not allowed to view the pending items').
+- [T-19] i18n: Pending items → Pendências
+- [T-19] i18n: What needs attention in this unit → O que precisa de atenção nesta unidade
+- [T-19] i18n: You are not allowed to view the pending items → Você não tem permissão para ver as pendências
+- [T-19] i18n: Exam results to record → Resultados de exame a lançar
+- [T-19] i18n: Exam results to review → Resultados de exame a revisar
+- [T-19] i18n: Return appointments → Retornos
+- [T-19] i18n: Vaccines due → Vacinas a vencer
+- [T-19] i18n: Medication administrations → Administrações de medicamento
+- [T-19] i18n: Failed messages → Mensagens com falha
+- [T-19] i18n: WhatsApp messages to send → WhatsApp a enviar
+- [T-19] i18n: Open receivables → Recebíveis em aberto
+- [T-19] i18n: Urgent → Urgente
+- [T-19] i18n: High → Alta
+- [T-19] i18n: Normal → Normal
+- [T-19] i18n: Low → Baixa
+- [T-19] i18n: All types → Todos os tipos
+- [T-19] i18n: Only mine → Só meus
+- [T-19] i18n: No pending items → Nenhuma pendência
+- [T-19] i18n: Priority → Prioridade
+- [T-19] i18n: Type → Tipo
+- [T-19] i18n: Subject → Assunto
+- [T-19] i18n: Due → Prazo
+- [T-19] i18n: Responsible → Responsável
+- [T-19] i18n: Overdue → Vencida
+- [T-19] i18n: Open → Aberta (cuidado: chave já pode existir como "Abrir" no SurgeryList; se colidir, T-21 decide)
+- [T-19] i18n: Resolve → Resolver
+- [T-19] i18n (provavelmente já existentes): Patient, Status, An authenticated session with an active unit is required
+- [T-17] Telas prontas (RED 4a8e09f, impl 989c1f1): CommunicationMessageView expõe helpers públicos estáticos statusBadge/statusLabel/channelLabel/purposeLabel (reutilizáveis por T-18/T-19) e ações onAskMarkSent/onMarkSent, onAskCancel/onCancel, onAskRetry/onRetry; CommunicationMessageList::maskRecipient(string, string): string pública. Rótulos de last_error_code incluem discarded, opted_out, consent_missing, provider_error e smtp_*.
+- [T-17] i18n: Message → Mensagem
+- [T-17] i18n: Open a message from the message history. → Abra uma mensagem pelo histórico de mensagens.
+- [T-17] i18n: This message could not be loaded. → Não foi possível carregar esta mensagem.
+- [T-17] i18n: Confirm that this WhatsApp message was sent? → Confirmar que esta mensagem de WhatsApp foi enviada?
+- [T-17] i18n: Message marked as sent → Mensagem marcada como enviada
+- [T-17] i18n: Discard this message? It will not be sent. → Descartar esta mensagem? Ela não será enviada.
+- [T-17] i18n: Message discarded → Mensagem descartada
+- [T-17] i18n: Send this message again? → Enviar esta mensagem novamente?
+- [T-17] i18n: Invalid message → Mensagem inválida
+- [T-17] i18n: Message requeued → Mensagem reenfileirada
+- [T-17] i18n: You are not allowed to change this message → Você não tem permissão para alterar esta mensagem
+- [T-17] i18n: You are not allowed to view this message → Você não tem permissão para ver esta mensagem
+- [T-17] i18n: Tutor → Tutor
+- [T-17] i18n: Message details → Detalhes da mensagem
+- [T-17] i18n: Status → Status
+- [T-17] i18n: Channel → Canal
+- [T-17] i18n: Purpose → Finalidade
+- [T-17] i18n: Origin → Origem
+- [T-17] i18n: Legal basis → Base legal
+- [T-17] i18n: Patient → Paciente
+- [T-17] i18n: Recipient → Destinatário
+- [T-17] i18n: Created at → Criada em
+- [T-17] i18n: Sent at → Enviada em
+- [T-17] i18n: Failed at → Falhou em
+- [T-17] i18n: Cancelled at → Cancelada em
+- [T-17] i18n: Attempts → Tentativas
+- [T-17] i18n: Reason → Motivo
+- [T-17] i18n: Subject → Assunto
+- [T-17] i18n: Message text → Texto da mensagem
+- [T-17] i18n: Actions → Ações
+- [T-17] i18n: Open WhatsApp → Abrir WhatsApp
+- [T-17] i18n: Mark as sent → Marcar como enviado
+- [T-17] i18n: Discard → Descartar
+- [T-17] i18n: Retry → Reenviar
+- [T-17] i18n: No actions available for this message. → Nenhuma ação disponível para esta mensagem.
+- [T-17] i18n: Queued → Na fila
+- [T-17] i18n: Sent → Enviada
+- [T-17] i18n: Sent manually → Enviada manualmente
+- [T-17] i18n: Failed → Falhou
+- [T-17] i18n: Cancelled → Cancelada
+- [T-17] i18n: E-mail → E-mail
+- [T-17] i18n: WhatsApp → WhatsApp
+- [T-17] i18n: Appointment confirmation → Confirmação de agendamento
+- [T-17] i18n: Vaccine due → Vacina a vencer
+- [T-17] i18n: Follow-up reminder → Lembrete de retorno
+- [T-17] i18n: Open receivable → Cobrança em aberto
+- [T-17] i18n: Document ready → Documento pronto
+- [T-17] i18n: Custom message → Mensagem personalizada
+- [T-17] i18n: Automatic → Automática
+- [T-17] i18n: Manual → Manual
+- [T-17] i18n: Legitimate interest → Legítimo interesse
+- [T-17] i18n: Consent → Consentimento
+- [T-17] i18n: Could not connect to the e-mail server → Não foi possível conectar ao servidor de e-mail
+- [T-17] i18n: E-mail server authentication failed → Falha na autenticação do servidor de e-mail
+- [T-17] i18n: Recipient rejected by the e-mail server → Destinatário recusado pelo servidor de e-mail
+- [T-17] i18n: E-mail server error → Erro no servidor de e-mail
+- [T-17] i18n: Delivery provider error → Erro no provedor de envio
+- [T-17] i18n: Tutor opted out of this channel → Tutor recusou este canal
+- [T-17] i18n: Tutor has not consented to this channel → Tutor não consentiu com este canal
+- [T-17] i18n: Discarded by staff → Descartada pela equipe
+- [T-17] i18n: Message history → Histórico de mensagens
+- [T-17] i18n: You are not allowed to view the message history → Você não tem permissão para ver o histórico de mensagens
+- [T-17] i18n: Apply → Aplicar
+- [T-17] i18n: No messages found → Nenhuma mensagem encontrada
+- [T-17] i18n: Messages sent to tutors appear here. → As mensagens enviadas aos tutores aparecem aqui.
+- [T-17] i18n: Date → Data
+- [T-17] i18n: Open → Abrir
+- [T-18] Telas prontas: TutorCommunicationForm e CommunicationComposeForm leem tutor_id (e patient_id) do request no construtor (links sem method da T-20 funcionam); ambas têm onReload vazio. Ação extra CommunicationComposeForm::onChangeChannel (recarrega templates ativos do canal); onChangeTemplate também ajusta a finalidade para a do template. Ações ACTION_*: ::onSave, ::onLoad, ::onChangeTemplate, ::onChangeChannel.
+- [T-18] i18n: Communication preferences → Preferências de comunicação
+- [T-18] i18n: Provide a tutor_id to manage the communication preferences. → Informe um tutor_id para gerenciar as preferências de comunicação.
+- [T-18] i18n: Appointment confirmations and return reminders are sent unless the tutor refuses; the other messages only with the tutor acceptance. → Confirmações de agendamento e lembretes de retorno são enviados salvo se o tutor recusar ("Não aceita"); as demais mensagens só com o aceite do tutor ("Aceita").
+- [T-18] i18n: E-mail on file → E-mail cadastrado
+- [T-18] i18n: Phone usable for WhatsApp → Telefone serve para WhatsApp
+- [T-18] i18n: Current status → Status atual
+- [T-18] i18n: Accepts → Aceita
+- [T-18] i18n: Does not accept → Não aceita
+- [T-18] i18n: Not recorded → Não registrado
+- [T-18] i18n: Preference → Preferência
+- [T-18] i18n: Consent source → Origem do consentimento
+- [T-18] i18n: In person → Presencial
+- [T-18] i18n: By phone → Por telefone
+- [T-18] i18n: In writing → Por escrito
+- [T-18] i18n: Online → Online
+- [T-18] i18n: E-mail → E-mail
+- [T-18] i18n: WhatsApp → WhatsApp
+- [T-18] i18n: Compose message → Nova mensagem
+- [T-18] i18n: Select the consent source for ^1 → Selecione a origem do consentimento para ^1
+- [T-18] i18n: Communication preferences saved → Preferências de comunicação salvas
+- [T-18] i18n: No preference was changed → Nenhuma preferência foi alterada
+- [T-18] i18n: You are not allowed to change the communication preferences of this tutor → Você não tem permissão para alterar as preferências de comunicação deste tutor
+- [T-18] i18n: Provide a tutor_id to compose a message. → Informe um tutor_id para escrever uma mensagem.
+- [T-18] i18n: Channel → Canal
+- [T-18] i18n: Purpose → Finalidade
+- [T-18] i18n: Template → Modelo
+- [T-18] i18n: Message → Mensagem
+- [T-18] i18n: The message text is required → O texto da mensagem é obrigatório
+- [T-18] i18n: Message registered → Mensagem registrada
+- [T-18] i18n: Review the communication preferences of the tutor → Revisar as preferências de comunicação do tutor
+- [T-18] i18n: You are not allowed to send messages → Você não tem permissão para enviar mensagens
+- [T-18] i18n: Appointment confirmation → Confirmação de agendamento
+- [T-18] i18n: Vaccine due → Vacina a vencer
+- [T-18] i18n: Return reminder → Lembrete de retorno
+- [T-18] i18n: Open receivable → Cobrança em aberto
+- [T-18] i18n: Document ready → Documento pronto
+- [T-18] i18n: Custom message → Mensagem livre
+- [T-18] i18n (provavelmente já existentes): Tutor, Patient, Subject, Save, Yes, No, An authenticated session with an active unit is required
+- [T-15] CommunicationJobHandler/CommunicationScheduler prontos em CentralVet\Communication (RED 3ef250d, impl 2de5615). Extras: CommunicationJobHandler::forEnvironment(provider, logger, systemUserId) e CommunicationScheduler::forConnection(PDO, publisher, logger, receivableDays, systemUserId). $servicesFactory devolve ['reminders' => ReminderGenerationService, 'messages' => OutboundMessageRepositoryInterface]. Logs: communication.job.<resultado> {message_id, tenant_id, code}, communication.job.invalid, communication.scheduler.tenant_failed {tenant_id, exception}, communication.scheduler.completed (contagens). worker.php roda o tick na partida e a cada COMMUNICATION_SCHEDULER_INTERVAL_SECONDS; precisa de rebuild do worker. Sem i18n novo.
+- [T-15] Correção 1 (RED 4721664, fix registrado em reports/T-15.md): CommunicationScheduler isola services/generate/sweep/publish por tenant; log communication.scheduler.tenant_failed ganhou a chave stage (services|generate|sweep|publish).
+- [T-21] i18n pronto (RED dcdcd6a, impl via commit "feat(comunicacao): traduz telas..."): translations.json 1122→1265 (143 chaves, ordem por en sem caixa), UserMessage STATIC 47→61 e PATTERNS 64→84; termo único "Modelo(s) de mensagem" (não "Template"); "Custom message" = Mensagem personalizada; mensagens de infraestrutura/invariante (Database connection failed, Outbound messages ..., SMTP encryption, e-mail driver, Message delivery failed) ficam fora do catálogo (não chegam ao CvFormat::userError).
+- [T-21] Colisões que pedem ajuste de controller (fora do escopo da T-21): PendingCenter usa _t('Open') no badge de status → mostra "Abrir" (chave compartilhada com ações; precisa de chave própria, ex.: 'Not overdue'/'Open item'); _t('Sent') já existia como "Enviado" (badge da ficha fica no masculino); PendingCenter exibe subjectLabel() cru (código de finalidade, ex.: receivable_open) sem _t.
+- [T-21] Correção 1: PendingCenter usa _t('Open (pending status)') → "Em aberto" e assunto traduzido (finalidade via CommunicationMessageView::purposeLabel; receivable_open → _t('Open receivable')); CommunicationMessageView::statusLabel('sent') usa _t('Sent (message status)') → "Enviada" (_t('Sent') = "Enviado" segue nas outras telas). translations.json 1265→1267.
+- [T-15] Correção 2 (RED 08471bd, impl 244821e): worker.php ganhou modo one-shot `--once [--max-jobs=N] [--max-seconds=N]` (padrão 50 s; exit 0 ao esvaziar/limite, 1 Redis fora, 2 opção inválida; flock contra sobreposição; sem tick). Laço extraído para CentralVet\Queue\QueueWorkerLoop (arquivo novo). Runbooks atualizados com o cron (T-22, dbdfab6).
+- [T-23] sql/T-23-cleanup.sql preparado (a65c441, termina em -- COMMIT;). Estado pré-gate lido 2026-10-06 10:26: tutor 7, patient 7, appointment 15, encounter 7, receivable 3, vaccination 0, system_program 133, tabelas da 0012 vazias, audit_log MAX 5739, @gate_start = '2026-10-06 10:26:00'. Tutor por tutor.full_name LIKE 'F7A teste%'; mensagens do agendador para tutores fora do prefixo não são apagadas (listadas em mensagens_fora).
+- [T-24] XSS do onChangeTemplate corrigido (literal JSON JSON_HEX_*, gancho protegido renderTemplateData); ReminderSourceQuery: LEFT JOIN system_unit com su.tenant_id (unidade de outro tenant → unit_name vazio). RED 2b6927c, impl fdc0d02.
+- [T-25] Opt-out barra WhatsApp manual (RED fcb802c, impl 224a35d): MessageService::whatsAppLink/markManualSent reconferem permitsSending e, se negado, cancelam (opted_out|consent_missing, cancelled_by NULL) e lançam MessageCancelledByPreferenceException (o controller COMITA antes de avisar; CommunicationMessageView já trata). OutboundMessageRepositoryInterface ganhou cancelQueuedForTutor(tutorId, channel, userId, reason, at): int (tenant inteiro, só queued sem claim). CommunicationPreferenceService ganhou 6º parâmetro opcional ?OutboundMessageRepositoryInterface $messages (opt-out cancela a fila; TutorCommunicationForm passa). UserMessage PATTERNS 84→86; translations.json +2.
+- [T-26] XSS do TCombo::reload corrigido (RED 083b36d, impl d564f09): helper CvCombo::reload (app/lib/widget/CvCombo.php; JSON JSON_HEX_* + new Option) em CommunicationComposeForm, PrescriptionForm e LoginForm; CvComboTest trava TCombo/TDBCombo::reload em app/control (allowlist SystemProgramForm/SystemSQLPanel). SUITE 974/974; rebuild app/worker feito.

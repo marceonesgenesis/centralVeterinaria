@@ -12,6 +12,10 @@ runbooks indicam o que muda nesses ambientes.
 - [`restore-backup.md`](./restore-backup.md) — restaurar o MySQL a partir de um backup.
 - [`build-versioning.md`](./build-versioning.md) — estratégia de tag de imagem e o pipeline de CI.
 - [`environments.md`](./environments.md) — configuração esperada por ambiente (development/staging/production).
+- [`internacao.md`](./internacao.md) — fluxos, regras, banco, permissões e aplicação da internação (Fase 6A).
+- [`cirurgia.md`](./cirurgia.md) — fluxos, regras, banco, permissões e aplicação da cirurgia (Fase 6B).
+- [`comunicacao.md`](./comunicacao.md) — consentimento, templates, e-mail/WhatsApp, agendador, LGPD e Central de Pendências (Fase 7A).
+- [`documentos.md`](./documentos.md) — PDFs assíncronos, storage privado, versionamento, download com RBAC, aviso `document_ready` e operação (Fase 7B).
 
 Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
 banco (migration, rollback, restore) exigem autorização explícita antes de

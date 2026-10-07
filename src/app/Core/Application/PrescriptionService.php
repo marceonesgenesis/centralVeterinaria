@@ -14,6 +14,7 @@ use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Prescription;
 use CentralVet\Domain\PrescriptionItem;
 use CentralVet\Tenancy\TenantContext;
+use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
@@ -67,6 +68,7 @@ final class PrescriptionService
      *     patient_id: int|string,
      *     professional_system_user_id: int|string,
      *     orientation?: string|null,
+     *     valid_until?: string|\DateTimeImmutable|null,
      *     items: list<array{
      *         medication_name: string,
      *         dose: string,
@@ -81,7 +83,9 @@ final class PrescriptionService
      *        does not know Adianti class names itself (ADR 0001).
      *
      * @throws InvalidArgumentException when a required key is missing or
-     *         items is empty.
+     *         items is empty; when valid_until is not a Y-m-d date
+     *         ("valid_until must be a Y-m-d date") or is before today
+     *         ("valid_until cannot be in the past"). Null/'' means no validity.
      * @throws CrossTenantReferenceException when encounter_id does not
      *         resolve within the authenticated tenant.
      * @throws \CentralVet\Authorization\Exception\AuthorizationDenied when
@@ -108,6 +112,8 @@ final class PrescriptionService
         if (!is_array($data['items']) || $data['items'] === []) {
             throw new InvalidArgumentException('items must be a non-empty list');
         }
+
+        $validUntil = self::parseValidUntil($data['valid_until'] ?? null);
 
         // Tenant-scoped lookup (ADR 0002): findById() returns null both when
         // the referenced row does not exist and when it belongs to another
@@ -174,12 +180,43 @@ final class PrescriptionService
             professionalSystemUserId: $professionalSystemUserId,
             orientationText: $orientation,
             items: $items,
+            validUntil: $validUntil,
         );
 
         /** @var Prescription $saved */
         $saved = $this->prescriptions->save($prescription);
 
         return $saved;
+    }
+
+    /**
+     * Normalizes the optional valid_until input (rodada 2, T-13) to a
+     * date-only DateTimeImmutable; today is accepted, yesterday is not.
+     */
+    private static function parseValidUntil(mixed $value): ?DateTimeImmutable
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof DateTimeImmutable) {
+            $date = $value->setTime(0, 0);
+        } else {
+            $raw = is_string($value) ? trim($value) : '';
+            $parsed = $raw !== '' ? DateTimeImmutable::createFromFormat('!Y-m-d', $raw) : false;
+
+            if ($parsed === false || $parsed->format('Y-m-d') !== $raw) {
+                throw new InvalidArgumentException('valid_until must be a Y-m-d date');
+            }
+
+            $date = $parsed;
+        }
+
+        if ($date->format('Y-m-d') < (new DateTimeImmutable('today'))->format('Y-m-d')) {
+            throw new InvalidArgumentException('valid_until cannot be in the past');
+        }
+
+        return $date;
     }
 
     public function findById(int $id): ?Prescription

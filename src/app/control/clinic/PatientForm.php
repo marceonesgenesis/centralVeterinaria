@@ -5,16 +5,23 @@
  * Tela de cadastro de paciente (T-10) em página cheia (kit Cv*), vinculada a
  * um tutor recebido por querystring (?tutor_id=...) ou escolhido por
  * TDBUniqueSearch de Tutor filtrado pelo tenant; com key/id na URL o
- * paciente salvo é reaberto em modo leitura. Nenhuma regra de negócio própria
- * vive aqui: criação e validação (inclusive a rejeição de um tutor_id de
- * outro tenant) são responsabilidade exclusiva de
- * CentralVet\Application\PatientService (T-05). Este controller apenas monta
+ * paciente salvo é reaberto para edição (rodada 2, T-07), com o tutor só
+ * leitura; key inexistente ou de outro tenant mostra "Record not found", sem
+ * campos editáveis nem Salvar. Nenhuma regra de negócio própria vive aqui:
+ * criação, edição e validação (inclusive a rejeição de um tutor_id de outro
+ * tenant) são responsabilidade exclusiva de
+ * CentralVet\Application\PatientService (T-05, T-07). Este controller apenas monta
  * o formulário, repassa os dados recebidos e traduz o resultado do serviço
  * (sucesso ou exceção) em feedback de tela — nunca deixando escapar um erro
  * HTTP 500/fatal.
  *
  * Do Tutor, esta tela só lê o nome (TutorService::findById) para exibição;
  * o tutor_id é repassado ao serviço, que valida o vínculo com o tenant.
+ *
+ * Alergia e foto (rodada 2, T-12): `allergies` vai em create()/update(); a
+ * foto (TFile, arquivo já em tmp/) vai por PatientService::attachPhoto() para
+ * o storage S3 (S3CompatibleStorage::fromEnvironment) e é servida por
+ * PatientForm::onPhoto (static), que responde os bytes ou 404.
  *
  * @version    8.6
  * @package    control
@@ -25,16 +32,22 @@ class PatientForm extends TStandardForm
     protected $form; // form
     protected $tutor_id; // received via querystring (or from the opened patient), forwarded to PatientService
 
-    /** @var int|null paciente aberto em modo leitura (key/id na URL) */
+    /** @var int|null paciente aberto para edição (key/id na URL) */
     protected $viewId = null;
 
-    /** @var \CentralVet\Domain\Patient|null paciente carregado no modo leitura */
+    /** @var \CentralVet\Domain\Patient|null paciente carregado para edição (null: não encontrado no tenant) */
     protected $viewPatient = null;
+
+    /** Extensão aceita no upload da foto → único Content-Type gravado (T-12). */
+    private const PHOTO_EXTENSIONS = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+
+    /** Content-Type servido por onPhoto → extensão do filename (whitelist). */
+    private const PHOTO_TYPES = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
 
     /**
      * Class constructor
      * Creates the page: registration form (new) or the patient's record
-     * opened read-only (key/id in the URL — PatientService has no update use case).
+     * opened for editing (key/id in the URL, tutor read-only — T-07).
      */
     function __construct($param = null)
     {
@@ -51,7 +64,7 @@ class PatientForm extends TStandardForm
         $this->setActiveRecord('Patient');          // defines the active record
         $this->setUseToast(true);
 
-        // modo leitura: o tutor vem do próprio paciente
+        // edição: o tutor vem do próprio paciente
         $tutor_name = null;
         try
         {
@@ -69,8 +82,10 @@ class PatientForm extends TStandardForm
 
             if ($this->tutor_id !== null)
             {
+                $tutor_context = self::resolveTenantContext();
                 $tutor_service = new \CentralVet\Application\TutorService(
-                    new \CentralVet\Persistence\TutorRepository(self::resolveTenantContext(), TTransaction::get())
+                    new \CentralVet\Persistence\TutorRepository($tutor_context, TTransaction::get()),
+                    $tutor_context
                 );
                 $tutor = $tutor_service->findById($this->tutor_id);
                 $tutor_name = $tutor !== null ? $tutor->fullName : null;
@@ -114,6 +129,7 @@ class PatientForm extends TStandardForm
             $tenant_criteria->add(new TFilter('tenant_id', '=', $tenant_id));
 
             $tutor_field = new TDBUniqueSearch('tutor_id', 'permission', 'Tutor', 'id', 'full_name', 'full_name', $tenant_criteria);
+            $tutor_field->setMask(Tutor::safeSearchMask('full_name_safe')); // T-65: rótulo escapado no select2
             $tutor_field->setMinLength(1);
             $tutor_field->addValidation( _t('Tutor'), new TRequiredValidator );
             $tutor_label = null;
@@ -125,8 +141,20 @@ class PatientForm extends TStandardForm
         $sex = new TRadioGroup('sex');
         $birth_date = new TDate('birth_date');
         $weight_kg = new TEntry('weight_kg');
+        // digitação livre ("4,5", "12", "0,8"): sem máscara numérica, que
+        // preenche da direita e transformaria "4,5" em "0,45". Conversão e
+        // validação ficam em PatientService::parseWeightKg (T-27).
+        $weight_kg->setProperty('placeholder', _t('e.g. 4,5'));
+        $weight_kg->setProperty('inputmode', 'decimal');
+        $weight_kg->setProperty('oninput', "this.value = this.value.replace(/[^0-9,.]/g, '')");
+        $weight_kg->setMaxLength(7);
         $color = new TEntry('color');
         $notes = new TText('notes');
+        $allergies = new TText('allergies');
+        $photo = new TFile('photo');
+        $photo->setAllowedExtensions(['jpg', 'jpeg', 'png', 'webp']);
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $photo->setService('CvUploaderService');
 
         $species->addItems( ['Canino' => _t('Dog'), 'Felino' => _t('Cat'), 'Outro' => _t('Other')] );
         $species->setLayout('horizontal');
@@ -152,10 +180,26 @@ class PatientForm extends TStandardForm
         $this->form->addFields( [new TLabel(_t('Sex'))], [$sex], [new TLabel(_t('Birth date'))], [$birth_date] );
         $this->form->addFields( [new TLabel(_t('Weight (kg)'))], [$weight_kg], [new TLabel(_t('Color'))], [$color] );
         $this->form->addFields( [new TLabel(_t('Notes'))], [$notes] );
+        $this->form->addFields( [new TLabel(_t('Allergies'))], [$allergies] );
+
+        $photo_cell = [$photo];
+        if ($this->viewPatient !== null && $this->viewPatient->photoObjectKey !== null)
+        {
+            // pré-visualização servida por onPhoto (bytes do storage, tenant da sessão)
+            $preview = new TElement('img');
+            $preview->{'class'} = 'cv-patient-photo';
+            // &v= muda a cada troca de foto: o cache privado (max-age) é por URL (T-32)
+            $preview->{'src'}   = 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $this->viewPatient->id
+                                . '&v=' . \CentralVet\Application\PatientService::photoVersion($this->viewPatient);
+            $preview->{'alt'}   = _t('Photo');
+            $photo_cell[] = $preview;
+        }
+        $this->form->addFields( [new TLabel(_t('Photo'))], $photo_cell );
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
         $species->addValidation( _t('Species'), new TRequiredValidator );
         $notes->setSize('100%', 80);
+        $allergies->setSize('100%', 60);
 
         $back = $this->tutor_id !== null
             ? ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->tutor_id])]
@@ -172,12 +216,36 @@ class PatientForm extends TStandardForm
         }
         else
         {
-            foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes] as $field)
+            if ($this->viewPatient !== null)
             {
-                $field->setEditable(FALSE);
+                // edição: Salvar reenvia key e tutor_id, para o construtor do
+                // postback recarregar o mesmo paciente e onSave chamar update()
+                $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave'), ['key' => $this->viewId, 'tutor_id' => $this->tutor_id]), 'fa:check');
+                $btn->class = 'btn btn-sm btn-primary';
+            }
+            else
+            {
+                // key inexistente ou de outro tenant: nada editável, sem Salvar
+                foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes, $allergies, $photo] as $field)
+                {
+                    $field->setEditable(FALSE);
+                }
+                // setEditable(FALSE) só põe readonly/onclick nos campos; os
+                // radios (TRadioGroup) seguiam clicáveis. Sem Salvar nada é
+                // postado, então todos os campos ficam disabled de fato (T-32).
+                $lock_fields = TScript::create(
+                    "document.querySelectorAll('form[name=\"form_Patient\"] input, form[name=\"form_Patient\"] textarea, form[name=\"form_Patient\"] select').forEach(function (el) { el.disabled = true; });",
+                    FALSE
+                );
             }
 
             $actions = [$back];
+            if ($this->viewPatient !== null)
+            {
+                $patient_id = (int) $this->viewPatient->id;
+                $actions[] = ['label' => _t('Documents'), 'icon' => 'fa:file-pdf', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentList&patient_id=' . $patient_id];
+                $actions[] = ['label' => _t('Medical certificate'), 'icon' => 'fa:file-medical', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentRequestForm&kind=medical_certificate&source_id=' . $patient_id];
+            }
             if ($this->tutor_id !== null)
             {
                 $actions[] = ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction([__CLASS__, 'onEdit'], ['tutor_id' => $this->tutor_id])];
@@ -193,6 +261,10 @@ class PatientForm extends TStandardForm
         $container->style = 'width: 100%';
         $container->add($header);
         $container->add($this->form);
+        if (isset($lock_fields))
+        {
+            $container->add($lock_fields);
+        }
 
         parent::add($container);
     }
@@ -200,9 +272,9 @@ class PatientForm extends TStandardForm
     /**
      * method onEdit()
      * Without key: clears the form and re-applies the tutor_id received in
-     * the querystring (new patient). With key/id: shows the patient loaded
-     * by PatientService::findById() (tenant-scoped) read-only — there is no
-     * update use case in PatientService.
+     * the querystring (new patient). With key/id: fills the form with the
+     * patient loaded by PatientService::findById() (tenant-scoped) for
+     * editing; not found in the tenant → "Record not found".
      */
     public function onEdit($param)
     {
@@ -235,26 +307,37 @@ class PatientForm extends TStandardForm
             'breed'      => $patient->breed,
             'sex'        => $patient->sex,
             'birth_date' => $birth ? $birth->format('d/m/Y') : null,
-            'weight_kg'  => $patient->weightKg,
+            'weight_kg'  => \CentralVet\Application\PatientService::formatWeightKg($patient->weightKg),
             'color'      => $patient->color,
             'notes'      => $patient->notes,
+            'allergies'  => $patient->allergies,
         ]);
     }
 
     /**
      * method onSave()
-     * Executed whenever the user clicks the save button. All business rules
-     * (including cross-tenant tutor_id rejection) live in PatientService;
+     * Executed whenever the user clicks the save button. Without key it
+     * creates (PatientService::create); with key it updates the opened
+     * patient (PatientService::update — the tutor never changes). All
+     * business rules (including cross-tenant tutor_id rejection) live in PatientService;
      * this method only forwards form data and translates the outcome into
      * screen feedback, never letting an exception escape as a 500.
      */
     public function onSave($param = null)
     {
+        // key attachPhoto() wrote in this request, until the commit succeeds (T-58)
+        $new_photo_key = null;
+
         try
         {
             $data = $this->form->getData();
 
             $this->form->validate();
+
+            if ($this->viewId !== null)
+            {
+                return $this->saveExisting($data);
+            }
 
             $tutor_id = $this->tutor_id ?? (isset($data->tutor_id) ? (int) $data->tutor_id : null);
 
@@ -265,7 +348,8 @@ class PatientForm extends TStandardForm
 
             TTransaction::open('permission');
 
-            $service = $this->buildPatientService();
+            $photo_upload = self::uploadedPhoto($data);
+            $service = $this->buildPatientService($photo_upload !== null);
 
             $patient = $service->create([
                 'tutor_id'   => $tutor_id,
@@ -277,9 +361,19 @@ class PatientForm extends TStandardForm
                 'weight_kg'  => $data->weight_kg ?? null,
                 'color'      => $data->color ?? null,
                 'notes'      => $data->notes ?? null,
+                'allergies'  => $data->allergies ?? null,
             ]);
 
+            if ($photo_upload !== null)
+            {
+                $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+                $new_photo_key = $patient->photoObjectKey;
+            }
+
             TTransaction::close();
+            $new_photo_key = null; // committed: the new key is the patient's photo now
+            self::discardUpload($photo_upload);
+            self::discardPreviousPhoto($service, $patient);
 
             // reabre o registro salvo em página cheia
             $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $tutor_id]);
@@ -302,34 +396,321 @@ class PatientForm extends TStandardForm
             // (missing or belongs to another tenant) — treated message,
             // never an uncaught exception / HTTP 500.
             TTransaction::rollback();
-            new TMessage('error', _t('Selected tutor was not found for your account'));
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            if (isset($data) && ($this->viewId !== null || self::isInvalidWeight($e)))
+            {
+                // os dados digitados ficam no formulário
+                $this->form->setData($data);
+            }
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::errorMessage($e));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            if ($this->viewId !== null && isset($data))
+            {
+                // edição: os dados digitados ficam no formulário
+                $this->form->setData($data);
+            }
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Update path of onSave (key/id in the URL): forwards the form data to
+     * PatientService::update(), which ignores tutor_id and rejects a patient
+     * outside the tenant. On error the typed data stays on the form.
+     */
+    private function saveExisting($data)
+    {
+        // key attachPhoto() wrote in this request, until the commit succeeds (T-58)
+        $new_photo_key = null;
+
+        try
+        {
+            if ($this->viewPatient === null)
+            {
+                throw new Exception(_t('Record not found'));
+            }
+
+            TTransaction::open('permission');
+
+            $photo_upload = self::uploadedPhoto($data);
+            $service = $this->buildPatientService($photo_upload !== null);
+
+            $patient = $service->update($this->viewId, [
+                'name'       => $data->name ?? null,
+                'species'    => $data->species ?? null,
+                'breed'      => $data->breed ?? null,
+                'sex'        => $data->sex ?? null,
+                'birth_date' => !empty($data->birth_date) ? $data->birth_date : null,
+                'weight_kg'  => $data->weight_kg ?? null,
+                'color'      => $data->color ?? null,
+                'notes'      => $data->notes ?? null,
+                'allergies'  => $data->allergies ?? null,
+            ]);
+
+            if ($photo_upload !== null)
+            {
+                $patient = $service->attachPhoto((int) $patient->id, $photo_upload['name'], $photo_upload['contents'], $photo_upload['content_type']);
+                $new_photo_key = $patient->photoObjectKey;
+            }
+
+            TTransaction::close();
+            $new_photo_key = null; // committed: the new key is the patient's photo now
+            self::discardUpload($photo_upload);
+            self::discardPreviousPhoto($service, $patient);
+
+            $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $patient->tutorId]);
+
+            if (!empty($this->useToast))
+            {
+                TToast::show('info', _t('Record saved'));
+                AdiantiCoreApplication::loadPageURL( $open->serialize() );
+            }
+            else
+            {
+                new TMessage('info', _t('Record saved'), $open);
+            }
+
+            return $patient;
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            $this->form->setData($data);
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (InvalidArgumentException $e) // validation and domain (sex/weight); the "Record not found" above is a plain Exception
+        {
+            TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            $this->form->setData($data);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::errorMessage($e));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            if ($new_photo_key !== null)
+            {
+                // the row stays on the previous key: only the new object goes
+                $service->discardPhoto($new_photo_key);
+            }
+            $this->form->setData($data);
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /** True when $e is PatientService's rejection of weight_kg (T-27). */
+    private static function isInvalidWeight(InvalidArgumentException $e)
+    {
+        return $e->getMessage() === \CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE;
+    }
+
+    /** Screen text for an InvalidArgumentException: the weight one keeps its own key (T-27), the others go through CvFormat::userError (T-32). */
+    private static function errorMessage(InvalidArgumentException $e)
+    {
+        return self::isInvalidWeight($e) ? _t(\CentralVet\Application\PatientService::INVALID_WEIGHT_MESSAGE) : CvFormat::userError($e);
+    }
+
+    /**
+     * Serves the patient's photo (rodada 2, T-12) for the
+     * <img class="cv-patient-photo"> preview: Content-Type of the stored
+     * file plus its bytes, or 404 without a body when PatientService::photo()
+     * returns null (no photo, unknown id or patient of another tenant) or
+     * the request cannot be served (no tenant, storage failure).
+     */
+    public static function onPhoto($param)
+    {
+        $id = isset($param['key']) && is_numeric($param['key']) ? (int) $param['key'] : 0;
+        $photo = null;
+
+        try
+        {
+            if ($id > 0)
+            {
+                TTransaction::open('permission');
+                $tenant_context = self::resolveTenantContext();
+                $connection = TTransaction::get();
+                $service = new \CentralVet\Application\PatientService(
+                    new \CentralVet\Persistence\PatientRepository($tenant_context, $connection),
+                    new \CentralVet\Persistence\TutorRepository($tenant_context, $connection),
+                    $tenant_context,
+                    \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context),
+                );
+                $photo = $service->photo($id);
+                TTransaction::close();
+            }
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            $photo = null;
+        }
+
+        while (ob_get_level() > 0)
+        {
+            ob_end_clean();
+        }
+
+        if ($photo === null)
+        {
+            http_response_code(404);
+            exit;
+        }
+
+        // só um Content-Type da whitelist chega ao navegador; qualquer outro
+        // valor gravado vira download opaco (nunca documento ativo: SVG/HTML)
+        $extension = array_search($photo['content_type'], self::PHOTO_TYPES, true);
+        $file_name = 'patient-' . $id . '-photo.' . ($extension !== false ? $extension : 'bin');
+
+        if ($extension !== false)
+        {
+            header('Content-Type: ' . self::PHOTO_TYPES[$extension]);
+            header('Content-Disposition: inline; filename="' . $file_name . '"');
+        }
+        else
+        {
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . $file_name . '"');
+        }
+        header('Content-Length: ' . strlen($photo['contents']));
+        // cache privado por URL; a pré-visualização versiona a URL com &v= (T-32)
+        header('Cache-Control: private, max-age=300');
+        // X-Content-Type-Options: nosniff vem só do nginx (add_header ... always), T-32
+        header('Content-Security-Policy: sandbox');
+        echo $photo['contents'];
+        exit;
+    }
+
+    /**
+     * Deletes the photo the patient had before attachPhoto(), only after
+     * TTransaction::close() committed the new key (T-47): a failed commit
+     * keeps the row on the previous key, whose object must still exist.
+     * No-op without a previous key or when it equals the current one.
+     */
+    private static function discardPreviousPhoto(\CentralVet\Application\PatientService $service, $patient)
+    {
+        $previous = $service->previousPhotoKey();
+
+        if ($previous !== null && $previous !== $patient->photoObjectKey)
+        {
+            $service->discardPhoto($previous);
+        }
+    }
+
+    /**
+     * Reads the photo TFile already moved into tmp/ on upload (same
+     * convention as EncounterView::onAttachDocument). Returns null when no
+     * file was chosen; type and size are validated by
+     * PatientService::attachPhoto().
+     *
+     * @return array{name: string, upload: string, path: string, contents: string, content_type: string}|null
+     */
+    private static function uploadedPhoto($data)
+    {
+        $file_name = isset($data->photo) ? trim((string) $data->photo) : '';
+
+        if ($file_name === '')
+        {
+            return null;
+        }
+
+        // T-62/T-63: only a regular file inside tmp/ (no ../, separators or
+        // symlink out) uploaded by this session through CvUploaderService;
+        // anything else throws 'Invalid file'
+        $path = CvUpload::resolve($file_name);
+
+        // whitelist fixa: a extensão define o tipo e getimagesize() confirma
+        // que os bytes são dessa imagem (SVG/HTML renomeado é recusado)
+        $extension = strtolower((string) pathinfo($file_name, PATHINFO_EXTENSION));
+        $content_type = self::PHOTO_EXTENSIONS[$extension] ?? null;
+        $image = $content_type !== null ? @getimagesize($path) : false;
+
+        if ($content_type === null || $image === false || ($image['mime'] ?? null) !== $content_type)
+        {
+            @unlink($path);
+            CvUpload::forget($file_name);
+            throw new InvalidArgumentException(_t('Photo must be a JPEG, PNG or WEBP image'));
+        }
+
+        return [
+            'name'         => CvUpload::originalName($file_name),
+            'upload'       => $file_name,
+            'path'         => $path,
+            'contents'     => (string) file_get_contents($path),
+            'content_type' => $content_type,
+        ];
+    }
+
+    /** Removes the uploaded photo from tmp/ after it reached the storage. */
+    private static function discardUpload($upload)
+    {
+        if ($upload !== null)
+        {
+            @unlink($upload['path']);
+            CvUpload::forget($upload['upload']);
         }
     }
 
     /**
      * Builds CentralVet\Application\PatientService with tenant-aware
      * repositories, reusing the authenticated session's tenant context.
-     * Must be called inside an open 'permission' TTransaction.
+     * With $withStorage the S3-compatible storage is wired too (only when a
+     * photo is being saved, so a missing storage config never breaks the
+     * plain form). Must be called inside an open 'permission' TTransaction.
      */
-    private function buildPatientService()
+    private function buildPatientService($withStorage = false)
     {
         $tenant_context = self::resolveTenantContext();
         $connection = TTransaction::get();
 
         $tutors = new \CentralVet\Persistence\TutorRepository($tenant_context, $connection);
         $patients = new \CentralVet\Persistence\PatientRepository($tenant_context, $connection);
+        $storage = $withStorage ? \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context) : null;
 
-        return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context);
+        return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context, $storage);
     }
 
     /**

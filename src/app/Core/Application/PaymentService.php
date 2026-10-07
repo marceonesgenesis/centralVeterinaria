@@ -152,6 +152,7 @@ final class PaymentService
             referenceId: $savedPayment->id(),
             systemUserId: $systemUserId,
             action: $action,
+            paymentMethod: $paymentMethod,
         );
 
         return $savedPayment;

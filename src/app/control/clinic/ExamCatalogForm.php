@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ExamCatalogForm
  *
@@ -56,7 +59,11 @@ class ExamCatalogForm extends TStandardForm
         $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $price->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $price->setProperty('placeholder', _t('e.g. 12,34'));
+        $price->setProperty('inputmode', 'decimal');
+        $price->setMaxLength(16);
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
@@ -100,7 +107,7 @@ class ExamCatalogForm extends TStandardForm
             $item = $catalog->create([
                 'name'         => $data->name,
                 'partner_name' => $data->partner_name,
-                'price_cents'  => self::toCents($data->price),
+                'price_cents'  => MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
             ]);
 
             $data->id = $item->id();
@@ -136,23 +143,11 @@ class ExamCatalogForm extends TStandardForm
             $this->form->setData($data ?? null);
 
             // shows the exception error message
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
 
             // undo all pending operations
             TTransaction::rollback();
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ExamCatalogService::create()'s price_cents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**
