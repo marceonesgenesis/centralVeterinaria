@@ -60,7 +60,7 @@ class VaccineProtocolForm extends TPage
             $tenant_id = -1;
         }
 
-        $tenant_criteria = self::catalogCriteria((int) $tenant_id, $this->vaccine_catalog_item_id);
+        $tenant_criteria = CvCatalog::activeOrCurrentCriteria((int) $tenant_id, $this->vaccine_catalog_item_id);
 
         // creates the entry form
         $this->form = new BootstrapFormBuilder('form_VaccineProtocol');
@@ -177,7 +177,7 @@ class VaccineProtocolForm extends TPage
                 $row->id             = $entry->id();
                 $row->dose_number    = $entry->doseNumber();
                 $row->interval_label = $entry->intervalDaysFromPrevious() !== null
-                    ? _t('%s days', $entry->intervalDaysFromPrevious())
+                    ? _t('^1 days', $entry->intervalDaysFromPrevious())
                     : _t('Not scheduled');
 
                 $this->datagrid->addItem($row);
@@ -196,7 +196,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -244,7 +245,8 @@ class VaccineProtocolForm extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -254,7 +256,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a fatal error
         {
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }
@@ -291,7 +294,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -308,29 +312,6 @@ class VaccineProtocolForm extends TPage
         $repository = new \CentralVet\Persistence\VaccineProtocolRepository($tenant_context, $connection);
 
         return new \CentralVet\Application\VaccineProtocolService($repository, $tenant_context);
-    }
-
-    /**
-     * Critério do combo de catálogo: itens ativos do tenant e, quando há item
-     * atual, também ele (mesmo inativo), para o combo não perder o vínculo.
-     */
-    private static function catalogCriteria(int $tenantId, ?int $currentId): TCriteria
-    {
-        $criteria = new TCriteria;
-        $criteria->add(new TFilter('tenant_id', '=', $tenantId));
-
-        if ($currentId === null)
-        {
-            $criteria->add(new TFilter('active', '=', 1));
-            return $criteria;
-        }
-
-        $visible = new TCriteria;
-        $visible->add(new TFilter('active', '=', 1));
-        $visible->add(new TFilter('id', '=', $currentId), TExpression::OR_OPERATOR);
-        $criteria->add($visible);
-
-        return $criteria;
     }
 
     /**

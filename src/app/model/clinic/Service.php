@@ -14,6 +14,8 @@
  */
 class Service extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'service';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'serial'; // {max, serial}
@@ -30,5 +32,13 @@ class Service extends TRecord
         parent::addAttribute('duration_minutes');
         parent::addAttribute('price_cents');
         parent::addAttribute('active');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }

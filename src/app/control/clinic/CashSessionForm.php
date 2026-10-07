@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * CashSessionForm
  *
@@ -88,7 +91,8 @@ class CashSessionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            $container->add(new TAlert('danger', $e->getMessage()));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $container->add(new TAlert('danger', CvFormat::userError($e)));
         }
 
         // onOpen()/onClose() redesenham depois do construtor: troca o corpo
@@ -128,7 +132,11 @@ class CashSessionForm extends TPage
         CvForm::decorate($form, 2);
 
         $opening_balance = new TEntry('opening_balance');
-        $opening_balance->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $opening_balance->setProperty('placeholder', _t('e.g. 12,34'));
+        $opening_balance->setProperty('inputmode', 'decimal');
+        $opening_balance->setMaxLength(16);
         $opening_balance->addValidation(_t('Opening balance'), new TRequiredValidator);
 
         $form->addFields( [new TLabel(_t('Opening balance'))], [$opening_balance] );
@@ -194,7 +202,11 @@ class CashSessionForm extends TPage
         CvForm::decorate($form, 2);
 
         $closing_balance = new TEntry('closing_balance');
-        $closing_balance->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $closing_balance->setProperty('placeholder', _t('e.g. 12,34'));
+        $closing_balance->setProperty('inputmode', 'decimal');
+        $closing_balance->setMaxLength(16);
         $closing_balance->addValidation(_t('Closing balance'), new TRequiredValidator);
 
         $form->addFields( [new TLabel(_t('Closing balance'))], [$closing_balance] );
@@ -219,6 +231,11 @@ class CashSessionForm extends TPage
      */
     public function onOpen($param = null)
     {
+        // erro → mensagem e o formulário fica com o que foi digitado, sem
+        // redesenhar (padrão ServiceForm/ProductForm)
+        $data = null;
+        $reload = true;
+
         try
         {
             $data = $this->form->getData();
@@ -232,7 +249,7 @@ class CashSessionForm extends TPage
 
             $service->open(
                 $tenant_context->requireUnitId(),
-                self::toCents($data->opening_balance),
+                MoneyInput::toCents((string) $data->opening_balance, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $tenant_context->userId(),
                 'CashSessionForm::onOpen'
             );
@@ -244,33 +261,45 @@ class CashSessionForm extends TPage
         catch (\CentralVet\Domain\Exception\CashSessionAlreadyOpenException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $reload = false;
+            $this->form->setData($data);
+            new TMessage('error', CvFormat::userError($e));
         }
 
-        // always redraw from the real DB state: still one open session (the
-        // pre-existing one) when CashSessionAlreadyOpenException was thrown,
-        // the freshly-opened one otherwise.
-        $this->onReload($param);
+        // redraw from the real DB state after success, or when
+        // CashSessionAlreadyOpenException says another session is open (the
+        // close panel replaces this form); any other error keeps the form.
+        if ($reload)
+        {
+            $this->onReload($param);
+        }
     }
 
     /**
@@ -281,6 +310,11 @@ class CashSessionForm extends TPage
      */
     public function onClose($param = null)
     {
+        // erro → mensagem e o formulário fica com o que foi digitado, sem
+        // redesenhar (padrão ServiceForm/ProductForm)
+        $data = null;
+        $reload = true;
+
         try
         {
             $data = $this->form->getData();
@@ -294,14 +328,19 @@ class CashSessionForm extends TPage
 
             if ($open_session === null)
             {
-                throw new Exception(_t('There is no open cash session for this unit'));
+                // closed elsewhere: nothing typed to keep, redraw the open panel
+                TTransaction::close();
+                new TMessage('error', _t('There is no open cash session for this unit'));
+                $this->onReload($param);
+
+                return;
             }
 
             $service = self::buildCashSessionService($tenant_context);
 
             $service->close(
                 (int) $open_session->id,
-                self::toCents($data->closing_balance),
+                MoneyInput::toCents((string) $data->closing_balance, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $tenant_context->userId(),
                 'CashSessionForm::onClose'
             );
@@ -313,27 +352,38 @@ class CashSessionForm extends TPage
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $reload = false;
+            $this->form->setData($data);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $reload = false;
+            $this->form->setData($data);
+            new TMessage('error', CvFormat::userError($e));
         }
 
-        // always redraw from the real DB state: back to the "no open
-        // session" panel after a successful close.
-        $this->onReload($param);
+        // redraw from the real DB state after a successful close (back to
+        // the "no open session" panel); an error keeps the typed form.
+        if ($reload)
+        {
+            $this->onReload($param);
+        }
     }
 
     /**
@@ -358,19 +408,6 @@ class CashSessionForm extends TPage
         $objects = $repository->load($criteria, FALSE);
 
         return $objects[0] ?? null;
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching CashSessionService::open()/close()'s *_cents input
-     * (same conversion as ServiceForm::toCents()).
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

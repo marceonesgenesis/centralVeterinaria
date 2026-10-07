@@ -143,7 +143,8 @@ class TutorList extends TPage
             TTransaction::open('permission');
 
             $service = new \CentralVet\Application\TutorService(
-                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
+                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get()),
+                $tenant_context
             );
 
             $tutors = $service->search($term);
@@ -180,7 +181,8 @@ class TutorList extends TPage
         }
         catch (Exception $e) // in case of exception
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }

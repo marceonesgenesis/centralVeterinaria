@@ -20,6 +20,8 @@
  */
 class Tutor extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'tutor';
     const PRIMARYKEY = 'id';
     const IDPOLICY = 'serial'; // {max, serial} — id is AUTO_INCREMENT in the migration
@@ -39,5 +41,13 @@ class Tutor extends TRecord
         parent::addAttribute('address');
         parent::addAttribute('created_at');
         parent::addAttribute('updated_at');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {full_name_safe}.
+     */
+    public function get_full_name_safe(): string
+    {
+        return $this->safeLabel('full_name');
     }
 }

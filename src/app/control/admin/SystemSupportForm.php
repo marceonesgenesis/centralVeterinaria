@@ -11,6 +11,13 @@
  */
 class SystemSupportForm extends TPage
 {
+    /**
+     * T-20 (correção 2): anexos aceitos no uploader (`extensions` na URL).
+     * UploadedTmpFile::DEFAULT_EXTENSIONS + documentos de escritório; sem
+     * html/xhtml/svg/php/js.
+     */
+    private const ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'odt', 'ods', 'gif', 'zip'];
+
     protected $form; // form
     
     /**
@@ -36,6 +43,9 @@ class SystemSupportForm extends TPage
         $subject = new TEntry('subject');
         $message = new THtmlEditor('message');
         $attachments = new TMultiFile('attachments');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $attachments->setService('CvUploaderService');
+        $attachments->setAllowedExtensions(self::ATTACHMENT_EXTENSIONS);
         $message->setSize('100%', 300);
         
         // add the fields
@@ -77,27 +87,34 @@ class SystemSupportForm extends TPage
                 throw new Exception(_t('No support e-mail configured'));
             }
             
+            // T-62/T-63: each attachment name must be a regular file inside
+            // tmp/ (no ../, separators or symlink out) uploaded by this
+            // session through CvUploaderService; resolved before sending
             $list = [];
             if ($data->attachments)
             {
                 foreach ($data->attachments as $attach)
                 {
-                    $list[] = [ 'tmp/'.$attach, $attach ];
+                    $path = CvUpload::resolve((string) $attach);
+                    $list[] = [ $path, CvUpload::originalName((string) $attach), trim((string) $attach) ];
                 }
             }
             
             MailService::send( $preferences['mail_support'], $data->subject, $data->message, 'html', $list );
             
-            if ($data->attachments)
+            foreach ($list as $item)
             {
-                foreach ($data->attachments as $attach)
-                {
-                    unlink('tmp/'.$attach);
-                }
+                @unlink($item[0]);
+                CvUpload::forget($item[2]);
             }
             
             // shows the success message
             new TMessage('info', _t('Message sent successfully'));
+        }
+        catch (InvalidArgumentException $e)
+        {
+            $this->form->setData($this->form->getData());
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception
         {

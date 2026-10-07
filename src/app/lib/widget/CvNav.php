@@ -1,6 +1,6 @@
 <?php
 /**
- * CvNav — grupos de abas de módulo (financeiro, estoque, serviços, prescrição).
+ * CvNav — grupos de abas de módulo (financeiro, estoque, serviços, internação, cirurgia, prescrição, comunicação, documentos).
  * Abas sem tela real ficam desabilitadas ("Em breve").
  */
 class CvNav
@@ -23,6 +23,7 @@ class CvNav
                 'payables'    => ['Payables',    'index.php?class=PayableList'],
                 'receivables' => ['Receivables', 'index.php?class=PendingReceivableList'],
                 'cashflow'    => ['Cash flow',   'index.php?class=CashSessionList'],
+                'bank_accounts' => ['Bank accounts', 'index.php?class=BankAccountList'],
             ],
             'stock' => [
                 'products'   => ['Products',   'index.php?class=ProductList'],
@@ -37,6 +38,22 @@ class CvNav
                 'categories' => ['Categories', null],
                 'packages'   => ['Packages',   null],
                 'pricing'    => ['Pricing',    null],
+            ],
+            'hospitalization' => [
+                'board' => ['Board', 'index.php?class=HospitalizationBoard'],
+                'beds'  => ['Beds',  'index.php?class=BedList'],
+            ],
+            'surgery' => [
+                'list'  => ['Surgeries', 'index.php?class=SurgeryList'],
+                'rooms' => ['Rooms',     'index.php?class=SurgeryRoomList'],
+            ],
+            'communication' => [
+                'messages'  => ['Messages',          'index.php?class=CommunicationMessageList'],
+                'templates' => ['Message templates', 'index.php?class=MessageTemplateList'],
+            ],
+            'documents' => [
+                'documents' => ['Documents',          'index.php?class=DocumentList'],
+                'templates' => ['Document templates', 'index.php?class=DocumentTemplateList'],
             ],
             'prescription' => [
                 'new'       => ['New prescription',     self::prescriptionHref(false)],

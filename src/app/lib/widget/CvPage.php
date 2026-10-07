@@ -7,9 +7,16 @@ class CvPage
     /**
      * Cabeçalho com título grande, subtítulo, ações à direita e slot do seletor de unidade.
      *
-     * Cada ação pode ser um widget pronto (TButton, TActionLink, TElement...) ou um array
-     * ['label' => string, 'action' => TAction|null, 'href' => string|null, 'icon' => string|null,
-     *  'class' => string|null (padrão 'btn btn-default'), 'title' => string|null].
+     * Cada ação pode ser um widget pronto (TButton, TActionLink, TElement...) ou um array com as chaves:
+     *  - 'label'  string       texto do botão (vazio: botão só com ícone);
+     *  - 'action' TAction|null destino serializado; tem precedência sobre 'href';
+     *  - 'href'   string|null  URL usada quando não há 'action' (padrão '#');
+     *  - 'icon'   string|null  ícone do TImage (ex.: 'fa:plus');
+     *  - 'class'  string|null  classes CSS (padrão 'btn btn-default');
+     *  - 'title'  string|null  dica e, sem label, aria-label;
+     *  - 'target' string|null  só '_blank' é aceito (ex.: downloads): o link sai com
+     *    target="_blank" e rel="noopener", sem generator="adianti". Qualquer outro valor
+     *    é ignorado e o link segue pelo roteador do Adianti, como sem a chave.
      * Voltar = ação com 'icon' => 'fa:arrow-left'.
      */
     public static function header(string $title, ?string $subtitle = null, array $actions = [], bool $unitSwitch = true): TElement
@@ -39,6 +46,7 @@ class CvPage
             $slot = new TElement('div');
             $slot->{'class'} = 'cv-unit-switch';
             $slot->{'data-cv-unit-switch'} = '';
+            $slot->{'data-cv-label'} = CvFormat::e(_t('Unit'));
             $side->add($slot);
         }
 
@@ -149,13 +157,22 @@ class CvPage
         $link = new TElement('a');
         $link->{'class'} = CvFormat::e($spec['class'] ?? 'btn btn-default');
         $link->{'href'} = CvFormat::e($href ?? '#');
-        $link->{'generator'} = 'adianti';
+        if (($spec['target'] ?? null) === '_blank')
+        {
+            $link->{'target'} = '_blank';
+            $link->{'rel'} = 'noopener';
+        }
+        else
+        {
+            $link->{'generator'} = 'adianti';
+        }
 
         // nome acessível de ação só com ícone: title informado ou, no voltar, "Voltar"
         $title = !empty($spec['title']) ? (string) $spec['title'] : ($label === '' && $icon === 'fa:arrow-left' ? _t('Back') : '');
         if ($title !== '')
         {
-            $link->{'title'} = CvFormat::e($title);
+            // [title] vira tooltip tippy com allowHTML (framework): escape duplo
+            $link->{'title'} = CvFormat::forHtmlSink($title);
             if ($label === '')
             {
                 $link->{'aria-label'} = CvFormat::e($title);

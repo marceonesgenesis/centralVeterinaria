@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * FinancialEntryForm
  *
@@ -55,8 +58,7 @@ class FinancialEntryForm extends TStandardForm
         $this->form = new BootstrapFormBuilder('form_FinancialEntry');
         $this->form->enableClientValidation();
 
-        // create the form fields
-        $id = new THidden('id');
+        // create the form fields (sem campo id: lançamento é append-only, T-54)
         $entry_type = new TCombo('entry_type');
         $entry_type->addItems([
             \CentralVet\Domain\FinancialEntry::TYPE_INCOME  => _t('Income'),
@@ -65,16 +67,26 @@ class FinancialEntryForm extends TStandardForm
         $category = new TEntry('category');
         $amount = new TEntry('amount');
 
+        // forma de pagamento opcional (T-14): lista de FinancialEntry::PAYMENT_METHODS, rótulos de CvFormat::paymentMethod()
+        $payment_method = new TCombo('payment_method');
+        $payment_items = [];
+        foreach (\CentralVet\Domain\FinancialEntry::PAYMENT_METHODS as $method)
+        {
+            $payment_items[$method] = CvFormat::paymentMethod($method);
+        }
+        $payment_method->addItems($payment_items);
+
         CvForm::decorate($this->form, 2);
 
         // add the fields (pares rótulo/campo em 2 colunas, rótulo acima)
         $this->form->addFields( [new TLabel(_t('Type'))], [$entry_type], [new TLabel(_t('Category'))], [$category] );
-        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount] );
+        $this->form->addFields( [new TLabel(_t('Amount'))], [$amount], [new TLabel(_t('Payment method'))], [$payment_method] );
 
-        // id só para o fluxo editar/salvar, fora do layout visível
-        $hidden_row = $this->form->addFields( [$id] );
-        $hidden_row->style = 'display: none';
-        $amount->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $amount->setProperty('placeholder', _t('e.g. 12,34'));
+        $amount->setProperty('inputmode', 'decimal');
+        $amount->setMaxLength(16);
 
         $entry_type->addValidation( _t('Type'), new TRequiredValidator );
         $category->addValidation( _t('Category'), new TRequiredValidator );
@@ -114,15 +126,44 @@ class FinancialEntryForm extends TStandardForm
     }
 
     /**
+     * financial_entry é append-only (T-54): uma requisição que traga um id
+     * de lançamento ('id' do formulário ou 'key' da URL) é uma tentativa de
+     * edição e é recusada.
+     */
+    private static function requestsExistingEntry($param): bool
+    {
+        foreach (['id', 'key'] as $field)
+        {
+            if ((int) ($param[$field] ?? 0) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function showNotEditable(): void
+    {
+        new TMessage('warning', _t('Financial entries cannot be edited. Register a new entry to correct it'));
+    }
+
+    /**
      * method onEdit()
      * financial_entry é append-only: não há edição por key. "Novo"/"Limpar"
      * apenas esvaziam o formulário (mantendo o tipo da aba). Substitui o
      * onEdit() herdado, que exigia setActiveRecord() e mostrava erro
-     * "Active Record não definido" (T-18, Correção 2).
+     * "Active Record não definido" (T-18, Correção 2). Com key, limpa o
+     * formulário e avisa que lançamentos não são editáveis (T-54).
      */
     public function onEdit($param = null)
     {
         $this->form->clear(true);
+
+        if (self::requestsExistingEntry($param))
+        {
+            self::showNotEditable();
+        }
 
         $requested_type = self::requestedType($param['entry_type'] ?? ($_REQUEST['entry_type'] ?? null));
         if ($requested_type !== null)
@@ -146,13 +187,21 @@ class FinancialEntryForm extends TStandardForm
      * Persists the entry through FinancialEntryService::record(), always
      * with referenceType=null/referenceId=null (manual entry, per this
      * task's own Interface spec), then redirects to FinancialEntryList
-     * (criterio de aceite).
+     * (criterio de aceite). Com id/key de um lançamento existente, recusa
+     * sem chamar record() (append-only, T-54).
      */
     public function onSave($param = null)
     {
         try
         {
             $data = $this->form->getData();
+
+            if (self::requestsExistingEntry($param))
+            {
+                $this->form->setData($data);
+                self::showNotEditable();
+                return;
+            }
 
             $this->form->validate();
 
@@ -162,20 +211,19 @@ class FinancialEntryForm extends TStandardForm
             $tenant_context = self::resolveTenantContext();
             $service = self::buildFinancialEntryService($tenant_context);
 
-            $entry = $service->record(
+            $service->record(
                 $tenant_context->requireUnitId(),
                 (string) $data->entry_type,
                 (string) $data->category,
-                self::toCents($data->amount),
+                MoneyInput::toCents((string) $data->amount, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 null,
                 null,
                 $tenant_context->userId(),
                 __CLASS__ . '::' . __FUNCTION__,
+                self::paymentMethodOrNull($data->payment_method ?? null),
             );
 
-            $data->id = $entry->id();
-
-            // fill the form with the active record data
+            // fill the form with the saved data
             $this->form->setData($data);
 
             // close the transaction
@@ -217,26 +265,26 @@ class FinancialEntryForm extends TStandardForm
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             $this->form->setData($data ?? null);
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
     /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching FinancialEntryService::record()'s amount_cents input.
+     * Forma de pagamento opcional (T-14): vazio vira null; valor fora da
+     * lista é repassado como veio para FinancialEntry::record() recusar.
      */
-    private static function toCents($amount)
+    private static function paymentMethodOrNull($value): ?string
     {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
+        $value = trim((string) $value);
 
-        return (int) round(((float) $normalized) * 100);
+        return $value === '' ? null : $value;
     }
 
     /**

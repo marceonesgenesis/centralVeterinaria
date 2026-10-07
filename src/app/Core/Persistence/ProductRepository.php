@@ -76,6 +76,20 @@ final class ProductRepository extends AbstractTenantRepository implements Produc
         return $row === false ? null : self::hydrate($row);
     }
 
+    public function findByCode(string $code): ?object
+    {
+        $query = $this->tenantQuery()->andEquals('code', $code);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM product WHERE {$query->whereSql()} LIMIT 1"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof Product) {
@@ -88,17 +102,19 @@ final class ProductRepository extends AbstractTenantRepository implements Produc
             $statement = $this->connection->prepare(
                 <<<'SQL'
                 INSERT INTO product (
-                    tenant_id, name, category, unit_of_measure, unit_cost_cents,
-                    minimum_stock_quantity, active
+                    tenant_id, name, code, category, unit_of_measure, unit_cost_cents,
+                    sale_price_cents, minimum_stock_quantity, active
                 ) VALUES (
-                    :tenant_id, :name, :category, :unit_of_measure, :unit_cost_cents,
-                    :minimum_stock_quantity, :active
+                    :tenant_id, :name, :code, :category, :unit_of_measure, :unit_cost_cents,
+                    :sale_price_cents, :minimum_stock_quantity, :active
                 )
                 SQL
             );
             $statement->execute([
                 ':tenant_id' => $entity->tenantId(),
                 ':name' => $entity->name(),
+                ':code' => $entity->code(),
+                ':sale_price_cents' => $entity->salePriceCents(),
                 ':category' => $entity->category(),
                 ':unit_of_measure' => $entity->unitOfMeasure(),
                 ':unit_cost_cents' => $entity->unitCostCents(),
@@ -116,12 +132,15 @@ final class ProductRepository extends AbstractTenantRepository implements Produc
         $statement = $this->connection->prepare(
             "UPDATE product SET name = :name, category = :category, "
             . "unit_of_measure = :unit_of_measure, unit_cost_cents = :unit_cost_cents, "
-            . "minimum_stock_quantity = :minimum_stock_quantity, active = :active "
+            . "minimum_stock_quantity = :minimum_stock_quantity, active = :active, "
+            . "sale_price_cents = :sale_price_cents, code = :code "
             . "WHERE {$query->whereSql()}"
         );
         $statement->execute([
             ...$query->parameters(),
             ':name' => $entity->name(),
+            ':code' => $entity->code(),
+            ':sale_price_cents' => $entity->salePriceCents(),
             ':category' => $entity->category(),
             ':unit_of_measure' => $entity->unitOfMeasure(),
             ':unit_cost_cents' => $entity->unitCostCents(),
@@ -166,6 +185,8 @@ final class ProductRepository extends AbstractTenantRepository implements Produc
             active: (bool) $row['active'],
             createdAt: $row['created_at'] !== null ? new DateTimeImmutable((string) $row['created_at']) : null,
             updatedAt: $row['updated_at'] !== null ? new DateTimeImmutable((string) $row['updated_at']) : null,
+            salePriceCents: isset($row['sale_price_cents']) ? (int) $row['sale_price_cents'] : null,
+            code: isset($row['code']) ? (string) $row['code'] : null,
         );
     }
 }

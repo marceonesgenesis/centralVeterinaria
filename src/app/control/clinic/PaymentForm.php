@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * PaymentForm
  *
@@ -207,7 +210,8 @@ class PaymentForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         return null;
@@ -272,18 +276,22 @@ class PaymentForm extends TPage
         $this->form->add($receivable_id);
 
         $payment_method = new TCombo('payment_method');
-        $payment_method->addItems([
-            \CentralVet\Domain\Payment::METHOD_CASH => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CASH),
-            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_DEBIT_CARD),
-            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_CREDIT_CARD),
-            \CentralVet\Domain\Payment::METHOD_PIX => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_PIX),
-            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => CvFormat::paymentMethod(\CentralVet\Domain\Payment::METHOD_BANK_TRANSFER),
-        ]);
+        // lista única de formas (T-08): Payment::METHODS, rótulos de CvFormat::paymentMethod()
+        $payment_items = [];
+        foreach (\CentralVet\Domain\Payment::METHODS as $method)
+        {
+            $payment_items[$method] = CvFormat::paymentMethod($method);
+        }
+        $payment_method->addItems($payment_items);
         $payment_method->setSize('100%');
         $payment_method->addValidation(_t('Payment method'), new TRequiredValidator);
 
         $amount_cents = new TEntry('amount_cents');
-        $amount_cents->setNumericMask(2, ',', '.', false);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $amount_cents->setProperty('placeholder', _t('e.g. 12,34'));
+        $amount_cents->setProperty('inputmode', 'decimal');
+        $amount_cents->setMaxLength(16);
         $amount_cents->setSize('100%');
         $amount_cents->addValidation(_t('Amount'), new TRequiredValidator);
 
@@ -316,7 +324,7 @@ class PaymentForm extends TPage
         {
             $receivableId = isset($param['receivable_id']) ? (int) $param['receivable_id'] : 0;
             $paymentMethod = isset($param['payment_method']) ? (string) $param['payment_method'] : '';
-            $amountCents = self::toCents($param['amount_cents'] ?? null);
+            $amountCents = MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
 
             if ($receivableId <= 0)
             {
@@ -335,6 +343,7 @@ class PaymentForm extends TPage
             {
                 TTransaction::close();
                 new TMessage('error', _t('There is no open cash session for this unit. Open a cash session before registering a payment.'));
+                $this->keepTypedData($this->form);
 
                 return;
             }
@@ -358,56 +367,61 @@ class PaymentForm extends TPage
         catch (\CentralVet\Domain\Exception\OverpaymentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('You are not allowed to register a payment for this unit'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('An authenticated session with an active unit is required'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
     /**
-     * Converts a "1.234,56"/"1234.56"-style amount typed in a TEntry with a
-     * numeric mask into integer cents, matching EncounterAccountForm::
-     * toCents()/ServiceForm::toCents()'s convention.
+     * Depois de um erro, devolve ao formulário o que o usuário digitou
+     * (ex.: "abc" → "Valor inválido" sem perder os campos): a ação é de
+     * instância, então a página é redesenhada pelo construtor logo depois.
      */
-    private static function toCents($value): int
+    private function keepTypedData($form): void
     {
-        if ($value === null || $value === '')
+        if ($form instanceof BootstrapFormBuilder)
         {
-            return 0;
+            $form->setData($form->getData());
         }
-
-        $normalized = str_replace('.', '', (string) $value);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

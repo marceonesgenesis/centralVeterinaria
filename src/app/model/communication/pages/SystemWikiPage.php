@@ -12,6 +12,8 @@
  */
 class SystemWikiPage extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'system_wiki_page';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'max'; // {max, serial}
@@ -102,5 +104,13 @@ class SystemWikiPage extends TRecord
     public function getTags()
     {
         return SystemWikiTag::where('system_wiki_page_id', '=', $this->id)->getIndexedArray('tag', 'tag');
+    }
+
+    /**
+     * Título escapado para o combo de busca (T-21): {title_safe}.
+     */
+    public function get_title_safe(): string
+    {
+        return $this->safeLabel('title');
     }
 }

@@ -265,6 +265,29 @@ a.cv-tab:hover {
     font-size: 1.5rem;
 }
 
+/* Foto do paciente (EncounterView e pré-visualização do PatientForm) */
+.cv-patient-photo {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    display: block;
+}
+
+/* Alerta de alergia do paciente */
+.cv-alert-allergy {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    margin-top: var(--cv-space-3);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    border-radius: 6px;
+    background: var(--cv-color-danger-soft);
+    color: var(--cv-color-danger);
+    font-weight: 600;
+}
+
 /* ---------- Tabela ---------- */
 .cv-table {
     width: 100%;
@@ -505,4 +528,360 @@ a.cv-tab:hover {
     background: var(--cv-color-primary);
     border-color: var(--cv-color-primary);
     color: #ffffff;
+}
+
+/* PrescriptionForm (rodada 2, T-19): regras que eram style inline no controller */
+.cv-rx-page {
+    width: 100%;
+}
+.cv-rx-pdf-link {
+    margin-bottom: var(--cv-space-3);
+}
+.cv-card__title.cv-rx-section-title {
+    margin: var(--cv-space-2) 0 0;
+}
+.cv-form .tformrow.cv-rx-hidden,
+.cv-table.cv-rx-hidden {
+    display: none;
+}
+.cv-form .tformrow.cv-rx-dose-row {
+    --cv-form-columns: 5;
+}
+.cv-rx-apply-template {
+    margin-top: var(--cv-space-1);
+}
+.cv-rx-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-4);
+}
+.cv-rx-identity {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-3);
+    margin-bottom: var(--cv-space-3);
+}
+.cv-rx-identity__name {
+    font-size: 1.05rem;
+}
+.cv-rx-empty {
+    margin: 0;
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-muted {
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-history {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-3);
+}
+.cv-rx-history__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--cv-space-2);
+}
+.cv-rx-history__title {
+    font-weight: 600;
+}
+.cv-rx-dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--cv-space-3);
+    row-gap: var(--cv-space-1);
+    margin: 0;
+}
+.cv-rx-dl > dt {
+    font-weight: 600;
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-dl > dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+/* cv-board — flowboard do turno da internação (T-16) */
+.cv-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--cv-space-4);
+    margin-top: var(--cv-space-4);
+}
+.cv-board-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-3);
+    min-width: 0;
+    padding: var(--cv-space-3);
+    background: var(--cv-color-surface-subtle);
+    border: 1px solid var(--cv-color-border);
+    border-top-width: 0.3rem;
+    border-radius: var(--cv-radius-md);
+}
+.cv-board-col--late {
+    border-top-color: var(--cv-color-danger);
+}
+.cv-board-col--upcoming {
+    border-top-color: var(--cv-color-info);
+}
+.cv-board-col--done {
+    border-top-color: var(--cv-color-success);
+}
+.cv-board-col__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cv-space-2);
+}
+.cv-board-col__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+.cv-board-col__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-2);
+}
+.cv-board-col__empty {
+    margin: 0;
+    padding: var(--cv-space-3) 0;
+    color: var(--cv-color-text-muted);
+    text-align: center;
+}
+.cv-board-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-1);
+    min-height: var(--cv-touch-target);
+    padding: var(--cv-space-3);
+    color: var(--cv-color-text);
+    text-decoration: none;
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-border);
+    border-inline-start-width: 0.3rem;
+    border-radius: var(--cv-radius-md);
+    box-shadow: var(--cv-shadow-sm);
+    overflow-wrap: anywhere;
+}
+.cv-board-card:hover,
+.cv-board-card:focus-visible {
+    color: var(--cv-color-text);
+    text-decoration: none;
+    border-color: var(--cv-color-primary);
+    box-shadow: var(--cv-shadow-md);
+}
+.cv-board-card:focus-visible {
+    outline: 3px solid var(--cv-color-focus);
+    outline-offset: 2px;
+}
+.cv-board-card--late {
+    border-inline-start-color: var(--cv-color-danger);
+}
+.cv-board-card--due,
+.cv-board-card--done_late {
+    border-inline-start-color: var(--cv-color-warning);
+}
+.cv-board-card--upcoming,
+.cv-board-card--patient {
+    border-inline-start-color: var(--cv-color-info);
+}
+.cv-board-card--done {
+    border-inline-start-color: var(--cv-color-success);
+}
+.cv-board-card--skipped {
+    border-inline-start-color: var(--cv-color-text-muted);
+}
+.cv-board-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cv-space-2);
+}
+.cv-board-card__time {
+    font-size: 1.125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.cv-board-card__patient {
+    font-weight: 600;
+}
+.cv-board-card__bed,
+.cv-board-card__dose {
+    color: var(--cv-color-text-muted);
+    font-size: 0.875rem;
+}
+.cv-board-strip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-3);
+    margin-top: var(--cv-space-5);
+}
+.cv-board-strip__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: var(--cv-space-2);
+}
+.cv-board-page > .cv-state {
+    margin-top: var(--cv-space-4);
+}
+@media (max-width: 767.98px) {
+    .cv-board {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* cv-touch */
+/* Alvo de toque mínimo de 44 px (tablet) para botões de ação das telas da
+   internação; mesmo alinhamento dos botões do cabeçalho (.cv-page-head__actions .btn). */
+.cv-touch-target {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cv-space-2);
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* cv-checklist */
+/* Checklist de segurança cirúrgica no tablet (Fase 6B, T-16): uma linha
+   tocável por item; o checkbox (.cv-checklist__item) tem a área de toque
+   de var(--cv-touch-target) e a linha inteira também, com estado marcado
+   visível (:checked e .cv-checklist__item--checked). */
+.cv-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-2);
+    width: 100%;
+}
+.cv-checklist__row {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-3);
+    min-height: var(--cv-touch-target);
+    margin: 0;
+    padding: var(--cv-space-2) var(--cv-space-3);
+    font-size: 1.125rem;
+    color: var(--cv-color-text);
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-border);
+    border-inline-start-width: 0.3rem;
+    border-radius: var(--cv-radius-md);
+    cursor: pointer;
+    user-select: none;
+}
+.cv-checklist__row:focus-within {
+    outline: 3px solid var(--cv-color-focus);
+    outline-offset: 2px;
+}
+.cv-checklist__item {
+    flex: 0 0 auto;
+    width: var(--cv-touch-target);
+    height: var(--cv-touch-target);
+    min-width: var(--cv-touch-target);
+    min-height: var(--cv-touch-target);
+    margin: 0;
+    accent-color: var(--cv-color-success);
+    cursor: pointer;
+}
+.cv-checklist__item:checked,
+.cv-checklist__item--checked {
+    accent-color: var(--cv-color-success);
+}
+.cv-checklist__row--checked,
+.cv-checklist__row:has(.cv-checklist__item:checked) {
+    background: var(--cv-color-success-soft);
+    border-color: var(--cv-color-success);
+}
+.cv-checklist__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.cv-checklist__done {
+    margin: 0 0 var(--cv-space-3);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    color: var(--cv-color-text);
+    background: var(--cv-color-success-soft);
+    border-radius: var(--cv-radius-md);
+    font-weight: 600;
+}
+.cv-checklist__phases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cv-space-2);
+    margin: var(--cv-space-3) 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Central de Pendências (Fase 7A, T-19): cards por tipo (clicáveis, filtram
+ * por &type=), barra de filtros e lista com o botão "Resolver".
+ * ------------------------------------------------------------------------- */
+.cv-pending-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: var(--cv-space-3);
+    margin: 0 0 var(--cv-space-4);
+}
+.cv-pending-card {
+    display: block;
+    min-height: 44px;
+    color: inherit;
+    text-decoration: none;
+    border: 2px solid transparent;
+    border-radius: var(--cv-radius-md);
+}
+.cv-pending-card:hover,
+.cv-pending-card:focus-visible {
+    color: inherit;
+    text-decoration: none;
+    border-color: var(--cv-color-info);
+}
+.cv-pending-card--active {
+    border-color: var(--cv-color-info);
+}
+.cv-pending-card .cv-kpi {
+    height: 100%;
+}
+.cv-pending-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cv-space-2);
+    margin: 0 0 var(--cv-space-4);
+}
+.cv-pending-table td {
+    vertical-align: middle;
+}
+.cv-pending-row--overdue td:first-child {
+    box-shadow: inset 3px 0 0 var(--cv-color-danger);
+}
+.cv-pending-resolve {
+    white-space: nowrap;
+}
+@media (max-width: 991.98px) {
+    .cv-pending-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .cv-pending-table th,
+    .cv-pending-table td {
+        padding: var(--cv-space-2);
+    }
+}
+
+/* ---------- Cabeçalho global: alvos de toque (T-25 da 7B) ----------
+   Alternar menu, Notificações e Ajuda (layout.html) medem 2.5rem em
+   custom.css (protegido por framework_hashes.php); aqui sobem para
+   var(--cv-touch-target) (44 px). A topbar tem 4rem, então a altura cabe
+   sem mexer no layout. */
+.cv-topbar-toggle,
+.cv-topbar-icon {
+    width: var(--cv-touch-target);
+    height: var(--cv-touch-target);
+    min-width: var(--cv-touch-target);
+    min-height: var(--cv-touch-target);
+    flex: 0 0 auto;
 }

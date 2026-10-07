@@ -34,12 +34,81 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 // Integration tests connect to the real `redis` service (see
-// Support\RedisIntegrationTestCase). Force a dedicated database for the
-// test run unless the caller already picked one explicitly, so a forgotten
-// REDIS_DATABASE never points this suite at whatever a developer is using
-// for local session/cache/queue data on database 0.
-if (getenv('REDIS_DATABASE') === false) {
-    putenv('REDIS_DATABASE=15');
+// Support\RedisIntegrationTestCase). The inherited REDIS_DATABASE is the
+// APPLICATION's database (docker-compose.yml injects REDIS_DATABASE=0 into
+// the `app` container, and browser sessions live there), so it is always
+// ignored: the suite runs on TEST_REDIS_DATABASE, default 15. If that
+// resolves to the application's own database, refuse to run at all.
+// ('0' is falsy in PHP, so an explicit TEST_REDIS_DATABASE=0 is checked
+// against false/'' instead of using ?:.)
+$centralvetInheritedRedisDatabase = getenv('REDIS_DATABASE');
+$centralvetApplicationRedisDatabase = ($centralvetInheritedRedisDatabase === false || $centralvetInheritedRedisDatabase === '')
+    ? 0
+    : (int) $centralvetInheritedRedisDatabase;
+$centralvetTestRedisDatabaseRaw = getenv('TEST_REDIS_DATABASE');
+$centralvetTestRedisDatabase = ($centralvetTestRedisDatabaseRaw === false || $centralvetTestRedisDatabaseRaw === '')
+    ? '15'
+    : $centralvetTestRedisDatabaseRaw;
+
+// Redis has databases 0..15 (redis.conf default `databases 16`). Anything
+// else must be refused up front: RedisConnectionFactory skips select() for
+// values <= 0 and ignores select()'s false return for values > 15, so both
+// "-1" and "99" would silently run the suite on DB 0, next to the browser
+// sessions (T-55).
+if (!ctype_digit($centralvetTestRedisDatabase) || (int) $centralvetTestRedisDatabase > 15) {
+    fwrite(STDERR, sprintf(
+        "Refusing to run: TEST_REDIS_DATABASE must be an integer between 0 and 15 (%s)\n",
+        $centralvetTestRedisDatabase,
+    ));
+    exit(1);
+}
+
+if ((int) $centralvetTestRedisDatabase === $centralvetApplicationRedisDatabase) {
+    fwrite(STDERR, sprintf(
+        "Refusing to run: test Redis database equals the application database (%d)\n",
+        $centralvetApplicationRedisDatabase,
+    ));
+    exit(1);
+}
+
+putenv('REDIS_DATABASE=' . $centralvetTestRedisDatabase);
+
+// Preflight: when the real Redis is reachable, select() the test database
+// once and abort if the server refuses it (false), instead of letting the
+// integration tests fall back to DB 0. Unreachable Redis is not an error
+// here: RedisIntegrationTestCase reports those tests as SKIP.
+if (extension_loaded('redis')) {
+    $centralvetPreflightRedis = new \Redis();
+
+    try {
+        $centralvetPreflightConnected = @$centralvetPreflightRedis->connect(
+            (string) (getenv('REDIS_HOST') ?: '127.0.0.1'),
+            (int) (getenv('REDIS_PORT') ?: 6379),
+            1.5,
+        );
+    } catch (\Throwable) {
+        $centralvetPreflightConnected = false;
+    }
+
+    if ($centralvetPreflightConnected) {
+        $centralvetPreflightPassword = getenv('REDIS_PASSWORD');
+
+        if (is_string($centralvetPreflightPassword) && $centralvetPreflightPassword !== '') {
+            $centralvetPreflightRedis->auth($centralvetPreflightPassword);
+        }
+
+        if ($centralvetPreflightRedis->select((int) $centralvetTestRedisDatabase) === false) {
+            fwrite(STDERR, sprintf(
+                "Refusing to run: Redis refused SELECT %d for TEST_REDIS_DATABASE\n",
+                (int) $centralvetTestRedisDatabase,
+            ));
+            exit(1);
+        }
+
+        $centralvetPreflightRedis->close();
+    }
+
+    unset($centralvetPreflightRedis, $centralvetPreflightConnected, $centralvetPreflightPassword);
 }
 
 // Belt-and-braces autoloader for the CentralVet\Tests\ namespace: the
@@ -63,6 +132,56 @@ spl_autoload_register(static function (string $class): void {
         require_once $path;
     }
 });
+
+// MySQL: integration tests run on the dedicated test database
+// (TestDatabase::DEFAULT_NAME = centralvet_test, or TEST_DB_DATABASE), never
+// on the application's DB_DATABASE. Refuse up front when the name resolves
+// to the application database, or when MySQL is reachable but the resolved
+// database does not exist (it would otherwise skip or fail every MySQL test).
+// Unreachable MySQL is not an error here: MysqlIntegrationTestCase reports
+// those tests as SKIP.
+try {
+    $centralvetTestDbName = \CentralVet\Tests\Support\TestDatabase::resolveName(getenv());
+} catch (\RuntimeException $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
+
+if (extension_loaded('pdo_mysql')) {
+    try {
+        $centralvetPreflightPdo = new \PDO(
+            sprintf(
+                'mysql:host=%s;port=%s;charset=utf8mb4',
+                getenv('DB_HOST') ?: '127.0.0.1',
+                getenv('DB_PORT') ?: '3306',
+            ),
+            (string) (getenv('DB_USERNAME') ?: 'centralvet'),
+            (string) (getenv('DB_PASSWORD') ?: ''),
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION, \PDO::ATTR_TIMEOUT => 2],
+        );
+    } catch (\Throwable) {
+        $centralvetPreflightPdo = null;
+    }
+
+    if ($centralvetPreflightPdo !== null) {
+        $centralvetPreflightStatement = $centralvetPreflightPdo->prepare(
+            'SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?',
+        );
+        $centralvetPreflightStatement->execute([$centralvetTestDbName]);
+
+        if ($centralvetPreflightStatement->fetchColumn() === false) {
+            fwrite(STDERR, sprintf(
+                "Refusing to run: test MySQL database %s not found (see docs/runbooks/tests.md)\n",
+                $centralvetTestDbName,
+            ));
+            exit(1);
+        }
+    }
+
+    unset($centralvetPreflightPdo, $centralvetPreflightStatement);
+}
+
+unset($centralvetTestDbName);
 
 use CentralVet\Tests\Support\AssertionFailedException;
 use CentralVet\Tests\Support\SkippedTestException;

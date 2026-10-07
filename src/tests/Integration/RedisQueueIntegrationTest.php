@@ -16,12 +16,17 @@ use CentralVet\Tests\Support\RedisIntegrationTestCase;
  */
 final class RedisQueueIntegrationTest extends RedisIntegrationTestCase
 {
-    private const QUEUE = 't11-queue';
+    /**
+     * Unique per test instance (not a constant): parallel suite runs used
+     * to share one fixed 't11-queue' and pop each other's messages.
+     */
+    private string $queue;
 
     private KeyNamespace $keys;
 
     public function setUp(): void
     {
+        $this->queue = 't11-queue-' . bin2hex(random_bytes(4));
         parent::setUp();
         $this->keys = new KeyNamespace('testing');
     }
@@ -33,7 +38,7 @@ final class RedisQueueIntegrationTest extends RedisIntegrationTestCase
         }
 
         foreach (['pending', 'processing', 'delayed', 'dead'] as $suffix) {
-            $this->redis->del($this->keys->key('queue:' . self::QUEUE, $suffix));
+            $this->redis->del($this->keys->key('queue:' . $this->queue, $suffix));
         }
     }
 
@@ -41,9 +46,9 @@ final class RedisQueueIntegrationTest extends RedisIntegrationTestCase
     {
         $queue = new RedisQueue($this->redis, $this->keys, baseBackoffSeconds: 1);
 
-        $id = $queue->push(self::QUEUE, ['action' => 'send-reminder'], tenantId: 101, maxAttempts: 3);
+        $id = $queue->push($this->queue, ['action' => 'send-reminder'], tenantId: 101, maxAttempts: 3);
 
-        $message = $queue->pop(self::QUEUE, timeoutSeconds: 2);
+        $message = $queue->pop($this->queue, timeoutSeconds: 2);
 
         Assert::notNull($message);
         Assert::same($id, $message->id);
@@ -53,8 +58,8 @@ final class RedisQueueIntegrationTest extends RedisIntegrationTestCase
 
         $queue->ack($message);
 
-        Assert::null($queue->pop(self::QUEUE, timeoutSeconds: 1), 'Acked message must not be redelivered');
-        Assert::same(0, $queue->deadLetterCount(self::QUEUE));
+        Assert::null($queue->pop($this->queue, timeoutSeconds: 1), 'Acked message must not be redelivered');
+        Assert::same(0, $queue->deadLetterCount($this->queue));
     }
 
     public function testFailedMessageRetriesThenLandsInDeadLetterAfterMaxAttempts(): void
@@ -63,25 +68,25 @@ final class RedisQueueIntegrationTest extends RedisIntegrationTestCase
         // so the test does not need to sleep for the exponential backoff.
         $queue = new RedisQueue($this->redis, $this->keys, baseBackoffSeconds: 0);
 
-        $queue->push(self::QUEUE, ['action' => 'charge-invoice'], tenantId: 202, maxAttempts: 2);
+        $queue->push($this->queue, ['action' => 'charge-invoice'], tenantId: 202, maxAttempts: 2);
 
         // Attempt 1: fails, goes to the delayed set (1 < max_attempts 2).
-        $message = $queue->pop(self::QUEUE, timeoutSeconds: 2);
+        $message = $queue->pop($this->queue, timeoutSeconds: 2);
         Assert::notNull($message);
         $queue->fail($message, 'gateway timeout');
-        Assert::same(0, $queue->deadLetterCount(self::QUEUE));
+        Assert::same(0, $queue->deadLetterCount($this->queue));
 
-        $moved = $queue->recoverDue(self::QUEUE);
+        $moved = $queue->recoverDue($this->queue);
         Assert::same(1, $moved, 'The delayed retry must become due immediately with a zero backoff');
 
         // Attempt 2: fails again, attempts (2) now reaches max_attempts (2)
         // -> dead letter.
-        $retried = $queue->pop(self::QUEUE, timeoutSeconds: 2);
+        $retried = $queue->pop($this->queue, timeoutSeconds: 2);
         Assert::notNull($retried);
         Assert::same(1, $retried->attempts);
         $queue->fail($retried, 'gateway timeout again');
 
-        Assert::same(1, $queue->deadLetterCount(self::QUEUE));
-        Assert::null($queue->pop(self::QUEUE, timeoutSeconds: 1));
+        Assert::same(1, $queue->deadLetterCount($this->queue));
+        Assert::null($queue->pop($this->queue, timeoutSeconds: 1));
     }
 }

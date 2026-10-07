@@ -107,6 +107,9 @@ class SaleForm extends TPage
         // header fields
         $tutor_id = new TDBUniqueSearch('tutor_id', 'permission', 'Tutor', 'id', 'full_name', 'full_name', $tenant_criteria);
         $patient_id = new TDBUniqueSearch('patient_id', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
+        // T-65: rótulos escapados no select2 (busca/ordem seguem na coluna real)
+        $tutor_id->setMask(Tutor::safeSearchMask('full_name_safe'));
+        $patient_id->setMask(Patient::safeSearchMask('name_safe'));
         $encounter_id = new TEntry('encounter_id');
 
         $encounter_id->setNumericMask(0, '', '', false, false, false);
@@ -137,6 +140,7 @@ class SaleForm extends TPage
 
         // item entry: product
         $product_id = new TDBUniqueSearch('product_id', 'permission', 'Product', 'id', 'name', 'name', $tenant_criteria);
+        $product_id->setMask(Product::safeSearchMask('name_safe')); // T-65
         $product_quantity = new TEntry('product_quantity');
 
         $product_quantity->setNumericMask(0, '', '', false, false, false);
@@ -150,6 +154,7 @@ class SaleForm extends TPage
 
         // item entry: procedure
         $procedure_id = new TDBUniqueSearch('procedure_id', 'permission', 'ProcedureCatalogItem', 'id', 'name', 'name', $tenant_criteria);
+        $procedure_id->setMask(ProcedureCatalogItem::safeSearchMask('name_safe')); // T-65
         $procedure_quantity = new TEntry('procedure_quantity');
 
         $procedure_quantity->setNumericMask(0, '', '', false, false, false);
@@ -403,7 +408,8 @@ class SaleForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -476,7 +482,8 @@ class SaleForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -566,12 +573,14 @@ class SaleForm extends TPage
         catch (\CentralVet\Domain\Exception\InsufficientStockException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -586,12 +595,14 @@ class SaleForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -653,7 +664,8 @@ class SaleForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

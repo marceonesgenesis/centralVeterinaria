@@ -1,4 +1,6 @@
 .env
+src/app/config/hosting-environment.php
+scripts/__pycache__/
 var/backups/*
 !var/backups/.gitkeep
 var/log/*

@@ -48,23 +48,34 @@ final class ClinicalSummaryReader
         return $row;
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * Most recent encounter of the patient. With $excludeEncounterId, the
+     * most recent one that precedes the excluded encounter in
+     * (started_at, id) order: started earlier, or at the same instant with
+     * a lower id. Encounters started after it are never returned; an
+     * excluded id outside this tenant/patient yields null.
+     *
+     * @return array<string, mixed>|null
+     */
     public function findLatestEncounter(int $patientId, ?int $excludeEncounterId = null): ?array
     {
-        $query = $this->tenantQuery()->andEquals('patient_id', $patientId);
+        $query = $this->tenantQuery('e')->andEquals('patient_id', $patientId, 'e');
         $parameters = $query->parameters();
-        $exclude = '';
+        $join = '';
+        $before = '';
 
         if ($excludeEncounterId !== null) {
-            $exclude = ' AND id <> :exclude_encounter_id';
+            $join = ' JOIN encounter x ON x.id = :exclude_encounter_id'
+                . ' AND x.tenant_id = e.tenant_id AND x.patient_id = e.patient_id';
+            $before = ' AND (e.started_at < x.started_at OR (e.started_at = x.started_at AND e.id < x.id))';
             $parameters[':exclude_encounter_id'] = $excludeEncounterId;
         }
 
         return $this->fetchOne(
-            "SELECT id, started_at, status, professional_system_user_id, anamnesis_text, diagnosis_text
-               FROM encounter
-              WHERE {$query->whereSql()}{$exclude}
-              ORDER BY started_at DESC, id DESC
+            "SELECT e.id, e.started_at, e.status, e.professional_system_user_id, e.anamnesis_text, e.diagnosis_text
+               FROM encounter e{$join}
+              WHERE {$query->whereSql()}{$before}
+              ORDER BY e.started_at DESC, e.id DESC
               LIMIT 1",
             $parameters,
         );

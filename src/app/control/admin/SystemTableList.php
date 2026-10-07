@@ -126,7 +126,9 @@ class SystemTableList extends TPage
             $sql->setEntity($table);
             $result = $conn->query( $sql->getInstruction() );
             
-            $file = 'tmp/' . $table . '.csv';
+            // T-63: nome imprevisível em tmp/ (o download usa o nome amigável)
+            $download_name = $table . '.csv';
+            $file = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $download_name;
             $handler = fopen($file, 'w');
             
             $first_row = $result->fetch( PDO::FETCH_ASSOC );
@@ -143,7 +145,7 @@ class SystemTableList extends TPage
                 }
                 
                 fclose($handler);
-                parent::openFile($file);
+                parent::openFile($file, $download_name);
             }
             TTransaction::close();
         }
@@ -179,7 +181,9 @@ class SystemTableList extends TPage
             $sql->setEntity($table);
             $result = $conn->query( $sql->getInstruction() );
             
-            $file = 'tmp/' . $table . '.sql.txt';
+            // T-63: nome imprevisível em tmp/ (o download usa o nome amigável)
+            $download_name = $table . '.sql.txt';
+            $file = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $download_name;
             $handler = fopen($file, 'w');
             
             $addquotes = function($value) {
@@ -205,7 +209,7 @@ class SystemTableList extends TPage
                 }
                 
                 fclose($handler);
-                parent::openFile($file);
+                parent::openFile($file, $download_name);
             }
             TTransaction::close();
         }

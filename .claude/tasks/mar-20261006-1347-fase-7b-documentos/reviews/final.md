@@ -1,0 +1,77 @@
+# Revisão final
+Branch feat/fase-7b-documentos (a65be01) contra feat/fase-7a-comunicacao (83029c3), 52 commits, 155 arquivos.
+Verificado: isolamento por tenant em todo SQL novo (TenantQuery em GeneratedDocumentRepository, DocumentTemplateRepository, DocumentSourceQuery, PendingItemQuery::failedDocuments, joins com o mesmo tenant_id); download com 404 único (DocumentRequestService::download confere disponibilidade e unidade antes do RBAC; DocumentList::downloadResponse transforma qualquer Throwable em 404 text/plain sem Content-Disposition; nome `<kind>-<id>-v<n>.pdf`); LocalFilesystemStorage recusa root dentro de src/ e só serve pelo controller; dompdf com isRemoteEnabled/isPhpEnabled/isJavascriptEnabled=false e chroot/tempDir em sys_get_temp_dir; HTML do PDF escapado num lugar só (DocumentHtmlBuilder::e); telas escapam com CvFormat::e e sendFieldData usa JSON_HEX_*; claim condicional, markReady condicional, delete do objeto no catch e dedupe `document_ready:document:<id>:<canal>` via insertIfNew; aviso só com notify_tutor + opted_in explícito, sem link; payload `{type, document_id}` e logs só com ids/classe; 4 programas x grupos 1,2,Internação,Cirurgia no seed; preparador 5.7 sobre a 0013 → "Prepared 1 stages, 9 checks and 18 triggers", sem utf8mb4_0900 restante; todo `_t('…')` das telas novas/alteradas existe em translations.json (script de conferência, 0 ausentes); FKs que apontam para as tabelas da limpeza (information_schema, só SELECT) cobertas pela ordem do T-21-cleanup.sql; ids atuais do banco (docs 1-9, objetos 2132-2140, tutor 15447, paciente 13321, mensagem 53, templates 1-2, cirurgia 4, sala 2) batem com a seção 2.7 do SQL.
+## Triagem
+- [aberta] Anexos presos a S3CompatibleStorage::fromEnvironment → fora do escopo 7B (plan.md Excluído)
+- [resolvida] Retenção/expurgo de PDFs e body_text no runbook → docs/runbooks/documentos.md:141
+- [aberta] T-02 lacunas de teste, fileName() com id null, reconstitute sem conferir source_type, TOKEN_PATTERN → src/app/Core/Domain/GeneratedDocument.php:191
+- [aberta] T-03 validação só léxica do caminho (symlink) → src/app/Core/Storage/LocalFilesystemStorage.php:131
+- [resolvida] Aplicar 0013 e DML T-04 no bloqueio → notes.md § Decisões (onda 2, sha e5d9f164…, backup)
+- [resolvida] Teste "writable" do storage → gate da onda 4 (notes.md § Descobertas)
+- [aberta] T-05 lacunas dos fakes → src/tests/Support/FakeDocumentTemplateRepository.php
+- [aberta] T-06 retry 1062 sem teste; deadlock 1213 não retentado → src/app/Core/Persistence/GeneratedDocumentRepository.php:96
+- [aberta] T-07 nome de profissional ausente → '' sem teste → src/app/Core/Persistence/DocumentSourceQuery.php:82
+- [aberta] T-08 teste confere options() e não o render efetivo → src/tests/Unit/DocumentRendererTest.php
+- [aberta] T-09 docblock "8 types", título pt fixo, fixture 'F7A teste documento' → src/app/Core/Application/PendingCenterService.php:84
+- [aberta] T-10 requeueFailed()===false e metadata de auditoria sem teste; patientSummary 2x → src/app/Core/Application/DocumentRequestService.php:85
+- [aberta] T-11 switch sem default (kind desconhecido → conteúdo vazio) → src/app/Core/Application/DocumentContentFactory.php:54
+- [aberta] T-12 ramo opted_out sem teste unitário; rollback real não provado em teste → src/app/Core/Application/DocumentReadyNotifier.php:249
+- [aberta] T-13 retry 1062 sem teste (o caso {{unit_name}} literal agora é recusado no pedido: DocumentRequestService.php:232) → src/app/Core/Application/DocumentTemplateService.php:105
+- [resolvida] Mensagens i18n-domínio de T-10/T-13 → T-19 (translations.json/UserMessage.php)
+- [aberta] Gate O4: 404 cross-tenant não exercitado (1 tenant); aviso document_ready exercitado depois no roteiro A (mensagem 53) → ambiente com 2 tenants
+- [aberta] T-14 janela de 10 min e limite 100 do varredor sem teste → src/app/Core/Document/DocumentSweeper.php:188
+- [aberta] T-15 onSave sem teste automatizado; loadConsentSummary sem RBAC e sem conferir unidade da receita/cirurgia → src/app/control/clinic/DocumentRequestForm.php:345
+- [aberta] T-16 onRetry volta sem patient_id → src/app/control/clinic/DocumentList.php:182
+- [aberta] T-17 coluna Actions com 'right' (o CSS global força left no cabeçalho: custom.css:635-637), onEdit varre listAll, kindLabel no form → src/app/control/clinic/DocumentTemplateList.php:48
+- [aberta] T-18 link Archive PDF sem cv-touch-target (.cv-rx-pdf-link só tem margin) → src/app/control/clinic/PrescriptionForm.php:165
+- [resolvida] i18n das telas T-15..T-18 → translations.json (0 chaves ausentes)
+- [aberta] T-20 runbook cita a rota antiga do download → docs/runbooks/documentos.md:76 (real: engine.php?class=DocumentList&method=onDownload&id=<id>&static=1)
+- [resolvida] Botão "PDF do termo" na SurgeryView → roteiro A da T-21 (cirurgia 4, documentos 2-6)
+- [resolvida] Critério "curl /var/documents/ ≠ 200" → reescrito por ruling da T-21 (notes.md § Decisões)
+- [aberta] SQL de limpeza preparado e não executado (aprovação SQL + backup; 9 rm) → sql/T-21-cleanup.sql
+- [aberta] RF1 outro tenant só por testes de integração → repetir com 2 tenants
+- [aberta] "Tentar novamente"/document_failed e usuário sem permissão fora do E2E → cobertos por testes T-09/T-12/RBAC
+- [aberta] Interface da T-16 em tasks.md ainda cita index.php para o download → tasks.md:921,937,951
+- [aberta] Cabeçalho do SQL diz que erro interrompe o script; no `source` interativo o cliente segue → sql/T-21-cleanup.sql:12-13
+- [aberta] DEL da chave Redis pending no roteiro B sem verificação do conteúdo → reviews/T-21.md
+- [resolvida] Atestado a partir de template exercitado → generated_document 9 com template_id 2 (complemento RF4; SELECT confirmou)
+## Rulings
+- plano · onda 0 — Escopo: 4 tipos (vaccination_card, prescription, medical_certificate, surgery_consent); PDF síncrono intocado
+- plano · onda 0 — Storage local fora do webroot + DocumentStorageFactory (local/s3); volume app_documents
+- plano · onda 0 — Download só pelo controller, 404 único, sem URL pré-assinada, nome sem dado pessoal
+- plano · onda 0 — Aviso document_ready só com notify_tutor + opted_in, sem link/anexo, source NULL e dedupe por chave
+- plano · onda 0 — Assíncrono: job document.generate pós-commit, claim condicional, transação injetada, varredor
+- plano · onda 0 — Versionamento MAX+1 com UNIQUE e retry em 1062; retry reaproveita a linha failed
+- plano · onda 0 — Templates por tenant só para medical_certificate, placeholders fechados
+- plano · onda 0 — RBAC 4 programas para grupos 1, 2, Internação e Cirurgia
+- plano · onda 0 — Branch feat/fase-7b-documentos sobre feat/fase-7a-comunicacao @ 83029c3
+- plano · onda 0 — Gates econômicos (LINT+SUITE; O4 PDF real; O5 fetch pt; O6 E2E em 2 disparos)
+- plano · onda 0 — Baseline php-lint 0 linhas e test-prepare-mysql57 OK
+- T-01 · onda 1 — Sete índices extras nas colunas de FK: aceito
+- T-02 · onda 1 — Extras públicos (assignId, requiresBodyText) e interfaces sem TenantRepositoryInterface: aceito
+- T-04 · onda 1 — Usuário confirmou grupos 1, 2, 4 e 5
+- T-09 · onda 2 — Alteração autorizada de CommunicationReadModelIntegrationTest (54183c2)
+- T-06 · onda 2 — Repositórios sem AbstractTenantRepository e retry 1062 sem teste: aceito
+- T-08 · onda 2 — Extras options() e construtor com builder opcional: aceito
+- orquestrador · onda 2 — 0013 aplicada nos 2 bancos e DML T-04 em centralvet (133→137, 173→189)
+- T-10 · onda 3 — Ajuste do spy de storage após o RED: aceito
+- T-11 · onda 3 — Signatário em signatureName, subjectLines "Rótulo: valor": aceito
+- T-12 · onda 3 — Passo 3 aceita DocumentSourceNotFoundException; teste de transação não prova rollback: aceito
+- T-13 · onda 3 — Template ausente/inativo → InvalidArgumentException: aceito
+- T-18 · onda 4 — Falha "Missing translation: Consent PDF" adiada para a T-19
+- plano · onda 4 — Critério curl /var/documents/ aceito como fallback HTML do nginx
+- T-15/T-17 · onda 4 — Ajustes de teste após o RED: aceitos
+- T-14 · onda 4 — DocumentSweeper::forConnection público: aceito
+- T-17 · onda 4 — Edição filtra listAll() por id: aceito
+- T-19 · onda 5 — Desvios de i18n aceitos (padrão com aspas, código de falha não exibido, termo da 7A, storage fora do catálogo)
+- T-21 · onda 6 — Tentar novamente/sem permissão fora do E2E: coberto por testes
+- T-21 · onda 6 — RF1 outro tenant só por integração (1 tenant no ambiente)
+- T-21 · onda 6 — Critério curl reescrito: nenhum caminho sob /var/documents serve %PDF
+- T-21 · onda 6 — Ações de estado no gate (worker parado, DEL Redis, listener :9) registradas
+- T-16 · onda 6 — Download via engine.php com target _blank (RED bc70e62, fix 1087d3c)
+## Achados
+- [sugestão] Corrida de claim vencido: se o 1º worker passa de 10 min, o 2º reivindica; o perdedor tem markReady=false, apaga o próprio objeto e cai em handleFailure(PERSIST_FAILED) — releaseClaim/markFailed viram no-op (status ready), mas o job registra `failed` ou lança para nova tentativa; tratar markReady=false como `skipped` → src/app/Core/Application/DocumentGenerationService.php:119-135
+- [sugestão] releaseClaim zera claimed_at e listStaleQueuedIds trata `claimed_at IS NULL AND created_at < 10 min` como preso: o varredor republica documentos que estão no backoff da fila, gerando jobs duplicados (idempotente, só ruído/tentativas extras) → src/app/Core/Persistence/GeneratedDocumentRepository.php:164,236
+- [sugestão] Template com {{breed}} para paciente sem raça mantém o token e o pedido é recusado com "unresolved placeholders"; considerar valor vazio no merge para variáveis opcionais → src/app/Core/Domain/DocumentTemplateRenderer.php:41 e src/app/Core/Application/DocumentRequestService.php:232
+- [sugestão] O signatário do termo é a 1ª linha não vazia do snapshot; um consent_signer_name vazio faria a 1ª linha do texto virar assinatura → src/app/Core/Application/DocumentContentFactory.php:108-111
+- [sugestão] Título da lista vem de DocumentKind::titleFor (pt fixo), sem _t na locale en → src/app/control/clinic/DocumentList.php:311

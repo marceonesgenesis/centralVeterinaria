@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\EncounterService;
 use CentralVet\Assistant\NullAiClinicalAssistant;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Encounter;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
@@ -148,6 +149,180 @@ final class EncounterServiceTest
         $assistant = new NullAiClinicalAssistant();
 
         Assert::count(0, $assistant->suggestNextSteps(999999));
+    }
+
+    public function testPauseMarksEncounterAsPaused(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+        $now = new DateTimeImmutable('2026-09-30 10:00:00');
+
+        $paused = $service->pause($id, self::ACTION, $now);
+
+        Assert::true($paused->isPaused());
+        Assert::same($now->format('Y-m-d H:i:s'), $paused->pausedAt()?->format('Y-m-d H:i:s'));
+        Assert::same(Encounter::STATUS_IN_PROGRESS, $paused->status());
+        Assert::same(0, $paused->pausedSeconds());
+    }
+
+    public function testResumeAddsPausedIntervalInSecondsAndClearsPause(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+        $pausedAt = new DateTimeImmutable('2026-09-30 10:00:00');
+
+        $service->pause($id, self::ACTION, $pausedAt);
+        $resumed = $service->resume($id, self::ACTION, $pausedAt->modify('+90 seconds'));
+
+        Assert::same(90, $resumed->pausedSeconds());
+        Assert::false($resumed->isPaused());
+        Assert::null($resumed->pausedAt());
+    }
+
+    /**
+     * Rodada 2, T-37: clamp documented — a $now earlier than pausedAt (clock
+     * skew, a stale request) adds 0 seconds instead of a negative stretch,
+     * and still clears the pause.
+     */
+    public function testResumeWithNowBeforePausedAtAddsZeroSeconds(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+        $pausedAt = new DateTimeImmutable('2026-09-30 10:00:00');
+
+        $service->pause($id, self::ACTION, $pausedAt);
+        $resumed = $service->resume($id, self::ACTION, $pausedAt->modify('-5 minutes'));
+
+        Assert::same(0, $resumed->pausedSeconds(), 'A negative interval is clamped to 0');
+        Assert::false($resumed->isPaused());
+        Assert::null($resumed->pausedAt());
+    }
+
+    public function testPauseTwiceThrowsInvalidStatusTransition(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+        $now = new DateTimeImmutable('2026-09-30 10:00:00');
+
+        $service->pause($id, self::ACTION, $now);
+
+        Assert::throws(
+            InvalidStatusTransitionException::class,
+            static fn () => $service->pause($id, self::ACTION, $now->modify('+1 minute')),
+        );
+    }
+
+    public function testResumeWithoutPauseThrowsInvalidStatusTransition(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+
+        Assert::throws(
+            InvalidStatusTransitionException::class,
+            static fn () => $service->resume($id, self::ACTION, new DateTimeImmutable()),
+        );
+    }
+
+    public function testFinishPausedEncounterAccumulatesPauseAndClearsPausedAt(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+
+        $service->pause($id, self::ACTION, new DateTimeImmutable('-5 minutes'));
+        $finished = $service->finish($id, self::ACTION);
+
+        Assert::same(Encounter::STATUS_FINISHED, $finished->status());
+        Assert::notNull($finished->finishedAt());
+        Assert::null($finished->pausedAt());
+        Assert::false($finished->isPaused());
+        Assert::true($finished->pausedSeconds() > 0, 'pausedSeconds must be > 0 after finishing a paused encounter');
+    }
+
+    public function testPauseFinishedEncounterThrowsInvalidStatusTransition(): void
+    {
+        [$service, $id] = $this->startedEncounter();
+
+        $service->finish($id, self::ACTION);
+
+        Assert::throws(
+            InvalidStatusTransitionException::class,
+            static fn () => $service->pause($id, self::ACTION, new DateTimeImmutable()),
+        );
+    }
+
+    public function testPauseUsesEncounterRealUnitAndDeniedPausePersistsNothing(): void
+    {
+        $repository = new FakeEncounterRepository(1);
+        $encounter = Encounter::start(
+            tenantId: 1,
+            systemUnitId: 5,
+            patientId: 1,
+            appointmentId: null,
+            professionalSystemUserId: 10,
+            now: new DateTimeImmutable('-10 minutes'),
+        );
+        $repository->save($encounter);
+        $policy = new FakeAuthorizationPolicy(allowed: false);
+        $service = $this->makeService($repository, $policy, TenantContext::authenticated(1, 1, 1));
+
+        Assert::throws(
+            AuthorizationDenied::class,
+            static fn () => $service->pause($encounter->id(), self::ACTION, new DateTimeImmutable()),
+        );
+
+        Assert::count(1, $policy->requests);
+        Assert::same(5, $policy->requests[0]->resourceUnitId());
+        Assert::false($repository->findById($encounter->id())->isPaused());
+    }
+
+    public function testPauseUnknownEncounterThrowsSameExceptionAsFinish(): void
+    {
+        $service = $this->makeService(new FakeEncounterRepository(1), new FakeAuthorizationPolicy(allowed: true));
+
+        Assert::throws(
+            \InvalidArgumentException::class,
+            static fn () => $service->pause(999, self::ACTION, new DateTimeImmutable()),
+        );
+        Assert::throws(
+            \InvalidArgumentException::class,
+            static fn () => $service->resume(999, self::ACTION, new DateTimeImmutable()),
+        );
+    }
+
+    public function testReconstituteReadsPauseColumnsWithDefaults(): void
+    {
+        $row = [
+            'id' => 7, 'tenant_id' => 1, 'system_unit_id' => 1, 'patient_id' => 1,
+            'appointment_id' => null, 'professional_system_user_id' => 10,
+            'status' => Encounter::STATUS_IN_PROGRESS, 'started_at' => '2026-09-30 09:00:00',
+            'finished_at' => null, 'anamnesis_text' => null, 'temperature_c' => null,
+            'heart_rate_bpm' => null, 'respiratory_rate_mpm' => null, 'weight_kg' => null,
+            'mucous_membranes' => null, 'capillary_refill_seconds' => null,
+            'physical_exam_text' => null, 'diagnosis_text' => null, 'clinical_plan_text' => null,
+            'ai_summary_text' => null, 'ai_summary_accepted_at' => null,
+        ];
+
+        $legacy = Encounter::reconstitute($row);
+        Assert::false($legacy->isPaused());
+        Assert::same(0, $legacy->pausedSeconds());
+
+        $paused = Encounter::reconstitute([
+            ...$row,
+            'paused_at' => '2026-09-30 09:30:00.000000',
+            'paused_seconds' => '45',
+        ]);
+        Assert::true($paused->isPaused());
+        Assert::same('2026-09-30 09:30:00', $paused->pausedAt()?->format('Y-m-d H:i:s'));
+        Assert::same(45, $paused->pausedSeconds());
+    }
+
+    /** @return array{0: EncounterService, 1: int} */
+    private function startedEncounter(): array
+    {
+        $repository = new FakeEncounterRepository(1);
+        $service = $this->makeService($repository, new FakeAuthorizationPolicy(allowed: true));
+
+        $started = $service->start([
+            'patient_id' => 1,
+            'professional_system_user_id' => 10,
+            'system_unit_id' => 1,
+        ], self::ACTION);
+
+        return [$service, (int) $started->id()];
     }
 
     private function makeService(

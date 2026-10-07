@@ -1,0 +1,143 @@
+# Board — mar-20261005-2234-fase-6b-cirurgia
+
+Log append-only de fatos que afetam outras tasks desta execução: contrato divergente, símbolo renomeado, arquivo compartilhado alterado, decisão que outra task precisa conhecer. Uma linha por fato, acrescentada por append com heredoc (abaixo; o delimitador entre aspas aceita qualquer caractere no fato); nunca edite ou remova linhas. Leia antes de começar uma task e antes de usar cada `Consome`. O fechador consolida as linhas em `notes.md § Descobertas`.
+
+Formato: `- [T-NN] <fato>`
+
+Append:
+
+```bash
+cat >> "/var/www/html/centralvet/.claude/tasks/mar-20261005-2234-fase-6b-cirurgia/board.md" <<'EOF'
+- [T-NN] <fato>
+EOF
+```
+- [T-03] Extra público além do contrato: `SurgeryChecklist::assertItemOfPhase(string $phase, string $itemCode): void` (fase desconhecida → `Unknown checklist phase "<phase>"`; código fora da fase → `Unknown checklist item "<code>"`), usado por `SurgeryChecklistItem::check`/`reconstitute`. As 3 entidades têm `reconstitute(array $row)` com chaves = colunas da 0011 e `tenantId()`; `SurgeryEvent::record` com notes null/vazio em tipo não clínico grava `notesText() === null` (texto é trim, limite em `mb_strlen`).
+- [T-02] Surgery tem getters além da Interface para T-06 gravar: scheduledBySystemUserId(), consentRecordedBySystemUserId(), completedBySystemUserId(), cancelledBySystemUserId(), createdAt(), updatedAt(); SurgeryRoom e SurgeryTeamMember têm reconstitute(array $row) com as colunas da T-01. Transições inválidas (inclusive "has no recorded consent", "is not open for pre-operative changes", "already has a follow-up appointment") lançam InvalidStatusTransitionException.
+- [T-05] FakeSurgeryRepository::findById devolve cópia nova (reconstitute de linha), como o PDO: mutar o objeto do seed não altera o fake; save de existente compara o status gravado com loadedStatus() (ou, para objeto criado com schedule() no processo, com o status do último save desse mesmo objeto) — salvar duas vezes uma cópia reconstituída depois de mudar o status lança "changed status concurrently" (igual ao PDO com loadedStatus readonly): recarregue com findById entre saves. Checklist duplicado lança InvalidStatusTransitionException; eventos remove() lança LogicException; Team/Checklist/Event sem seed no construtor.
+- [T-06] `SurgeryRepository::save` usa como status esperado o último status que ele mesmo gravou para aquela instância (WeakMap), com fallback `loadedStatus()` e, para recém-inserida, `scheduled`: a mesma instância pode ser salva duas vezes após transições sem falso `changed status concurrently`. UPDATE grava só status, consentimento, started/completed/cancelled e `followup_appointment_id` (sala, horário, procedimento e notas são imutáveis; remarcar = cancelar e agendar). `SurgeryTeamRepository::save` só insere (membro com id → InvalidArgumentException; use `replaceForSurgery`); checklist/evento com id → LogicException; material sem UPDATE (remover e registrar de novo).
+- [T-05] Correção 1 (ruling da revisão T-06): FakeSurgeryRepository e o docblock de SurgeryRepositoryInterface agora seguem o PDO: status esperado no save = último status salvo por ESTA instância (WeakMap), senão loadedStatus(), senão 'scheduled'. A mesma instância pode salvar várias vezes, e uma cópia antiga de outra instância lança "changed status concurrently". Isso substitui a linha anterior da T-05 que recomendava recarregar a entidade entre os saves.
+- [T-11] `SurgeryCompletionService` pronto (d9b5a81): `complete` lança CrossTenantReferenceException `surgery_id <id> was not found for the authenticated tenant` quando lockStatus é null; `scheduleFollowUp` valida `Surgery <id> is not completed` / `already has a follow-up appointment` ANTES de agendar (sem agendamento órfão); `SchedulingConflictException` e `InsufficientStockException` propagam. Service não abre transação: T-14 envolve cada chamada em TTransaction único. `addSourcedItem` aceita `surgery_procedure`/`surgery_material`.
+- [T-08] SurgeryService: sala de outra unidade lança InvalidArgumentException `Surgery room <id> belongs to another unit`; cirurgia inexistente lança CrossTenantReferenceException `Surgery <id> not found for this tenant`; eventos gravados: `scheduled` (notas = nome do procedimento), `consent` (notas = signatário), `status` (notas = novo status) em startPreOp/start, `cancellation` (notas = motivo, sem evento `status` extra). replaceTeam confere também `lockStatus` e devolve `listBySurgery`. Para simular corrida de status em teste, `forceStatus` precisa ocorrer entre o findById e o save (decorator do repositório), pois findById relê a linha.
+- [T-10] Correção 1 (ruling): `SurgeryMaterialRepositoryInterface` ganhou `delete(SurgeryMaterial $material): int` (linhas apagadas; DELETE com tenant + id + surgery_id, rowCount). `remove()` continua `void` porque o PHP não deixa trocar o `void` herdado de `RepositoryInterface` por `int`; ele delega a `delete()`. O fake espelha e ganhou `storedMaterialOfAnyTenant(int)`. `SurgeryMaterialService::removeMaterial` com 0 linhas lança InvalidStatusTransitionException `Material <id> was already removed` e não grava evento.
+- [T-10] i18n: Material <id> was already removed → O material <id> já foi removido
+- [T-18] i18n: Schedule surgery → Agendar cirurgia
+- [T-18] i18n: Surgery rooms → Salas cirúrgicas
+- [T-18] i18n: Rooms → Salas
+- [T-18] Navegação pronta: menu `_t{Surgeries}` → `SurgeryList`, `_t{Surgery rooms}` → `SurgeryRoomList` (Configurações, depois de Leitos); `CvNav::group('surgery')` com abas `list`/`rooms`; `EncounterView::PLAN_ACTIONS['surgery']` → `SurgeryScheduleForm` (recebe encounter_id/patient_id).
+- [T-12] i18n: Operating rooms → Salas cirúrgicas
+- [T-12] i18n: Surgery → Cirurgia
+- [T-12] i18n: New operating room → Nova sala
+- [T-12] i18n: Edit operating room → Editar sala
+- [T-12] i18n: You are not allowed to manage operating rooms → Você não tem permissão para gerenciar salas cirúrgicas
+- [T-12] i18n: Operating room activated → Sala ativada
+- [T-12] i18n: Operating room deactivated → Sala desativada
+- [T-12] i18n: No operating rooms registered in this unit → Nenhuma sala cadastrada nesta unidade
+- [T-12] i18n: Active → Ativa (badge da sala; conferir se a chave já existe com outra tradução)
+- [T-12] SurgeryRoomList/Form usam CvNav::tabs('surgery', 'rooms') atrás de try/InvalidArgumentException: T-18 deve criar a aba com chave `rooms` → index.php?class=SurgeryRoomList.
+- [T-12] Correção da linha anterior: só SurgeryRoomList usa CvNav::tabs('surgery', 'rooms'); SurgeryRoomForm não tem abas (como BedForm).
+- [T-12] i18n: Active operating room → Ativa
+- [T-12] i18n: Inactive operating room → Inativa
+- [T-12] Substitui a linha "i18n: Active → Ativa": a chave existente `Active` é "Ativo"; o badge da sala usa as duas chaves acima.
+- [T-17] i18n: Surgical agenda → Agenda cirúrgica
+- [T-17] i18n: Previous day → Dia anterior
+- [T-17] i18n: Next day → Próximo dia
+- [T-17] i18n: Apply → Aplicar (se ainda não existir)
+- [T-17] i18n: Scheduled surgeries → Agendadas
+- [T-17] i18n: In pre-op → Pré-operatório
+- [T-17] i18n: Surgeries in progress → Em andamento
+- [T-17] i18n: Completed surgeries → Concluídas
+- [T-17] i18n: Cancelled surgeries → Canceladas
+- [T-17] i18n: No surgeries on this day → Nenhuma cirurgia neste dia
+- [T-17] i18n: Schedule a surgery from an encounter to see it on the agenda. → Agende uma cirurgia a partir de um atendimento para vê-la na agenda.
+- [T-17] i18n: Room → Sala
+- [T-17] i18n: Surgeon → Cirurgião
+- [T-17] i18n: Pre-op → Pré-operatório (badge de status)
+- [T-17] i18n: Completed → Concluída (badge de status)
+- [T-17] i18n: You are not allowed to view the surgical agenda → Você não tem permissão para ver a agenda cirúrgica
+- [T-17] SurgeryList: badge de status usa as chaves Scheduled/Pre-op/In progress/Completed/Cancelled (Scheduled → "Agendado" e Cancelled → "Cancelada" já existem); KPI "Agendadas" vem da chave nova "Scheduled surgeries". `SurgeryAgendaView` recebe `list<Surgery>` (objetos de domínio de `listForDay`).
+- [T-13] SurgeryScheduleForm pronto: modo agendar usa `onChangeProcedure` (TCombo change action, preenche duration_minutes com a duração do procedimento ou 60; duração vazia no POST também cai nesse padrão); modo equipe (`&id=`) pré-seleciona o 1º membro de cada papel e volta para `SurgeryView&id=`. `notes_text` lido de `$_POST`. Profissionais via `CvTenantUsers` (ativos do tenant, mesmo filtro da admissão 6A).
+- [T-13] i18n: Schedule surgery → Agendar cirurgia
+- [T-13] i18n: Surgical team → Equipe cirúrgica
+- [T-13] i18n: Surgery room → Sala cirúrgica
+- [T-13] i18n: Surgeon → Cirurgião
+- [T-13] i18n: Start date/time → Data/hora de início
+- [T-13] i18n: Anesthetist → Anestesista
+- [T-13] i18n: Surgical assistant → Auxiliar
+- [T-13] i18n: Circulating nurse → Circulante
+- [T-13] i18n: Open the surgery scheduling from an encounter. → Abra o agendamento da cirurgia a partir de um atendimento.
+- [T-13] i18n: There is no active surgery room in this unit. → Não há sala cirúrgica ativa nesta unidade.
+- [T-13] i18n: Manage surgery rooms → Gerenciar salas cirúrgicas
+- [T-13] i18n: Save team → Salvar equipe
+- [T-13] i18n: Surgery → Cirurgia
+- [T-13] i18n: Surgery scheduled → Cirurgia agendada
+- [T-13] i18n: Surgical team saved → Equipe cirúrgica salva
+- [T-13] i18n: You are not allowed to schedule surgeries in this unit → Você não tem permissão para agendar cirurgias nesta unidade
+- [T-17] Commits: dd31bcb (RED), f872e4e.
+- [T-15] i18n: Surgery consent → Consentimento cirúrgico
+- [T-15] i18n: Provide a surgery_id to record the consent. → Informe a cirurgia (surgery_id) para registrar o consentimento.
+- [T-15] i18n: Consent recorded by ^1 on ^2 → Aceite registrado por ^1 em ^2
+- [T-15] i18n: Record consent → Registrar aceite
+- [T-15] i18n: Consent recorded successfully → Aceite registrado com sucesso
+- [T-15] i18n: You are not allowed to record the consent for this surgery → Você não tem permissão para registrar o consentimento desta cirurgia
+- [T-15] i18n: Signer name → Signatário
+- [T-15] i18n: Consent text → Texto do consentimento
+- [T-15] i18n: Surgery consent default text → parágrafo pt do termo de consentimento (definido pela T-19)
+- [T-15] i18n: Surgery event → Evento cirúrgico
+- [T-15] i18n: Provide a surgery_id to record the event. → Informe a cirurgia (surgery_id) para registrar o evento.
+- [T-15] i18n: Unknown surgery event type → Tipo de evento cirúrgico desconhecido
+- [T-15] i18n: Event recorded successfully → Evento registrado com sucesso
+- [T-15] i18n: You are not allowed to record events for this surgery → Você não tem permissão para registrar eventos desta cirurgia
+- [T-15] i18n: Pre-operative note → Registro pré-operatório
+- [T-15] i18n: Anesthesia note → Registro anestésico
+- [T-15] i18n: Intra-operative note → Registro intraoperatório
+- [T-15] i18n: Complication → Intercorrência
+- [T-15] i18n: Post-operative note → Registro pós-operatório
+- [T-15] `SurgeryEventForm::typeLabels()` público (tipo clínico → rótulo traduzido, ordem de `SurgeryEvent::CLINICAL_TYPES`), reutilizável pela T-14 nos botões de evento. Consentimento e notas são lidos só de `$_POST` no onSave; links para a tela levam só `surgery_id` (e `type`).
+- [T-14] SurgeryView pronto: rota `SurgeryView&id=`, `tab` ∈ summary|checklist|materials|events; back link para `SurgeryList`; ações estáticas (static=1); retorno lê `followup_scheduled_at`/`followup_service_id` só de `$_POST`; fases do checklist exibidas com `_t(SurgeryChecklist::phaseLabel($phase))` (T-19 traduzir "Before induction", "Before incision", "Before leaving the room").
+- [T-14] i18n: Surgery → Cirurgia; Open a surgery from the surgical schedule or from the encounter. → Abra uma cirurgia pela agenda cirúrgica ou pelo atendimento.; This surgery could not be loaded. → Não foi possível carregar esta cirurgia.; Summary → Resumo; Checklist → Checklist; Materials → Materiais; Events → Eventos; Surgery moved to pre-op → Cirurgia em pré-operatório; Surgery started → Cirurgia iniciada; The cancellation reason is required → O motivo do cancelamento é obrigatório
+- [T-14] i18n: Cancel this surgery? To reschedule, schedule a new surgery from the encounter. → Cancelar esta cirurgia? Para remarcar, agende uma nova cirurgia pelo atendimento.; Surgery cancelled → Cirurgia cancelada; Complete this surgery? The procedure and the recorded materials will be billed to the encounter account and the materials consumed from stock. → Concluir esta cirurgia? O procedimento e os materiais registrados serão lançados na conta do atendimento e os materiais baixados do estoque.; Invalid surgery → Cirurgia inválida; Surgery completed → Cirurgia concluída
+- [T-14] i18n: You are not allowed to change this surgery → Você não tem permissão para alterar esta cirurgia; You are not allowed to access this surgery → Você não tem permissão para acessar esta cirurgia; Procedure → Procedimento; Room → Sala; Scheduled for → Agendada para; Surgeon → Cirurgião; Surgical team → Equipe cirúrgica; Team → Equipe; No team members recorded. → Nenhum membro da equipe registrado.; Role → Função; Name → Nome; Consent → Consentimento; Signed by → Assinado por; Consent recorded → Consentimento registrado; No consent recorded yet. → Nenhum consentimento registrado ainda.
+- [T-14] i18n: Update consent → Atualizar consentimento; Record consent → Registrar consentimento; Notes → Observações; Phase → Fase; Confirmed at → Confirmado em; Confirm → Confirmar; Confirmed → Confirmado; Pending → Pendente; Record materials → Registrar materiais; No materials recorded yet. → Nenhum material registrado ainda.; Product → Produto; Quantity → Quantidade; Recorded at → Registrado em; No events recorded yet. → Nenhum evento registrado ainda.; Actions → Ações
+- [T-14] i18n: Start pre-op → Iniciar pré-op; Start surgery → Iniciar cirurgia; Complete surgery → Concluir cirurgia; Admit for post-operative care → Internar no pós-operatório; Completed at → Concluída em; Cancelled at → Cancelada em; Follow-up scheduled → Retorno agendado; Cancel surgery → Cancelar cirurgia; Cancellation reason → Motivo do cancelamento; Scheduled → Agendada; Pre-op → Pré-op; In progress → Em andamento; Completed → Concluída; Cancelled → Cancelada
+- [T-14] i18n: Anesthetist → Anestesista; Assistant → Auxiliar; Circulating nurse → Circulante; Anesthesia → Anestesia; Intra-op → Transoperatório; Complication → Complicação; Post-op → Pós-operatório; Status → Status; Material → Material; Cancellation → Cancelamento; Completion → Conclusão; Follow-up → Retorno (chaves já existentes reutilizadas: Items added to the account, Products consumed, Open encounter account, Date/time, Service, Schedule follow-up, Follow-up scheduled successfully, Date/time and service id are required to schedule a follow-up, An authenticated session with an active unit is required)
+- [T-16] SurgeryChecklistForm/SurgeryMaterialForm prontos (92daa99): voltar aponta para `SurgeryView&id=<surgery_id>` (sem id: `SurgeryList`); ações extras além do contrato: `SurgeryMaterialForm::onAskRemove` (static, TQuestion só com surgery_id/material_id). Checklist mostra navegação entre as 3 fases (links `SurgeryChecklistForm&surgery_id=&phase=`). Itens também usam `.cv-checklist__row`, `.cv-checklist__label`, `.cv-checklist__done`, `.cv-checklist__phases`.
+- [T-16] i18n: Surgical safety checklist → Checklist de segurança cirúrgica
+- [T-16] i18n: Unknown checklist phase → Fase do checklist desconhecida
+- [T-16] i18n: Provide a surgery_id to fill in the checklist. → Informe um surgery_id para preencher o checklist.
+- [T-16] i18n: Surgery → Cirurgia
+- [T-16] i18n: You are not allowed to access this surgery → Você não tem permissão para acessar esta cirurgia
+- [T-16] i18n: You are not allowed to change this surgery → Você não tem permissão para alterar esta cirurgia
+- [T-16] i18n: Confirm phase → Confirmar fase
+- [T-16] i18n: Checklist phase confirmed → Fase do checklist confirmada
+- [T-16] i18n: Phase confirmed by ^1 at ^2 → Fase confirmada por ^1 em ^2
+- [T-16] i18n: Checklist phases → Fases do checklist
+- [T-16] i18n: Before induction → Antes da indução
+- [T-16] i18n: Before incision → Antes da incisão
+- [T-16] i18n: Before leaving the room → Antes de sair da sala
+- [T-16] i18n: Patient identity confirmed → Identidade do paciente confirmada
+- [T-16] i18n: Consent confirmed → Consentimento confirmado
+- [T-16] i18n: Fasting confirmed → Jejum confirmado
+- [T-16] i18n: Anesthesia equipment checked → Equipamento de anestesia verificado
+- [T-16] i18n: Allergies reviewed → Alergias revisadas
+- [T-16] i18n: Team introduced → Equipe apresentada
+- [T-16] i18n: Procedure and site confirmed → Procedimento e local confirmados
+- [T-16] i18n: Antibiotic prophylaxis reviewed → Profilaxia antibiótica revisada
+- [T-16] i18n: Critical steps reviewed → Etapas críticas revisadas
+- [T-16] i18n: Procedure recorded → Procedimento registrado
+- [T-16] i18n: Instrument count correct → Contagem de instrumentais correta
+- [T-16] i18n: Specimens labeled → Amostras identificadas
+- [T-16] i18n: Recovery plan defined → Plano de recuperação definido
+- [T-16] i18n: Surgery materials → Materiais da cirurgia
+- [T-16] i18n: Provide a surgery_id to record materials. → Informe um surgery_id para registrar materiais.
+- [T-16] i18n: Materials can only be changed while the surgery is in progress → Os materiais só podem ser alterados com a cirurgia em andamento
+- [T-16] i18n: Materials used → Materiais utilizados
+- [T-16] i18n: No materials recorded for this surgery → Nenhum material registrado para esta cirurgia
+- [T-16] i18n: Recorded at → Registrado em
+- [T-16] i18n: Material added → Material adicionado
+- [T-16] i18n: Material removed → Material removido
+- [T-16] i18n: Remove this material from the surgery? → Remover este material da cirurgia?
+- [T-16] i18n: (podem já existir) Back, Product, Quantity, Add, Remove, Actions, An authenticated session with an active unit is required
+- [T-16] i18n (mensagens de domínio que a tela mostra via CvFormat::userError, para UserMessage): Checklist phase "<fase>" is already confirmed for surgery <id> → A fase "<fase>" do checklist já foi confirmada para a cirurgia <id>; All checklist items of phase "<fase>" must be checked → Todos os itens da fase "<fase>" do checklist devem ser marcados; Surgery <id> is not in progress → A cirurgia <id> não está em andamento
+- [T-19] i18n pronto (193840a RED, 44343f2): +171 chaves (1122, ordem ok), UserMessage STATIC 47 / PATTERNS 64. Mensagens de domínio da cirurgia sem id interno (ex.: "Surgery 9 is not in progress" → "Esta cirurgia não está em andamento"); `Circulating nurse` → Circulante, `Complication` → Intercorrência, `Record consent` → Registrar consentimento.
+- [T-21] sql/T-21-cleanup.sql pronto (não executado). Gate deve usar só sala 'F6B teste S1', leito 'F6B teste L1', produto/lote 'F6B teste ...' (entrada manual em lote fora do prefixo não é revertida); cirurgias fora da sala F6B só são pegas por notes_text/cancellation_reason_text 'F6B teste...'. Contagens pré-gate (2026-10-06 07:47): encounter 7, account 4, item 6, stock_movement 1, appointment 15, hospitalization 0, system_program 126, surgery 0. @gate_start = '2026-10-06 07:47:00'.
+- [T-06] Correção 2: `SurgeryRepository::hasOverlapInRoom` agora é leitura travante (`LIMIT 1 FOR UPDATE`), current read que ignora o snapshot REPEATABLE READ; deve ser chamada depois de `lockForScheduling` e antes do insert (docblock do contrato atualizado). `SurgeryService::schedule` mantém a ordem autoriza → trava sala → checa → insere (sem trava antes da autorização).

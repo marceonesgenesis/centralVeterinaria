@@ -20,8 +20,19 @@ use CentralVet\Tests\Support\RedisIntegrationTestCase;
  */
 final class SessionRedisIntegrationTest extends RedisIntegrationTestCase
 {
-    private const SESSION_PREFIX = 'cvtest:session:';
-    private const REGISTRY_PREFIX = 'cvtest:index:user:';
+    /** 'cvtest:session:test:<uniqid>:' — unique per test instance. */
+    private string $sessionPrefix;
+
+    /** 'cvtest:index:user:test:<uniqid>:' — unique per test instance. */
+    private string $registryPrefix;
+
+    public function setUp(): void
+    {
+        $suffix = 'test:' . uniqid('', true) . ':';
+        $this->sessionPrefix = 'cvtest:session:' . $suffix;
+        $this->registryPrefix = 'cvtest:index:user:' . $suffix;
+        parent::setUp();
+    }
 
     public function tearDown(): void
     {
@@ -29,8 +40,8 @@ final class SessionRedisIntegrationTest extends RedisIntegrationTestCase
             return;
         }
 
-        $this->redis->del(self::SESSION_PREFIX . 't11-session-id');
-        $this->redis->del(self::REGISTRY_PREFIX . '4242');
+        $this->redis->del($this->sessionPrefix . 't11-session-id');
+        $this->redis->del($this->registryPrefix . '4242');
     }
 
     public function testRedisSessionHandlerWriteReadDestroyRoundTrip(): void
@@ -40,7 +51,7 @@ final class SessionRedisIntegrationTest extends RedisIntegrationTestCase
             port: (int) (getenv('REDIS_PORT') ?: 6379),
             database: (int) (getenv('REDIS_DATABASE') ?: 0),
             password: getenv('REDIS_PASSWORD') ?: null,
-            prefix: self::SESSION_PREFIX,
+            prefix: $this->sessionPrefix,
             ttlSeconds: 60,
         );
 
@@ -56,7 +67,7 @@ final class SessionRedisIntegrationTest extends RedisIntegrationTestCase
 
     public function testSessionRegistryTracksAndForgetsTheActiveSessionPerUser(): void
     {
-        $registry = new SessionRegistry($this->redis, self::REGISTRY_PREFIX, 60);
+        $registry = new SessionRegistry($this->redis, $this->registryPrefix, 60);
 
         Assert::null($registry->currentSessionId(4242));
 

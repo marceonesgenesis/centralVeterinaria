@@ -49,7 +49,7 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         $patientA = $this->createPatient($this->tenantA, $tutorA, 'F10 Rex');
 
         $racao = $this->createProduct($this->tenantA, 'F10 Racao', 'Alimentos', 5);
-        $vermifugo = $this->createProduct($this->tenantA, 'F10 Vermifugo', 'Farmacia', 2);
+        $vermifugo = $this->createProduct($this->tenantA, 'F10 Vermifugo', 'Farmacia', 2, 1990, 'R2-T');
         $this->createProduct($this->tenantA, 'F10 Coleira', 'Acessorios', 1);
         $productB = $this->createProduct($this->tenantB, 'F10 Produto B', 'Alimentos', 1);
 
@@ -123,6 +123,10 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(5.0, $byName['F10 Racao']['minimum_stock_quantity']);
         Assert::same('Alimentos', $byName['F10 Racao']['category']);
         Assert::same('normal', $byName['F10 Vermifugo']['status']);
+        Assert::same(1990, $byName['F10 Vermifugo']['sale_price_cents']);
+        Assert::same('R2-T', $byName['F10 Vermifugo']['code']);
+        Assert::null($byName['F10 Racao']['sale_price_cents'], 'Product without sale price yields null');
+        Assert::null($byName['F10 Racao']['code'], 'Product without code yields null');
         Assert::same('out', $byName['F10 Coleira']['status']);
         Assert::same(0.0, $byName['F10 Coleira']['stock_quantity']);
 
@@ -153,6 +157,39 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::stringContains('F10 Racao', $sales[1]['items_label']);
         Assert::stringContains('F10 Banho', $sales[1]['items_label']);
         Assert::count(1, $this->serviceFor($this->tenantA)->recentSales(1));
+    }
+
+    public function testNonPositiveLimitsReturnEmptyLists(): void
+    {
+        $service = $this->serviceFor($this->tenantA);
+
+        Assert::same([], $service->recentSales(0), 'recentSales(0) must return no row');
+        Assert::same([], $service->recentSales(-3), 'recentSales(-3) must return no row');
+        Assert::same([], $service->lowStock(0), 'lowStock(0) must return no row');
+        Assert::same([], $service->lowStock(-1), 'lowStock(-1) must return no row');
+    }
+
+    public function testOverviewMatchesSummaryProductsAndLowStock(): void
+    {
+        $service = $this->serviceFor($this->tenantA);
+        $month = new DateTimeImmutable('2031-05-15');
+
+        $overview = $service->overview($month);
+        Assert::same(['summary', 'products', 'low_stock'], array_keys($overview));
+        Assert::same($service->summary($month), $overview['summary']);
+        Assert::same($service->products(), $overview['products']);
+        Assert::same($service->lowStock(), $overview['low_stock']);
+
+        $filtered = $service->overview($month, 'colei', null, null, 1);
+        Assert::same($service->products('colei'), $filtered['products'], 'products honours the search filter');
+        Assert::same($service->summary($month), $filtered['summary'], 'summary ignores the list filters');
+        Assert::same($service->lowStock(1), $filtered['low_stock'], 'low_stock ignores the list filters');
+
+        $byStatus = $service->overview($month, null, 'Alimentos', 'low');
+        Assert::same($service->products(null, 'Alimentos', 'low'), $byStatus['products']);
+        Assert::same(['F10 Coleira', 'F10 Racao'], array_column($byStatus['low_stock'], 'name'));
+
+        Assert::same([], $service->overview($month, null, null, null, 0)['low_stock']);
     }
 
     public function testCategoriesAreDistinctAndSorted(): void
@@ -212,11 +249,17 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         return (int) $this->pdo->lastInsertId();
     }
 
-    private function createProduct(int $tenantId, string $name, string $category, int $minimum): int
-    {
+    private function createProduct(
+        int $tenantId,
+        string $name,
+        string $category,
+        int $minimum,
+        ?int $salePriceCents = null,
+        ?string $code = null,
+    ): int {
         $statement = $this->pdo->prepare(
-            'INSERT INTO product (tenant_id, name, category, unit_of_measure, unit_cost_cents, minimum_stock_quantity)
-             VALUES (:tenant_id, :name, :category, :unit, :cost, :minimum)',
+            'INSERT INTO product (tenant_id, name, category, unit_of_measure, unit_cost_cents, minimum_stock_quantity, sale_price_cents, code)
+             VALUES (:tenant_id, :name, :category, :unit, :cost, :minimum, :sale_price, :code)',
         );
         $statement->execute([
             'tenant_id' => $tenantId,
@@ -225,6 +268,8 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
             'unit' => 'un',
             'cost' => 100,
             'minimum' => $minimum,
+            'sale_price' => $salePriceCents,
+            'code' => $code,
         ]);
 
         return (int) $this->pdo->lastInsertId();

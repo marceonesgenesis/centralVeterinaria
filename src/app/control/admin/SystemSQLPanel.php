@@ -220,7 +220,9 @@ class SystemSQLPanel extends TWindow
             $conn = TTransaction::get();
             $result = $conn->query( $data->select );
             
-            $file = 'tmp/sql' . mt_rand(1000000000, 1999999999) . '.csv';
+            // T-63: nome imprevisível em tmp/ (o download usa o nome amigável)
+            $download_name = 'sql' . mt_rand(1000000000, 1999999999) . '.csv';
+            $file = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $download_name;
             $handler = fopen($file, 'w');
             
             $first_row = $result->fetch( PDO::FETCH_ASSOC );
@@ -237,7 +239,7 @@ class SystemSQLPanel extends TWindow
                 }
                 
                 fclose($handler);
-                TPage::openFile($file);
+                TPage::openFile($file, $download_name);
             }
             TTransaction::close();
         }

@@ -1,4 +1,10 @@
 <?php
+// Optional private configuration for shared hosting without process environment variables.
+if (is_file(__DIR__ . '/app/config/hosting-environment.php'))
+{
+    require_once __DIR__ . '/app/config/hosting-environment.php';
+}
+
 if (version_compare(PHP_VERSION, '8.4.0') == -1)
 {
     die ('The minimum version required for PHP is 8.4.0');

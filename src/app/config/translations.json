@@ -1,5 +1,45 @@
 [
   {
+    "en": "%s days",
+    "pt": "%s dias"
+  },
+  {
+    "en": "^1 days",
+    "pt": "^1 dias"
+  },
+  {
+    "en": "^1 is required",
+    "pt": "Campo obrigatório: ^1"
+  },
+  {
+    "en": "^1 must be a number",
+    "pt": "O campo ^1 deve ser um número"
+  },
+  {
+    "en": "^1 must be a positive integer",
+    "pt": "O campo ^1 deve ser um número inteiro positivo"
+  },
+  {
+    "en": "^1 must be a whole number",
+    "pt": "O campo ^1 deve ser um número inteiro"
+  },
+  {
+    "en": "^1 must have at most ^2 characters",
+    "pt": "O campo ^1 aceita no máximo ^2 caracteres"
+  },
+  {
+    "en": "A bank account named \"^1\" already exists for this unit",
+    "pt": "Já existe uma conta bancária chamada \"^1\" nesta unidade"
+  },
+  {
+    "en": "A bed with code \"^1\" already exists in this unit",
+    "pt": "Já existe um leito com o código \"^1\" nesta unidade"
+  },
+  {
+    "en": "A document template with this name already exists",
+    "pt": "Já existe um modelo de documento com este nome"
+  },
+  {
     "en": "A new seed is required in the application.ini for security reasons",
     "pt": "É necessária uma nova seed no application.ini por motivos de segurança"
   },
@@ -12,8 +52,32 @@
     "pt": "É necessário informar um produto para receber um lote de estoque"
   },
   {
+    "en": "A product named \"^1\" already exists",
+    "pt": "Já existe um produto chamado \"^1\""
+  },
+  {
+    "en": "A product with code \"^1\" already exists",
+    "pt": "Já existe um produto com o código \"^1\""
+  },
+  {
+    "en": "A service named \"^1\" already exists",
+    "pt": "Já existe um serviço chamado \"^1\""
+  },
+  {
+    "en": "A surgery room with code \"^1\" already exists in this unit",
+    "pt": "Já existe uma sala cirúrgica com o código \"^1\" nesta unidade"
+  },
+  {
+    "en": "A template named \"^1\" already exists",
+    "pt": "Já existe um modelo chamado \"^1\""
+  },
+  {
     "en": "A tutor must be informed to register a patient",
     "pt": "É necessário informar um tutor para cadastrar um paciente"
+  },
+  {
+    "en": "A tutor with this document already exists in this tenant",
+    "pt": "Já existe um tutor com este documento"
   },
   {
     "en": "A vaccine catalog item is required",
@@ -30,6 +94,10 @@
   {
     "en": "Accepted summary",
     "pt": "Resumo aceito"
+  },
+  {
+    "en": "Accepts",
+    "pt": "Aceita"
   },
   {
     "en": "Access Log",
@@ -60,12 +128,28 @@
     "pt": "contas"
   },
   {
+    "en": "Actions",
+    "pt": "Ações"
+  },
+  {
+    "en": "Activate",
+    "pt": "Ativar"
+  },
+  {
     "en": "Activate/Deactivate",
     "pt": "Ativar/Desativar"
   },
   {
     "en": "Active",
     "pt": "Ativo"
+  },
+  {
+    "en": "Active operating room",
+    "pt": "Ativa"
+  },
+  {
+    "en": "Add",
+    "pt": "Adicionar"
   },
   {
     "en": "Add another medication",
@@ -120,6 +204,42 @@
     "pt": "Administração"
   },
   {
+    "en": "Administration recorded as done",
+    "pt": "Administração registrada como feita"
+  },
+  {
+    "en": "Administration recorded as not done",
+    "pt": "Administração registrada como não feita"
+  },
+  {
+    "en": "Administrations",
+    "pt": "Administrações"
+  },
+  {
+    "en": "Admission",
+    "pt": "Admissão"
+  },
+  {
+    "en": "Admission reason",
+    "pt": "Motivo da internação"
+  },
+  {
+    "en": "Admit",
+    "pt": "Internar"
+  },
+  {
+    "en": "Admit a patient from an encounter to see it on the board.",
+    "pt": "Interne um paciente a partir do atendimento para vê-lo no quadro."
+  },
+  {
+    "en": "Admit for post-operative care",
+    "pt": "Internar no pós-operatório"
+  },
+  {
+    "en": "Admitted at",
+    "pt": "Admitido em"
+  },
+  {
     "en": "Advance status",
     "pt": "Avançar status"
   },
@@ -152,8 +272,28 @@
     "pt": "Todos os arquivos do framework estão no estado original"
   },
   {
+    "en": "All items of this checklist phase must be checked",
+    "pt": "Marque todos os itens desta fase do checklist"
+  },
+  {
+    "en": "All plans",
+    "pt": "Todos os planos"
+  },
+  {
     "en": "All statuses",
     "pt": "Todos os status"
+  },
+  {
+    "en": "All types",
+    "pt": "Todos os tipos"
+  },
+  {
+    "en": "Allergies",
+    "pt": "Alergias"
+  },
+  {
+    "en": "Allergies reviewed",
+    "pt": "Alergias revisadas"
   },
   {
     "en": "Amount",
@@ -188,6 +328,30 @@
     "pt": "Anamnese (ditado por voz disponível)"
   },
   {
+    "en": "Anesthesia",
+    "pt": "Anestesia"
+  },
+  {
+    "en": "Anesthesia equipment checked",
+    "pt": "Equipamento de anestesia verificado"
+  },
+  {
+    "en": "Anesthesia note",
+    "pt": "Registro anestésico"
+  },
+  {
+    "en": "Anesthetist",
+    "pt": "Anestesista"
+  },
+  {
+    "en": "Another active template already exists for this purpose and channel",
+    "pt": "Já existe outro modelo ativo para esta finalidade e canal"
+  },
+  {
+    "en": "Antibiotic prophylaxis reviewed",
+    "pt": "Profilaxia antibiótica revisada"
+  },
+  {
     "en": "Applied at",
     "pt": "Aplicado em"
   },
@@ -200,6 +364,10 @@
     "pt": "Aplicar desconto"
   },
   {
+    "en": "Apply template",
+    "pt": "Aplicar modelo"
+  },
+  {
     "en": "Apply vaccine",
     "pt": "Aplicar vacina"
   },
@@ -208,8 +376,32 @@
     "pt": "Agendamento"
   },
   {
+    "en": "Appointment ^1 cannot be rescheduled from status ^2",
+    "pt": "O agendamento ^1 não pode ser remarcado no status ^2"
+  },
+  {
+    "en": "Appointment confirmation",
+    "pt": "Confirmação de agendamento"
+  },
+  {
+    "en": "Appointment confirmations and return reminders are sent unless the tutor refuses; the other messages only with the tutor acceptance.",
+    "pt": "Confirmações de agendamento e lembretes de retorno são enviados, salvo se o tutor recusar (\"Não aceita\"); as demais mensagens só com o aceite do tutor (\"Aceita\")."
+  },
+  {
     "en": "Appointment scheduled successfully",
     "pt": "Agendamento realizado com sucesso"
+  },
+  {
+    "en": "Archive PDF",
+    "pt": "Arquivar PDF"
+  },
+  {
+    "en": "Assistant",
+    "pt": "Auxiliar"
+  },
+  {
+    "en": "At least one vital sign is required",
+    "pt": "Informe ao menos um parâmetro"
   },
   {
     "en": "Attach",
@@ -220,8 +412,16 @@
     "pt": "Anexo"
   },
   {
+    "en": "Attachment not found",
+    "pt": "Anexo não encontrado"
+  },
+  {
     "en": "Attachments",
     "pt": "Anexos"
+  },
+  {
+    "en": "Attempts",
+    "pt": "Tentativas"
   },
   {
     "en": "Attended",
@@ -236,6 +436,10 @@
     "pt": "Código de autenticação"
   },
   {
+    "en": "authorized",
+    "pt": "autorizado"
+  },
+  {
     "en": "Authorized by",
     "pt": "Autorizado por"
   },
@@ -244,20 +448,72 @@
     "pt": "Autorizado por (id do usuário do sistema)"
   },
   {
+    "en": "Automatic",
+    "pt": "Automática"
+  },
+  {
     "en": "Autosave active",
     "pt": "Salvamento automático ativo"
+  },
+  {
+    "en": "Available",
+    "pt": "Disponível"
+  },
+  {
+    "en": "Available placeholders",
+    "pt": "Marcadores disponíveis"
+  },
+  {
+    "en": "Available placeholders (subject and message text)",
+    "pt": "Marcadores disponíveis (assunto e texto da mensagem)"
   },
   {
     "en": "Back",
     "pt": "Voltar"
   },
   {
+    "en": "Balance",
+    "pt": "Saldo"
+  },
+  {
     "en": "Balance due",
     "pt": "Saldo devedor"
   },
   {
+    "en": "balance_cents must be an integer",
+    "pt": "O saldo deve ser um valor numérico"
+  },
+  {
+    "en": "Bank",
+    "pt": "Banco"
+  },
+  {
+    "en": "Bank account",
+    "pt": "Conta bancária"
+  },
+  {
+    "en": "Bank account must belong to the current unit",
+    "pt": "A conta bancária deve pertencer à unidade atual"
+  },
+  {
+    "en": "Bank account not found",
+    "pt": "Conta bancária não encontrada"
+  },
+  {
+    "en": "Bank accounts",
+    "pt": "Contas bancárias"
+  },
+  {
+    "en": "Bank balance",
+    "pt": "Saldo bancário"
+  },
+  {
     "en": "Bank transfer",
     "pt": "Transferência bancária"
+  },
+  {
+    "en": "bank_name must have at most 120 characters",
+    "pt": "O nome do banco deve ter no máximo 120 caracteres"
   },
   {
     "en": "Batch",
@@ -268,8 +524,60 @@
     "pt": "Lote recebido"
   },
   {
+    "en": "Bed",
+    "pt": "Leito"
+  },
+  {
+    "en": "Bed activated",
+    "pt": "Leito ativado"
+  },
+  {
+    "en": "Bed deactivated",
+    "pt": "Leito desativado"
+  },
+  {
+    "en": "bed_id must be positive",
+    "pt": "Selecione um leito"
+  },
+  {
+    "en": "Beds",
+    "pt": "Leitos"
+  },
+  {
+    "en": "Before incision",
+    "pt": "Antes da incisão"
+  },
+  {
+    "en": "Before induction",
+    "pt": "Antes da indução"
+  },
+  {
+    "en": "Before leaving the room",
+    "pt": "Antes de sair da sala"
+  },
+  {
+    "en": "Billed days",
+    "pt": "Diárias lançadas"
+  },
+  {
     "en": "Birth date",
     "pt": "Data de nascimento"
+  },
+  {
+    "en": "Board",
+    "pt": "Quadro"
+  },
+  {
+    "en": "body must be between 1 and 2000 characters",
+    "pt": "O texto da mensagem deve ter entre 1 e 2000 caracteres"
+  },
+  {
+    "en": "body must be between 1 and 20000 characters",
+    "pt": "O texto deve ter entre 1 e 20000 caracteres"
+  },
+  {
+    "en": "body must not be empty",
+    "pt": "O texto da mensagem não pode ficar vazio"
   },
   {
     "en": "Bookmarks",
@@ -280,8 +588,44 @@
     "pt": "Raça"
   },
   {
+    "en": "By phone",
+    "pt": "Por telefone"
+  },
+  {
+    "en": "Cancel surgery",
+    "pt": "Cancelar cirurgia"
+  },
+  {
+    "en": "Cancel this surgery? To reschedule, schedule a new surgery from the encounter.",
+    "pt": "Cancelar esta cirurgia? Para remarcar, agende uma nova cirurgia pelo atendimento."
+  },
+  {
     "en": "Canceled",
     "pt": "Cancelado"
+  },
+  {
+    "en": "Cancellation",
+    "pt": "Cancelamento"
+  },
+  {
+    "en": "Cancellation reason",
+    "pt": "Motivo do cancelamento"
+  },
+  {
+    "en": "cancellation_reason_text is required",
+    "pt": "Campo obrigatório: Motivo do cancelamento"
+  },
+  {
+    "en": "Cancelled",
+    "pt": "Cancelada"
+  },
+  {
+    "en": "Cancelled at",
+    "pt": "Cancelada em"
+  },
+  {
+    "en": "Cancelled surgeries",
+    "pt": "Canceladas"
   },
   {
     "en": "Capillary refill (s)",
@@ -340,16 +684,56 @@
     "pt": "Categoria"
   },
   {
+    "en": "category too long",
+    "pt": "categoria muito longa (máx. 60 caracteres)"
+  },
+  {
     "en": "Change Log",
     "pt": "Log de alterações"
+  },
+  {
+    "en": "Channel",
+    "pt": "Canal"
+  },
+  {
+    "en": "Check in this appointment?",
+    "pt": "Fazer check-in deste agendamento?"
   },
   {
     "en": "Check the owner of the log file. He must be the same as the web user (usually www-data, www, etc)",
     "pt": "Verifique o proprietário do arquivo de log. Ele deve ser o mesmo do usuário web (geralmente www-data, www, etc)"
   },
   {
+    "en": "Check-in",
+    "pt": "Check-in"
+  },
+  {
+    "en": "Checklist",
+    "pt": "Checklist"
+  },
+  {
+    "en": "Checklist phase confirmed",
+    "pt": "Fase do checklist confirmada"
+  },
+  {
+    "en": "Checklist phases",
+    "pt": "Fases do checklist"
+  },
+  {
+    "en": "Choose a CSV file to import",
+    "pt": "Escolha um arquivo CSV para importar"
+  },
+  {
     "en": "Choose a file to attach",
     "pt": "Escolha um arquivo para anexar"
+  },
+  {
+    "en": "Circulating nurse",
+    "pt": "Circulante"
+  },
+  {
+    "en": "City/State",
+    "pt": "Cidade/UF"
   },
   {
     "en": "Class",
@@ -370,6 +754,10 @@
   {
     "en": "Click here for more information",
     "pt": "Clique aqui para mais informações"
+  },
+  {
+    "en": "Clinic",
+    "pt": "Clínica"
   },
   {
     "en": "Clinical catalogs",
@@ -416,6 +804,14 @@
     "pt": "Saldo de fechamento"
   },
   {
+    "en": "Code",
+    "pt": "Código"
+  },
+  {
+    "en": "code must be between 1 and 30 characters",
+    "pt": "O código deve ter entre 1 e 30 caracteres"
+  },
+  {
     "en": "Color",
     "pt": "Cor"
   },
@@ -436,12 +832,116 @@
     "pt": "Comentários"
   },
   {
+    "en": "Communication",
+    "pt": "Comunicação"
+  },
+  {
+    "en": "Communication consent unavailable",
+    "pt": "Consentimento de comunicação indisponível"
+  },
+  {
+    "en": "Communication preferences",
+    "pt": "Preferências de comunicação"
+  },
+  {
+    "en": "Communication preferences saved",
+    "pt": "Preferências de comunicação salvas"
+  },
+  {
+    "en": "Complete surgery",
+    "pt": "Concluir cirurgia"
+  },
+  {
+    "en": "Complete this surgery? The procedure and the recorded materials will be billed to the encounter account and the materials consumed from stock.",
+    "pt": "Concluir esta cirurgia? O procedimento e os materiais registrados serão lançados na conta do atendimento e os materiais baixados do estoque."
+  },
+  {
+    "en": "Completed",
+    "pt": "Concluída"
+  },
+  {
+    "en": "Completed at",
+    "pt": "Concluída em"
+  },
+  {
+    "en": "Completed surgeries",
+    "pt": "Concluídas"
+  },
+  {
+    "en": "Completion",
+    "pt": "Conclusão"
+  },
+  {
+    "en": "Complication",
+    "pt": "Intercorrência"
+  },
+  {
+    "en": "Compose message",
+    "pt": "Nova mensagem"
+  },
+  {
     "en": "Configure two-factor authentication",
     "pt": "Configurar autenticação de dois fatores"
   },
   {
+    "en": "Confirm",
+    "pt": "Confirmar"
+  },
+  {
+    "en": "Confirm phase",
+    "pt": "Confirmar fase"
+  },
+  {
+    "en": "Confirm that this WhatsApp message was sent?",
+    "pt": "Confirmar que esta mensagem de WhatsApp foi enviada?"
+  },
+  {
     "en": "Confirmed",
     "pt": "Confirmado"
+  },
+  {
+    "en": "Confirmed at",
+    "pt": "Confirmado em"
+  },
+  {
+    "en": "Consent",
+    "pt": "Consentimento"
+  },
+  {
+    "en": "Consent confirmed",
+    "pt": "Consentimento confirmado"
+  },
+  {
+    "en": "Consent PDF",
+    "pt": "PDF do termo"
+  },
+  {
+    "en": "Consent recorded",
+    "pt": "Consentimento registrado"
+  },
+  {
+    "en": "Consent recorded by ^1 on ^2",
+    "pt": "Consentimento registrado por ^1 em ^2"
+  },
+  {
+    "en": "Consent recorded successfully",
+    "pt": "Consentimento registrado com sucesso"
+  },
+  {
+    "en": "Consent source",
+    "pt": "Origem do consentimento"
+  },
+  {
+    "en": "Consent text",
+    "pt": "Texto do consentimento"
+  },
+  {
+    "en": "consent_signer_name is required",
+    "pt": "Campo obrigatório: Signatário"
+  },
+  {
+    "en": "consent_text is required",
+    "pt": "Campo obrigatório: Texto do consentimento"
   },
   {
     "en": "Contacts",
@@ -456,6 +956,30 @@
     "pt": "Controlador"
   },
   {
+    "en": "copy",
+    "pt": "cópia"
+  },
+  {
+    "en": "Could not allocate document version",
+    "pt": "Não foi possível reservar a versão do documento. Tente novamente"
+  },
+  {
+    "en": "Could not complete the operation. Please try again",
+    "pt": "Não foi possível concluir a operação. Tente novamente"
+  },
+  {
+    "en": "Could not connect to the e-mail server",
+    "pt": "Não foi possível conectar ao servidor de e-mail"
+  },
+  {
+    "en": "Could not export the leads. Close this tab and try again.",
+    "pt": "Não foi possível exportar os leads. Feche esta aba e tente de novo."
+  },
+  {
+    "en": "Could not import the file. No service was created",
+    "pt": "Não foi possível importar o arquivo. Nenhum serviço foi criado"
+  },
+  {
     "en": "Could not load the exam catalog",
     "pt": "Não foi possível carregar o catálogo de exames"
   },
@@ -466,6 +990,10 @@
   {
     "en": "Could not load the user context",
     "pt": "Não foi possível carregar o contexto do usuário"
+  },
+  {
+    "en": "Could not switch unit",
+    "pt": "Não foi possível trocar de unidade"
   },
   {
     "en": "Count",
@@ -496,12 +1024,24 @@
     "pt": "Cartão de crédito"
   },
   {
+    "en": "Critical steps reviewed",
+    "pt": "Etapas críticas revisadas"
+  },
+  {
     "en": "CRM / Communication",
     "pt": "CRM / Comunicação"
   },
   {
+    "en": "CSV file",
+    "pt": "Arquivo CSV"
+  },
+  {
     "en": "Current Frequency",
     "pt": "Frequência atual"
+  },
+  {
+    "en": "Current status",
+    "pt": "Status atual"
   },
   {
     "en": "Current stock",
@@ -510,6 +1050,18 @@
   {
     "en": "Custom code",
     "pt": "Código customizado"
+  },
+  {
+    "en": "Custom message",
+    "pt": "Mensagem personalizada"
+  },
+  {
+    "en": "Daily rate",
+    "pt": "Diária"
+  },
+  {
+    "en": "daily_rate_cents cannot be negative",
+    "pt": "A diária não pode ser negativa"
   },
   {
     "en": "Data",
@@ -532,16 +1084,36 @@
     "pt": "Data/hora e id do serviço são obrigatórios para agendar um retorno"
   },
   {
+    "en": "Deactivate",
+    "pt": "Desativar"
+  },
+  {
     "en": "Debit card",
     "pt": "Cartão de débito"
+  },
+  {
+    "en": "Default text",
+    "pt": "Texto padrão"
   },
   {
     "en": "Delete",
     "pt": "Excluir"
   },
   {
+    "en": "Delete the service \"^1\"?",
+    "pt": "Excluir o serviço \"^1\"?"
+  },
+  {
+    "en": "Delivery provider error",
+    "pt": "Erro no provedor de envio"
+  },
+  {
     "en": "Description",
     "pt": "Descrição"
+  },
+  {
+    "en": "Destination bed",
+    "pt": "Leito de destino"
   },
   {
     "en": "Details",
@@ -562,6 +1134,38 @@
   {
     "en": "Disable two-factor authentication",
     "pt": "Desativar autenticação de dois fatores"
+  },
+  {
+    "en": "Discard",
+    "pt": "Descartar"
+  },
+  {
+    "en": "Discard this message? It will not be sent.",
+    "pt": "Descartar esta mensagem? Ela não será enviada."
+  },
+  {
+    "en": "Discarded by staff",
+    "pt": "Descartada pela equipe"
+  },
+  {
+    "en": "Discharge",
+    "pt": "Dar alta"
+  },
+  {
+    "en": "Discharge summary",
+    "pt": "Resumo da alta"
+  },
+  {
+    "en": "Discharge this patient? The stay and the performed administrations will be billed to the encounter account and their products consumed from stock.",
+    "pt": "Dar alta a este paciente? As diárias e as administrações feitas serão lançadas na conta do atendimento e os produtos baixados do estoque."
+  },
+  {
+    "en": "Discharged",
+    "pt": "Alta"
+  },
+  {
+    "en": "Discharged at",
+    "pt": "Alta em"
   },
   {
     "en": "Discount",
@@ -592,12 +1196,76 @@
     "pt": "Documento (CPF/CNPJ)"
   },
   {
+    "en": "Document ^1 can no longer be retried",
+    "pt": "O documento ^1 não pode mais ser gerado novamente"
+  },
+  {
     "en": "Document attached successfully",
     "pt": "Documento anexado com sucesso"
   },
   {
+    "en": "Document body must be between 1 and 20000 characters",
+    "pt": "O texto do documento deve ter entre 1 e 20000 caracteres"
+  },
+  {
+    "en": "Document not found",
+    "pt": "Documento não encontrado"
+  },
+  {
+    "en": "Document ready",
+    "pt": "Documento pronto"
+  },
+  {
+    "en": "Document requested. It will be available in the list in a few moments.",
+    "pt": "Documento solicitado. Ele estará disponível na lista em instantes."
+  },
+  {
+    "en": "Document requeued",
+    "pt": "Documento reenfileirado"
+  },
+  {
+    "en": "Document source not found",
+    "pt": "Origem do documento não encontrada"
+  },
+  {
+    "en": "Document template is not available",
+    "pt": "O modelo de documento não está disponível"
+  },
+  {
+    "en": "Document templates",
+    "pt": "Modelos de documento"
+  },
+  {
+    "en": "Document text has unresolved placeholders",
+    "pt": "O texto do documento tem marcadores não preenchidos"
+  },
+  {
+    "en": "Document type",
+    "pt": "Tipo de documento"
+  },
+  {
+    "en": "Documents",
+    "pt": "Documentos"
+  },
+  {
+    "en": "Does not accept",
+    "pt": "Não aceita"
+  },
+  {
     "en": "Dog",
     "pt": "Cachorro"
+  },
+  {
+    "en": "Done",
+    "pt": "Feito"
+  },
+  {
+    "en": "Done in shift",
+    "pt": "Feitas no turno"
+  },
+  {
+    "en": "Done late",
+    "pt": "Feita com atraso"
   },
   {
     "en": "Dose",
@@ -640,8 +1308,28 @@
     "pt": "Rascunho"
   },
   {
+    "en": "Due",
+    "pt": "Prazo"
+  },
+  {
     "en": "Due date",
     "pt": "Data de vencimento"
+  },
+  {
+    "en": "Due now",
+    "pt": "No horário"
+  },
+  {
+    "en": "Duplicate",
+    "pt": "Duplicar"
+  },
+  {
+    "en": "Duplicate the service \"^1\"?",
+    "pt": "Duplicar o serviço \"^1\"?"
+  },
+  {
+    "en": "duplicated name",
+    "pt": "nome repetido"
   },
   {
     "en": "Duration",
@@ -656,12 +1344,64 @@
     "pt": "Duração (minutos)"
   },
   {
+    "en": "duration_minutes must be between 15 and 1440",
+    "pt": "A duração deve ficar entre 15 e 1440 minutos"
+  },
+  {
+    "en": "E-mail",
+    "pt": "E-mail"
+  },
+  {
+    "en": "E-mail on file",
+    "pt": "E-mail cadastrado"
+  },
+  {
+    "en": "E-mail server authentication failed",
+    "pt": "Falha na autenticação do servidor de e-mail"
+  },
+  {
+    "en": "E-mail server error",
+    "pt": "Erro no servidor de e-mail"
+  },
+  {
+    "en": "e.g. 12,34",
+    "pt": "ex.: 12,34"
+  },
+  {
+    "en": "e.g. 4,5",
+    "pt": "ex.: 4,5"
+  },
+  {
     "en": "Each five minutes",
     "pt": "A cada cinco minutos"
   },
   {
     "en": "Edit",
     "pt": "Editar"
+  },
+  {
+    "en": "Edit appointment",
+    "pt": "Editar agendamento"
+  },
+  {
+    "en": "Edit bed",
+    "pt": "Editar leito"
+  },
+  {
+    "en": "Edit document template",
+    "pt": "Editar modelo de documento"
+  },
+  {
+    "en": "Edit message template",
+    "pt": "Editar modelo de mensagem"
+  },
+  {
+    "en": "Edit operating room",
+    "pt": "Editar sala"
+  },
+  {
+    "en": "Edit patient",
+    "pt": "Editar paciente"
   },
   {
     "en": "Elapsed time",
@@ -678,6 +1418,22 @@
   {
     "en": "Encounter",
     "pt": "Atendimento"
+  },
+  {
+    "en": "Encounter ^1 is already finished",
+    "pt": "O atendimento ^1 já foi finalizado"
+  },
+  {
+    "en": "Encounter ^1 is already paused",
+    "pt": "O atendimento ^1 já está pausado"
+  },
+  {
+    "en": "Encounter ^1 is finished and cannot be paused",
+    "pt": "O atendimento ^1 está finalizado e não pode ser pausado"
+  },
+  {
+    "en": "Encounter ^1 is not paused",
+    "pt": "O atendimento ^1 não está pausado"
   },
   {
     "en": "Encounter account",
@@ -706,6 +1462,14 @@
   {
     "en": "End date",
     "pt": "Data final"
+  },
+  {
+    "en": "Ends at",
+    "pt": "Fim"
+  },
+  {
+    "en": "ends_at must be after starts_at",
+    "pt": "O fim deve ser depois do início"
   },
   {
     "en": "Enter the 6-digit code from your authenticator app",
@@ -738,6 +1502,34 @@
   {
     "en": "Estimated duration",
     "pt": "Duração estimada"
+  },
+  {
+    "en": "Event recorded successfully",
+    "pt": "Evento registrado com sucesso"
+  },
+  {
+    "en": "Events",
+    "pt": "Eventos"
+  },
+  {
+    "en": "Every ^1 h",
+    "pt": "A cada ^1 h"
+  },
+  {
+    "en": "Every team member must be an active user of this tenant",
+    "pt": "Todos os membros da equipe devem ser usuários ativos da clínica"
+  },
+  {
+    "en": "Evolution",
+    "pt": "Evolução"
+  },
+  {
+    "en": "Evolution and vital signs",
+    "pt": "Evolução e parâmetros"
+  },
+  {
+    "en": "Evolution recorded successfully",
+    "pt": "Evolução registrada com sucesso"
   },
   {
     "en": "Exam",
@@ -776,6 +1568,14 @@
     "pt": "Resultados de exames"
   },
   {
+    "en": "Exam results to record",
+    "pt": "Resultados de exame a lançar"
+  },
+  {
+    "en": "Exam results to review",
+    "pt": "Resultados de exame a revisar"
+  },
+  {
     "en": "Exams",
     "pt": "Exames"
   },
@@ -790,6 +1590,18 @@
   {
     "en": "Execution trace",
     "pt": "Rastro de execução"
+  },
+  {
+    "en": "Expected discharge",
+    "pt": "Previsão de alta"
+  },
+  {
+    "en": "Expected discharge date",
+    "pt": "Previsão de alta"
+  },
+  {
+    "en": "expected_discharge_date must be a Y-m-d date",
+    "pt": "A previsão de alta deve ser uma data válida"
   },
   {
     "en": "Expense",
@@ -808,6 +1620,34 @@
     "pt": "Exportar"
   },
   {
+    "en": "Export CSV",
+    "pt": "Exportar CSV"
+  },
+  {
+    "en": "Failed",
+    "pt": "Falhou"
+  },
+  {
+    "en": "Failed at",
+    "pt": "Falhou em"
+  },
+  {
+    "en": "Failed documents",
+    "pt": "Documentos com falha"
+  },
+  {
+    "en": "Failed messages",
+    "pt": "Mensagens com falha"
+  },
+  {
+    "en": "Fasting confirmed",
+    "pt": "Jejum confirmado"
+  },
+  {
+    "en": "Feeding",
+    "pt": "Alimentação"
+  },
+  {
     "en": "Female",
     "pt": "Fêmea"
   },
@@ -818,6 +1658,10 @@
   {
     "en": "Filesystem",
     "pt": "Sistema de arquivos"
+  },
+  {
+    "en": "Fill in ^1 on every item",
+    "pt": "Preencha o campo ^1 em todos os itens"
   },
   {
     "en": "Fill in all item fields before adding",
@@ -842,6 +1686,10 @@
   {
     "en": "Financial entries",
     "pt": "Lançamentos financeiros"
+  },
+  {
+    "en": "Financial entries cannot be edited. Register a new entry to correct it",
+    "pt": "Lançamentos não podem ser editados. Registre um novo lançamento para corrigir"
   },
   {
     "en": "Financial entry",
@@ -876,6 +1724,14 @@
     "pt": "Retorno"
   },
   {
+    "en": "Follow-up reminder",
+    "pt": "Lembrete de retorno"
+  },
+  {
+    "en": "Follow-up scheduled",
+    "pt": "Retorno agendado"
+  },
+  {
     "en": "Follow-up scheduled successfully",
     "pt": "Retorno agendado com sucesso"
   },
@@ -892,6 +1748,14 @@
     "pt": "Frequência"
   },
   {
+    "en": "Frequency (hours)",
+    "pt": "Frequência (horas)"
+  },
+  {
+    "en": "frequency_hours must be between 1 and 168",
+    "pt": "A frequência deve ficar entre 1 e 168 horas"
+  },
+  {
     "en": "Friday",
     "pt": "Sexta-feira"
   },
@@ -900,12 +1764,20 @@
     "pt": "De"
   },
   {
+    "en": "from_bed_id and to_bed_id are required for a transfer",
+    "pt": "Informe o leito de origem e o de destino da transferência"
+  },
+  {
     "en": "Front page",
     "pt": "Página inicial"
   },
   {
     "en": "Full name",
     "pt": "Nome completo"
+  },
+  {
+    "en": "full_name is required",
+    "pt": "Informe o nome completo"
   },
   {
     "en": "Function",
@@ -918,6 +1790,14 @@
   {
     "en": "Generate PDF",
     "pt": "Gerar PDF"
+  },
+  {
+    "en": "Generate report",
+    "pt": "Gerar relatório"
+  },
+  {
+    "en": "Generated document has no id yet",
+    "pt": "O documento ainda não foi salvo"
   },
   {
     "en": "Global search",
@@ -944,20 +1824,60 @@
     "pt": "Frequência cardíaca (bpm)"
   },
   {
+    "en": "heart_rate_bpm cannot be negative",
+    "pt": "A frequência cardíaca não pode ser negativa"
+  },
+  {
     "en": "Help",
     "pt": "Ajuda"
+  },
+  {
+    "en": "High",
+    "pt": "Alta"
   },
   {
     "en": "History",
     "pt": "Histórico"
   },
   {
+    "en": "Hospitalization",
+    "pt": "Internação"
+  },
+  {
+    "en": "Hospitalization admission",
+    "pt": "Admissão de internação"
+  },
+  {
+    "en": "Hospitalization order",
+    "pt": "Prescrição da internação"
+  },
+  {
+    "en": "Hospitalize",
+    "pt": "Internar"
+  },
+  {
+    "en": "Hospitalized",
+    "pt": "Em internação"
+  },
+  {
     "en": "Hour",
     "pt": "Hora"
   },
   {
+    "en": "HR",
+    "pt": "FC"
+  },
+  {
     "en": "I have read and agree to the terms of use and privacy policy",
     "pt": "Li e concordo com os termos de uso e política de privacidade"
+  },
+  {
+    "en": "Identifiers must be positive integers",
+    "pt": "Os identificadores devem ser números inteiros positivos"
+  },
+  {
+    "en": "IM",
+    "pt": "IM"
   },
   {
     "en": "Impersonated",
@@ -972,20 +1892,48 @@
     "pt": "Personificação"
   },
   {
+    "en": "Import",
+    "pt": "Importar"
+  },
+  {
+    "en": "Import services",
+    "pt": "Importar serviços"
+  },
+  {
     "en": "Import SQL",
     "pt": "Importar SQL"
+  },
+  {
+    "en": "In person",
+    "pt": "Presencial"
+  },
+  {
+    "en": "In pre-op",
+    "pt": "Pré-operatório"
   },
   {
     "en": "In progress",
     "pt": "Em andamento"
   },
   {
+    "en": "In queue",
+    "pt": "Na fila"
+  },
+  {
     "en": "In service",
     "pt": "Em atendimento"
   },
   {
+    "en": "In writing",
+    "pt": "Por escrito"
+  },
+  {
     "en": "Inactive",
     "pt": "Inativo"
+  },
+  {
+    "en": "Inactive operating room",
+    "pt": "Inativa"
   },
   {
     "en": "Inactive user",
@@ -1008,6 +1956,10 @@
     "pt": "Informe quem autorizou o desconto"
   },
   {
+    "en": "Inhalation",
+    "pt": "Inalatória"
+  },
+  {
     "en": "Inline actions",
     "pt": "Ações em linha"
   },
@@ -1028,8 +1980,16 @@
     "pt": "Inserir dados de exemplo"
   },
   {
+    "en": "Instrument count correct",
+    "pt": "Contagem de instrumentais correta"
+  },
+  {
     "en": "Insufficient stock to execute this procedure",
     "pt": "Estoque insuficiente para executar este procedimento"
+  },
+  {
+    "en": "Insufficient stock: ^1 unit(s) missing",
+    "pt": "Estoque insuficiente: faltam ^1 unidade(s)"
   },
   {
     "en": "Interval from previous dose",
@@ -1040,12 +2000,36 @@
     "pt": "Intervalo desde a dose anterior (dias)"
   },
   {
+    "en": "Intra-op",
+    "pt": "Transoperatório"
+  },
+  {
+    "en": "Intra-operative note",
+    "pt": "Registro intraoperatório"
+  },
+  {
+    "en": "Intramuscular",
+    "pt": "Intramuscular"
+  },
+  {
+    "en": "Intravenous",
+    "pt": "Intravenosa"
+  },
+  {
     "en": "Invalid access",
     "pt": "Acesso inválido"
   },
   {
     "en": "Invalid account",
     "pt": "Conta inválida"
+  },
+  {
+    "en": "Invalid action",
+    "pt": "Ação inválida"
+  },
+  {
+    "en": "Invalid amount",
+    "pt": "Valor inválido"
   },
   {
     "en": "Invalid captcha",
@@ -1056,6 +2040,46 @@
     "pt": "Comando inválido"
   },
   {
+    "en": "Invalid communication channel",
+    "pt": "Canal de comunicação inválido"
+  },
+  {
+    "en": "Invalid communication preference status",
+    "pt": "Status de preferência de comunicação inválido"
+  },
+  {
+    "en": "Invalid consent source",
+    "pt": "Origem do consentimento inválida"
+  },
+  {
+    "en": "Invalid date and time",
+    "pt": "Data e hora inválidas"
+  },
+  {
+    "en": "Invalid deep-link class",
+    "pt": "Destino da pendência inválido"
+  },
+  {
+    "en": "Invalid deep-link parameter",
+    "pt": "Parâmetro do link da pendência inválido"
+  },
+  {
+    "en": "Invalid deep-link parameter key",
+    "pt": "Parâmetro do link da pendência inválido"
+  },
+  {
+    "en": "Invalid document request",
+    "pt": "Pedido de documento inválido"
+  },
+  {
+    "en": "Invalid document template status",
+    "pt": "Status do modelo de documento inválido"
+  },
+  {
+    "en": "invalid duration_minutes",
+    "pt": "duração inválida"
+  },
+  {
     "en": "Invalid encounter id",
     "pt": "Id de atendimento inválido"
   },
@@ -1064,16 +2088,56 @@
     "pt": "Id de solicitação de exame inválido"
   },
   {
+    "en": "Invalid file",
+    "pt": "Arquivo inválido"
+  },
+  {
     "en": "Invalid inline action",
     "pt": "Ação em linha inválida"
+  },
+  {
+    "en": "Invalid legal basis",
+    "pt": "Base legal inválida"
+  },
+  {
+    "en": "Invalid message",
+    "pt": "Mensagem inválida"
+  },
+  {
+    "en": "Invalid message purpose",
+    "pt": "Finalidade da mensagem inválida"
+  },
+  {
+    "en": "Invalid message template status",
+    "pt": "Status do modelo de mensagem inválido"
   },
   {
     "en": "Invalid or expired request. Reload the page",
     "pt": "Requisição inválida ou expirada. Recarregue a página"
   },
   {
+    "en": "Invalid pending item priority",
+    "pt": "Prioridade de pendência inválida"
+  },
+  {
+    "en": "Invalid pending item type",
+    "pt": "Tipo de pendência inválido"
+  },
+  {
+    "en": "Invalid phone number for WhatsApp",
+    "pt": "Telefone inválido para WhatsApp"
+  },
+  {
     "en": "Invalid prescription",
     "pt": "Prescrição inválida"
+  },
+  {
+    "en": "Invalid prescription type",
+    "pt": "Tipo de prescrição inválido"
+  },
+  {
+    "en": "invalid price",
+    "pt": "preço inválido"
   },
   {
     "en": "Invalid queue entry id",
@@ -1084,6 +2148,10 @@
     "pt": "Conta a receber inválida"
   },
   {
+    "en": "Invalid route",
+    "pt": "Via inválida"
+  },
+  {
     "en": "Invalid sale",
     "pt": "Venda inválida"
   },
@@ -1092,20 +2160,48 @@
     "pt": "Seleção inválida"
   },
   {
+    "en": "Invalid surgery",
+    "pt": "Cirurgia inválida"
+  },
+  {
     "en": "Issued",
     "pt": "Emitida"
+  },
+  {
+    "en": "Item",
+    "pt": "Item"
   },
   {
     "en": "Items",
     "pt": "Itens"
   },
   {
+    "en": "Items added to the account",
+    "pt": "Itens lançados na conta"
+  },
+  {
+    "en": "items must be a non-empty list",
+    "pt": "Informe ao menos um item"
+  },
+  {
     "en": "Items sold",
     "pt": "Itens vendidos"
   },
   {
+    "en": "IV",
+    "pt": "IV"
+  },
+  {
+    "en": "Kind",
+    "pt": "Tipo"
+  },
+  {
     "en": "Label",
     "pt": "Rótulo"
+  },
+  {
+    "en": "Landing leads",
+    "pt": "Leads da landing"
   },
   {
     "en": "Language",
@@ -1124,8 +2220,24 @@
     "pt": "Atrasado"
   },
   {
+    "en": "leads",
+    "pt": "leads"
+  },
+  {
+    "en": "Legal basis",
+    "pt": "Base legal"
+  },
+  {
+    "en": "Legitimate interest",
+    "pt": "Legítimo interesse"
+  },
+  {
     "en": "Like",
     "pt": "Curtir"
+  },
+  {
+    "en": "Line ^1",
+    "pt": "Linha ^1"
   },
   {
     "en": "Links",
@@ -1142,6 +2254,10 @@
   {
     "en": "Lot",
     "pt": "Lote"
+  },
+  {
+    "en": "Low",
+    "pt": "Baixa"
   },
   {
     "en": "Low or out of stock",
@@ -1168,6 +2284,18 @@
     "pt": "Macho"
   },
   {
+    "en": "Manage beds",
+    "pt": "Gerenciar leitos"
+  },
+  {
+    "en": "Manage surgery rooms",
+    "pt": "Gerenciar salas cirúrgicas"
+  },
+  {
+    "en": "Manual",
+    "pt": "Manual"
+  },
+  {
     "en": "Manual item added successfully",
     "pt": "Item manual adicionado com sucesso"
   },
@@ -1176,8 +2304,44 @@
     "pt": "Fabricante"
   },
   {
+    "en": "Mark as sent",
+    "pt": "Marcar como enviado"
+  },
+  {
+    "en": "Material",
+    "pt": "Material"
+  },
+  {
+    "en": "Material added",
+    "pt": "Material adicionado"
+  },
+  {
+    "en": "Material removed",
+    "pt": "Material removido"
+  },
+  {
+    "en": "Materials",
+    "pt": "Materiais"
+  },
+  {
+    "en": "Materials can only be changed while the surgery is in progress",
+    "pt": "Os materiais só podem ser alterados com a cirurgia em andamento"
+  },
+  {
+    "en": "Materials used",
+    "pt": "Materiais utilizados"
+  },
+  {
+    "en": "Medical certificate",
+    "pt": "Atestado"
+  },
+  {
     "en": "Medication",
     "pt": "Medicamento"
+  },
+  {
+    "en": "Medication administrations",
+    "pt": "Administrações de medicamento"
   },
   {
     "en": "Menu path",
@@ -1188,12 +2352,56 @@
     "pt": "Mensagem"
   },
   {
+    "en": "Message details",
+    "pt": "Detalhes da mensagem"
+  },
+  {
+    "en": "Message discarded",
+    "pt": "Mensagem descartada"
+  },
+  {
+    "en": "Message history",
+    "pt": "Histórico de mensagens"
+  },
+  {
+    "en": "Message marked as sent",
+    "pt": "Mensagem marcada como enviada"
+  },
+  {
+    "en": "Message registered",
+    "pt": "Mensagem registrada"
+  },
+  {
+    "en": "Message requeued",
+    "pt": "Mensagem reenfileirada"
+  },
+  {
     "en": "Message sent successfully",
     "pt": "Mensagem enviada com sucesso"
   },
   {
+    "en": "Message template activated",
+    "pt": "Modelo de mensagem ativado"
+  },
+  {
+    "en": "Message template deactivated",
+    "pt": "Modelo de mensagem desativado"
+  },
+  {
+    "en": "Message templates",
+    "pt": "Modelos de mensagem"
+  },
+  {
+    "en": "Message text",
+    "pt": "Texto da mensagem"
+  },
+  {
     "en": "Messages",
     "pt": "Mensagens"
+  },
+  {
+    "en": "Messages sent to tutors appear here.",
+    "pt": "As mensagens enviadas aos tutores aparecem aqui."
   },
   {
     "en": "Method",
@@ -1228,6 +2436,10 @@
     "pt": "Dia do mês"
   },
   {
+    "en": "Monthly price",
+    "pt": "Preço mensal"
+  },
+  {
     "en": "More",
     "pt": "Mais"
   },
@@ -1256,6 +2468,26 @@
     "pt": "Nome"
   },
   {
+    "en": "name is required",
+    "pt": "nome obrigatório"
+  },
+  {
+    "en": "name must be between 1 and 120 characters",
+    "pt": "O nome deve ter entre 1 e 120 caracteres"
+  },
+  {
+    "en": "name must have at most 120 characters",
+    "pt": "O nome deve ter no máximo 120 caracteres"
+  },
+  {
+    "en": "Name must not contain < or >",
+    "pt": "O nome não pode conter < ou >"
+  },
+  {
+    "en": "name too long",
+    "pt": "nome muito longo (máx. 190 caracteres)"
+  },
+  {
     "en": "Network devices",
     "pt": "Dispositivos de rede"
   },
@@ -1268,6 +2500,18 @@
     "pt": "Novo agendamento"
   },
   {
+    "en": "New bed",
+    "pt": "Novo leito"
+  },
+  {
+    "en": "New document",
+    "pt": "Novo documento"
+  },
+  {
+    "en": "New document template",
+    "pt": "Novo modelo de documento"
+  },
+  {
     "en": "New exam catalog entry",
     "pt": "Novo item do catálogo de exames"
   },
@@ -1278,6 +2522,14 @@
   {
     "en": "New folder",
     "pt": "Nova pasta"
+  },
+  {
+    "en": "New message template",
+    "pt": "Novo modelo de mensagem"
+  },
+  {
+    "en": "New operating room",
+    "pt": "Nova sala"
   },
   {
     "en": "New patient",
@@ -1304,6 +2556,10 @@
     "pt": "Novo serviço"
   },
   {
+    "en": "New template",
+    "pt": "Novo modelo"
+  },
+  {
     "en": "New tutor",
     "pt": "Novo tutor"
   },
@@ -1324,6 +2580,14 @@
     "pt": "Próximo"
   },
   {
+    "en": "Next 2 h",
+    "pt": "Próximas 2 h"
+  },
+  {
+    "en": "Next day",
+    "pt": "Próximo dia"
+  },
+  {
     "en": "Next dose",
     "pt": "Próxima dose"
   },
@@ -1332,16 +2596,52 @@
     "pt": "Não"
   },
   {
+    "en": "No actions available for this message.",
+    "pt": "Nenhuma ação disponível para esta mensagem."
+  },
+  {
+    "en": "No administrations scheduled for today or later.",
+    "pt": "Nenhuma administração agendada para hoje ou depois."
+  },
+  {
     "en": "No attachments yet",
     "pt": "Nenhum anexo ainda"
+  },
+  {
+    "en": "No bank account",
+    "pt": "Nenhuma conta bancária"
+  },
+  {
+    "en": "No beds registered in this unit",
+    "pt": "Nenhum leito cadastrado nesta unidade"
+  },
+  {
+    "en": "No consent recorded yet.",
+    "pt": "Nenhum consentimento registrado ainda."
+  },
+  {
+    "en": "No document templates registered",
+    "pt": "Nenhum modelo de documento cadastrado"
+  },
+  {
+    "en": "No documents yet",
+    "pt": "Nenhum documento ainda"
   },
   {
     "en": "No entries in this period",
     "pt": "Nenhum lançamento no período"
   },
   {
+    "en": "No events recorded yet.",
+    "pt": "Nenhum evento registrado ainda."
+  },
+  {
     "en": "No events yet",
     "pt": "Nenhum evento ainda"
+  },
+  {
+    "en": "No hospitalized patients in this unit",
+    "pt": "Nenhum paciente internado nesta unidade"
   },
   {
     "en": "No items yet",
@@ -1352,16 +2652,52 @@
     "pt": "Nenhum produto com estoque baixo"
   },
   {
+    "en": "No materials recorded for this surgery",
+    "pt": "Nenhum material registrado para esta cirurgia"
+  },
+  {
+    "en": "No materials recorded yet.",
+    "pt": "Nenhum material registrado ainda."
+  },
+  {
+    "en": "No message templates registered",
+    "pt": "Nenhum modelo de mensagem cadastrado"
+  },
+  {
+    "en": "No messages found",
+    "pt": "Nenhuma mensagem encontrada"
+  },
+  {
     "en": "No open cash register",
     "pt": "Nenhum caixa aberto"
+  },
+  {
+    "en": "No operating rooms registered in this unit",
+    "pt": "Nenhuma sala cadastrada nesta unidade"
   },
   {
     "en": "No payments recorded in this session yet",
     "pt": "Nenhum pagamento registrado nesta sessão ainda"
   },
   {
+    "en": "No pending items",
+    "pt": "Nenhuma pendência"
+  },
+  {
+    "en": "No preference was changed",
+    "pt": "Nenhuma preferência foi alterada"
+  },
+  {
+    "en": "No prescriptions yet.",
+    "pt": "Nenhuma prescrição ainda."
+  },
+  {
     "en": "No price available for this encounter yet",
     "pt": "Nenhum preço disponível para este atendimento ainda"
+  },
+  {
+    "en": "No products found",
+    "pt": "Nenhum produto encontrado"
   },
   {
     "en": "No professionals found for the authenticated tenant",
@@ -1392,6 +2728,14 @@
     "pt": "Nenhum e-mail de suporte configurado"
   },
   {
+    "en": "No surgeries on this day",
+    "pt": "Nenhuma cirurgia neste dia"
+  },
+  {
+    "en": "No team members recorded.",
+    "pt": "Nenhum membro da equipe registrado."
+  },
+  {
     "en": "No-show",
     "pt": "Faltou"
   },
@@ -1400,8 +2744,20 @@
     "pt": "Normal"
   },
   {
+    "en": "not authorized",
+    "pt": "não autorizado"
+  },
+  {
+    "en": "Not done",
+    "pt": "Não feito"
+  },
+  {
     "en": "not found",
     "pt": "não encontrado"
+  },
+  {
+    "en": "Not recorded",
+    "pt": "Não registrado"
   },
   {
     "en": "Not scheduled",
@@ -1412,12 +2768,24 @@
     "pt": "Observações"
   },
   {
+    "en": "Nothing here",
+    "pt": "Nada aqui"
+  },
+  {
     "en": "Notification",
     "pt": "Notificação"
   },
   {
     "en": "Notifications",
     "pt": "Notificações"
+  },
+  {
+    "en": "Notify the tutor when ready",
+    "pt": "Avisar o tutor quando estiver pronto"
+  },
+  {
+    "en": "Occupied",
+    "pt": "Ocupado"
   },
   {
     "en": "Old value",
@@ -1440,8 +2808,20 @@
     "pt": "Uma vez por hora"
   },
   {
+    "en": "Online",
+    "pt": "Online"
+  },
+  {
+    "en": "Only mine",
+    "pt": "Só meus"
+  },
+  {
     "en": "Only open payables can be edited",
     "pt": "Só contas em aberto podem ser editadas"
+  },
+  {
+    "en": "Only scheduled or confirmed appointments can be checked in",
+    "pt": "Só agendamentos marcados ou confirmados podem fazer check-in"
   },
   {
     "en": "Open",
@@ -1452,8 +2832,24 @@
     "pt": "Em aberto"
   },
   {
+    "en": "Open (pending status)",
+    "pt": "Em aberto"
+  },
+  {
     "en": "Open (status)",
     "pt": "Aberto"
+  },
+  {
+    "en": "Open a hospitalization from the hospitalization board or from the encounter.",
+    "pt": "Abra uma internação pelo quadro de internação ou pelo atendimento."
+  },
+  {
+    "en": "Open a message from the message history.",
+    "pt": "Abra uma mensagem pelo histórico de mensagens."
+  },
+  {
+    "en": "Open a surgery from the surgical schedule or from the encounter.",
+    "pt": "Abra uma cirurgia pela agenda cirúrgica ou pelo atendimento."
   },
   {
     "en": "Open cash balance",
@@ -1464,16 +2860,40 @@
     "pt": "Abrir sessão de caixa"
   },
   {
+    "en": "Open encounter account",
+    "pt": "Abrir conta do atendimento"
+  },
+  {
     "en": "Open from the encounter",
     "pt": "Abra pelo atendimento"
+  },
+  {
+    "en": "Open receivable",
+    "pt": "Cobrança em aberto"
   },
   {
     "en": "Open receivables",
     "pt": "Contas a receber em aberto"
   },
   {
+    "en": "Open the admission from an encounter.",
+    "pt": "Abra a internação a partir de um atendimento."
+  },
+  {
+    "en": "Open the prescription from the encounter",
+    "pt": "Abra a prescrição pelo atendimento"
+  },
+  {
+    "en": "Open the surgery scheduling from an encounter.",
+    "pt": "Abra o agendamento da cirurgia a partir de um atendimento."
+  },
+  {
     "en": "Open ticket",
     "pt": "Abrir chamado"
+  },
+  {
+    "en": "Open WhatsApp",
+    "pt": "Abrir WhatsApp"
   },
   {
     "en": "Opened at",
@@ -1484,12 +2904,36 @@
     "pt": "Saldo de abertura"
   },
   {
+    "en": "Operating room activated",
+    "pt": "Sala ativada"
+  },
+  {
+    "en": "Operating room deactivated",
+    "pt": "Sala desativada"
+  },
+  {
+    "en": "Operating rooms",
+    "pt": "Salas cirúrgicas"
+  },
+  {
     "en": "Operation",
     "pt": "Operação"
   },
   {
+    "en": "Oral",
+    "pt": "Oral"
+  },
+  {
+    "en": "Order prescribed successfully",
+    "pt": "Prescrição registrada com sucesso"
+  },
+  {
     "en": "Orientation",
     "pt": "Orientação"
+  },
+  {
+    "en": "Origin",
+    "pt": "Origem"
   },
   {
     "en": "Other",
@@ -1498,6 +2942,10 @@
   {
     "en": "Out of stock",
     "pt": "Sem estoque"
+  },
+  {
+    "en": "Overdue",
+    "pt": "Vencida"
   },
   {
     "en": "Overview",
@@ -1524,6 +2972,18 @@
     "pt": "Pagas"
   },
   {
+    "en": "Pain",
+    "pt": "Dor"
+  },
+  {
+    "en": "Pain score (0–10)",
+    "pt": "Dor (0–10)"
+  },
+  {
+    "en": "pain_score must be between 0 and 10",
+    "pt": "A dor deve ficar entre 0 e 10"
+  },
+  {
     "en": "Partially paid",
     "pt": "Parcialmente paga"
   },
@@ -1548,8 +3008,48 @@
     "pt": "Paciente"
   },
   {
+    "en": "Patient admitted",
+    "pt": "Paciente internado"
+  },
+  {
+    "en": "Patient checked in",
+    "pt": "Paciente incluído na fila"
+  },
+  {
+    "en": "Patient discharged",
+    "pt": "Alta registrada"
+  },
+  {
+    "en": "Patient has no vaccinations to print",
+    "pt": "O paciente não tem vacinas para imprimir"
+  },
+  {
+    "en": "Patient identity confirmed",
+    "pt": "Identidade do paciente confirmada"
+  },
+  {
+    "en": "Patient sex must be one of M, F, U",
+    "pt": "O sexo do paciente deve ser M, F ou U"
+  },
+  {
+    "en": "Patient transferred",
+    "pt": "Paciente transferido"
+  },
+  {
+    "en": "Patient weight_kg cannot be negative",
+    "pt": "O peso do paciente não pode ser negativo"
+  },
+  {
     "en": "Patients",
     "pt": "Pacientes"
+  },
+  {
+    "en": "Pause",
+    "pt": "Pausar"
+  },
+  {
+    "en": "Paused",
+    "pt": "Pausado"
   },
   {
     "en": "Pay",
@@ -1576,8 +3076,16 @@
     "pt": "Pagamento registrado com sucesso"
   },
   {
+    "en": "Pending",
+    "pt": "Pendente"
+  },
+  {
     "en": "Pending exam results",
     "pt": "Resultados de exame pendentes"
+  },
+  {
+    "en": "Pending items",
+    "pt": "Pendências"
   },
   {
     "en": "Pending review",
@@ -1586,6 +3094,14 @@
   {
     "en": "Percentage used",
     "pt": "Percentual utilizado"
+  },
+  {
+    "en": "Performed at",
+    "pt": "Realizada em"
+  },
+  {
+    "en": "Period",
+    "pt": "Período"
   },
   {
     "en": "Permanently delete",
@@ -1604,12 +3120,36 @@
     "pt": "A permissão para usar este programa será concedida automaticamente a todos os grupos de usuários selecionados aqui"
   },
   {
+    "en": "Phase",
+    "pt": "Fase"
+  },
+  {
+    "en": "Phase confirmed by ^1 at ^2",
+    "pt": "Fase confirmada por ^1 em ^2"
+  },
+  {
     "en": "Phone",
     "pt": "Telefone"
   },
   {
+    "en": "phone is required",
+    "pt": "Informe o telefone"
+  },
+  {
+    "en": "Phone usable for WhatsApp",
+    "pt": "Telefone serve para WhatsApp"
+  },
+  {
     "en": "Photo",
     "pt": "Foto"
+  },
+  {
+    "en": "Photo must be a JPEG, PNG or WEBP image",
+    "pt": "A foto deve ser uma imagem JPEG, PNG ou WEBP"
+  },
+  {
+    "en": "Photo must be at most 2 MB",
+    "pt": "A foto deve ter no máximo 2 MB"
   },
   {
     "en": "PHP Log",
@@ -1624,12 +3164,36 @@
     "pt": "Pix"
   },
   {
+    "en": "Plan",
+    "pt": "Plano"
+  },
+  {
     "en": "Port speed",
     "pt": "Velocidade da porta"
   },
   {
+    "en": "Post-op",
+    "pt": "Pós-operatório"
+  },
+  {
+    "en": "Post-operative note",
+    "pt": "Registro pós-operatório"
+  },
+  {
     "en": "Posts",
     "pt": "Publicações"
+  },
+  {
+    "en": "Pre-op",
+    "pt": "Pré-op"
+  },
+  {
+    "en": "Pre-operative note",
+    "pt": "Registro pré-operatório"
+  },
+  {
+    "en": "Preference",
+    "pt": "Preferência"
   },
   {
     "en": "Preferences",
@@ -1652,12 +3216,24 @@
     "pt": "Dados da prescrição"
   },
   {
+    "en": "Prescription document",
+    "pt": "Receita"
+  },
+  {
     "en": "Prescription history",
     "pt": "Histórico de prescrições"
   },
   {
+    "en": "Prescription period cannot exceed 30 days",
+    "pt": "O período da prescrição não pode passar de 30 dias"
+  },
+  {
     "en": "Prescription saved successfully",
     "pt": "Prescrição salva com sucesso"
+  },
+  {
+    "en": "Prescription suspended",
+    "pt": "Prescrição suspensa"
   },
   {
     "en": "Prescriptions",
@@ -1670,6 +3246,10 @@
   {
     "en": "Previous",
     "pt": "Anterior"
+  },
+  {
+    "en": "Previous day",
+    "pt": "Dia anterior"
   },
   {
     "en": "Previous encounter",
@@ -1692,12 +3272,20 @@
     "pt": "Imprimir"
   },
   {
+    "en": "Priority",
+    "pt": "Prioridade"
+  },
+  {
     "en": "Procedure",
     "pt": "Procedimento"
   },
   {
     "en": "Procedure (catalog item id)",
     "pt": "Procedimento (id do item do catálogo)"
+  },
+  {
+    "en": "Procedure and site confirmed",
+    "pt": "Procedimento e local confirmados"
   },
   {
     "en": "Procedure catalog",
@@ -1724,8 +3312,16 @@
     "pt": "Quantidade do procedimento"
   },
   {
+    "en": "Procedure recorded",
+    "pt": "Procedimento registrado"
+  },
+  {
     "en": "Procedures",
     "pt": "Procedimentos"
+  },
+  {
+    "en": "Processing…",
+    "pt": "Processando…"
   },
   {
     "en": "Product",
@@ -1742,6 +3338,10 @@
   {
     "en": "Products",
     "pt": "Produtos"
+  },
+  {
+    "en": "Products consumed",
+    "pt": "Produtos baixados"
   },
   {
     "en": "Products in stock",
@@ -1776,8 +3376,40 @@
     "pt": "Protocolo"
   },
   {
+    "en": "Provide a hospitalization_id to prescribe.",
+    "pt": "Informe um hospitalization_id para prescrever."
+  },
+  {
+    "en": "Provide a hospitalization_id to record it.",
+    "pt": "Informe um hospitalization_id para registrar."
+  },
+  {
     "en": "Provide a structured result or an attachment",
     "pt": "Informe um resultado estruturado ou um anexo"
+  },
+  {
+    "en": "Provide a surgery_id to fill in the checklist.",
+    "pt": "Abra o checklist a partir da ficha da cirurgia."
+  },
+  {
+    "en": "Provide a surgery_id to record materials.",
+    "pt": "Registre os materiais a partir da ficha da cirurgia."
+  },
+  {
+    "en": "Provide a surgery_id to record the consent.",
+    "pt": "Registre o consentimento a partir da ficha da cirurgia."
+  },
+  {
+    "en": "Provide a surgery_id to record the event.",
+    "pt": "Registre o evento a partir da ficha da cirurgia."
+  },
+  {
+    "en": "Provide a tutor_id to compose a message.",
+    "pt": "Abra esta tela pela ficha do tutor para escrever uma mensagem."
+  },
+  {
+    "en": "Provide a tutor_id to manage the communication preferences.",
+    "pt": "Abra esta tela pela ficha do tutor para gerenciar as preferências de comunicação."
   },
   {
     "en": "Provide a valid encounter_id to open its account.",
@@ -1786,6 +3418,10 @@
   {
     "en": "Provide a valid receivable_id to register a payment.",
     "pt": "Informe um receivable_id válido para registrar um pagamento."
+  },
+  {
+    "en": "Provide an administration_id to record it.",
+    "pt": "Informe um administration_id para registrá-la."
   },
   {
     "en": "Provide an encounter_id to resume an encounter, or a patient_id (optionally with appointment_id/service_id) to start a new one.",
@@ -1804,6 +3440,10 @@
     "pt": "Informe encounter_id e patient_id para solicitar um exame."
   },
   {
+    "en": "Purpose",
+    "pt": "Finalidade"
+  },
+  {
     "en": "Qty",
     "pt": "Qtd"
   },
@@ -1816,16 +3456,48 @@
     "pt": "A quantidade deve ser pelo menos 1"
   },
   {
+    "en": "quantity must be between 1 and 9999",
+    "pt": "A quantidade deve ficar entre 1 e 9999"
+  },
+  {
+    "en": "Quantity per administration",
+    "pt": "Quantidade por administração"
+  },
+  {
     "en": "Quantity per execution",
     "pt": "Quantidade por execução"
+  },
+  {
+    "en": "quantity_per_administration is required when a product is selected",
+    "pt": "Informe a quantidade por administração quando um produto for selecionado"
+  },
+  {
+    "en": "quantity_per_administration requires a product",
+    "pt": "A quantidade por administração exige um produto"
   },
   {
     "en": "Queue",
     "pt": "Fila"
   },
   {
+    "en": "Queued",
+    "pt": "Na fila"
+  },
+  {
     "en": "RAM Memory",
     "pt": "Memória RAM"
+  },
+  {
+    "en": "Ready",
+    "pt": "Pronto"
+  },
+  {
+    "en": "Reason",
+    "pt": "Motivo"
+  },
+  {
+    "en": "reason_text must be at most 500 characters",
+    "pt": "O motivo da internação aceita no máximo 500 caracteres"
   },
   {
     "en": "Receivable",
@@ -1868,8 +3540,36 @@
     "pt": "Recebido"
   },
   {
+    "en": "Recipient",
+    "pt": "Destinatário"
+  },
+  {
+    "en": "recipient must be between 1 and 190 characters",
+    "pt": "O destinatário deve ter entre 1 e 190 caracteres"
+  },
+  {
+    "en": "Recipient rejected by the e-mail server",
+    "pt": "Destinatário recusado pelo servidor de e-mail"
+  },
+  {
+    "en": "Record",
+    "pt": "Registrar"
+  },
+  {
+    "en": "Record consent",
+    "pt": "Registrar consentimento"
+  },
+  {
     "en": "Record deleted",
     "pt": "Registro excluído"
+  },
+  {
+    "en": "Record evolution",
+    "pt": "Registrar evolução"
+  },
+  {
+    "en": "Record materials",
+    "pt": "Registrar materiais"
   },
   {
     "en": "Record not found",
@@ -1884,16 +3584,32 @@
     "pt": "Registro salvo"
   },
   {
+    "en": "Record vital signs",
+    "pt": "Registrar parâmetros"
+  },
+  {
     "en": "Recorded",
     "pt": "Registrado"
+  },
+  {
+    "en": "Recorded at",
+    "pt": "Registrado em"
   },
   {
     "en": "Records imported successfully",
     "pt": "Registros importados com sucesso"
   },
   {
+    "en": "Recovery plan defined",
+    "pt": "Plano de recuperação definido"
+  },
+  {
     "en": "Reference",
     "pt": "Referência"
+  },
+  {
+    "en": "Refresh",
+    "pt": "Atualizar"
   },
   {
     "en": "Register payment",
@@ -1912,12 +3628,20 @@
     "pt": "Remover dos favoritos"
   },
   {
+    "en": "Remove this material from the surgery?",
+    "pt": "Remover este material da cirurgia?"
+  },
+  {
     "en": "Removed",
     "pt": "Removido"
   },
   {
     "en": "Renewal password",
     "pt": "Renovação de senha"
+  },
+  {
+    "en": "Replace the template placeholders before sending the message",
+    "pt": "Troque os marcadores {{...}} do modelo pelo texto antes de enviar a mensagem"
   },
   {
     "en": "Reports",
@@ -1948,6 +3672,10 @@
     "pt": "Solicitado em"
   },
   {
+    "en": "Requested slot conflicts with an existing appointment",
+    "pt": "O horário solicitado conflita com um agendamento existente"
+  },
+  {
     "en": "Requests by day",
     "pt": "Requisições por dia"
   },
@@ -1956,12 +3684,44 @@
     "pt": "Requisições hoje"
   },
   {
+    "en": "Required when not done",
+    "pt": "Obrigatória quando não feito"
+  },
+  {
     "en": "Reset password",
     "pt": "Redefinir senha"
   },
   {
+    "en": "Resolve",
+    "pt": "Resolver"
+  },
+  {
     "en": "Respiratory rate (mpm)",
     "pt": "Frequência respiratória (mpm)"
+  },
+  {
+    "en": "Respiratory rate (rpm)",
+    "pt": "FR (mpm)"
+  },
+  {
+    "en": "respiratory_rate_rpm cannot be negative",
+    "pt": "A frequência respiratória não pode ser negativa"
+  },
+  {
+    "en": "Responsible",
+    "pt": "Responsável"
+  },
+  {
+    "en": "Responsible veterinarian",
+    "pt": "Veterinário responsável"
+  },
+  {
+    "en": "responsible_system_user_id must be an active user of this tenant",
+    "pt": "O veterinário responsável deve ser um usuário ativo desta clínica"
+  },
+  {
+    "en": "responsible_system_user_id must be positive",
+    "pt": "Selecione o veterinário responsável"
   },
   {
     "en": "Restore from trash",
@@ -1988,6 +3748,22 @@
     "pt": "Resultados"
   },
   {
+    "en": "Resume",
+    "pt": "Retomar"
+  },
+  {
+    "en": "Retry",
+    "pt": "Reenviar"
+  },
+  {
+    "en": "Return appointments",
+    "pt": "Retornos"
+  },
+  {
+    "en": "Return reminder",
+    "pt": "Lembrete de retorno"
+  },
+  {
     "en": "Revenue by category",
     "pt": "Receitas por categoria"
   },
@@ -2004,6 +3780,10 @@
     "pt": "Receitas, despesas e caixa da unidade"
   },
   {
+    "en": "Review the communication preferences of the tutor",
+    "pt": "Revise as preferências de comunicação do tutor"
+  },
+  {
     "en": "Role",
     "pt": "Papel"
   },
@@ -2012,8 +3792,20 @@
     "pt": "Papéis"
   },
   {
+    "en": "Room",
+    "pt": "Sala"
+  },
+  {
+    "en": "Rooms",
+    "pt": "Salas"
+  },
+  {
     "en": "Route",
     "pt": "Via"
+  },
+  {
+    "en": "RR",
+    "pt": "FR"
   },
   {
     "en": "Sale",
@@ -2022,6 +3814,10 @@
   {
     "en": "Sale completed successfully",
     "pt": "Venda concluída com sucesso"
+  },
+  {
+    "en": "Sale price",
+    "pt": "Preço de venda"
   },
   {
     "en": "Sale receipt",
@@ -2056,6 +3852,10 @@
     "pt": "Salvar como PDF"
   },
   {
+    "en": "Save as template",
+    "pt": "Salvar como modelo"
+  },
+  {
     "en": "Save as XML",
     "pt": "Salvar como XML"
   },
@@ -2064,8 +3864,16 @@
     "pt": "Salvar prescrição"
   },
   {
+    "en": "Save team",
+    "pt": "Salvar equipe"
+  },
+  {
     "en": "Saved at",
     "pt": "Salvo em"
+  },
+  {
+    "en": "SC",
+    "pt": "SC"
   },
   {
     "en": "Scan the QR code with your phone to get started",
@@ -2076,8 +3884,16 @@
     "pt": "Agenda"
   },
   {
+    "en": "Schedule a surgery from an encounter to see it on the agenda.",
+    "pt": "Agende uma cirurgia a partir de um atendimento para vê-la na agenda."
+  },
+  {
     "en": "Schedule follow-up",
     "pt": "Agendar retorno"
+  },
+  {
+    "en": "Schedule surgery",
+    "pt": "Agendar cirurgia"
   },
   {
     "en": "Schedule type",
@@ -2086,6 +3902,22 @@
   {
     "en": "Scheduled",
     "pt": "Agendado"
+  },
+  {
+    "en": "Scheduled at",
+    "pt": "Horário previsto"
+  },
+  {
+    "en": "Scheduled for",
+    "pt": "Agendada para"
+  },
+  {
+    "en": "Scheduled surgeries",
+    "pt": "Agendadas"
+  },
+  {
+    "en": "scheduled_end_at must be after scheduled_start_at",
+    "pt": "O término previsto deve ser posterior ao início"
   },
   {
     "en": "Schedules",
@@ -2140,8 +3972,12 @@
     "pt": "Selecionar linha"
   },
   {
-    "en": "Selected tutor was not found for your account",
-    "pt": "O tutor selecionado não foi encontrado para sua conta"
+    "en": "Select the consent source for ^1",
+    "pt": "Selecione a origem do consentimento para ^1"
+  },
+  {
+    "en": "Select the destination bed",
+    "pt": "Selecione o leito de destino"
   },
   {
     "en": "Send",
@@ -2152,12 +3988,28 @@
     "pt": "Enviar mensagem"
   },
   {
+    "en": "Send this message again?",
+    "pt": "Enviar esta mensagem novamente?"
+  },
+  {
     "en": "Send to trash",
     "pt": "Enviar para a lixeira"
   },
   {
     "en": "Sent",
     "pt": "Enviado"
+  },
+  {
+    "en": "Sent (message status)",
+    "pt": "Enviada"
+  },
+  {
+    "en": "Sent at",
+    "pt": "Enviada em"
+  },
+  {
+    "en": "Sent manually",
+    "pt": "Enviada manualmente"
   },
   {
     "en": "Sent out",
@@ -2168,6 +4020,10 @@
     "pt": "Enviado para a lixeira"
   },
   {
+    "en": "Separator \";\", first line with the header:",
+    "pt": "Separador \";\", primeira linha com o cabeçalho:"
+  },
+  {
     "en": "Service",
     "pt": "Serviço"
   },
@@ -2176,8 +4032,16 @@
     "pt": "Id do serviço"
   },
   {
+    "en": "Service not found for this tenant",
+    "pt": "Serviço não encontrado"
+  },
+  {
     "en": "Services",
     "pt": "Serviços"
+  },
+  {
+    "en": "Services created: ^1",
+    "pt": "Serviços criados: ^1"
   },
   {
     "en": "Session",
@@ -2212,8 +4076,32 @@
     "pt": "Compartilhado comigo"
   },
   {
+    "en": "Shift board",
+    "pt": "Quadro do turno"
+  },
+  {
     "en": "Showing %1–%2 of %3",
     "pt": "Mostrando %1–%2 de %3"
+  },
+  {
+    "en": "Signed by",
+    "pt": "Assinado por"
+  },
+  {
+    "en": "Signer name",
+    "pt": "Signatário"
+  },
+  {
+    "en": "Since ^1",
+    "pt": "Desde ^1"
+  },
+  {
+    "en": "Skipped",
+    "pt": "Não realizada"
+  },
+  {
+    "en": "Skipped lines",
+    "pt": "Linhas puladas"
   },
   {
     "en": "Slower methods",
@@ -2244,8 +4132,16 @@
     "pt": "Usuário SMTP"
   },
   {
+    "en": "source_type and a positive source_id must be given together",
+    "pt": "A origem da mensagem está incompleta"
+  },
+  {
     "en": "Species",
     "pt": "Espécie"
+  },
+  {
+    "en": "Specimens labeled",
+    "pt": "Amostras identificadas"
   },
   {
     "en": "SQL DML Statements",
@@ -2270,6 +4166,22 @@
   {
     "en": "Start date",
     "pt": "Data inicial"
+  },
+  {
+    "en": "Start date/time",
+    "pt": "Data/hora de início"
+  },
+  {
+    "en": "Start pre-op",
+    "pt": "Iniciar pré-op"
+  },
+  {
+    "en": "Start surgery",
+    "pt": "Iniciar cirurgia"
+  },
+  {
+    "en": "Starts at",
+    "pt": "Início"
   },
   {
     "en": "Status",
@@ -2300,12 +4212,36 @@
     "pt": "Quantidade em estoque"
   },
   {
+    "en": "Stock report",
+    "pt": "Relatório de estoque"
+  },
+  {
     "en": "Structured result",
     "pt": "Resultado estruturado"
   },
   {
+    "en": "Subcutaneous",
+    "pt": "Subcutânea"
+  },
+  {
     "en": "Subject",
     "pt": "Assunto"
+  },
+  {
+    "en": "Subject (e-mail only)",
+    "pt": "Assunto (só e-mail)"
+  },
+  {
+    "en": "subject is required for email templates",
+    "pt": "O assunto é obrigatório em modelos de e-mail"
+  },
+  {
+    "en": "subject must be at most 190 characters",
+    "pt": "O assunto aceita no máximo 190 caracteres"
+  },
+  {
+    "en": "subject must be between 1 and 190 characters for email messages",
+    "pt": "O assunto do e-mail deve ter entre 1 e 190 caracteres"
   },
   {
     "en": "Submission date",
@@ -2324,6 +4260,10 @@
     "pt": "Soma"
   },
   {
+    "en": "Summary",
+    "pt": "Resumo"
+  },
+  {
     "en": "Summary accepted",
     "pt": "Resumo aceito"
   },
@@ -2340,8 +4280,112 @@
     "pt": "E-mail de suporte"
   },
   {
+    "en": "Surgeon",
+    "pt": "Cirurgião"
+  },
+  {
+    "en": "surgeon_system_user_id must be an active user of this tenant",
+    "pt": "O cirurgião deve ser um usuário ativo da clínica"
+  },
+  {
     "en": "Surgeries",
     "pt": "Cirurgias"
+  },
+  {
+    "en": "Surgeries in progress",
+    "pt": "Em andamento"
+  },
+  {
+    "en": "Surgery",
+    "pt": "Cirurgia"
+  },
+  {
+    "en": "Surgery cancelled",
+    "pt": "Cirurgia cancelada"
+  },
+  {
+    "en": "Surgery completed",
+    "pt": "Cirurgia concluída"
+  },
+  {
+    "en": "Surgery consent",
+    "pt": "Consentimento cirúrgico"
+  },
+  {
+    "en": "Surgery consent default text",
+    "pt": "Declaro que fui informado(a) pela equipe veterinária sobre o procedimento cirúrgico indicado ao animal sob minha responsabilidade, seus objetivos, a anestesia necessária, os riscos inerentes (inclusive complicações anestésicas, hemorragia, infecção e, em casos raros, óbito), os cuidados pós-operatórios e as alternativas de tratamento. Tive a oportunidade de esclarecer minhas dúvidas e autorizo a realização do procedimento e das condutas que a equipe julgar necessárias durante a cirurgia para preservar a vida e o bem-estar do animal, ciente de que os custos serão lançados na conta do atendimento."
+  },
+  {
+    "en": "Surgery consent has not been recorded",
+    "pt": "O termo de consentimento da cirurgia não foi registrado"
+  },
+  {
+    "en": "Surgery duration cannot exceed 24 hours",
+    "pt": "A cirurgia não pode durar mais de 24 horas"
+  },
+  {
+    "en": "Surgery event",
+    "pt": "Evento cirúrgico"
+  },
+  {
+    "en": "Surgery materials",
+    "pt": "Materiais da cirurgia"
+  },
+  {
+    "en": "Surgery moved to pre-op",
+    "pt": "Cirurgia em pré-operatório"
+  },
+  {
+    "en": "Surgery room",
+    "pt": "Sala cirúrgica"
+  },
+  {
+    "en": "Surgery rooms",
+    "pt": "Salas cirúrgicas"
+  },
+  {
+    "en": "Surgery scheduled",
+    "pt": "Cirurgia agendada"
+  },
+  {
+    "en": "Surgery started",
+    "pt": "Cirurgia iniciada"
+  },
+  {
+    "en": "Surgical agenda",
+    "pt": "Agenda cirúrgica"
+  },
+  {
+    "en": "Surgical assistant",
+    "pt": "Auxiliar"
+  },
+  {
+    "en": "Surgical consent form",
+    "pt": "Termo de consentimento cirúrgico"
+  },
+  {
+    "en": "Surgical safety checklist",
+    "pt": "Checklist de segurança cirúrgica"
+  },
+  {
+    "en": "Surgical team",
+    "pt": "Equipe cirúrgica"
+  },
+  {
+    "en": "Surgical team saved",
+    "pt": "Equipe cirúrgica salva"
+  },
+  {
+    "en": "Suspend",
+    "pt": "Suspender"
+  },
+  {
+    "en": "Suspend this prescription? Its future pending administrations will be cancelled.",
+    "pt": "Suspender esta prescrição? As administrações pendentes futuras serão canceladas."
+  },
+  {
+    "en": "Suspended",
+    "pt": "Suspensa"
   },
   {
     "en": "System information",
@@ -2356,8 +4400,36 @@
     "pt": "Tabelas"
   },
   {
+    "en": "Team",
+    "pt": "Equipe"
+  },
+  {
+    "en": "Team introduced",
+    "pt": "Equipe apresentada"
+  },
+  {
+    "en": "Temperature",
+    "pt": "Temperatura"
+  },
+  {
     "en": "Temperature (C)",
     "pt": "Temperatura (C)"
+  },
+  {
+    "en": "Temperature (°C)",
+    "pt": "Temperatura (°C)"
+  },
+  {
+    "en": "temperature_c cannot be negative",
+    "pt": "A temperatura não pode ser negativa"
+  },
+  {
+    "en": "Template",
+    "pt": "Modelo"
+  },
+  {
+    "en": "Template saved",
+    "pt": "Modelo salvo"
   },
   {
     "en": "Templates",
@@ -2372,8 +4444,68 @@
     "pt": "Termos de uso e política de privacidade"
   },
   {
+    "en": "Text",
+    "pt": "Texto"
+  },
+  {
+    "en": "The \"Before incision\" checklist phase is not confirmed",
+    "pt": "A fase \"Antes da incisão\" do checklist não foi confirmada"
+  },
+  {
+    "en": "The \"Before induction\" checklist phase is not confirmed",
+    "pt": "A fase \"Antes da indução\" do checklist não foi confirmada"
+  },
+  {
+    "en": "The \"Before leaving the room\" checklist phase is not confirmed",
+    "pt": "A fase \"Antes de sair da sala\" do checklist não foi confirmada"
+  },
+  {
+    "en": "The appointment and the encounter belong to different patients",
+    "pt": "O agendamento e o atendimento são de pacientes diferentes"
+  },
+  {
+    "en": "The bed is not occupied by this hospitalization",
+    "pt": "O leito não está ocupado por esta internação"
+  },
+  {
+    "en": "The cancellation reason is required",
+    "pt": "O motivo do cancelamento é obrigatório"
+  },
+  {
+    "en": "The consent text recorded on the surgery will be used",
+    "pt": "Será usado o texto do termo registrado na cirurgia"
+  },
+  {
+    "en": "The discharge summary is required",
+    "pt": "O resumo da alta é obrigatório"
+  },
+  {
+    "en": "The discount cannot be greater than the subtotal",
+    "pt": "O desconto não pode ser maior que o subtotal"
+  },
+  {
+    "en": "The document could not be generated",
+    "pt": "Não foi possível gerar o documento"
+  },
+  {
+    "en": "The document source does not match the document type",
+    "pt": "A origem não corresponde ao tipo de documento"
+  },
+  {
+    "en": "The encounter account is not open",
+    "pt": "A conta do atendimento não está aberta"
+  },
+  {
+    "en": "The file must be a CSV of up to 1 MB",
+    "pt": "O arquivo deve ser um CSV de até 1 MB"
+  },
+  {
     "en": "The following files have been modified from the original framework",
     "pt": "Os seguintes arquivos foram modificados em relação ao framework original"
+  },
+  {
+    "en": "The message text is required",
+    "pt": "O texto da mensagem é obrigatório"
   },
   {
     "en": "The password has been changed",
@@ -2388,12 +4520,60 @@
     "pt": "As senhas não coincidem"
   },
   {
+    "en": "The patient does not belong to this tutor",
+    "pt": "O paciente não pertence a este tutor"
+  },
+  {
+    "en": "The payment exceeds the open balance",
+    "pt": "O pagamento ultrapassa o valor em aberto"
+  },
+  {
     "en": "The programs selected here will automatically have access permission granted to this user group",
     "pt": "Os programas selecionados aqui terão permissão de acesso concedida automaticamente a este grupo de usuários"
   },
   {
+    "en": "The selected record does not belong to this clinic",
+    "pt": "O registro selecionado não pertence a esta clínica"
+  },
+  {
+    "en": "The tutor has no e-mail address",
+    "pt": "O tutor não tem e-mail cadastrado"
+  },
+  {
+    "en": "The tutor has not consented to e-mail messages",
+    "pt": "O tutor não consentiu em receber mensagens por e-mail"
+  },
+  {
+    "en": "The tutor has not consented to WhatsApp messages",
+    "pt": "O tutor não consentiu em receber mensagens por WhatsApp"
+  },
+  {
+    "en": "The tutor has not consented to WhatsApp messages. The message was cancelled",
+    "pt": "O tutor não consentiu em receber mensagens por WhatsApp. A mensagem foi cancelada"
+  },
+  {
+    "en": "The tutor refused e-mail messages",
+    "pt": "O tutor recusou mensagens por e-mail"
+  },
+  {
+    "en": "The tutor refused WhatsApp messages",
+    "pt": "O tutor recusou mensagens por WhatsApp"
+  },
+  {
+    "en": "The tutor refused WhatsApp messages. The message was cancelled",
+    "pt": "O tutor recusou mensagens por WhatsApp. A mensagem foi cancelada"
+  },
+  {
     "en": "The user registration is disabled",
     "pt": "O cadastro de usuários está desativado"
+  },
+  {
+    "en": "There is no active surgery room in this unit.",
+    "pt": "Não há sala cirúrgica ativa nesta unidade."
+  },
+  {
+    "en": "There is no available bed in this unit.",
+    "pt": "Não há leito disponível nesta unidade."
   },
   {
     "en": "There is no open cash session for this unit",
@@ -2404,20 +4584,160 @@
     "pt": "Não há sessão de caixa aberta para esta unidade. Abra uma sessão de caixa antes de registrar um pagamento."
   },
   {
+    "en": "This administration is no longer pending",
+    "pt": "Esta administração não está mais pendente"
+  },
+  {
+    "en": "This appointment is already in the queue",
+    "pt": "Este agendamento já está na fila"
+  },
+  {
+    "en": "This bed is not available",
+    "pt": "Este leito não está disponível"
+  },
+  {
+    "en": "This bed is occupied and cannot be deactivated",
+    "pt": "Este leito está ocupado e não pode ser desativado"
+  },
+  {
+    "en": "This checklist phase cannot be confirmed in the current surgery status",
+    "pt": "Esta fase do checklist não pode ser confirmada na situação atual da cirurgia"
+  },
+  {
+    "en": "This checklist phase is already confirmed",
+    "pt": "Esta fase do checklist já foi confirmada"
+  },
+  {
     "en": "This configuration is usually recommended for production, not development purposes",
     "pt": "Esta configuração geralmente é recomendada para produção, não para fins de desenvolvimento"
+  },
+  {
+    "en": "This document type does not support this option",
+    "pt": "Este tipo de documento não aceita esta opção"
+  },
+  {
+    "en": "This entry cannot advance right now: ^1",
+    "pt": "Esta entrada não pode avançar agora: ^1"
+  },
+  {
+    "en": "This exam request cannot move to this status",
+    "pt": "Este pedido de exame não pode mudar para este status"
   },
   {
     "en": "This folder already exists",
     "pt": "Esta pasta já existe"
   },
   {
+    "en": "This hospitalization could not be loaded.",
+    "pt": "Não foi possível carregar esta internação."
+  },
+  {
+    "en": "This hospitalization is no longer active",
+    "pt": "Esta internação não está mais ativa"
+  },
+  {
+    "en": "This material was already removed",
+    "pt": "Este material já foi removido"
+  },
+  {
+    "en": "This message could not be loaded.",
+    "pt": "Não foi possível carregar esta mensagem."
+  },
+  {
+    "en": "This message has not failed",
+    "pt": "Esta mensagem não falhou"
+  },
+  {
+    "en": "This message is no longer awaiting manual send",
+    "pt": "Esta mensagem não está mais aguardando envio manual"
+  },
+  {
+    "en": "This message is no longer queued",
+    "pt": "Esta mensagem não está mais na fila"
+  },
+  {
+    "en": "This message is not a WhatsApp message",
+    "pt": "Esta mensagem não é de WhatsApp"
+  },
+  {
     "en": "This operation is not allowed",
     "pt": "Esta operação não é permitida"
   },
   {
+    "en": "This patient is already hospitalized",
+    "pt": "Este paciente já está internado"
+  },
+  {
+    "en": "This prescription is no longer active",
+    "pt": "Esta prescrição não está mais ativa"
+  },
+  {
     "en": "This receivable is already fully paid.",
     "pt": "Esta conta a receber já está totalmente paga."
+  },
+  {
+    "en": "This service has appointments; deactivate it instead",
+    "pt": "Este serviço tem agendamentos; inative-o em vez de excluir"
+  },
+  {
+    "en": "This surgery already has a follow-up appointment",
+    "pt": "Esta cirurgia já tem um retorno agendado"
+  },
+  {
+    "en": "This surgery cannot be cancelled in its current status",
+    "pt": "Esta cirurgia não pode ser cancelada na situação atual"
+  },
+  {
+    "en": "This surgery could not be loaded.",
+    "pt": "Não foi possível carregar esta cirurgia."
+  },
+  {
+    "en": "This surgery has no recorded consent",
+    "pt": "Esta cirurgia não tem consentimento registrado"
+  },
+  {
+    "en": "This surgery is cancelled",
+    "pt": "Esta cirurgia está cancelada"
+  },
+  {
+    "en": "This surgery is no longer open for pre-operative changes",
+    "pt": "Esta cirurgia não aceita mais alterações pré-operatórias"
+  },
+  {
+    "en": "This surgery is not completed",
+    "pt": "Esta cirurgia não foi concluída"
+  },
+  {
+    "en": "This surgery is not in pre-op",
+    "pt": "Esta cirurgia não está em pré-operatório"
+  },
+  {
+    "en": "This surgery is not in progress",
+    "pt": "Esta cirurgia não está em andamento"
+  },
+  {
+    "en": "This surgery is not scheduled",
+    "pt": "Esta cirurgia não está agendada"
+  },
+  {
+    "en": "This surgery room belongs to another unit",
+    "pt": "Esta sala cirúrgica pertence a outra unidade"
+  },
+  {
+    "en": "This surgery room is already booked for this period",
+    "pt": "Esta sala cirúrgica já está reservada neste horário"
+  },
+  {
+    "en": "This surgery room is not active",
+    "pt": "Esta sala cirúrgica não está ativa"
+  },
+  {
+    "en": "This surgery was changed by someone else; reload it and try again",
+    "pt": "Esta cirurgia foi alterada por outra pessoa; recarregue a ficha e tente de novo"
+  },
+  {
+    "en": "This template does not match the message purpose and channel",
+    "pt": "Este modelo não corresponde à finalidade e ao canal da mensagem"
   },
   {
     "en": "This will remove all the contents of the folder",
@@ -2452,6 +4772,10 @@
     "pt": "Para habilitar o agendamento, adicione a seguinte linha ao crontab (Linux)"
   },
   {
+    "en": "to_bed_id must differ from from_bed_id",
+    "pt": "O leito de destino deve ser diferente do leito atual"
+  },
+  {
     "en": "Today",
     "pt": "Hoje"
   },
@@ -2468,12 +4792,36 @@
     "pt": "O token é inválido ou expirou. Faça login novamente"
   },
   {
+    "en": "Topical",
+    "pt": "Tópica"
+  },
+  {
     "en": "Total",
     "pt": "Total"
   },
   {
+    "en": "Total of active accounts",
+    "pt": "Total das contas ativas"
+  },
+  {
+    "en": "Transfer",
+    "pt": "Transferir"
+  },
+  {
+    "en": "Transfer bed",
+    "pt": "Transferir leito"
+  },
+  {
     "en": "Trash",
     "pt": "Lixeira"
+  },
+  {
+    "en": "Try again",
+    "pt": "Tentar de novo"
+  },
+  {
+    "en": "Try to generate this document again?",
+    "pt": "Gerar este documento novamente?"
   },
   {
     "en": "Tuesday",
@@ -2482,6 +4830,14 @@
   {
     "en": "Tutor",
     "pt": "Tutor"
+  },
+  {
+    "en": "Tutor has not consented to this channel",
+    "pt": "Tutor não consentiu com este canal"
+  },
+  {
+    "en": "Tutor opted out of this channel",
+    "pt": "Tutor recusou este canal"
   },
   {
     "en": "Tutors",
@@ -2516,12 +4872,48 @@
     "pt": "Unidades"
   },
   {
+    "en": "Unknown checklist item",
+    "pt": "Item do checklist desconhecido"
+  },
+  {
+    "en": "Unknown checklist phase",
+    "pt": "Fase do checklist desconhecida"
+  },
+  {
+    "en": "Unknown document kind",
+    "pt": "Tipo de documento desconhecido"
+  },
+  {
+    "en": "Unknown placeholder \"^1\" in template",
+    "pt": "Marcador desconhecido no modelo: \"^1\""
+  },
+  {
+    "en": "Unknown placeholder: {{^1}}",
+    "pt": "Marcador desconhecido: {{^1}}"
+  },
+  {
+    "en": "Unknown surgery event type",
+    "pt": "Tipo de evento cirúrgico desconhecido"
+  },
+  {
+    "en": "Unknown team role",
+    "pt": "Função da equipe desconhecida"
+  },
+  {
+    "en": "Upcoming",
+    "pt": "A seguir"
+  },
+  {
+    "en": "Update consent",
+    "pt": "Atualizar consentimento"
+  },
+  {
     "en": "Updated at",
     "pt": "Atualizado em"
   },
   {
-    "en": "Uploaded file was not found",
-    "pt": "Arquivo enviado não foi encontrado"
+    "en": "Urgent",
+    "pt": "Urgente"
   },
   {
     "en": "Use authencator app like Google Authenticator or Authy",
@@ -2584,6 +4976,10 @@
     "pt": "Catálogo de vacinas"
   },
   {
+    "en": "Vaccine due",
+    "pt": "Vacina a vencer"
+  },
+  {
     "en": "Vaccine protocol",
     "pt": "Protocolo de vacina"
   },
@@ -2596,12 +4992,36 @@
     "pt": "Vacinas"
   },
   {
+    "en": "Vaccines due",
+    "pt": "Vacinas a vencer"
+  },
+  {
+    "en": "Valid until",
+    "pt": "Válida até"
+  },
+  {
+    "en": "valid_until cannot be in the past",
+    "pt": "A validade não pode estar no passado"
+  },
+  {
+    "en": "valid_until must be a Y-m-d date",
+    "pt": "Validade inválida"
+  },
+  {
     "en": "Vendor",
     "pt": "Fornecedor"
   },
   {
+    "en": "Version",
+    "pt": "Versão"
+  },
+  {
     "en": "Veterinarian",
     "pt": "Veterinário"
+  },
+  {
+    "en": "Veterinarians",
+    "pt": "Veterinários"
   },
   {
     "en": "View all",
@@ -2616,8 +5036,16 @@
     "pt": "Sinais vitais"
   },
   {
+    "en": "Vital signs recorded successfully",
+    "pt": "Parâmetros registrados com sucesso"
+  },
+  {
     "en": "vs. previous month",
     "pt": "vs. mês anterior"
+  },
+  {
+    "en": "vs. previous period",
+    "pt": "vs. período anterior"
   },
   {
     "en": "Waiting",
@@ -2648,8 +5076,28 @@
     "pt": "Peso (kg)"
   },
   {
+    "en": "weight_kg cannot be negative",
+    "pt": "O peso não pode ser negativo"
+  },
+  {
+    "en": "weight_kg must be a number between 0 and 9999.99, e.g. 4,5",
+    "pt": "Peso inválido: informe um número entre 0 e 9999,99, ex.: 4,5"
+  },
+  {
     "en": "Welcome",
     "pt": "Bem-vindo"
+  },
+  {
+    "en": "What needs attention in this unit",
+    "pt": "O que precisa de atenção nesta unidade"
+  },
+  {
+    "en": "WhatsApp",
+    "pt": "WhatsApp"
+  },
+  {
+    "en": "WhatsApp messages to send",
+    "pt": "WhatsApp a enviar"
   },
   {
     "en": "When defining a restricted method, only users with the selected role will be able to execute that method",
@@ -2664,8 +5112,20 @@
     "pt": "Você não tem permissão para acessar a conta deste atendimento"
   },
   {
+    "en": "You are not allowed to access this hospitalization",
+    "pt": "Você não tem permissão para acessar esta internação"
+  },
+  {
+    "en": "You are not allowed to access this surgery",
+    "pt": "Você não tem permissão para acessar esta cirurgia"
+  },
+  {
     "en": "You are not allowed to add items to this account",
     "pt": "Você não tem permissão para adicionar itens a esta conta"
+  },
+  {
+    "en": "You are not allowed to admit patients in this unit",
+    "pt": "Você não tem permissão para internar pacientes nesta unidade"
   },
   {
     "en": "You are not allowed to advance a queue entry from another unit",
@@ -2678,6 +5138,26 @@
   {
     "en": "You are not allowed to apply a vaccine for this unit",
     "pt": "Você não tem permissão para aplicar uma vacina para esta unidade"
+  },
+  {
+    "en": "You are not allowed to change the communication preferences of this tutor",
+    "pt": "Você não tem permissão para alterar as preferências de comunicação deste tutor"
+  },
+  {
+    "en": "You are not allowed to change this document",
+    "pt": "Você não tem permissão para alterar este documento"
+  },
+  {
+    "en": "You are not allowed to change this hospitalization",
+    "pt": "Você não tem permissão para alterar esta internação"
+  },
+  {
+    "en": "You are not allowed to change this message",
+    "pt": "Você não tem permissão para alterar esta mensagem"
+  },
+  {
+    "en": "You are not allowed to change this surgery",
+    "pt": "Você não tem permissão para alterar esta cirurgia"
   },
   {
     "en": "You are not allowed to close this account",
@@ -2696,8 +5176,44 @@
     "pt": "Você não tem permissão para emitir uma prescrição para esta unidade"
   },
   {
+    "en": "You are not allowed to manage beds",
+    "pt": "Você não tem permissão para gerenciar leitos"
+  },
+  {
+    "en": "You are not allowed to manage document templates",
+    "pt": "Você não tem permissão para gerenciar modelos de documento"
+  },
+  {
+    "en": "You are not allowed to manage message templates",
+    "pt": "Você não tem permissão para gerenciar modelos de mensagem"
+  },
+  {
+    "en": "You are not allowed to manage operating rooms",
+    "pt": "Você não tem permissão para gerenciar salas cirúrgicas"
+  },
+  {
     "en": "You are not allowed to perform this action",
     "pt": "Você não tem permissão para realizar esta ação"
+  },
+  {
+    "en": "You are not allowed to prescribe for this hospitalization",
+    "pt": "Você não tem permissão para prescrever nesta internação"
+  },
+  {
+    "en": "You are not allowed to record events for this hospitalization",
+    "pt": "Você não tem permissão para registrar eventos nesta internação"
+  },
+  {
+    "en": "You are not allowed to record events for this surgery",
+    "pt": "Você não tem permissão para registrar eventos desta cirurgia"
+  },
+  {
+    "en": "You are not allowed to record the consent for this surgery",
+    "pt": "Você não tem permissão para registrar o consentimento desta cirurgia"
+  },
+  {
+    "en": "You are not allowed to record this administration",
+    "pt": "Você não tem permissão para registrar esta administração"
   },
   {
     "en": "You are not allowed to record this exam result",
@@ -2716,16 +5232,52 @@
     "pt": "Você não tem permissão para solicitar um exame para esta unidade"
   },
   {
+    "en": "You are not allowed to request documents",
+    "pt": "Você não tem permissão para solicitar documentos"
+  },
+  {
     "en": "You are not allowed to schedule an appointment for this unit",
     "pt": "Você não tem permissão para agendar um compromisso para esta unidade"
+  },
+  {
+    "en": "You are not allowed to schedule surgeries in this unit",
+    "pt": "Você não tem permissão para agendar cirurgias nesta unidade"
+  },
+  {
+    "en": "You are not allowed to send messages",
+    "pt": "Você não tem permissão para enviar mensagens"
   },
   {
     "en": "You are not allowed to start an encounter for this unit",
     "pt": "Você não tem permissão para iniciar um atendimento para esta unidade"
   },
   {
+    "en": "You are not allowed to view the documents",
+    "pt": "Você não tem permissão para ver os documentos"
+  },
+  {
+    "en": "You are not allowed to view the message history",
+    "pt": "Você não tem permissão para ver o histórico de mensagens"
+  },
+  {
+    "en": "You are not allowed to view the pending items",
+    "pt": "Você não tem permissão para ver as pendências"
+  },
+  {
+    "en": "You are not allowed to view the shift board",
+    "pt": "Você não tem permissão para ver o quadro do turno"
+  },
+  {
+    "en": "You are not allowed to view the surgical agenda",
+    "pt": "Você não tem permissão para ver a agenda cirúrgica"
+  },
+  {
     "en": "You are not allowed to view this encounter",
     "pt": "Você não tem permissão para visualizar este atendimento"
+  },
+  {
+    "en": "You are not allowed to view this message",
+    "pt": "Você não tem permissão para ver esta mensagem"
   },
   {
     "en": "You have already registered this password",

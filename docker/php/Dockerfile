@@ -81,4 +81,11 @@ ARG APP_BUILD_ID=
 RUN if [ -n "$APP_BUILD_ID" ]; then printf '%s' "$APP_BUILD_ID"; else date -u +%Y%m%d%H%M%S; fi > /var/www/html/src/buildid \
     && chown www-data:www-data /var/www/html/src/buildid
 
+# Private storage for generated documents (DocumentStorageFactory, driver
+# "local"), outside the web root `src/`. Created here with www-data as owner
+# so the named volume app_documents inherits it on first mount.
+RUN mkdir -p /var/www/html/var/documents \
+    && chown www-data:www-data /var/www/html/var/documents \
+    && chmod 0750 /var/www/html/var/documents
+
 USER www-data

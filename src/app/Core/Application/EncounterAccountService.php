@@ -304,6 +304,63 @@ final class EncounterAccountService
     }
 
     /**
+     * Adds one item tied to a hospitalization source (stay or a performed
+     * administration). Idempotent by (source_type, source_id) — the same
+     * UNIQUE key the schema declares: when the pair is already on the
+     * account nothing is written and null is returned.
+     *
+     * @throws InvalidArgumentException when $sourceType is not a
+     *         hospitalization source type.
+     * @throws CrossTenantReferenceException when the account does not
+     *         resolve within the authenticated tenant.
+     * @throws InvalidStatusTransitionException when the account is not
+     *         currently 'open'.
+     */
+    public function addSourcedItem(
+        int $accountId,
+        string $sourceType,
+        int $sourceId,
+        string $descriptionText,
+        int $amountCents,
+        string $action,
+    ): ?EncounterAccountItem {
+        if (!in_array($sourceType, [
+            EncounterAccountItem::TYPE_HOSPITALIZATION_STAY,
+            EncounterAccountItem::TYPE_HOSPITALIZATION_ADMINISTRATION,
+            EncounterAccountItem::TYPE_SURGERY_PROCEDURE,
+            EncounterAccountItem::TYPE_SURGERY_MATERIAL,
+        ], true)) {
+            throw new InvalidArgumentException("source_type \"{$sourceType}\" is not accepted for sourced items");
+        }
+
+        $account = $this->requireAccount($accountId, $action);
+        $this->assertAccountOpen($account);
+
+        foreach ($this->items->listByAccount($accountId) as $existing) {
+            /** @var EncounterAccountItem $existing */
+            if ($existing->sourceType() === $sourceType && $existing->sourceId() === $sourceId) {
+                return null;
+            }
+        }
+
+        $item = EncounterAccountItem::create(
+            tenantId: $this->context->tenantId(),
+            accountId: $accountId,
+            sourceType: $sourceType,
+            sourceId: $sourceId,
+            descriptionText: $descriptionText,
+            amountCents: $amountCents,
+        );
+
+        /** @var EncounterAccountItem $savedItem */
+        $savedItem = $this->items->save($item);
+
+        $this->refreshAccountTotals($account);
+
+        return $savedItem;
+    }
+
+    /**
      * Applies (or replaces) the account's authorized discount. Uses its own
      * distinct `$action` (see class docblock). Recomputes subtotal_cents
      * from the live item sum before validating, so "exceeds the account's
@@ -313,8 +370,21 @@ final class EncounterAccountService
      * thrown by `EncounterAccount::applyDiscount()` itself, before this
      * method ever calls `EncounterAccountRepositoryInterface::save()`.
      *
+     * Order of checks: account lookup, then authorization of $action, and
+     * only then the authorizer lookup — without the permission the answer
+     * is always AuthorizationDenied, whatever authorizer id was sent.
+     *
      * @throws CrossTenantReferenceException when the account does not
-     *         resolve within the authenticated tenant.
+     *         resolve within the authenticated tenant, or (only after the
+     *         policy allowed $action) when the authorizer
+     *         (authorized_by_system_user_id) is not an active user of the
+     *         authenticated tenant.
+     * @throws InvalidArgumentException when the discount is invalid
+     *         (negative discount_cents, non-positive account_id or
+     *         authorized_by_system_user_id).
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied
+     *         when the policy denies $action for the account's unit; checked
+     *         before the authorizer, for any authorizer id.
      * @throws InvalidStatusTransitionException when the account is not
      *         currently 'open'.
      * @throws \CentralVet\Domain\Exception\DiscountExceedsSubtotalException
@@ -328,17 +398,20 @@ final class EncounterAccountService
         int $authorizedBySystemUserId,
         string $action,
     ): EncounterAccount {
+        // T-36: RBAC first (inside requireAccount), so a caller without the
+        // discount permission gets AuthorizationDenied and cannot probe which
+        // authorizer ids are active members.
+        $account = $this->requireAccount($accountId, $action);
+
         // T-25: the authorizer comes from caller input (the form combo can be
         // bypassed by a tampered POST), so it must resolve to an active user
-        // of the authenticated tenant before anything is loaded or saved.
+        // of the authenticated tenant before anything is saved.
         // Ids <= 0 fall through to the domain's InvalidArgumentException.
         if ($authorizedBySystemUserId > 0 && !$this->tenantUsers->isActiveMember($authorizedBySystemUserId)) {
             throw new CrossTenantReferenceException(
                 "authorized_by_system_user_id {$authorizedBySystemUserId} was not found for the authenticated tenant"
             );
         }
-
-        $account = $this->requireAccount($accountId, $action);
 
         $itemsSumCents = $this->sumItemsCents($accountId);
         $account->refreshSubtotal($itemsSumCents);

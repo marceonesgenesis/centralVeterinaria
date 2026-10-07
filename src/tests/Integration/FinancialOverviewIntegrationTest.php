@@ -122,6 +122,75 @@ final class FinancialOverviewIntegrationTest extends MysqlIntegrationTestCase
         Assert::false(in_array(88888, array_column($this->serviceFor($this->tenantA)->recentEntries($this->unit1, 50), 'amount_cents'), true));
     }
 
+    /**
+     * Rodada 2, T-20: with a period, recentEntries() uses the same inclusive
+     * day bounds as totals() — 2031-05-01 00:00 and 2031-05-30 23:59:59 are
+     * inside; 2031-05-31 and April are out — newest first.
+     */
+    public function testRecentEntriesFilterByPeriodNewestFirst(): void
+    {
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 111, '2031-05-01 00:00:00');
+        $this->entry($this->tenantA, $this->unit1, 'expense', 'Aluguel', 222, '2031-05-30 23:59:59');
+
+        $entries = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, $this->from, $this->to);
+
+        Assert::same(
+            [222, 5000, 7000, 5000, 10000, 111],
+            array_column($entries, 'amount_cents'),
+            'Only entries inside [from, to] (inclusive days), newest first',
+        );
+        Assert::same('2031-05-30 23:59:59', $entries[0]['occurred_at']);
+        Assert::same('2031-05-01 00:00:00', $entries[5]['occurred_at']);
+
+        $limited = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 2, $this->from, $this->to);
+        Assert::same([222, 5000], array_column($limited, 'amount_cents'), 'The limit applies after the period filter');
+
+        $empty = $this->serviceFor($this->tenantA)->recentEntries(
+            $this->unit1,
+            10,
+            new DateTimeImmutable('2031-06-01'),
+            new DateTimeImmutable('2031-06-30'),
+        );
+        Assert::same([], $empty, 'A period without entries yields an empty list');
+    }
+
+    /**
+     * Rodada 2, T-37: from == to is a one-day period — 2031-05-02 00:00 and
+     * 23:59:59 are inside; the day before and the day after are out.
+     */
+    public function testRecentEntriesSingleDayPeriodReturnsOnlyThatDay(): void
+    {
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 101, '2031-05-01 23:59:59');
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 102, '2031-05-02 00:00:00');
+        $this->entry($this->tenantA, $this->unit1, 'expense', 'Aluguel', 103, '2031-05-02 23:59:59');
+        $this->entry($this->tenantA, $this->unit1, 'income', 'Consultas', 104, '2031-05-03 00:00:00');
+
+        $day = new DateTimeImmutable('2031-05-02');
+        $entries = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, $day, $day);
+
+        Assert::same(
+            [103, 5000, 10000, 102],
+            array_column($entries, 'amount_cents'),
+            'Only entries of 2031-05-02 (unit 1, tenant A), newest first',
+        );
+        foreach ($entries as $entry) {
+            Assert::true(str_starts_with($entry['occurred_at'], '2031-05-02 '), 'Every entry must be of the requested day');
+        }
+    }
+
+    /**
+     * Rodada 2, T-37: with only one bound, recentEntries() filters that side
+     * alone — from-only keeps [from 00:00, ∞), to-only keeps (−∞, to + 1 day).
+     */
+    public function testRecentEntriesWithASingleBound(): void
+    {
+        $fromOnly = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, new DateTimeImmutable('2031-05-15 14:00'));
+        Assert::same([4444, 5000], array_column($fromOnly, 'amount_cents'), 'from-only starts at 00:00 of the from day');
+
+        $toOnly = $this->serviceFor($this->tenantA)->recentEntries($this->unit1, 10, null, new DateTimeImmutable('2031-04-20 08:00'));
+        Assert::same([3000, 2000], array_column($toOnly, 'amount_cents'), 'to-only includes the whole to day');
+    }
+
     public function testOpenCashBalanceIsNullWithoutOpenSession(): void
     {
         $this->cashSession($this->tenantB, $this->unit1, 50000, 'open');
