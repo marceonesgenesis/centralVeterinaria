@@ -141,7 +141,7 @@ class LoginForm extends TPage
                         $options[$unit->id] = $unit->name;
                     }
                 }
-                TCombo::reload('form_login', 'unit_id', $options);
+                CvCombo::reload('form_login', 'unit_id', $options);
             }
             
             TTransaction::close();

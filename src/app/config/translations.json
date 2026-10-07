@@ -92,6 +92,10 @@
     "pt": "Resumo aceito"
   },
   {
+    "en": "Accepts",
+    "pt": "Aceita"
+  },
+  {
     "en": "Access Log",
     "pt": "Log de acessos"
   },
@@ -276,6 +280,10 @@
     "pt": "Todos os status"
   },
   {
+    "en": "All types",
+    "pt": "Todos os tipos"
+  },
+  {
     "en": "Allergies",
     "pt": "Alergias"
   },
@@ -332,6 +340,10 @@
     "pt": "Anestesista"
   },
   {
+    "en": "Another active template already exists for this purpose and channel",
+    "pt": "Já existe outro modelo ativo para esta finalidade e canal"
+  },
+  {
     "en": "Antibiotic prophylaxis reviewed",
     "pt": "Profilaxia antibiótica revisada"
   },
@@ -364,6 +376,14 @@
     "pt": "O agendamento ^1 não pode ser remarcado no status ^2"
   },
   {
+    "en": "Appointment confirmation",
+    "pt": "Confirmação de agendamento"
+  },
+  {
+    "en": "Appointment confirmations and return reminders are sent unless the tutor refuses; the other messages only with the tutor acceptance.",
+    "pt": "Confirmações de agendamento e lembretes de retorno são enviados, salvo se o tutor recusar (\"Não aceita\"); as demais mensagens só com o aceite do tutor (\"Aceita\")."
+  },
+  {
     "en": "Appointment scheduled successfully",
     "pt": "Agendamento realizado com sucesso"
   },
@@ -392,6 +412,10 @@
     "pt": "Anexos"
   },
   {
+    "en": "Attempts",
+    "pt": "Tentativas"
+  },
+  {
     "en": "Attended",
     "pt": "Atendido"
   },
@@ -412,12 +436,20 @@
     "pt": "Autorizado por (id do usuário do sistema)"
   },
   {
+    "en": "Automatic",
+    "pt": "Automática"
+  },
+  {
     "en": "Autosave active",
     "pt": "Salvamento automático ativo"
   },
   {
     "en": "Available",
     "pt": "Disponível"
+  },
+  {
+    "en": "Available placeholders (subject and message text)",
+    "pt": "Marcadores disponíveis (assunto e texto da mensagem)"
   },
   {
     "en": "Back",
@@ -520,12 +552,24 @@
     "pt": "Quadro"
   },
   {
+    "en": "body must be between 1 and 2000 characters",
+    "pt": "O texto da mensagem deve ter entre 1 e 2000 caracteres"
+  },
+  {
+    "en": "body must not be empty",
+    "pt": "O texto da mensagem não pode ficar vazio"
+  },
+  {
     "en": "Bookmarks",
     "pt": "Favoritos"
   },
   {
     "en": "Breed",
     "pt": "Raça"
+  },
+  {
+    "en": "By phone",
+    "pt": "Por telefone"
   },
   {
     "en": "Cancel surgery",
@@ -626,6 +670,10 @@
   {
     "en": "Change Log",
     "pt": "Log de alterações"
+  },
+  {
+    "en": "Channel",
+    "pt": "Canal"
   },
   {
     "en": "Check in this appointment?",
@@ -764,6 +812,18 @@
     "pt": "Comentários"
   },
   {
+    "en": "Communication",
+    "pt": "Comunicação"
+  },
+  {
+    "en": "Communication preferences",
+    "pt": "Preferências de comunicação"
+  },
+  {
+    "en": "Communication preferences saved",
+    "pt": "Preferências de comunicação salvas"
+  },
+  {
     "en": "Complete surgery",
     "pt": "Concluir cirurgia"
   },
@@ -792,6 +852,10 @@
     "pt": "Intercorrência"
   },
   {
+    "en": "Compose message",
+    "pt": "Nova mensagem"
+  },
+  {
     "en": "Configure two-factor authentication",
     "pt": "Configurar autenticação de dois fatores"
   },
@@ -802,6 +866,10 @@
   {
     "en": "Confirm phase",
     "pt": "Confirmar fase"
+  },
+  {
+    "en": "Confirm that this WhatsApp message was sent?",
+    "pt": "Confirmar que esta mensagem de WhatsApp foi enviada?"
   },
   {
     "en": "Confirmed",
@@ -830,6 +898,10 @@
   {
     "en": "Consent recorded successfully",
     "pt": "Consentimento registrado com sucesso"
+  },
+  {
+    "en": "Consent source",
+    "pt": "Origem do consentimento"
   },
   {
     "en": "Consent text",
@@ -862,6 +934,10 @@
   {
     "en": "Could not complete the operation. Please try again",
     "pt": "Não foi possível concluir a operação. Tente novamente"
+  },
+  {
+    "en": "Could not connect to the e-mail server",
+    "pt": "Não foi possível conectar ao servidor de e-mail"
   },
   {
     "en": "Could not export the leads. Close this tab and try again.",
@@ -932,12 +1008,20 @@
     "pt": "Frequência atual"
   },
   {
+    "en": "Current status",
+    "pt": "Status atual"
+  },
+  {
     "en": "Current stock",
     "pt": "Estoque atual"
   },
   {
     "en": "Custom code",
     "pt": "Código customizado"
+  },
+  {
+    "en": "Custom message",
+    "pt": "Mensagem personalizada"
   },
   {
     "en": "Daily rate",
@@ -984,6 +1068,10 @@
     "pt": "Excluir o serviço \"^1\"?"
   },
   {
+    "en": "Delivery provider error",
+    "pt": "Erro no provedor de envio"
+  },
+  {
     "en": "Description",
     "pt": "Descrição"
   },
@@ -1010,6 +1098,18 @@
   {
     "en": "Disable two-factor authentication",
     "pt": "Desativar autenticação de dois fatores"
+  },
+  {
+    "en": "Discard",
+    "pt": "Descartar"
+  },
+  {
+    "en": "Discard this message? It will not be sent.",
+    "pt": "Descartar esta mensagem? Ela não será enviada."
+  },
+  {
+    "en": "Discarded by staff",
+    "pt": "Descartada pela equipe"
   },
   {
     "en": "Discharge",
@@ -1062,6 +1162,14 @@
   {
     "en": "Document attached successfully",
     "pt": "Documento anexado com sucesso"
+  },
+  {
+    "en": "Document ready",
+    "pt": "Documento pronto"
+  },
+  {
+    "en": "Does not accept",
+    "pt": "Não aceita"
   },
   {
     "en": "Dog",
@@ -1120,6 +1228,10 @@
     "pt": "Rascunho"
   },
   {
+    "en": "Due",
+    "pt": "Prazo"
+  },
+  {
     "en": "Due date",
     "pt": "Data de vencimento"
   },
@@ -1156,6 +1268,22 @@
     "pt": "A duração deve ficar entre 15 e 1440 minutos"
   },
   {
+    "en": "E-mail",
+    "pt": "E-mail"
+  },
+  {
+    "en": "E-mail on file",
+    "pt": "E-mail cadastrado"
+  },
+  {
+    "en": "E-mail server authentication failed",
+    "pt": "Falha na autenticação do servidor de e-mail"
+  },
+  {
+    "en": "E-mail server error",
+    "pt": "Erro no servidor de e-mail"
+  },
+  {
     "en": "e.g. 12,34",
     "pt": "ex.: 12,34"
   },
@@ -1178,6 +1306,10 @@
   {
     "en": "Edit bed",
     "pt": "Editar leito"
+  },
+  {
+    "en": "Edit message template",
+    "pt": "Editar modelo de mensagem"
   },
   {
     "en": "Edit operating room",
@@ -1352,6 +1484,14 @@
     "pt": "Resultados de exames"
   },
   {
+    "en": "Exam results to record",
+    "pt": "Resultados de exame a lançar"
+  },
+  {
+    "en": "Exam results to review",
+    "pt": "Resultados de exame a revisar"
+  },
+  {
     "en": "Exams",
     "pt": "Exames"
   },
@@ -1398,6 +1538,18 @@
   {
     "en": "Export CSV",
     "pt": "Exportar CSV"
+  },
+  {
+    "en": "Failed",
+    "pt": "Falhou"
+  },
+  {
+    "en": "Failed at",
+    "pt": "Falhou em"
+  },
+  {
+    "en": "Failed messages",
+    "pt": "Mensagens com falha"
   },
   {
     "en": "Fasting confirmed",
@@ -1482,6 +1634,10 @@
   {
     "en": "Follow-up",
     "pt": "Retorno"
+  },
+  {
+    "en": "Follow-up reminder",
+    "pt": "Lembrete de retorno"
   },
   {
     "en": "Follow-up scheduled",
@@ -1584,6 +1740,10 @@
     "pt": "Ajuda"
   },
   {
+    "en": "High",
+    "pt": "Alta"
+  },
+  {
     "en": "History",
     "pt": "Histórico"
   },
@@ -1620,6 +1780,10 @@
     "pt": "Li e concordo com os termos de uso e política de privacidade"
   },
   {
+    "en": "Identifiers must be positive integers",
+    "pt": "Os identificadores devem ser números inteiros positivos"
+  },
+  {
     "en": "IM",
     "pt": "IM"
   },
@@ -1648,6 +1812,10 @@
     "pt": "Importar SQL"
   },
   {
+    "en": "In person",
+    "pt": "Presencial"
+  },
+  {
     "en": "In pre-op",
     "pt": "Pré-operatório"
   },
@@ -1662,6 +1830,10 @@
   {
     "en": "In service",
     "pt": "Em atendimento"
+  },
+  {
+    "en": "In writing",
+    "pt": "Por escrito"
   },
   {
     "en": "Inactive",
@@ -1776,8 +1948,32 @@
     "pt": "Comando inválido"
   },
   {
+    "en": "Invalid communication channel",
+    "pt": "Canal de comunicação inválido"
+  },
+  {
+    "en": "Invalid communication preference status",
+    "pt": "Status de preferência de comunicação inválido"
+  },
+  {
+    "en": "Invalid consent source",
+    "pt": "Origem do consentimento inválida"
+  },
+  {
     "en": "Invalid date and time",
     "pt": "Data e hora inválidas"
+  },
+  {
+    "en": "Invalid deep-link class",
+    "pt": "Destino da pendência inválido"
+  },
+  {
+    "en": "Invalid deep-link parameter",
+    "pt": "Parâmetro do link da pendência inválido"
+  },
+  {
+    "en": "Invalid deep-link parameter key",
+    "pt": "Parâmetro do link da pendência inválido"
   },
   {
     "en": "invalid duration_minutes",
@@ -1800,8 +1996,36 @@
     "pt": "Ação em linha inválida"
   },
   {
+    "en": "Invalid legal basis",
+    "pt": "Base legal inválida"
+  },
+  {
+    "en": "Invalid message",
+    "pt": "Mensagem inválida"
+  },
+  {
+    "en": "Invalid message purpose",
+    "pt": "Finalidade da mensagem inválida"
+  },
+  {
+    "en": "Invalid message template status",
+    "pt": "Status do modelo de mensagem inválido"
+  },
+  {
     "en": "Invalid or expired request. Reload the page",
     "pt": "Requisição inválida ou expirada. Recarregue a página"
+  },
+  {
+    "en": "Invalid pending item priority",
+    "pt": "Prioridade de pendência inválida"
+  },
+  {
+    "en": "Invalid pending item type",
+    "pt": "Tipo de pendência inválido"
+  },
+  {
+    "en": "Invalid phone number for WhatsApp",
+    "pt": "Telefone inválido para WhatsApp"
   },
   {
     "en": "Invalid prescription",
@@ -1896,6 +2120,14 @@
     "pt": "leads"
   },
   {
+    "en": "Legal basis",
+    "pt": "Base legal"
+  },
+  {
+    "en": "Legitimate interest",
+    "pt": "Legítimo interesse"
+  },
+  {
     "en": "Like",
     "pt": "Curtir"
   },
@@ -1918,6 +2150,10 @@
   {
     "en": "Lot",
     "pt": "Lote"
+  },
+  {
+    "en": "Low",
+    "pt": "Baixa"
   },
   {
     "en": "Low or out of stock",
@@ -1952,12 +2188,20 @@
     "pt": "Gerenciar salas cirúrgicas"
   },
   {
+    "en": "Manual",
+    "pt": "Manual"
+  },
+  {
     "en": "Manual item added successfully",
     "pt": "Item manual adicionado com sucesso"
   },
   {
     "en": "Manufacturer",
     "pt": "Fabricante"
+  },
+  {
+    "en": "Mark as sent",
+    "pt": "Marcar como enviado"
   },
   {
     "en": "Material",
@@ -1988,6 +2232,10 @@
     "pt": "Medicamento"
   },
   {
+    "en": "Medication administrations",
+    "pt": "Administrações de medicamento"
+  },
+  {
     "en": "Menu path",
     "pt": "Caminho do menu"
   },
@@ -1996,12 +2244,56 @@
     "pt": "Mensagem"
   },
   {
+    "en": "Message details",
+    "pt": "Detalhes da mensagem"
+  },
+  {
+    "en": "Message discarded",
+    "pt": "Mensagem descartada"
+  },
+  {
+    "en": "Message history",
+    "pt": "Histórico de mensagens"
+  },
+  {
+    "en": "Message marked as sent",
+    "pt": "Mensagem marcada como enviada"
+  },
+  {
+    "en": "Message registered",
+    "pt": "Mensagem registrada"
+  },
+  {
+    "en": "Message requeued",
+    "pt": "Mensagem reenfileirada"
+  },
+  {
     "en": "Message sent successfully",
     "pt": "Mensagem enviada com sucesso"
   },
   {
+    "en": "Message template activated",
+    "pt": "Modelo de mensagem ativado"
+  },
+  {
+    "en": "Message template deactivated",
+    "pt": "Modelo de mensagem desativado"
+  },
+  {
+    "en": "Message templates",
+    "pt": "Modelos de mensagem"
+  },
+  {
+    "en": "Message text",
+    "pt": "Texto da mensagem"
+  },
+  {
     "en": "Messages",
     "pt": "Mensagens"
+  },
+  {
+    "en": "Messages sent to tutors appear here.",
+    "pt": "As mensagens enviadas aos tutores aparecem aqui."
   },
   {
     "en": "Method",
@@ -2116,6 +2408,10 @@
     "pt": "Nova pasta"
   },
   {
+    "en": "New message template",
+    "pt": "Novo modelo de mensagem"
+  },
+  {
     "en": "New operating room",
     "pt": "Nova sala"
   },
@@ -2142,6 +2438,10 @@
   {
     "en": "New service",
     "pt": "Novo serviço"
+  },
+  {
+    "en": "New template",
+    "pt": "Novo modelo"
   },
   {
     "en": "New tutor",
@@ -2178,6 +2478,10 @@
   {
     "en": "No",
     "pt": "Não"
+  },
+  {
+    "en": "No actions available for this message.",
+    "pt": "Nenhuma ação disponível para esta mensagem."
   },
   {
     "en": "No administrations scheduled for today or later.",
@@ -2232,6 +2536,14 @@
     "pt": "Nenhum material registrado ainda."
   },
   {
+    "en": "No message templates registered",
+    "pt": "Nenhum modelo de mensagem cadastrado"
+  },
+  {
+    "en": "No messages found",
+    "pt": "Nenhuma mensagem encontrada"
+  },
+  {
     "en": "No open cash register",
     "pt": "Nenhum caixa aberto"
   },
@@ -2242,6 +2554,14 @@
   {
     "en": "No payments recorded in this session yet",
     "pt": "Nenhum pagamento registrado nesta sessão ainda"
+  },
+  {
+    "en": "No pending items",
+    "pt": "Nenhuma pendência"
+  },
+  {
+    "en": "No preference was changed",
+    "pt": "Nenhuma preferência foi alterada"
   },
   {
     "en": "No prescriptions yet.",
@@ -2308,6 +2628,10 @@
     "pt": "não encontrado"
   },
   {
+    "en": "Not recorded",
+    "pt": "Não registrado"
+  },
+  {
     "en": "Not scheduled",
     "pt": "Não agendado"
   },
@@ -2352,6 +2676,14 @@
     "pt": "Uma vez por hora"
   },
   {
+    "en": "Online",
+    "pt": "Online"
+  },
+  {
+    "en": "Only mine",
+    "pt": "Só meus"
+  },
+  {
     "en": "Only open payables can be edited",
     "pt": "Só contas em aberto podem ser editadas"
   },
@@ -2368,12 +2700,20 @@
     "pt": "Em aberto"
   },
   {
+    "en": "Open (pending status)",
+    "pt": "Em aberto"
+  },
+  {
     "en": "Open (status)",
     "pt": "Aberto"
   },
   {
     "en": "Open a hospitalization from the hospitalization board or from the encounter.",
     "pt": "Abra uma internação pelo quadro de internação ou pelo atendimento."
+  },
+  {
+    "en": "Open a message from the message history.",
+    "pt": "Abra uma mensagem pelo histórico de mensagens."
   },
   {
     "en": "Open a surgery from the surgical schedule or from the encounter.",
@@ -2396,6 +2736,10 @@
     "pt": "Abra pelo atendimento"
   },
   {
+    "en": "Open receivable",
+    "pt": "Cobrança em aberto"
+  },
+  {
     "en": "Open receivables",
     "pt": "Contas a receber em aberto"
   },
@@ -2414,6 +2758,10 @@
   {
     "en": "Open ticket",
     "pt": "Abrir chamado"
+  },
+  {
+    "en": "Open WhatsApp",
+    "pt": "Abrir WhatsApp"
   },
   {
     "en": "Opened at",
@@ -2452,12 +2800,20 @@
     "pt": "Orientação"
   },
   {
+    "en": "Origin",
+    "pt": "Origem"
+  },
+  {
     "en": "Other",
     "pt": "Outro"
   },
   {
     "en": "Out of stock",
     "pt": "Sem estoque"
+  },
+  {
+    "en": "Overdue",
+    "pt": "Vencida"
   },
   {
     "en": "Overview",
@@ -2592,6 +2948,10 @@
     "pt": "Resultados de exame pendentes"
   },
   {
+    "en": "Pending items",
+    "pt": "Pendências"
+  },
+  {
     "en": "Pending review",
     "pt": "Aguardando revisão"
   },
@@ -2638,6 +2998,10 @@
   {
     "en": "phone is required",
     "pt": "Informe o telefone"
+  },
+  {
+    "en": "Phone usable for WhatsApp",
+    "pt": "Telefone serve para WhatsApp"
   },
   {
     "en": "Photo",
@@ -2690,6 +3054,10 @@
   {
     "en": "Pre-operative note",
     "pt": "Registro pré-operatório"
+  },
+  {
+    "en": "Preference",
+    "pt": "Preferência"
   },
   {
     "en": "Preferences",
@@ -2762,6 +3130,10 @@
   {
     "en": "Print",
     "pt": "Imprimir"
+  },
+  {
+    "en": "Priority",
+    "pt": "Prioridade"
   },
   {
     "en": "Procedure",
@@ -2888,6 +3260,14 @@
     "pt": "Registre o evento a partir da ficha da cirurgia."
   },
   {
+    "en": "Provide a tutor_id to compose a message.",
+    "pt": "Abra esta tela pela ficha do tutor para escrever uma mensagem."
+  },
+  {
+    "en": "Provide a tutor_id to manage the communication preferences.",
+    "pt": "Abra esta tela pela ficha do tutor para gerenciar as preferências de comunicação."
+  },
+  {
     "en": "Provide a valid encounter_id to open its account.",
     "pt": "Informe um encounter_id válido para abrir sua conta."
   },
@@ -2914,6 +3294,10 @@
   {
     "en": "Provide encounter_id and patient_id to request an exam.",
     "pt": "Informe encounter_id e patient_id para solicitar um exame."
+  },
+  {
+    "en": "Purpose",
+    "pt": "Finalidade"
   },
   {
     "en": "Qty",
@@ -2952,8 +3336,16 @@
     "pt": "Fila"
   },
   {
+    "en": "Queued",
+    "pt": "Na fila"
+  },
+  {
     "en": "RAM Memory",
     "pt": "Memória RAM"
+  },
+  {
+    "en": "Reason",
+    "pt": "Motivo"
   },
   {
     "en": "reason_text must be at most 500 characters",
@@ -2998,6 +3390,18 @@
   {
     "en": "Recieved",
     "pt": "Recebido"
+  },
+  {
+    "en": "Recipient",
+    "pt": "Destinatário"
+  },
+  {
+    "en": "recipient must be between 1 and 190 characters",
+    "pt": "O destinatário deve ter entre 1 e 190 caracteres"
+  },
+  {
+    "en": "Recipient rejected by the e-mail server",
+    "pt": "Destinatário recusado pelo servidor de e-mail"
   },
   {
     "en": "Record",
@@ -3088,6 +3492,10 @@
     "pt": "Renovação de senha"
   },
   {
+    "en": "Replace the template placeholders before sending the message",
+    "pt": "Troque os marcadores {{...}} do modelo pelo texto antes de enviar a mensagem"
+  },
+  {
     "en": "Reports",
     "pt": "Relatórios"
   },
@@ -3134,6 +3542,10 @@
   {
     "en": "Reset password",
     "pt": "Redefinir senha"
+  },
+  {
+    "en": "Resolve",
+    "pt": "Resolver"
   },
   {
     "en": "Respiratory rate (mpm)",
@@ -3192,6 +3604,18 @@
     "pt": "Retomar"
   },
   {
+    "en": "Retry",
+    "pt": "Reenviar"
+  },
+  {
+    "en": "Return appointments",
+    "pt": "Retornos"
+  },
+  {
+    "en": "Return reminder",
+    "pt": "Lembrete de retorno"
+  },
+  {
     "en": "Revenue by category",
     "pt": "Receitas por categoria"
   },
@@ -3206,6 +3630,10 @@
   {
     "en": "Revenues, expenses and cash of the unit",
     "pt": "Receitas, despesas e caixa da unidade"
+  },
+  {
+    "en": "Review the communication preferences of the tutor",
+    "pt": "Revise as preferências de comunicação do tutor"
   },
   {
     "en": "Role",
@@ -3396,6 +3824,10 @@
     "pt": "Selecionar linha"
   },
   {
+    "en": "Select the consent source for ^1",
+    "pt": "Selecione a origem do consentimento para ^1"
+  },
+  {
     "en": "Select the destination bed",
     "pt": "Selecione o leito de destino"
   },
@@ -3408,12 +3840,28 @@
     "pt": "Enviar mensagem"
   },
   {
+    "en": "Send this message again?",
+    "pt": "Enviar esta mensagem novamente?"
+  },
+  {
     "en": "Send to trash",
     "pt": "Enviar para a lixeira"
   },
   {
     "en": "Sent",
     "pt": "Enviado"
+  },
+  {
+    "en": "Sent (message status)",
+    "pt": "Enviada"
+  },
+  {
+    "en": "Sent at",
+    "pt": "Enviada em"
+  },
+  {
+    "en": "Sent manually",
+    "pt": "Enviada manualmente"
   },
   {
     "en": "Sent out",
@@ -3536,6 +3984,10 @@
     "pt": "Usuário SMTP"
   },
   {
+    "en": "source_type and a positive source_id must be given together",
+    "pt": "A origem da mensagem está incompleta"
+  },
+  {
     "en": "Species",
     "pt": "Espécie"
   },
@@ -3626,6 +4078,22 @@
   {
     "en": "Subject",
     "pt": "Assunto"
+  },
+  {
+    "en": "Subject (e-mail only)",
+    "pt": "Assunto (só e-mail)"
+  },
+  {
+    "en": "subject is required for email templates",
+    "pt": "O assunto é obrigatório em modelos de e-mail"
+  },
+  {
+    "en": "subject must be at most 190 characters",
+    "pt": "O assunto aceita no máximo 190 caracteres"
+  },
+  {
+    "en": "subject must be between 1 and 190 characters for email messages",
+    "pt": "O assunto do e-mail deve ter entre 1 e 190 caracteres"
   },
   {
     "en": "Submission date",
@@ -3832,6 +4300,10 @@
     "pt": "A fase \"Antes de sair da sala\" do checklist não foi confirmada"
   },
   {
+    "en": "The appointment and the encounter belong to different patients",
+    "pt": "O agendamento e o atendimento são de pacientes diferentes"
+  },
+  {
     "en": "The bed is not occupied by this hospitalization",
     "pt": "O leito não está ocupado por esta internação"
   },
@@ -3860,6 +4332,10 @@
     "pt": "Os seguintes arquivos foram modificados em relação ao framework original"
   },
   {
+    "en": "The message text is required",
+    "pt": "O texto da mensagem é obrigatório"
+  },
+  {
     "en": "The password has been changed",
     "pt": "A senha foi alterada"
   },
@@ -3872,6 +4348,10 @@
     "pt": "As senhas não coincidem"
   },
   {
+    "en": "The patient does not belong to this tutor",
+    "pt": "O paciente não pertence a este tutor"
+  },
+  {
     "en": "The payment exceeds the open balance",
     "pt": "O pagamento ultrapassa o valor em aberto"
   },
@@ -3882,6 +4362,34 @@
   {
     "en": "The selected record does not belong to this clinic",
     "pt": "O registro selecionado não pertence a esta clínica"
+  },
+  {
+    "en": "The tutor has no e-mail address",
+    "pt": "O tutor não tem e-mail cadastrado"
+  },
+  {
+    "en": "The tutor has not consented to e-mail messages",
+    "pt": "O tutor não consentiu em receber mensagens por e-mail"
+  },
+  {
+    "en": "The tutor has not consented to WhatsApp messages",
+    "pt": "O tutor não consentiu em receber mensagens por WhatsApp"
+  },
+  {
+    "en": "The tutor has not consented to WhatsApp messages. The message was cancelled",
+    "pt": "O tutor não consentiu em receber mensagens por WhatsApp. A mensagem foi cancelada"
+  },
+  {
+    "en": "The tutor refused e-mail messages",
+    "pt": "O tutor recusou mensagens por e-mail"
+  },
+  {
+    "en": "The tutor refused WhatsApp messages",
+    "pt": "O tutor recusou mensagens por WhatsApp"
+  },
+  {
+    "en": "The tutor refused WhatsApp messages. The message was cancelled",
+    "pt": "O tutor recusou mensagens por WhatsApp. A mensagem foi cancelada"
   },
   {
     "en": "The user registration is disabled",
@@ -3954,6 +4462,26 @@
   {
     "en": "This material was already removed",
     "pt": "Este material já foi removido"
+  },
+  {
+    "en": "This message could not be loaded.",
+    "pt": "Não foi possível carregar esta mensagem."
+  },
+  {
+    "en": "This message has not failed",
+    "pt": "Esta mensagem não falhou"
+  },
+  {
+    "en": "This message is no longer awaiting manual send",
+    "pt": "Esta mensagem não está mais aguardando envio manual"
+  },
+  {
+    "en": "This message is no longer queued",
+    "pt": "Esta mensagem não está mais na fila"
+  },
+  {
+    "en": "This message is not a WhatsApp message",
+    "pt": "Esta mensagem não é de WhatsApp"
   },
   {
     "en": "This operation is not allowed",
@@ -4030,6 +4558,10 @@
   {
     "en": "This surgery was changed by someone else; reload it and try again",
     "pt": "Esta cirurgia foi alterada por outra pessoa; recarregue a ficha e tente de novo"
+  },
+  {
+    "en": "This template does not match the message purpose and channel",
+    "pt": "Este modelo não corresponde à finalidade e ao canal da mensagem"
   },
   {
     "en": "This will remove all the contents of the folder",
@@ -4116,6 +4648,14 @@
     "pt": "Tutor"
   },
   {
+    "en": "Tutor has not consented to this channel",
+    "pt": "Tutor não consentiu com este canal"
+  },
+  {
+    "en": "Tutor opted out of this channel",
+    "pt": "Tutor recusou este canal"
+  },
+  {
     "en": "Tutors",
     "pt": "Tutores"
   },
@@ -4156,6 +4696,10 @@
     "pt": "Fase do checklist desconhecida"
   },
   {
+    "en": "Unknown placeholder \"^1\" in template",
+    "pt": "Marcador desconhecido no modelo: \"^1\""
+  },
+  {
     "en": "Unknown surgery event type",
     "pt": "Tipo de evento cirúrgico desconhecido"
   },
@@ -4174,6 +4718,10 @@
   {
     "en": "Updated at",
     "pt": "Atualizado em"
+  },
+  {
+    "en": "Urgent",
+    "pt": "Urgente"
   },
   {
     "en": "Use authencator app like Google Authenticator or Authy",
@@ -4236,6 +4784,10 @@
     "pt": "Catálogo de vacinas"
   },
   {
+    "en": "Vaccine due",
+    "pt": "Vacina a vencer"
+  },
+  {
     "en": "Vaccine protocol",
     "pt": "Protocolo de vacina"
   },
@@ -4246,6 +4798,10 @@
   {
     "en": "Vaccines",
     "pt": "Vacinas"
+  },
+  {
+    "en": "Vaccines due",
+    "pt": "Vacinas a vencer"
   },
   {
     "en": "Valid until",
@@ -4336,8 +4892,16 @@
     "pt": "Bem-vindo"
   },
   {
+    "en": "What needs attention in this unit",
+    "pt": "O que precisa de atenção nesta unidade"
+  },
+  {
     "en": "WhatsApp",
     "pt": "WhatsApp"
+  },
+  {
+    "en": "WhatsApp messages to send",
+    "pt": "WhatsApp a enviar"
   },
   {
     "en": "When defining a restricted method, only users with the selected role will be able to execute that method",
@@ -4380,8 +4944,16 @@
     "pt": "Você não tem permissão para aplicar uma vacina para esta unidade"
   },
   {
+    "en": "You are not allowed to change the communication preferences of this tutor",
+    "pt": "Você não tem permissão para alterar as preferências de comunicação deste tutor"
+  },
+  {
     "en": "You are not allowed to change this hospitalization",
     "pt": "Você não tem permissão para alterar esta internação"
+  },
+  {
+    "en": "You are not allowed to change this message",
+    "pt": "Você não tem permissão para alterar esta mensagem"
   },
   {
     "en": "You are not allowed to change this surgery",
@@ -4406,6 +4978,10 @@
   {
     "en": "You are not allowed to manage beds",
     "pt": "Você não tem permissão para gerenciar leitos"
+  },
+  {
+    "en": "You are not allowed to manage message templates",
+    "pt": "Você não tem permissão para gerenciar modelos de mensagem"
   },
   {
     "en": "You are not allowed to manage operating rooms",
@@ -4460,8 +5036,20 @@
     "pt": "Você não tem permissão para agendar cirurgias nesta unidade"
   },
   {
+    "en": "You are not allowed to send messages",
+    "pt": "Você não tem permissão para enviar mensagens"
+  },
+  {
     "en": "You are not allowed to start an encounter for this unit",
     "pt": "Você não tem permissão para iniciar um atendimento para esta unidade"
+  },
+  {
+    "en": "You are not allowed to view the message history",
+    "pt": "Você não tem permissão para ver o histórico de mensagens"
+  },
+  {
+    "en": "You are not allowed to view the pending items",
+    "pt": "Você não tem permissão para ver as pendências"
   },
   {
     "en": "You are not allowed to view the shift board",
@@ -4474,6 +5062,10 @@
   {
     "en": "You are not allowed to view this encounter",
     "pt": "Você não tem permissão para visualizar este atendimento"
+  },
+  {
+    "en": "You are not allowed to view this message",
+    "pt": "Você não tem permissão para ver esta mensagem"
   },
   {
     "en": "You have already registered this password",

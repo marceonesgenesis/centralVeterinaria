@@ -12,6 +12,11 @@
         <action>CvShellController#method=onComingSoon#item=dashboard</action>
     </menuitem>
 
+    <menuitem label='_t{Pending items}'>
+        <icon>fas:list-check fa-fw</icon>
+        <action>PendingCenter</action>
+    </menuitem>
+
     <menuitem label='_t{Agenda}'>
         <icon>fas:calendar-days fa-fw</icon>
         <action>AgendaView</action>
@@ -84,7 +89,16 @@
 
     <menuitem label='_t{CRM / Communication}'>
         <icon>fas:comments fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=crm</action>
+        <menu>
+            <menuitem label='_t{Messages}'>
+                <icon>fas:envelope fa-fw</icon>
+                <action>CommunicationMessageList</action>
+            </menuitem>
+            <menuitem label='_t{Message templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>MessageTemplateList</action>
+            </menuitem>
+        </menu>
     </menuitem>
 
     <menuitem label='_t{Reports}'>

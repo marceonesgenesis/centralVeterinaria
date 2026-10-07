@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(47, UserMessage::STATIC);
-        Assert::count(64, UserMessage::PATTERNS);
+        Assert::count(62, UserMessage::STATIC);
+        Assert::count(86, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -301,6 +301,109 @@ final class UserMessageTest
             }
         }
         self::assertScreenKeysTranslated($keys, ['Surgery*.php', '../../Core/Presentation/SurgeryAgendaView.php'], 10);
+    }
+
+    public function testCommunicationDomainMessagesResolveWithoutInternalIds(): void
+    {
+        // Fase 7A, T-21: consentimento, templates, mensagens, retorno e central de pendências.
+        $translations = self::translations();
+        $cases = [
+            'Tutor 41 has not opted in to email messages' => 'The tutor has not consented to e-mail messages',
+            'Tutor 41 has not opted in to whatsapp messages' => 'The tutor has not consented to WhatsApp messages',
+            'Tutor 41 has opted out of email messages' => 'The tutor refused e-mail messages',
+            'Tutor 41 has opted out of whatsapp messages' => 'The tutor refused WhatsApp messages',
+            'Unknown communication channel "sms"' => 'Invalid communication channel',
+            'Unknown message purpose "x"' => 'Invalid message purpose',
+            'Unknown legal basis "x"' => 'Invalid legal basis',
+            'Unknown consent source "x"' => 'Invalid consent source',
+            'Unknown communication preference status "x"' => 'Invalid communication preference status',
+            'Unknown message template status "x"' => 'Invalid message template status',
+            'Appointment 77 and encounter 88 belong to different patients' => 'The appointment and the encounter belong to different patients',
+            'Tutor 41 has no e-mail address' => 'The tutor has no e-mail address',
+            'Message 52 is no longer awaiting manual send' => 'This message is no longer awaiting manual send',
+            'Message 52 is no longer queued' => 'This message is no longer queued',
+            'Message 52 was cancelled because the tutor opted out of whatsapp messages' => 'The tutor refused WhatsApp messages. The message was cancelled',
+            'Message 52 was cancelled because the tutor has not opted in to whatsapp messages' => 'The tutor has not consented to WhatsApp messages. The message was cancelled',
+            'Message 52 has not failed' => 'This message has not failed',
+            'Message 52 is not a WhatsApp message' => 'This message is not a WhatsApp message',
+            'Template 63 does not match the message purpose and channel' => 'This template does not match the message purpose and channel',
+            'patient_id 74 was not found for tutor_id 41' => 'The patient does not belong to this tutor',
+            'Invalid deep-link parameter phone' => 'Invalid deep-link parameter',
+            'tutor_id 41 was not found for the authenticated tenant' => 'Record not found',
+            'template_id 63 was not found for the authenticated tenant' => 'Record not found',
+            'message_id 52 was not found for the authenticated tenant' => 'Record not found',
+            'appointment_id 77 was not found for the authenticated tenant' => 'Record not found',
+        ];
+
+        foreach ($cases as $message => $key) {
+            $resolved = UserMessage::resolve($message);
+            Assert::same($key, $resolved['key'] ?? null, "Wrong key for: {$message}");
+            $pt = $translations[$key] ?? '';
+            Assert::true($pt !== '' && preg_match('/\d|_/', $pt) !== 1, "Translation for {$key} must exist without ids or field names");
+        }
+
+        Assert::same(
+            ['key' => 'Unknown placeholder "^1" in template', 'params' => ['<b>x</b>']],
+            UserMessage::resolve('Unknown placeholder "<b>x</b>" in template'),
+        );
+        Assert::true(isset($translations['Unknown placeholder "^1" in template']), 'Missing translation for the placeholder message');
+    }
+
+    public function testCommunicationValidationMessagesAreCatalogued(): void
+    {
+        $translations = self::translations();
+
+        foreach ([
+            'Another active template already exists for this purpose and channel',
+            'subject is required for email templates',
+            'subject must be at most 190 characters',
+            'body must be between 1 and 2000 characters',
+            'body must not be empty',
+            'recipient must be between 1 and 190 characters',
+            'subject must be between 1 and 190 characters for email messages',
+            'source_type and a positive source_id must be given together',
+            'Invalid phone number for WhatsApp',
+            'Identifiers must be positive integers',
+            'Invalid pending item type',
+            'Invalid pending item priority',
+            'Invalid deep-link class',
+            'Invalid deep-link parameter key',
+            'Replace the template placeholders before sending the message',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$message} must not show field names");
+        }
+    }
+
+    public function testEveryCommunicationScreenKeyHasATranslation(): void
+    {
+        // Fase 7A, T-21: _t('...') dos 7 controllers novos e do TutorForm, _t{...} do menu,
+        // rótulos do CvNav('communication') e rótulos indiretos (tipos e prioridades da central).
+        $keys = [
+            'Pending items', 'CRM / Communication', 'Messages', 'Message templates',
+            'Exam results to record', 'Exam results to review', 'Return appointments', 'Vaccines due',
+            'Medication administrations', 'Failed messages', 'WhatsApp messages to send', 'Open receivables',
+            'Urgent', 'High', 'Normal', 'Low',
+        ];
+        self::assertScreenKeysTranslated(
+            $keys,
+            ['MessageTemplate*.php', 'Communication*.php', 'TutorCommunicationForm.php', 'PendingCenter.php', 'TutorForm.php'],
+            8,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function translations(): array
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        return $translations;
     }
 
     /**

@@ -80,7 +80,7 @@ class PrescriptionForm extends TPage
         'issued' => ['Issued', 'success'],
     ];
 
-    /** Nome do formulário principal (TCombo::reload e TButton::setFormName). */
+    /** Nome do formulário principal (CvCombo::reload e TButton::setFormName). */
     private const FORM_NAME = 'form_Prescription';
 
     private const SIDE_HISTORY_LIMIT = 5;
@@ -967,7 +967,7 @@ class PrescriptionForm extends TPage
             TSession::setValue(self::templateSourceKey($encounterId), null);
 
             // o modelo novo entra no combo sem recarregar a página
-            TCombo::reload(self::FORM_NAME, 'template_id', self::loadTemplateOptions(), true);
+            CvCombo::reload(self::FORM_NAME, 'template_id', self::loadTemplateOptions(), true);
 
             new TMessage('info', _t('Template saved'));
         }

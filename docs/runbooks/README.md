@@ -14,6 +14,7 @@ runbooks indicam o que muda nesses ambientes.
 - [`environments.md`](./environments.md) — configuração esperada por ambiente (development/staging/production).
 - [`internacao.md`](./internacao.md) — fluxos, regras, banco, permissões e aplicação da internação (Fase 6A).
 - [`cirurgia.md`](./cirurgia.md) — fluxos, regras, banco, permissões e aplicação da cirurgia (Fase 6B).
+- [`comunicacao.md`](./comunicacao.md) — consentimento, templates, e-mail/WhatsApp, agendador, LGPD e Central de Pendências (Fase 7A).
 
 Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
 banco (migration, rollback, restore) exigem autorização explícita antes de
