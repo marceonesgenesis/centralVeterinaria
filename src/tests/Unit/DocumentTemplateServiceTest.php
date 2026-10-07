@@ -10,6 +10,7 @@ use CentralVet\Domain\DocumentKind;
 use CentralVet\Domain\DocumentTemplate;
 use CentralVet\Domain\DocumentTemplateDefaults;
 use CentralVet\Domain\DocumentTemplateRenderer;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\DocumentSourceNotFoundException;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
@@ -258,6 +259,31 @@ final class DocumentTemplateServiceTest
         [$service] = $this->build(false);
 
         Assert::throws(AuthorizationDenied::class, fn () => $service->mergeForPatient(0, self::PATIENT_ID, self::ACTION));
+    }
+
+    public function testFindByIdReturnsTenantTemplateAndRejectsUnknownId(): void
+    {
+        [$service, , $policy] = $this->build(true, self::template(1, 'F7B teste busca', 'Texto {{patient_name}}'));
+
+        $template = $service->findById(1, self::ACTION);
+
+        Assert::same(1, $template->id());
+        Assert::same('F7B teste busca', $template->name());
+        Assert::count(1, $policy->requests);
+        Assert::same(1, $policy->requests[0]->entityId());
+
+        self::expectMessage(
+            CrossTenantReferenceException::class,
+            'template_id 999 was not found for the authenticated tenant',
+            fn () => $service->findById(999, self::ACTION),
+        );
+    }
+
+    public function testDeniedFindByIdThrows(): void
+    {
+        [$service] = $this->build(false, self::template(1, 'F7B teste busca', 'Texto {{patient_name}}'));
+
+        Assert::throws(AuthorizationDenied::class, fn () => $service->findById(1, self::ACTION));
     }
 
     public function testDuplicateKeyFromTheDatabaseBecomesTheDuplicateNameMessage(): void
