@@ -1,6 +1,6 @@
 <?php
 /**
- * CvNav — grupos de abas de módulo (financeiro, estoque, serviços, internação, prescrição).
+ * CvNav — grupos de abas de módulo (financeiro, estoque, serviços, internação, cirurgia, prescrição).
  * Abas sem tela real ficam desabilitadas ("Em breve").
  */
 class CvNav
@@ -42,6 +42,10 @@ class CvNav
             'hospitalization' => [
                 'board' => ['Board', 'index.php?class=HospitalizationBoard'],
                 'beds'  => ['Beds',  'index.php?class=BedList'],
+            ],
+            'surgery' => [
+                'list'  => ['Surgeries', 'index.php?class=SurgeryList'],
+                'rooms' => ['Rooms',     'index.php?class=SurgeryRoomList'],
             ],
             'prescription' => [
                 'new'       => ['New prescription',     self::prescriptionHref(false)],

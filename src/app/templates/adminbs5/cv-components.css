@@ -746,3 +746,73 @@ a.cv-tab:hover {
     min-height: 44px;
     min-width: 44px;
 }
+
+/* cv-checklist */
+/* Checklist de segurança cirúrgica no tablet (Fase 6B, T-16): uma linha
+   tocável por item; o checkbox (.cv-checklist__item) tem a área de toque
+   de var(--cv-touch-target) e a linha inteira também, com estado marcado
+   visível (:checked e .cv-checklist__item--checked). */
+.cv-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-2);
+    width: 100%;
+}
+.cv-checklist__row {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-3);
+    min-height: var(--cv-touch-target);
+    margin: 0;
+    padding: var(--cv-space-2) var(--cv-space-3);
+    font-size: 1.125rem;
+    color: var(--cv-color-text);
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-border);
+    border-inline-start-width: 0.3rem;
+    border-radius: var(--cv-radius-md);
+    cursor: pointer;
+    user-select: none;
+}
+.cv-checklist__row:focus-within {
+    outline: 3px solid var(--cv-color-focus);
+    outline-offset: 2px;
+}
+.cv-checklist__item {
+    flex: 0 0 auto;
+    width: var(--cv-touch-target);
+    height: var(--cv-touch-target);
+    min-width: var(--cv-touch-target);
+    min-height: var(--cv-touch-target);
+    margin: 0;
+    accent-color: var(--cv-color-success);
+    cursor: pointer;
+}
+.cv-checklist__item:checked,
+.cv-checklist__item--checked {
+    accent-color: var(--cv-color-success);
+}
+.cv-checklist__row--checked,
+.cv-checklist__row:has(.cv-checklist__item:checked) {
+    background: var(--cv-color-success-soft);
+    border-color: var(--cv-color-success);
+}
+.cv-checklist__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.cv-checklist__done {
+    margin: 0 0 var(--cv-space-3);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    color: var(--cv-color-text);
+    background: var(--cv-color-success-soft);
+    border-radius: var(--cv-radius-md);
+    font-weight: 600;
+}
+.cv-checklist__phases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cv-space-2);
+    margin: var(--cv-space-3) 0;
+}

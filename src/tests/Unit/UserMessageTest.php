@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(39, UserMessage::STATIC);
-        Assert::count(38, UserMessage::PATTERNS);
+        Assert::count(47, UserMessage::STATIC);
+        Assert::count(64, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -191,6 +191,73 @@ final class UserMessageTest
         Assert::same(['key' => 'Invalid prescription type', 'params' => []], UserMessage::resolve('Unknown order_type "x"'));
     }
 
+    public function testSurgeryDomainMessagesResolveWithoutInternalIds(): void
+    {
+        // Fase 6B, T-19: sala, status da cirurgia, checklist, equipe e materiais.
+        $english = self::translatedKeys();
+        $cases = [
+            'Surgery room 3 is already booked for this period' => 'This surgery room is already booked for this period',
+            'Surgery room 3 is not active' => 'This surgery room is not active',
+            'Surgery room 3 belongs to another unit' => 'This surgery room belongs to another unit',
+            'Surgery 9 is not scheduled' => 'This surgery is not scheduled',
+            'Surgery 9 is not in pre-op' => 'This surgery is not in pre-op',
+            'Surgery 9 is not in progress' => 'This surgery is not in progress',
+            'Surgery 9 is not completed' => 'This surgery is not completed',
+            'Surgery 9 is cancelled' => 'This surgery is cancelled',
+            'Surgery 9 has no recorded consent' => 'This surgery has no recorded consent',
+            'Surgery 9 is not open for pre-operative changes' => 'This surgery is no longer open for pre-operative changes',
+            'Surgery 9 cannot be cancelled in its current status' => 'This surgery cannot be cancelled in its current status',
+            'Surgery 9 changed status concurrently' => 'This surgery was changed by someone else; reload it and try again',
+            'Surgery 9 already has a follow-up appointment' => 'This surgery already has a follow-up appointment',
+            'Checklist phase "sign_in" is already confirmed for surgery 9' => 'This checklist phase is already confirmed',
+            'Checklist phase "sign_in" is not confirmed for surgery 9' => 'The "Before induction" checklist phase is not confirmed',
+            'Checklist phase "time_out" is not confirmed for surgery 9' => 'The "Before incision" checklist phase is not confirmed',
+            'Checklist phase "sign_out" is not confirmed for surgery 9' => 'The "Before leaving the room" checklist phase is not confirmed',
+            'Checklist phase "time_out" cannot be confirmed while surgery 9 is scheduled' => 'This checklist phase cannot be confirmed in the current surgery status',
+            'All checklist items of phase "sign_out" must be checked' => 'All items of this checklist phase must be checked',
+            'Team member 12 must be an active user of this tenant' => 'Every team member must be an active user of this tenant',
+            'Material 4 was already removed' => 'This material was already removed',
+            'Unknown surgery event type "x"' => 'Unknown surgery event type',
+            'Unknown checklist phase "x"' => 'Unknown checklist phase',
+            'Unknown checklist item "x"' => 'Unknown checklist item',
+            'Unknown team role "x"' => 'Unknown team role',
+        ];
+
+        foreach ($cases as $message => $key) {
+            $resolved = UserMessage::resolve($message);
+            Assert::same($key, $resolved['key'] ?? null, "Wrong key for: {$message}");
+            Assert::true(isset($english[$key]), "Missing translation for catalog key: {$key}");
+        }
+
+        Assert::same(
+            ['key' => 'A surgery room with code "^1" already exists in this unit', 'params' => ['<b>S1</b>']],
+            UserMessage::resolve('A surgery room with code "<b>S1</b>" already exists in this unit'),
+        );
+    }
+
+    public function testSurgeryValidationMessagesAreCatalogued(): void
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        foreach ([
+            'Surgery duration cannot exceed 24 hours',
+            'duration_minutes must be between 15 and 1440',
+            'scheduled_end_at must be after scheduled_start_at',
+            'quantity must be between 1 and 9999',
+            'consent_signer_name is required',
+            'consent_text is required',
+            'cancellation_reason_text is required',
+            'surgeon_system_user_id must be an active user of this tenant',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$message} must not show field names");
+        }
+    }
+
     public function testCatalogTranslationsDoNotShowTechnicalFieldNames(): void
     {
         $translations = [];
@@ -216,14 +283,38 @@ final class UserMessageTest
     public function testEveryHospitalizationScreenKeyHasATranslation(): void
     {
         // Rótulos de tela de T-12..T-17: _t('...') dos controllers, _t{...} do menu e rótulos de CvNav/PLAN_ACTIONS.
+        self::assertScreenKeysTranslated(['Board', 'Beds', 'Hospitalization', 'Hospitalize'], ['Bed*.php', 'Hospitalization*.php'], 8);
+    }
+
+    public function testEverySurgeryScreenKeyHasATranslation(): void
+    {
+        // Fase 6B, T-19: _t('...') das telas Surgery*, SurgeryAgendaView, menu, CvNav, PLAN_ACTIONS,
+        // badges de status, fases e itens do checklist e o texto padrão do consentimento.
+        $keys = [
+            'Surgeries', 'Surgery rooms', 'Rooms', 'Schedule surgery', 'Surgery consent default text',
+            'Scheduled', 'Pre-op', 'In progress', 'Completed', 'Cancelled',
+        ];
+        foreach (\CentralVet\Domain\SurgeryChecklist::PHASES as $phase) {
+            $keys[] = \CentralVet\Domain\SurgeryChecklist::phaseLabel($phase);
+            foreach (\CentralVet\Domain\SurgeryChecklist::items($phase) as $code) {
+                $keys[] = \CentralVet\Domain\SurgeryChecklist::label($code);
+            }
+        }
+        self::assertScreenKeysTranslated($keys, ['Surgery*.php', '../../Core/Presentation/SurgeryAgendaView.php'], 10);
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param list<string> $patterns globs relative to app/control/clinic
+     */
+    private static function assertScreenKeysTranslated(array $keys, array $patterns, int $minFiles): void
+    {
         $english = self::translatedKeys();
-        $root = dirname(__DIR__, 2);
-        $keys = ['Board', 'Beds', 'Hospitalization', 'Hospitalize'];
-        $files = array_merge(
-            glob($root . '/app/control/clinic/Bed*.php') ?: [],
-            glob($root . '/app/control/clinic/Hospitalization*.php') ?: [],
-        );
-        Assert::true(count($files) >= 8, 'Hospitalization controllers not found');
+        $files = [];
+        foreach ($patterns as $pattern) {
+            $files = array_merge($files, glob(dirname(__DIR__, 2) . '/app/control/clinic/' . $pattern) ?: []);
+        }
+        Assert::true(count($files) >= $minFiles, 'Screen controllers not found');
 
         foreach ($files as $file) {
             preg_match_all("/_t\(\s*'((?:[^'\\\\]|\\\\.)*)'/", (string) file_get_contents($file), $matches);

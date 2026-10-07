@@ -327,6 +327,8 @@ final class EncounterAccountService
         if (!in_array($sourceType, [
             EncounterAccountItem::TYPE_HOSPITALIZATION_STAY,
             EncounterAccountItem::TYPE_HOSPITALIZATION_ADMINISTRATION,
+            EncounterAccountItem::TYPE_SURGERY_PROCEDURE,
+            EncounterAccountItem::TYPE_SURGERY_MATERIAL,
         ], true)) {
             throw new InvalidArgumentException("source_type \"{$sourceType}\" is not accepted for sourced items");
         }

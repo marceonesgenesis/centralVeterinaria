@@ -86,6 +86,7 @@ class EncounterView extends TPage
         'vaccine' => ['Vaccine', 'fa:shield-alt', 'VaccinationForm'],
         'account' => ['Account', 'fa:file-invoice-dollar', 'EncounterAccountForm'],
         'hospitalization' => ['Hospitalize', 'fa:procedures', 'HospitalizationAdmissionForm'],
+        'surgery' => ['Schedule surgery', 'fa:kit-medical', 'SurgeryScheduleForm'],
     ];
 
     /**
