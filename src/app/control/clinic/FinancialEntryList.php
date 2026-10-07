@@ -30,6 +30,10 @@ class FinancialEntryList extends TStandardList
     protected $form;     // registration form
     protected $datagrid; // listing
     protected $pageNavigation;
+    protected $footerBox;
+
+    /** @var string|null 'income'|'expense' vindo da aba (outro valor = todos) */
+    private $entryType = null;
 
     /**
      * Page constructor
@@ -41,7 +45,7 @@ class FinancialEntryList extends TStandardList
         // No setActiveRecord() call: AdiantiStandardControlTrait::
         // setActiveRecord() requires class_exists($activeRecord) and throws
         // otherwise — there is no CentralVet\Domain\FinancialEntry-backed
-        // TRecord model (onReload()/onAfterSearch() below talk to
+        // TRecord model (onReload() below talks to
         // FinancialEntryService directly), so calling it here was a fatal
         // dead end on every load, never exercised by the fake-repository
         // unit tests.
@@ -50,117 +54,102 @@ class FinancialEntryList extends TStandardList
         parent::addFilterField('period_to', '<=', 'period_to');
         parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
+        // aba Receitas/Despesas: entry_type do schema (FinancialEntry::TYPE_*)
+        $this->entryType = self::entryTypeParam($_REQUEST['entry_type'] ?? null);
+        $type_param = $this->entryType !== null ? ['entry_type' => $this->entryType] : [];
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_FinancialEntry');
-        $this->form->setFormTitle(_t('Financial entries'));
+        // barra de filtros em linha (período), no lugar da cortina
+        $this->form = new TForm('form_search_FinancialEntry');
 
         // create the form fields
         $period_from = new TDate('period_from');
         $period_to = new TDate('period_to');
 
-        $period_from->setMask('dd/mm/yyyy');
-        $period_from->setDatabaseMask('yyyy-mm-dd');
-        $period_to->setMask('dd/mm/yyyy');
-        $period_to->setDatabaseMask('yyyy-mm-dd');
+        foreach ([$period_from, $period_to] as $field)
+        {
+            $field->setMask('dd/mm/yyyy');
+            $field->setDatabaseMask('yyyy-mm-dd');
+            $field->setSize('100%');
+        }
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('From'))] );
-        $this->form->addFields( [$period_from] );
-        $this->form->addFields( [new TLabel(_t('To'))] );
-        $this->form->addFields( [$period_to] );
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch'], $type_param), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
 
-        $period_from->setSize('100%');
-        $period_to->setSize('100%');
+        $this->form->add(CvPage::filterBar([
+            self::labeled(_t('Start date'), $period_from),
+            self::labeled(_t('End date'), $period_to),
+            $find,
+        ]));
+        $this->form->setFields([$period_from, $period_to, $find]);
 
         // keep the form filled during navigation with session data, or
         // default to the current calendar month on first load
-        $filter_data = TSession::getValue('FinancialEntry_filter_data');
-
-        if (empty($filter_data))
-        {
-            $filter_data = new stdClass;
-            $filter_data->period_from = date('Y-m-01');
-            $filter_data->period_to = date('Y-m-t');
-        }
-
-        $this->form->setData($filter_data);
-
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
+        $this->form->setData(self::filterData());
 
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
 
         // creates the datagrid columns
-        $column_id            = new TDataGridColumn('id', 'Id', 'center', 50);
-        $column_entry_type    = new TDataGridColumn('entry_type_label', _t('Type'), 'center', 100);
-        $column_category      = new TDataGridColumn('category', _t('Category'), 'left');
-        $column_amount        = new TDataGridColumn('amount_label', _t('Amount'), 'right', 110);
-        $column_occurred_at   = new TDataGridColumn('occurred_at_label', _t('Date'), 'center', 130);
+        $column_occurred_at   = new TDataGridColumn('occurred_at_label', _t('Date'), 'left', 130);
         $column_reference     = new TDataGridColumn('reference_label', _t('Reference'), 'left');
+        $column_category      = new TDataGridColumn('category', _t('Category'), 'left');
+        $column_entry_type    = new TDataGridColumn('entry_type', _t('Type'), 'left', 110);
+        $column_amount        = new TDataGridColumn('amount_cents', _t('Amount'), 'right', 130);
+
+        $column_entry_type->setTransformer(function ($value) {
+            return $value === \CentralVet\Domain\FinancialEntry::TYPE_EXPENSE
+                ? CvBadge::create(_t('Expense'), 'danger')
+                : CvBadge::create(_t('Income'), 'success');
+        });
+        $column_amount->setTransformer(function ($value, $object) {
+            $is_expense = $object->entry_type === \CentralVet\Domain\FinancialEntry::TYPE_EXPENSE;
+            $amount = CvFormat::money((int) $value);
+            return '<span class="' . ($is_expense ? 'text-danger' : 'text-success') . '">'
+                 . CvFormat::e($is_expense ? '-' . $amount : $amount) . '</span>';
+        });
 
         // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
-        $this->datagrid->addColumn($column_entry_type);
-        $this->datagrid->addColumn($column_category);
-        $this->datagrid->addColumn($column_amount);
         $this->datagrid->addColumn($column_occurred_at);
         $this->datagrid->addColumn($column_reference);
+        $this->datagrid->addColumn($column_category);
+        $this->datagrid->addColumn($column_entry_type);
+        $this->datagrid->addColumn($column_amount);
 
         // create the datagrid model
         $this->datagrid->createModel();
 
         // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
-        $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
+        $this->pageNavigation->setAction(new TAction(array($this, 'onReload'), $type_param));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
+        $this->footerBox = new TElement('div');
 
-        $panel->addHeaderWidget($this->form);
+        $active_tab = $this->entryType === \CentralVet\Domain\FinancialEntry::TYPE_INCOME
+            ? 'revenues'
+            : ($this->entryType === \CentralVet\Domain\FinancialEntry::TYPE_EXPENSE ? 'expenses' : '');
 
-        $panel->addHeaderActionLink('', new TAction(['FinancialEntryForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
+        $title = $active_tab === 'revenues' ? _t('Revenues') : ($active_tab === 'expenses' ? _t('Expenses') : _t('Financial entries'));
 
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
+        $new_href = 'index.php?class=FinancialEntryForm&method=onEdit&register_state=false'
+                  . ($this->entryType !== null ? '&entry_type=' . $this->entryType : '');
 
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Financial entries'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        // vertical box container
-        // No TXMLBreadCrumb here on purpose: registering FinancialEntryList
-        // in menu.xml is explicitly T-12's job, not T-09's (same precedent
-        // as ProcedureCatalogList::__construct()'s own docblock) —
-        // TXMLBreadCrumb throws when the class is not yet listed there,
-        // which would make `new FinancialEntryList()` fatal ahead of that
-        // registration.
+        // No TXMLBreadCrumb here on purpose: TXMLBreadCrumb throws when the
+        // class is not listed in menu.xml, which would make
+        // `new FinancialEntryList()` fatal whenever the menu changes.
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($page_header);
-        $container->add($panel);
+        $container->add(CvPage::header($title, _t('Financial'), [
+            ['label' => _t('New'), 'href' => $new_href, 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]));
+        $container->add(CvNav::tabs('finance', $active_tab));
+        $container->add($this->form);
+        $container->add($this->datagrid);
+        $container->add($this->footerBox);
 
         parent::add($container);
     }
@@ -170,6 +159,7 @@ class FinancialEntryList extends TStandardList
      * Loads the datagrid exclusively from
      * CentralVet\Application\FinancialEntryService::listByPeriod() — the
      * tenant scoping happens inside that service/repository, never here.
+     * With entry_type=income|expense only rows of that type are listed.
      */
     public function onReload($param = NULL)
     {
@@ -186,7 +176,7 @@ class FinancialEntryList extends TStandardList
             $tenant_context = self::resolveTenantContext();
             $service = self::buildFinancialEntryService($tenant_context);
 
-            $filter_data = TSession::getValue('FinancialEntry_filter_data');
+            $filter_data = self::filterData();
 
             $period_from = !empty($filter_data->period_from ?? null) ? $filter_data->period_from : date('Y-m-01');
             $period_to   = !empty($filter_data->period_to ?? null) ? $filter_data->period_to : date('Y-m-t');
@@ -201,22 +191,27 @@ class FinancialEntryList extends TStandardList
             $rows = [];
             foreach ($entries as $entry)
             {
+                if ($this->entryType !== null && $entry->entryType() !== $this->entryType)
+                {
+                    continue;
+                }
+
                 $row = new stdClass;
                 $row->id                 = $entry->id();
-                $row->entry_type_label   = $entry->entryType() === \CentralVet\Domain\FinancialEntry::TYPE_INCOME ? _t('Income') : _t('Expense');
-                $row->category           = $entry->category();
-                $row->amount_label       = number_format($entry->amountCents() / 100, 2, ',', '.');
+                $row->entry_type         = $entry->entryType();
+                $row->category           = CvFormat::paymentMethod((string) $entry->category());
+                $row->amount_cents       = $entry->amountCents();
                 $row->occurred_at_label  = $entry->occurredAt()->format('d/m/Y H:i');
                 $row->reference_label    = $entry->referenceType() !== null
                     ? $entry->referenceType() . ' #' . $entry->referenceId()
-                    : '-';
+                    : '—';
 
                 $rows[] = $row;
             }
 
             $count = count($rows);
 
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
             $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
 
             $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
@@ -227,12 +222,18 @@ class FinancialEntryList extends TStandardList
                 $this->datagrid->addItem($row);
             }
 
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
+            $this->pageNavigation->setCount($count); // count of records
+            $this->pageNavigation->setProperties($param); // order, page
+            $this->pageNavigation->setLimit($limit); // limit
+
+            $this->footerBox->clearChildren();
+            $this->footerBox->add(CvDatagrid::footer(
+                $this->pageNavigation,
+                $offset + 1,
+                $offset + count($page_rows),
+                $count,
+                _t('entries')
+            ));
 
             // close the transaction
             TTransaction::close();
@@ -260,25 +261,40 @@ class FinancialEntryList extends TStandardList
     }
 
     /**
-     *
+     * entry_type válido (income|expense) ou null (lista todos).
      */
-    public function onAfterSearch($datagrid, $options)
+    private static function entryTypeParam($value): ?string
     {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
+        return in_array($value, [\CentralVet\Domain\FinancialEntry::TYPE_INCOME, \CentralVet\Domain\FinancialEntry::TYPE_EXPENSE], true)
+            ? $value
+            : null;
+    }
+
+    /**
+     * Filtro de período da sessão (gravado por onSearch() sob o nome da
+     * classe) ou o mês corrente.
+     */
+    private static function filterData(): stdClass
+    {
+        $data = TSession::getValue(__CLASS__ . '_filter_data');
+
+        if (!is_object($data) || (empty($data->period_from) && empty($data->period_to)))
         {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
+            $data = new stdClass;
+            $data->period_from = date('Y-m-01');
+            $data->period_to = date('Y-m-t');
         }
 
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            TForm::sendData('form_search_FinancialEntry', TSession::getValue(get_class($this).'_filter_data'));
-        }
+        return $data;
+    }
+
+    private static function labeled(string $label, $field): TElement
+    {
+        $box = new TElement('div');
+        $box->add(new TLabel($label));
+        $box->add($field);
+
+        return $box;
     }
 
     /**
@@ -288,39 +304,6 @@ class FinancialEntryList extends TStandardList
     {
         TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
         AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
-        }
-        catch (Exception $e)
-        {
-            new TMessage('error', $e->getMessage());
-        }
     }
 
     /**

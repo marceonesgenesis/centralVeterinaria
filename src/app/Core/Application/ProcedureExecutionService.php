@@ -8,6 +8,7 @@ use CentralVet\Authorization\AuthorizationRequest;
 use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\ProcedureExecutionRepositoryInterface;
+use CentralVet\Domain\Contract\TenantUserDirectoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InsufficientStockException;
@@ -83,6 +84,7 @@ final class ProcedureExecutionService
         private readonly StockService $stock,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TenantUserDirectoryInterface $tenantUsers,
     ) {
     }
 
@@ -142,6 +144,15 @@ final class ProcedureExecutionService
         if ($procedureCatalogItem === null) {
             throw new CrossTenantReferenceException(
                 "procedure_catalog_item_id {$procedureCatalogItemId} was not found for the authenticated tenant"
+            );
+        }
+
+        // final-fix: the professional comes from caller input, so it must
+        // resolve within the authenticated tenant like any other reference
+        // (nonexistent and other-tenant users are indistinguishable).
+        if (!$this->tenantUsers->isActiveMember($professionalSystemUserId)) {
+            throw new CrossTenantReferenceException(
+                "professional_system_user_id {$professionalSystemUserId} was not found for the authenticated tenant"
             );
         }
 

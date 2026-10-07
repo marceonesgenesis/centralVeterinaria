@@ -4,52 +4,39 @@
  *
  * Central de Atendimento — tela unica de consulta clinica (mock 04,
  * artboard "Atendimento"), consumindo exclusivamente os Application
- * services do Core: CentralVet\Application\EncounterService (T-03) para
- * abrir/autosalvar/finalizar o atendimento e aceitar o resumo de IA,
- * CentralVet\Assistant\NullAiClinicalAssistant (T-04) para o resumo/
- * sugestoes, CentralVet\Application\EncounterDocumentService (T-05) para
- * anexar documentos e, da Fase 1, CentralVet\Application\AppointmentService
- * (acao "Retorno") e CentralVet\Application\ServiceCatalogService (preco no
- * resumo financeiro). Nenhuma regra de negocio (autorizacao por unidade,
- * transicao de status, conflito de agenda) vive aqui: tudo delega para os
- * Application services.
+ * services do Core: CentralVet\Application\EncounterService para
+ * abrir/autosalvar/finalizar o atendimento, CentralVet\Application\
+ * ClinicalSummaryService (cartao do paciente, atendimento anterior e itens
+ * do plano clinico), CentralVet\Application\EncounterDocumentService
+ * (anexos), CentralVet\Application\AppointmentService (acao "Retorno") e
+ * CentralVet\Application\ServiceCatalogService (preco no resumo
+ * financeiro). Nenhuma regra de negocio (autorizacao por unidade,
+ * transicao de status, conflito de agenda) vive aqui.
  *
- * Entrada: a tela aceita `encounter_id` (atendimento ja iniciado) OU
- * `patient_id` (+ `appointment_id`/`service_id` opcionais) para iniciar um
- * novo atendimento. Quando recebe os parametros de inicio, chama
- * EncounterService::start() com action = 'EncounterView::onStart' e
- * redireciona o navegador (via __adianti_goto_page, TScript) para si mesma
- * com o encounter_id recem-criado — nunca segue construindo a tela com o
- * id antigo/ausente.
+ * Layout (fase 10): cabecalho com voltar, "Atendimento" + selo de status,
+ * cronometro desde started_at, Imprimir e Finalizar; cabecalho do paciente;
+ * wizard de 5 etapas (Anamnese, Exame fisico, Diagnostico, Plano clinico,
+ * Finalizacao) SO NO CLIENTE (CvWizard) sobre um unico formulario
+ * `form_EncounterView_<id>`: todas as etapas continuam no DOM, entao o
+ * autosave de 20 s le e envia todos os DRAFT_FIELDS mesmo com a etapa
+ * oculta. Coluna direita: historico/timeline, anexos, retorno e resumo
+ * financeiro.
  *
- * Resumo financeiro: o `service_id` usado aqui e' derivado diretamente do
- * agendamento de origem do atendimento — `Encounter::appointmentId()`,
- * resolvido via `AppointmentService::findById()` (passthrough tenant-scoped
- * para `AppointmentRepositoryInterface::findById()`) para obter o
- * `Appointment` e, dali, o `serviceId` real usado para consultar
- * `ServiceCatalogService::findById()`. Nenhum valor de `service_id` e' lido
- * de TSession ou de parametro de URL para esse fim. Quando
- * `appointmentId()` e' null (atendimento walk-in, sem agendamento previo),
- * o resumo financeiro fica vazio — gap esperado, no mesmo espirito do
- * list() sempre-vazio de EncounterDocumentService (T-05).
+ * IA: NullAiClinicalAssistant continua carregado (onAcceptAiSummary), mas
+ * os blocos de IA nao sao exibidos nesta fase (aiPanel/suggestionsPanel
+ * mantidos sem uso). Sem botao Pausar (sem dado de pausa no schema).
  *
- * Prescricao/Exame/Vacina (T-09) abrem, cada uma, sua tela dedicada —
- * PrescriptionForm (T-06), ExamRequestForm (T-07) e VaccinationForm (T-08),
- * respectivamente — via navegacao client-side (__adianti_goto_page),
- * passando `encounter_id`/`patient_id` como parametro. Procedimento
- * permanece apenas casca de UI nesta fase (decisao do usuario, ver
- * plan.md): o clique grava, no maximo, um evento em `audit_log` via
- * CentralVet\Audit\PdoAuditLogWriter + CentralVet\Audit\AuditEvent
- * diretamente (uso explicitamente autorizado pela task, ja que nao existe
- * um Application service dedicado a essa acao nesta fase) — nenhuma tabela
- * propria e criada ou gravada.
+ * Entrada: `encounter_id` (atendimento ja iniciado) OU `patient_id`
+ * (+ `appointment_id`/`service_id` opcionais) para iniciar um novo
+ * atendimento via EncounterService::start() com action
+ * 'EncounterView::onStart', redirecionando (__adianti_goto_page) para a
+ * propria tela com o encounter_id recem-criado.
  *
- * PENDING: a tabela `encounter` e' criada pela migration ainda nao aplicada
- * src/app/database/migrations/20260922_0003_phase2_encounter.sql (T-01).
- * Esta classe e' preparada e validada apenas com `php -l` /
- * `new EncounterView()` (sem parametros, sem erro fatal); qualquer falha de
- * banco ao navegar ate' aqui antes da migration e' capturada e exibida como
- * TMessage, nunca como erro fatal.
+ * Resumo financeiro: conta do atendimento (EncounterAccountRepository::
+ * findByEncounterId(), somente leitura — a conta so e criada pela
+ * EncounterAccountForm) quando existir; senao o preco do servico do
+ * agendamento de origem (Encounter::appointmentId() →
+ * AppointmentService::findById() → ServiceCatalogService::findById()).
  *
  * @version    8.6
  * @package    control
@@ -62,7 +49,7 @@ class EncounterView extends TPage
      * Draft field names accepted by EncounterService::autosave(), matching
      * CentralVet\Domain\Encounter::applyDraft() 1:1. Also the exact set of
      * `[name="..."]` selectors the autosave client script reads on every
-     * tick (see clinicalForm()).
+     * tick (see autosaveScript()).
      */
     private const DRAFT_FIELDS = [
         'anamnesis_text',
@@ -78,13 +65,23 @@ class EncounterView extends TPage
     ];
 
     /**
+     * Inline actions of the clinical plan: kind => [label key, icon, target
+     * screen]. Every target receives encounter_id/patient_id.
+     */
+    private const PLAN_ACTIONS = [
+        'prescription' => ['Prescribe', 'fa:file-medical', 'PrescriptionForm'],
+        'exam' => ['Request exam', 'fa:vial', 'ExamRequestForm'],
+        'procedure' => ['Procedure', 'fa:syringe', 'ProcedureExecutionForm'],
+        'vaccine' => ['Vaccine', 'fa:shield-alt', 'VaccinationForm'],
+        'account' => ['Account', 'fa:file-invoice-dollar', 'EncounterAccountForm'],
+    ];
+
+    /**
      * Page constructor.
      *
      * Reads encounter_id / patient_id / appointment_id / service_id from
-     * $_GET (falling back to $param for consistency with other pages in
-     * this package). `new EncounterView()` with none of these set (the
-     * validation command for this task) must never throw — it renders the
-     * empty state below instead.
+     * $_GET (falling back to $param). `new EncounterView()` with none of
+     * these set must never throw — it renders the empty state instead.
      */
     public function __construct($param = null)
     {
@@ -95,24 +92,8 @@ class EncounterView extends TPage
         $appointmentId = self::paramInt('appointment_id', $param);
         $serviceId = self::paramInt('service_id', $param);
 
-        // No TXMLBreadCrumb here on purpose: registering EncounterView in
-        // menu.xml is explicitly T-07's job, not T-06's (see aang.md's
-        // restriction), so this screen is not listed there yet. Mirrors
-        // AppointmentForm.php, itself only registered in a later task, which
-        // omits TXMLBreadCrumb for the exact same reason.
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-06)
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Encounter'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
 
         if ($encounterId === null && $patientId !== null)
         {
@@ -128,6 +109,7 @@ class EncounterView extends TPage
                 }
 
                 TScript::create("__adianti_goto_page('index.php?{$query}')");
+                $container->add(CvPage::header(_t('Encounter'), null, [], false));
                 parent::add($container);
                 return;
             }
@@ -136,47 +118,31 @@ class EncounterView extends TPage
             // fall through to the empty state below instead of a fatal error.
         }
 
-        if ($encounterId === null)
-        {
-            $container->add($this->emptyStatePanel());
-            parent::add($container);
-            return;
-        }
-
-        $data = $this->loadEncounterData($encounterId, $serviceId);
+        $data = $encounterId !== null ? $this->loadEncounterData($encounterId, $serviceId) : null;
 
         if ($data === null)
         {
+            $container->add(CvPage::header(_t('Encounter'), null, [], false));
             $container->add($this->emptyStatePanel());
             parent::add($container);
             return;
         }
 
-        $container->add($this->contextStrip($data));
+        $container->add($this->pageHeader($data));
+        $container->add($this->patientHeader($data));
 
-        $columns = new TElement('div');
-        $columns->style = 'display:flex; gap:var(--cv-space-4); align-items:flex-start; flex-wrap:wrap';
+        $main = new TElement('div');
+        $main->style = 'display:flex; flex-direction:column; gap:var(--cv-space-4)';
+        $main->add($this->clinicalForm($data));
 
-        $left = new TElement('div');
-        $left->style = 'flex:1 1 260px; min-width:240px; display:flex; flex-direction:column; gap:var(--cv-space-4)';
-        $left->add($this->timelinePanel($data));
+        $side = new TElement('div');
+        $side->style = 'display:flex; flex-direction:column; gap:var(--cv-space-4)';
+        $side->add($this->historyCard($data));
+        $side->add($this->attachmentsCard($data));
+        $side->add($this->followUpCard($data));
+        $side->add($this->financePanel($data));
 
-        $center = new TElement('div');
-        $center->style = 'flex:2 1 420px; min-width:320px; display:flex; flex-direction:column; gap:var(--cv-space-4)';
-        $center->add($this->aiPanel($data));
-        $center->add($this->suggestionsPanel($data));
-        $center->add($this->clinicalForm($data));
-
-        $right = new TElement('div');
-        $right->style = 'flex:1 1 260px; min-width:260px; display:flex; flex-direction:column; gap:var(--cv-space-4)';
-        $right->add($this->inlineActionsPanel($data));
-        $right->add($this->financePanel($data));
-
-        $columns->add($left);
-        $columns->add($center);
-        $columns->add($right);
-
-        $container->add($columns);
+        $container->add(CvPage::columns($main, $side));
 
         parent::add($container);
     }
@@ -185,22 +151,18 @@ class EncounterView extends TPage
      * Empty state shown both for `new EncounterView()` (no parameters at
      * all) and for an encounter_id that failed to load.
      */
-    private function emptyStatePanel(): TPanelGroup
+    private function emptyStatePanel(): TElement
     {
-        $panel = new TPanelGroup(_t('Encounter'));
-        $panel->class = 'cv-section';
-        $panel->add('<p>' . _t('Provide an encounter_id to resume an encounter, or a patient_id (optionally with appointment_id/service_id) to start a new one.') . '</p>');
-
-        return $panel;
+        return CvCard::create(
+            _t('Encounter'),
+            '<p>' . CvFormat::e(_t('Provide an encounter_id to resume an encounter, or a patient_id (optionally with appointment_id/service_id) to start a new one.')) . '</p>'
+        );
     }
 
     /**
      * Starts a new encounter via EncounterService::start(), action string
-     * literally 'EncounterView::onStart' per the task's acceptance
-     * criterion. The professional is always the authenticated user
-     * (TSession's userid) — this screen has no "attending professional"
-     * picker, consistent with a single clinician using their own session to
-     * open an encounter.
+     * literally 'EncounterView::onStart'. The professional is always the
+     * authenticated user (TSession's userid).
      *
      * @return int|null the new encounter id, or null when start() refused
      *         the request (a TMessage has already been shown in that case).
@@ -251,15 +213,13 @@ class EncounterView extends TPage
     }
 
     /**
-     * Loads everything the screen needs to render an in-progress or
-     * finished encounter: the aggregate itself (EncounterService::findById()),
-     * display names for patient/tutor/professional/unit (best-effort,
-     * mirroring AgendaView/QueueEntryView's own name-resolution pattern:
-     * PatientService::findById() + SystemUser::findInTransaction(), never a
-     * failure here blocks the rest of the screen), the AI summary/
-     * suggestions (NullAiClinicalAssistant), the audit timeline
-     * (EncounterService::timeline()) and the financial summary (see the
-     * class docblock's documented limitation on service_id).
+     * Loads everything the screen needs: the aggregate
+     * (EncounterService::findById()), the patient card, previous encounter
+     * and clinical plan items (ClinicalSummaryService), professional/unit
+     * names (best-effort), the audit timeline, attachments
+     * (EncounterDocumentService::list()) and the financial summary.
+     * Secondary lookups are best-effort: a failure there never blocks the
+     * rest of the screen.
      *
      * @return array<string, mixed>|null null when the encounter does not
      *         exist for this tenant or a business-rule exception was
@@ -283,25 +243,22 @@ class EncounterView extends TPage
                 return null;
             }
 
-            $patient = null;
-            $tutorName = null;
+            $patientCard = null;
+            $previousEncounter = null;
+            $planItems = ['prescriptions' => [], 'exams' => [], 'procedures' => [], 'vaccines' => []];
 
             try
             {
-                $patientService = self::makePatientService($context);
-                $patient = $patientService->findById($encounter->patientId());
-
-                if ($patient !== null)
-                {
-                    $tutorService = self::makeTutorService($context);
-                    $tutor = $tutorService->findById((int) $patient->tutorId);
-                    $tutorName = $tutor !== null ? $tutor->fullName : null;
-                }
+                $summary = new \CentralVet\Application\ClinicalSummaryService(
+                    new \CentralVet\Persistence\ClinicalSummaryReader($context, TTransaction::get())
+                );
+                $patientCard = $summary->patientCard($encounter->patientId());
+                $previousEncounter = $summary->lastEncounter($encounter->patientId(), $encounterId);
+                $planItems = $summary->encounterPlanItems($encounterId);
             }
             catch (Exception $e)
             {
-                // Name resolution is best-effort for display only — never
-                // blocks the rest of the screen from rendering.
+                // display only — never blocks the rest of the screen
             }
 
             $professional = null;
@@ -323,17 +280,37 @@ class EncounterView extends TPage
             {
             }
 
+            // AI stays wired (hidden in this phase, see class docblock).
             $assistant = new \CentralVet\Assistant\NullAiClinicalAssistant();
             $aiSummary = $assistant->summarizePatientHistory($encounter->patientId());
             $suggestions = $assistant->suggestNextSteps($encounterId);
 
             $timeline = $service->timeline($encounterId);
 
-            // Financial summary: the service_id comes from the encounter's
-            // own origin appointment (Encounter::appointmentId()), resolved
-            // through AppointmentService::findById() — never from TSession.
-            // A walk-in encounter (no appointment_id) simply leaves the
-            // financial summary empty, handled without error.
+            $documents = [];
+
+            try
+            {
+                $documents = self::makeEncounterDocumentService($context)->list($encounterId);
+            }
+            catch (Exception $e)
+            {
+            }
+
+            // Financial summary: the encounter account (read-only lookup,
+            // never created here) or, without one, the price of the origin
+            // appointment's service — never a service_id from TSession.
+            $account = null;
+
+            try
+            {
+                $accounts = new \CentralVet\Persistence\EncounterAccountRepository($context, TTransaction::get());
+                $account = $accounts->findByEncounterId($encounterId);
+            }
+            catch (Exception $e)
+            {
+            }
+
             $appointment = null;
 
             if ($encounter->appointmentId() !== null)
@@ -345,9 +322,6 @@ class EncounterView extends TPage
                 }
                 catch (Exception $e)
                 {
-                    // Best-effort: an unresolved appointment just leaves the
-                    // financial summary empty, never blocks the rest of the
-                    // screen from rendering.
                 }
             }
 
@@ -377,16 +351,20 @@ class EncounterView extends TPage
 
             return [
                 'encounter' => $encounter,
-                'patient' => $patient,
-                'tutorName' => $tutorName,
+                'patientCard' => $patientCard,
+                'previousEncounter' => $previousEncounter,
+                'planItems' => $planItems,
                 'professional' => $professional,
                 'unit' => $unit,
                 'aiSummary' => $aiSummary,
                 'suggestions' => $suggestions,
                 'timeline' => $timeline,
+                'documents' => $documents,
+                'account' => $account,
                 'priceCents' => $priceCents,
                 'serviceName' => $serviceName,
                 'serviceId' => $serviceId,
+                'tenantId' => $context->tenantId(),
             ];
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
@@ -409,65 +387,870 @@ class EncounterView extends TPage
         }
     }
 
-    /**
-     * Top context strip: patient/tutor/professional/unit (resolved once by
-     * loadEncounterData(), never re-fetched per widget), a textual autosave
-     * indicator (updated by the autosave script itself, see
-     * clinicalForm()) and the "Finish encounter" button
-     * (EncounterService::finish(), action 'EncounterView::onFinish').
-     */
-    private function contextStrip(array $data): TElement
+    private static function isFinished($encounter): bool
     {
-        $encounter = $data['encounter'];
-
-        $strip = new TElement('div');
-        $strip->class = 'cv-section';
-        $strip->style = 'display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:var(--cv-space-3); padding:var(--cv-space-3) var(--cv-space-4); margin-bottom:var(--cv-space-3)';
-
-        $patientLabel = $data['patient'] !== null ? $data['patient']->name : (_t('Patient') . ' #' . $encounter->patientId());
-        $tutorLabel = $data['tutorName'] !== null ? $data['tutorName'] : '-';
-        $professionalLabel = $data['professional'] !== null ? $data['professional']->name : (_t('Professional') . ' #' . $encounter->professionalSystemUserId());
-        $unitLabel = $data['unit'] !== null ? $data['unit']->name : (_t('Unit') . ' #' . $encounter->systemUnitId());
-        $statusLabel = $encounter->status() === \CentralVet\Domain\Encounter::STATUS_FINISHED ? _t('Finished') : _t('In progress');
-
-        $info = new TElement('div');
-        $info->add(
-            '<div><strong>' . htmlspecialchars($patientLabel) . '</strong> &middot; '
-            . _t('Tutor') . ': ' . htmlspecialchars($tutorLabel) . ' &middot; '
-            . _t('Professional') . ': ' . htmlspecialchars($professionalLabel) . ' &middot; '
-            . _t('Unit') . ': ' . htmlspecialchars($unitLabel) . '</div>'
-        );
-        $info->add(
-            '<div style="font-size:12px;color:var(--cv-color-text-muted)">' . _t('Status') . ': ' . $statusLabel
-            . ' &middot; <span id="encounter_autosave_indicator">' . _t('Autosave active') . '</span></div>'
-        );
-
-        $actions = new TElement('div');
-
-        if ($encounter->status() !== \CentralVet\Domain\Encounter::STATUS_FINISHED)
-        {
-            $finishAction = new TAction([$this, 'onFinish']);
-            $finishAction->setParameter('id', $encounter->id());
-
-            $finishButton = new TButton('finish_encounter');
-            $finishButton->setAction($finishAction, _t('Finish encounter'));
-            $finishButton->setImage('fa:check-circle');
-            $finishButton->setFormName('form_EncounterView_' . $encounter->id());
-            $finishButton->class = 'btn btn-sm btn-success';
-            $actions->add($finishButton);
-        }
-
-        $strip->add($info);
-        $strip->add($actions);
-
-        return $strip;
+        return $encounter->status() === \CentralVet\Domain\Encounter::STATUS_FINISHED;
     }
 
     /**
-     * AI summary panel (NullAiClinicalAssistant::summarizePatientHistory()).
-     * Empty state when null (the current, always-null Null implementation).
-     * "Accept" re-derives the summary server-side inside onAcceptAiSummary()
-     * instead of round-tripping the free text through the URL.
+     * Page header: back, "Atendimento" + status badge, timer since
+     * started_at, Print (window.print()) and Finish encounter
+     * (EncounterService::finish(), action 'EncounterView::onFinish').
+     */
+    private function pageHeader(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $finished = self::isFinished($encounter);
+
+        $header = new TElement('header');
+        $header->{'class'} = 'cv-page-head';
+
+        $text = new TElement('div');
+        $text->{'class'} = 'cv-page-head__text';
+        $text->style = 'display:flex; align-items:center; flex-wrap:wrap; gap:var(--cv-space-3)';
+
+        $back = TElement::tag('a', '', [
+            'class' => 'btn btn-default',
+            'href' => 'index.php?class=QueueEntryView',
+            'generator' => 'adianti',
+            'title' => CvFormat::e(_t('Back')),
+            'aria-label' => CvFormat::e(_t('Back')),
+        ]);
+        $back->add(new TImage('fa:arrow-left'));
+        $text->add($back);
+        $text->add(TElement::tag('h1', CvFormat::e(_t('Encounter')), ['class' => 'cv-page-head__title']));
+        $text->add($finished ? CvBadge::create(_t('Finished'), 'success') : CvBadge::create(_t('In service'), 'info'));
+
+        $header->add($text);
+
+        $actions = new TElement('div');
+        $actions->{'class'} = 'cv-page-head__actions';
+
+        $actions->add($this->timerElement($encounter));
+
+        $print = new TButton('print_encounter');
+        $print->setLabel(_t('Print'));
+        $print->setImage('fa:print');
+        $print->addFunction('window.print();');
+        $print->class = 'btn btn-default';
+        $actions->add($print);
+
+        if (!$finished)
+        {
+            $actions->add($this->finishButton($encounter->id(), 'finish_encounter'));
+        }
+
+        $header->add($actions);
+
+        return $header;
+    }
+
+    /**
+     * "Finish encounter" button bound to form_EncounterView_<id> (phase 08
+     * pattern: new TButton + setAction + setFormName, never
+     * the static TButton factory with a ready TAction).
+     */
+    private function finishButton(int $encounterId, string $name): TButton
+    {
+        $finishAction = new TAction([$this, 'onFinish']);
+        $finishAction->setParameter('id', $encounterId);
+
+        $finishButton = new TButton($name);
+        $finishButton->setAction($finishAction, _t('Finish encounter'));
+        $finishButton->setImage('fa:check-circle');
+        $finishButton->setFormName('form_EncounterView_' . $encounterId);
+        $finishButton->class = 'btn btn-success';
+
+        return $finishButton;
+    }
+
+    /**
+     * Elapsed time since started_at. The elapsed seconds are computed on the
+     * server (same clock/timezone that wrote started_at) and only counted up
+     * on the client, so a client clock skew never shows a wrong duration.
+     * Finished encounters show the fixed started→finished duration.
+     */
+    private function timerElement($encounter): TElement
+    {
+        $end = self::isFinished($encounter) && $encounter->finishedAt() !== null
+            ? $encounter->finishedAt()
+            : new DateTimeImmutable('now', $encounter->startedAt()->getTimezone());
+        $elapsed = max(0, $end->getTimestamp() - $encounter->startedAt()->getTimestamp());
+        $timerId = 'encounter_timer_' . $encounter->id();
+
+        $wrap = new TElement('span');
+        $wrap->{'class'} = 'cv-encounter-timer';
+        $wrap->{'title'} = CvFormat::e(_t('Elapsed time'));
+        $wrap->style = 'display:inline-flex; align-items:center; gap:6px; font-variant-numeric:tabular-nums; font-weight:600';
+        $wrap->add(new TImage('fa:clock'));
+        $wrap->add(TElement::tag('span', self::formatDuration($elapsed), ['id' => $timerId]));
+
+        if (!self::isFinished($encounter))
+        {
+            $script = new TElement('script');
+            $script->add(<<<JS
+                (function() {
+                    var elapsed = {$elapsed};
+                    var started = Date.now();
+                    var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+                    var timer = setInterval(function() {
+                        var el = document.getElementById('{$timerId}');
+                        if (!el) { clearInterval(timer); return; }
+                        var s = elapsed + Math.floor((Date.now() - started) / 1000);
+                        el.textContent = pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60);
+                    }, 1000);
+                })();
+                JS
+            );
+            $wrap->add($script);
+        }
+
+        return $wrap;
+    }
+
+    private static function formatDuration(int $seconds): string
+    {
+        return sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+    }
+
+    /**
+     * Patient header: avatar placeholder (no photo in the schema), name,
+     * breed, age, weight, tutor and phone (ClinicalSummaryService::
+     * patientCard()), plus professional/unit.
+     */
+    private function patientHeader(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $card = $data['patientCard'];
+
+        $name = $card !== null ? (string) $card['name'] : (_t('Patient') . ' #' . $encounter->patientId());
+        // 0/empty weight means "not measured yet": fall back to the patient card
+        $weight = (float) ($encounter->weightKg() ?? 0) > 0 ? (float) $encounter->weightKg() : null;
+        $weight = $weight ?? ((float) ($card['weight_kg'] ?? 0) > 0 ? (float) $card['weight_kg'] : null);
+
+        $facts = [
+            _t('Breed') => $card['breed'] ?? null,
+            _t('Age') => $card['age_label'] ?? null,
+            _t('Weight') => $weight !== null ? number_format((float) $weight, 1, ',', '.') . ' kg' : null,
+            _t('Tutor') => $card['tutor_name'] ?? null,
+            _t('Phone') => $card['tutor_phone'] ?? null,
+            _t('Professional') => $data['professional'] !== null ? $data['professional']->name : null,
+            _t('Unit') => $data['unit'] !== null ? $data['unit']->name : null,
+        ];
+
+        $body = new TElement('div');
+        $body->style = 'display:flex; align-items:center; gap:var(--cv-space-4); flex-wrap:wrap';
+
+        $avatar = CvAvatar::placeholder($name, $card['species'] ?? null);
+        $avatar->{'class'} .= ' cv-avatar--lg';
+        $body->add($avatar);
+
+        $info = new TElement('div');
+        $info->style = 'flex:1 1 auto; min-width:0';
+        $info->add(TElement::tag('div', CvFormat::e($name), ['style' => 'font-size:1.25rem; font-weight:700']));
+
+        $list = new TElement('dl');
+        $list->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2) var(--cv-space-5); margin:var(--cv-space-2) 0 0';
+
+        foreach ($facts as $label => $value)
+        {
+            $item = new TElement('div');
+            $item->add(TElement::tag('dt', CvFormat::e($label), ['style' => 'font-size:12px; font-weight:400; color:var(--cv-color-text-muted)']));
+            $item->add(TElement::tag('dd', CvFormat::e($value !== null && $value !== '' ? (string) $value : '—'), ['style' => 'margin:0; font-weight:600']));
+            $list->add($item);
+        }
+
+        $info->add($list);
+        $body->add($info);
+
+        $section = new TElement('section');
+        $section->{'class'} = 'cv-card';
+        $section->style = 'margin-bottom:var(--cv-space-4)';
+        $inner = new TElement('div');
+        $inner->{'class'} = 'cv-card__body';
+        $inner->add($body);
+        $section->add($inner);
+
+        return $section;
+    }
+
+    /**
+     * Clinical record as a 5-step client-side wizard (CvWizard) over ONE
+     * form, form_EncounterView_<id>. Field names match self::DRAFT_FIELDS /
+     * EncounterService::autosave() 1:1; hidden steps stay in the DOM so the
+     * 20 s autosave (setInterval + __adianti_ajax_exec) keeps sending them.
+     * Anamnesis keeps TText::enableSpeechRecognition().
+     */
+    private function clinicalForm(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $finished = self::isFinished($encounter);
+        $formName = 'form_EncounterView_' . $encounter->id();
+        $prefix = 'encounter_step_' . $encounter->id() . '_';
+
+        $form = new TForm($formName);
+
+        $anamnesis = new TText('anamnesis_text');
+        $anamnesis->setSize('100%', 180);
+        $anamnesis->enableSpeechRecognition();
+
+        $temperature = new TEntry('temperature_c');
+        $heartRate = new TEntry('heart_rate_bpm');
+        $respiratoryRate = new TEntry('respiratory_rate_mpm');
+        $weight = new TEntry('weight_kg');
+        $mucous = new TEntry('mucous_membranes');
+        $capillaryRefill = new TEntry('capillary_refill_seconds');
+        $physicalExam = new TText('physical_exam_text');
+        $physicalExam->setSize('100%', 120);
+        $diagnosis = new TText('diagnosis_text');
+        $diagnosis->setSize('100%', 140);
+        $plan = new TText('clinical_plan_text');
+        $plan->setSize('100%', 120);
+
+        $vitalFields = [
+            'Temperature (C)' => $temperature,
+            'Heart rate (bpm)' => $heartRate,
+            'Respiratory rate (mpm)' => $respiratoryRate,
+            'Weight (kg)' => $weight,
+            'Mucous membranes' => $mucous,
+            'Capillary refill (s)' => $capillaryRefill,
+        ];
+
+        foreach ($vitalFields as $field)
+        {
+            $field->setSize('100%');
+        }
+
+        $textFields = [$anamnesis, $physicalExam, $diagnosis, $plan];
+
+        if ($finished)
+        {
+            foreach (array_merge(array_values($vitalFields), $textFields) as $field)
+            {
+                $field->setEditable(false);
+            }
+        }
+
+        $steps = [
+            _t('Anamnesis'),
+            _t('Physical exam'),
+            _t('Diagnosis'),
+            _t('Clinical plan'),
+            _t('Finalization'),
+        ];
+
+        $content = new TElement('div');
+        $content->add(CvWizard::steps($steps, $finished ? 5 : 1, $prefix));
+
+        // 1. Anamnese
+        $step1 = self::stepPanel($prefix . '1');
+        $step1->add(self::fieldBlock(_t('Anamnesis (voice dictation available)'), $anamnesis));
+        $content->add($step1);
+
+        // 2. Exame fisico: sinais vitais em grid + texto livre
+        $step2 = self::stepPanel($prefix . '2');
+        $step2->add(TElement::tag('h3', CvFormat::e(_t('Vital signs')), ['style' => 'font-size:1rem; font-weight:600; margin:0 0 var(--cv-space-3)']));
+        $grid = new TElement('div');
+        $grid->style = 'display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--cv-space-3); margin-bottom:var(--cv-space-4)';
+
+        foreach ($vitalFields as $labelKey => $field)
+        {
+            $grid->add(self::fieldBlock(_t($labelKey), $field));
+        }
+
+        $step2->add($grid);
+        $step2->add(self::fieldBlock(_t('Physical exam'), $physicalExam));
+        $content->add($step2);
+
+        // 3. Diagnostico
+        $step3 = self::stepPanel($prefix . '3');
+        $step3->add(self::fieldBlock(_t('Diagnosis'), $diagnosis));
+        $content->add($step3);
+
+        // 4. Plano clinico: texto + acoes inline + abas com itens reais
+        $step4 = self::stepPanel($prefix . '4');
+        $step4->add(self::fieldBlock(_t('Clinical plan'), $plan));
+        $step4->add($this->planActions($encounter));
+        $step4->add($this->planTabs($encounter->id(), $data['planItems']));
+        $content->add($step4);
+
+        // 5. Finalizacao: resumo + Finalizar
+        $step5 = self::stepPanel($prefix . '5');
+        $step5->add($this->finalizationSummary($data));
+
+        if (!$finished)
+        {
+            $finishStep = $this->finishButton($encounter->id(), 'finish_encounter_step');
+            $step5->add(TElement::tag('div', $finishStep, ['style' => 'margin-top:var(--cv-space-4); text-align:right']));
+        }
+
+        $content->add($step5);
+
+        $form->add($content);
+        $form->setFields(array_merge(array_values($vitalFields), $textFields));
+
+        $formData = new stdClass;
+        $formData->anamnesis_text = $encounter->anamnesisText();
+        $formData->temperature_c = $encounter->temperatureC();
+        $formData->heart_rate_bpm = $encounter->heartRateBpm();
+        $formData->respiratory_rate_mpm = $encounter->respiratoryRateMpm();
+        $formData->weight_kg = $encounter->weightKg();
+        $formData->mucous_membranes = $encounter->mucousMembranes();
+        $formData->capillary_refill_seconds = $encounter->capillaryRefillSeconds();
+        $formData->physical_exam_text = $encounter->physicalExamText();
+        $formData->diagnosis_text = $encounter->diagnosisText();
+        $formData->clinical_plan_text = $encounter->clinicalPlanText();
+
+        $form->setData($formData);
+
+        $body = new TElement('div');
+        $body->add($form);
+
+        $status = TElement::tag('span', CvFormat::e($finished ? _t('Finished') : _t('Autosave active')), [
+            'id' => 'encounter_autosave_indicator',
+            'style' => 'font-size:12px; color:var(--cv-color-text-muted)',
+        ]);
+        $body->add(TElement::tag('div', $status, ['style' => 'margin-top:var(--cv-space-3)']));
+
+        if (!$finished)
+        {
+            $body->add($this->autosaveScript($encounter->id()));
+        }
+
+        return CvCard::create(_t('Clinical record'), $body);
+    }
+
+    private static function stepPanel(string $id): TElement
+    {
+        $panel = new TElement('div');
+        $panel->{'id'} = $id;
+        $panel->{'class'} = 'cv-wizard-panel';
+        $panel->style = 'padding-top:var(--cv-space-4)';
+
+        return $panel;
+    }
+
+    /**
+     * Label above field.
+     */
+    private static function fieldBlock(string $label, $field): TElement
+    {
+        $block = new TElement('div');
+        $block->style = 'margin-bottom:var(--cv-space-3)';
+        $block->add(TElement::tag('label', CvFormat::e($label), ['style' => 'display:block; font-weight:600; margin-bottom:4px']));
+        $block->add($field);
+
+        return $block;
+    }
+
+    /**
+     * Prescrever / Solicitar exame / Procedimento / Mais (Vacina, Conta):
+     * client-side navigation (__adianti_goto_page) to the dedicated screen,
+     * always passing encounter_id/patient_id. No server round-trip here.
+     */
+    private function planActions($encounter): TElement
+    {
+        $bar = new TElement('div');
+        $bar->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2); margin:var(--cv-space-2) 0 var(--cv-space-4)';
+
+        $more = new TElement('ul');
+        $more->{'class'} = 'dropdown-menu';
+
+        foreach (self::PLAN_ACTIONS as $kind => [$labelKey, $icon, $targetClass])
+        {
+            $url = "index.php?class={$targetClass}&encounter_id=" . $encounter->id() . '&patient_id=' . $encounter->patientId();
+
+            if ($kind === 'vaccine' || $kind === 'account')
+            {
+                $link = TElement::tag('a', '', [
+                    'class' => 'dropdown-item',
+                    'href' => CvFormat::e($url),
+                    'generator' => 'adianti',
+                    'id' => 'inline_' . $kind,
+                ]);
+                $link->add(new TImage($icon));
+                $link->add(TElement::tag('span', CvFormat::e(_t($labelKey)), ['style' => 'margin-left:6px']));
+                $more->add(TElement::tag('li', $link, []));
+                continue;
+            }
+
+            $button = new TButton('inline_' . $kind);
+            $button->setLabel(_t($labelKey));
+            $button->setImage($icon);
+            $button->addFunction("__adianti_goto_page('{$url}')");
+            $button->class = $kind === 'prescription' ? 'btn btn-primary' : 'btn btn-default';
+            $bar->add($button);
+        }
+
+        $dropdown = new TElement('div');
+        $dropdown->{'class'} = 'dropdown';
+        $toggle = TElement::tag('button', '', [
+            'type' => 'button',
+            'class' => 'btn btn-default dropdown-toggle',
+            'data-bs-toggle' => 'dropdown',
+            'aria-expanded' => 'false',
+        ]);
+        $toggle->add(new TImage('fa:ellipsis-h'));
+        $toggle->add(TElement::tag('span', CvFormat::e(_t('More')), ['style' => 'margin-left:6px']));
+        $dropdown->add($toggle);
+        $dropdown->add($more);
+        $bar->add($dropdown);
+
+        return $bar;
+    }
+
+    /**
+     * Client-side tabs Prescricoes/Exames/Procedimentos/Vacinas (real counts
+     * from ClinicalSummaryService::encounterPlanItems()) + Orientacoes
+     * (disabled: no per-item guidance in the schema).
+     */
+    private function planTabs(int $encounterId, array $planItems): TElement
+    {
+        $tabs = [
+            'prescriptions' => _t('Prescriptions'),
+            'exams' => _t('Exams'),
+            'procedures' => _t('Procedures'),
+            'vaccines' => _t('Vaccines'),
+        ];
+        $prefix = 'encounter_plan_' . $encounterId . '_';
+
+        $wrap = new TElement('div');
+        $wrap->{'class'} = 'cv-plan-tabs';
+
+        $nav = new TElement('nav');
+        $nav->{'class'} = 'cv-tabs';
+        $list = new TElement('ul');
+        $list->{'class'} = 'cv-tabs__list';
+        $list->{'role'} = 'tablist';
+
+        $panels = new TElement('div');
+        $first = true;
+
+        foreach ($tabs as $key => $label)
+        {
+            $items = $planItems[$key] ?? [];
+
+            $link = TElement::tag('a', CvFormat::e($label . ' (' . count($items) . ')'), [
+                'class' => 'cv-tab' . ($first ? ' cv-tab--active' : ''),
+                'href' => '#',
+                'role' => 'tab',
+                'data-cv-plan-tab' => $prefix . $key,
+                'onclick' => "return cvEncounterPlanTab(this, '{$prefix}');",
+            ]);
+            $list->add(TElement::tag('li', $link, ['class' => 'cv-tabs__item']));
+
+            $panel = new TElement('div');
+            $panel->{'id'} = $prefix . $key;
+            $panel->{'role'} = 'tabpanel';
+            $panel->style = 'padding:var(--cv-space-3) 0' . ($first ? '' : '; display:none');
+            $panel->add(self::planItemList($items, in_array($key, ['prescriptions', 'exams'], true)));
+            $panels->add($panel);
+
+            $first = false;
+        }
+
+        $list->add(TElement::tag('li', TElement::tag('span', CvFormat::e(_t('Guidance')), [
+            'class' => 'cv-tab cv-tab--disabled',
+            'title' => CvFormat::e(_t('Coming soon')),
+            'aria-disabled' => 'true',
+        ]), ['class' => 'cv-tabs__item']));
+
+        $nav->add($list);
+        $wrap->add($nav);
+        $wrap->add($panels);
+
+        $script = new TElement('script');
+        $script->add(
+            "window.cvEncounterPlanTab = window.cvEncounterPlanTab || function (link, prefix) {"
+            . " var nav = link.closest('.cv-tabs');"
+            . " nav.querySelectorAll('[data-cv-plan-tab]').forEach(function (a) {"
+            . "  var active = a === link;"
+            . "  a.classList.toggle('cv-tab--active', active);"
+            . "  var panel = document.getElementById(a.getAttribute('data-cv-plan-tab'));"
+            . "  if (panel) { panel.style.display = active ? '' : 'none'; }"
+            . " });"
+            . " return false;"
+            . "};"
+        );
+        $wrap->add($script);
+
+        return $wrap;
+    }
+
+    /**
+     * Prescription/exam status as a translated CvBadge; an empty status shows
+     * a neutral "—" and unknown statuses stay neutral with the raw value.
+     */
+    private static function planStatusBadge(string $status): TElement
+    {
+        $map = [
+            \CentralVet\Domain\Prescription::STATUS_DRAFT => ['Draft', 'neutral'],
+            \CentralVet\Domain\Prescription::STATUS_ISSUED => ['Issued', 'success'],
+            \CentralVet\Domain\ExamRequest::STATUS_REQUESTED => ['Requested', 'info'],
+            \CentralVet\Domain\ExamRequest::STATUS_RESULT_AVAILABLE => ['Result available', 'success'],
+        ];
+
+        if ($status === '')
+        {
+            return CvBadge::create('—', 'neutral');
+        }
+
+        if (isset($map[$status]))
+        {
+            return CvBadge::create(_t($map[$status][0]), $map[$status][1]);
+        }
+
+        return CvBadge::create($status, 'neutral');
+    }
+
+    /**
+     * @param bool $detailIsStatus prescriptions/exams: `detail` is the raw status
+     */
+    private static function planItemList(array $items, bool $detailIsStatus = false): TElement
+    {
+        if (empty($items))
+        {
+            return TElement::tag('p', CvFormat::e(_t('No items yet')), ['class' => 'text-muted', 'style' => 'margin:0']);
+        }
+
+        $list = new TElement('ul');
+        $list->style = 'list-style:none; padding-left:0; margin:0';
+
+        foreach ($items as $item)
+        {
+            $li = new TElement('li');
+            $li->style = 'display:flex; justify-content:space-between; gap:var(--cv-space-3); padding:var(--cv-space-2) 0; border-bottom:1px solid var(--cv-color-border)';
+
+            $text = new TElement('div');
+            $text->add(TElement::tag('div', CvFormat::e((string) $item['title']), ['style' => 'font-weight:600']));
+
+            if ($detailIsStatus)
+            {
+                $text->add(TElement::tag('div', self::planStatusBadge((string) ($item['detail'] ?? '')), ['style' => 'margin-top:2px']));
+            }
+            elseif (!empty($item['detail']))
+            {
+                $text->add(TElement::tag('div', CvFormat::e((string) $item['detail']), ['style' => 'font-size:12px; color:var(--cv-color-text-muted)']));
+            }
+
+            $li->add($text);
+            $li->add(TElement::tag('span', CvFormat::e(self::formatDate((string) $item['created_at'])), ['style' => 'font-size:12px; color:var(--cv-color-text-muted); white-space:nowrap']));
+            $list->add($li);
+        }
+
+        return $list;
+    }
+
+    private static function formatDate(string $value, string $format = 'd/m/Y H:i'): string
+    {
+        $time = strtotime($value);
+
+        return $time === false ? $value : date($format, $time);
+    }
+
+    /**
+     * Finalization step: saved-state summary (diagnosis, plan item counts,
+     * encounter total). Values reflect the last saved draft.
+     */
+    private function finalizationSummary(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $items = $data['planItems'];
+
+        $rows = [
+            _t('Status') => self::isFinished($encounter) ? _t('Finished') : _t('In service'),
+            _t('Diagnosis') => (string) ($encounter->diagnosisText() ?? '') !== '' ? (string) $encounter->diagnosisText() : '—',
+            _t('Prescriptions') => (string) count($items['prescriptions'] ?? []),
+            _t('Exams') => (string) count($items['exams'] ?? []),
+            _t('Procedures') => (string) count($items['procedures'] ?? []),
+            _t('Vaccines') => (string) count($items['vaccines'] ?? []),
+            _t('Encounter total') => self::encounterTotalLabel($data),
+        ];
+
+        $box = new TElement('div');
+        $box->add(TElement::tag('h3', CvFormat::e(_t('Encounter summary')), ['style' => 'font-size:1rem; font-weight:600; margin:0 0 var(--cv-space-3)']));
+
+        $list = new TElement('dl');
+        $list->style = 'display:grid; grid-template-columns:max-content 1fr; gap:var(--cv-space-2) var(--cv-space-4); margin:0';
+
+        foreach ($rows as $label => $value)
+        {
+            $list->add(TElement::tag('dt', CvFormat::e($label), ['style' => 'font-weight:400; color:var(--cv-color-text-muted)']));
+            $list->add(TElement::tag('dd', CvFormat::e($value), ['style' => 'margin:0; white-space:pre-line']));
+        }
+
+        $box->add($list);
+
+        return $box;
+    }
+
+    /**
+     * Builds the client-side autosave loop: every 20s, reads the current
+     * value of every self::DRAFT_FIELDS input of form_EncounterView_<id>
+     * (by `[name="..."]` selector — hidden wizard steps included) and calls
+     * onAutosave() through __adianti_ajax_exec() with automatic_output
+     * false (the re-rendered page HTML is discarded). The loop stops itself
+     * once the form is gone (navigated away), so it never posts another
+     * encounter's fields under this encounter id.
+     */
+    private function autosaveScript(int $encounterId): TElement
+    {
+        $autosaveAction = new TAction([$this, 'onAutosave']);
+        $autosaveAction->setParameter('id', $encounterId);
+        $serializedAction = $autosaveAction->serialize(false);
+
+        $fieldsJs = implode(',', array_map(static function ($field)
+        {
+            return "'" . addslashes($field) . "'";
+        }, self::DRAFT_FIELDS));
+
+        $savedLabel = addslashes(_t('Saved at'));
+        $formId = 'form_EncounterView_' . $encounterId;
+
+        $script = new TElement('script');
+        $script->add(<<<JS
+            (function() {
+                var draftFields = [{$fieldsJs}];
+                var autosave = setInterval(function() {
+                    var form = $('#{$formId}');
+                    if (form.length === 0) {
+                        clearInterval(autosave);
+                        return;
+                    }
+                    var query = '{$serializedAction}';
+                    draftFields.forEach(function(name) {
+                        var el = form.find('[name="' + name + '"]');
+                        if (el.length > 0) {
+                            query += '&' + encodeURIComponent(name) + '=' + encodeURIComponent(el.val() || '');
+                        }
+                    });
+                    __adianti_ajax_exec(query, function() {
+                        var indicator = document.getElementById('encounter_autosave_indicator');
+                        if (indicator) {
+                            indicator.textContent = '{$savedLabel} ' + new Date().toLocaleTimeString();
+                        }
+                    }, false);
+                }, 20000);
+            })();
+            JS
+        );
+
+        return $script;
+    }
+
+    /**
+     * Right column: previous encounter (ClinicalSummaryService::
+     * lastEncounter()) + audit timeline (EncounterService::timeline()).
+     */
+    private function historyCard(array $data): TElement
+    {
+        $body = new TElement('div');
+        $previous = $data['previousEncounter'];
+
+        if ($previous !== null)
+        {
+            $box = new TElement('div');
+            $box->style = 'padding-bottom:var(--cv-space-3); margin-bottom:var(--cv-space-3); border-bottom:1px solid var(--cv-color-border)';
+            $box->add(TElement::tag('div', CvFormat::e(_t('Previous encounter') . ' · ' . self::formatDate($previous['started_at'], 'd/m/Y')), ['style' => 'font-weight:600']));
+
+            $excerpt = $previous['diagnosis_excerpt'] ?? $previous['anamnesis_excerpt'] ?? null;
+
+            if ($excerpt !== null)
+            {
+                $box->add(TElement::tag('div', CvFormat::e($excerpt), ['style' => 'font-size:12px; color:var(--cv-color-text-muted)']));
+            }
+
+            $link = TElement::tag('a', CvFormat::e(_t('Open')), [
+                'href' => 'index.php?class=EncounterView&encounter_id=' . (int) $previous['id'],
+                'generator' => 'adianti',
+                'style' => 'font-size:12px',
+            ]);
+            $box->add($link);
+            $body->add($box);
+        }
+
+        $body->add(TElement::tag('div', CvFormat::e(_t('Timeline')), ['style' => 'font-weight:600; margin-bottom:var(--cv-space-2)']));
+
+        if (empty($data['timeline']))
+        {
+            $body->add(TElement::tag('p', CvFormat::e(_t('No events yet')), ['class' => 'text-muted', 'style' => 'margin:0']));
+        }
+        else
+        {
+            $list = new TElement('ul');
+            $list->style = 'list-style:none; padding-left:0; margin:0';
+
+            foreach ($data['timeline'] as $event)
+            {
+                $item = new TElement('li');
+                $item->style = 'padding:var(--cv-space-1) 0; border-bottom:1px solid var(--cv-color-border); font-size:12px';
+                $item->add('<strong>' . $event['created_at']->format('d/m H:i') . '</strong> &mdash; ' . CvFormat::e((string) $event['action']));
+                $list->add($item);
+            }
+
+            $body->add($list);
+        }
+
+        return CvCard::create(_t('History'), $body);
+    }
+
+    /**
+     * Attachments (EncounterDocumentService::list()) + real upload via TFile
+     * and onAttachDocument() (EncounterDocumentService::attach()).
+     */
+    private function attachmentsCard(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $body = new TElement('div');
+
+        if (empty($data['documents']))
+        {
+            $body->add(TElement::tag('p', CvFormat::e(_t('No attachments yet')), ['class' => 'text-muted']));
+        }
+        else
+        {
+            $list = new TElement('ul');
+            $list->style = 'padding-left:1rem';
+
+            foreach ($data['documents'] as $document)
+            {
+                $label = is_object($document) && isset($document->key) ? basename((string) $document->key) : (string) json_encode($document);
+                $list->add(TElement::tag('li', CvFormat::e($label), []));
+            }
+
+            $body->add($list);
+        }
+
+        $docForm = new BootstrapFormBuilder('form_EncounterDocument_' . $encounter->id());
+
+        $docFile = new TFile('filename');
+        $docForm->addFields([new TLabel(_t('File'))]);
+        $docForm->addFields([$docFile]);
+
+        $attachAction = new TAction([$this, 'onAttachDocument']);
+        $attachAction->setParameter('id', $encounter->id());
+        $attachButton = $docForm->addAction(_t('Attach'), $attachAction, 'fa:paperclip');
+        $attachButton->class = 'btn btn-sm btn-secondary';
+
+        $body->add($docForm);
+
+        return CvCard::create(_t('Attachments'), $body);
+    }
+
+    /**
+     * Retorno — real scheduling via onScheduleFollowUp()
+     * (AppointmentService::schedule()); service picked from a TDBCombo of
+     * Service filtered by the session tenant.
+     */
+    private function followUpCard(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+
+        $followUpForm = new BootstrapFormBuilder('form_EncounterFollowUp_' . $encounter->id());
+
+        $followUpDate = new TDateTime('followup_scheduled_at');
+        $followUpDate->setSize('100%');
+        $followUpDate->addValidation(_t('Date/time'), new TRequiredValidator);
+
+        $tenantCriteria = new TCriteria;
+        $tenantCriteria->add(new TFilter('tenant_id', '=', (int) $data['tenantId']));
+
+        $followUpService = new TDBCombo('followup_service_id', 'permission', 'Service', 'id', 'name', 'name', $tenantCriteria);
+        $followUpService->setSize('100%');
+        $followUpService->addValidation(_t('Service'), new TRequiredValidator);
+
+        if ($data['serviceId'] !== null)
+        {
+            $followUpService->setValue($data['serviceId']);
+        }
+
+        $followUpForm->addFields([new TLabel(_t('Date/time'))]);
+        $followUpForm->addFields([$followUpDate]);
+        $followUpForm->addFields([new TLabel(_t('Service'))]);
+        $followUpForm->addFields([$followUpService]);
+
+        $followUpAction = new TAction([$this, 'onScheduleFollowUp']);
+        $followUpAction->setParameter('id', $encounter->id());
+        $followUpButton = $followUpForm->addAction(_t('Schedule follow-up'), $followUpAction, 'fa:calendar-plus');
+        $followUpButton->class = 'btn btn-sm btn-primary';
+
+        return CvCard::create(_t('Follow-up'), $followUpForm);
+    }
+
+    /**
+     * "Total do atendimento": the encounter account total when an account
+     * exists, otherwise the origin appointment's service price; "—" when
+     * neither is known.
+     */
+    private static function encounterTotalLabel(array $data): string
+    {
+        if ($data['account'] !== null)
+        {
+            return CvFormat::money((int) $data['account']->totalCents());
+        }
+
+        return $data['priceCents'] !== null ? CvFormat::money((int) $data['priceCents']) : '—';
+    }
+
+    /**
+     * Resumo financeiro: account subtotal/discount (read-only) or the
+     * origin service price, always ending with "Total do atendimento".
+     */
+    private function financePanel(array $data): TElement
+    {
+        $encounter = $data['encounter'];
+        $body = new TElement('div');
+
+        $rows = [];
+
+        if ($data['account'] !== null)
+        {
+            $rows[_t('Subtotal')] = CvFormat::money((int) $data['account']->subtotalCents());
+
+            if ((int) $data['account']->discountCents() > 0)
+            {
+                $rows[_t('Discount')] = '-' . CvFormat::money((int) $data['account']->discountCents());
+            }
+        }
+        elseif ($data['priceCents'] !== null)
+        {
+            $rows[(string) ($data['serviceName'] ?? _t('Service'))] = CvFormat::money((int) $data['priceCents']);
+        }
+        else
+        {
+            $body->add(TElement::tag('p', CvFormat::e(_t('No price available for this encounter yet')), ['class' => 'text-muted']));
+        }
+
+        $list = new TElement('div');
+
+        foreach ($rows as $label => $value)
+        {
+            $line = new TElement('div');
+            $line->style = 'display:flex; justify-content:space-between; gap:var(--cv-space-3); padding:var(--cv-space-1) 0';
+            $line->add(TElement::tag('span', CvFormat::e($label), []));
+            $line->add(TElement::tag('span', CvFormat::e($value), []));
+            $list->add($line);
+        }
+
+        $total = new TElement('div');
+        $total->style = 'display:flex; justify-content:space-between; gap:var(--cv-space-3); padding-top:var(--cv-space-2); margin-top:var(--cv-space-2); border-top:1px solid var(--cv-color-border); font-weight:700';
+        $total->add(TElement::tag('span', CvFormat::e(_t('Encounter total')), []));
+        $total->add(TElement::tag('span', CvFormat::e(self::encounterTotalLabel($data)), []));
+        $list->add($total);
+
+        $body->add($list);
+
+        return CvCard::create(
+            _t('Financial summary'),
+            $body,
+            _t('Encounter account'),
+            'index.php?class=EncounterAccountForm&encounter_id=' . $encounter->id() . '&patient_id=' . $encounter->patientId()
+        );
+    }
+
+    /**
+     * AI summary panel — kept but NOT rendered in phase 10 (no AI block
+     * visible). onAcceptAiSummary() stays available.
      */
     private function aiPanel(array $data): TPanelGroup
     {
@@ -505,12 +1288,8 @@ class EncounterView extends TPage
     }
 
     /**
-     * Suggested next steps (NullAiClinicalAssistant::suggestNextSteps()),
-     * each with its own "Apply" button. Applying never round-trips to the
-     * server: TButton::addFunction() appends the suggestion text straight
-     * into the clinical_plan_text textarea client-side (same
-     * TButton::addFunction() pattern already identified in
-     * BootstrapFormBuilder's own tab links) — never automatic.
+     * Suggested next steps — kept but NOT rendered in phase 10 (no AI block
+     * visible).
      */
     private function suggestionsPanel(array $data): TPanelGroup
     {
@@ -540,315 +1319,6 @@ class EncounterView extends TPage
             $line->add($applyButton);
             $panel->add($line);
         }
-
-        return $panel;
-    }
-
-    /**
-     * Anamnese (TText::enableSpeechRecognition() — never a hand-rolled Web
-     * Speech API integration), sinais vitais, exame fisico, diagnostico,
-     * plano clinico. Field names match self::DRAFT_FIELDS /
-     * EncounterService::autosave() 1:1. Also injects the periodic autosave
-     * script (setInterval + __adianti_ajax_exec, T-06's real, non-decorative
-     * autosave requirement).
-     */
-    private function clinicalForm(array $data): TElement
-    {
-        $encounter = $data['encounter'];
-        $finished = $encounter->status() === \CentralVet\Domain\Encounter::STATUS_FINISHED;
-
-        $form = new BootstrapFormBuilder('form_EncounterView_' . $encounter->id());
-        $form->setFormTitle(_t('Clinical record'));
-
-        $anamnesis = new TText('anamnesis_text');
-        $anamnesis->setSize('100%', 100);
-        $anamnesis->enableSpeechRecognition();
-
-        $temperature = new TEntry('temperature_c');
-        $heartRate = new TEntry('heart_rate_bpm');
-        $respiratoryRate = new TEntry('respiratory_rate_mpm');
-        $weight = new TEntry('weight_kg');
-        $mucous = new TEntry('mucous_membranes');
-        $capillaryRefill = new TEntry('capillary_refill_seconds');
-        $physicalExam = new TText('physical_exam_text');
-        $physicalExam->setSize('100%', 90);
-        $diagnosis = new TText('diagnosis_text');
-        $diagnosis->setSize('100%', 70);
-        $plan = new TText('clinical_plan_text');
-        $plan->setSize('100%', 90);
-
-        $numericFields = [$temperature, $heartRate, $respiratoryRate, $weight, $mucous, $capillaryRefill];
-
-        foreach ($numericFields as $field)
-        {
-            $field->setSize('100%');
-        }
-
-        if ($finished)
-        {
-            foreach (array_merge($numericFields, [$anamnesis, $physicalExam, $diagnosis, $plan]) as $field)
-            {
-                $field->setEditable(false);
-            }
-        }
-
-        $form->addFields([new TLabel(_t('Anamnesis (voice dictation available)'))]);
-        $form->addFields([$anamnesis]);
-
-        $form->addFields([new TLabel(_t('Temperature (C)')), new TLabel(_t('Heart rate (bpm)')), new TLabel(_t('Respiratory rate (mpm)'))]);
-        $form->addFields([$temperature, $heartRate, $respiratoryRate]);
-
-        $form->addFields([new TLabel(_t('Weight (kg)')), new TLabel(_t('Mucous membranes')), new TLabel(_t('Capillary refill (s)'))]);
-        $form->addFields([$weight, $mucous, $capillaryRefill]);
-
-        $form->addFields([new TLabel(_t('Physical exam'))]);
-        $form->addFields([$physicalExam]);
-
-        $form->addFields([new TLabel(_t('Diagnosis'))]);
-        $form->addFields([$diagnosis]);
-
-        $form->addFields([new TLabel(_t('Clinical plan'))]);
-        $form->addFields([$plan]);
-
-        $formData = new stdClass;
-        $formData->anamnesis_text = $encounter->anamnesisText();
-        $formData->temperature_c = $encounter->temperatureC();
-        $formData->heart_rate_bpm = $encounter->heartRateBpm();
-        $formData->respiratory_rate_mpm = $encounter->respiratoryRateMpm();
-        $formData->weight_kg = $encounter->weightKg();
-        $formData->mucous_membranes = $encounter->mucousMembranes();
-        $formData->capillary_refill_seconds = $encounter->capillaryRefillSeconds();
-        $formData->physical_exam_text = $encounter->physicalExamText();
-        $formData->diagnosis_text = $encounter->diagnosisText();
-        $formData->clinical_plan_text = $encounter->clinicalPlanText();
-
-        $form->setData($formData);
-
-        $wrapper = new TElement('div');
-        $wrapper->class = 'cv-section';
-        $wrapper->add($form);
-
-        if (!$finished)
-        {
-            $wrapper->add($this->autosaveScript($encounter->id()));
-        }
-
-        return $wrapper;
-    }
-
-    /**
-     * Builds the client-side autosave loop: every 20s, reads the current
-     * value of every self::DRAFT_FIELDS input (by `[name="..."]` selector,
-     * not by generated id — the convention already identified in
-     * TCalendar/TTreeView/TNotebook) and calls onAutosave() through
-     * __adianti_ajax_exec(), the same raw AJAX mechanism those widgets use
-     * for their own periodic/on-demand server calls. automatic_output is
-     * false: the (re-rendered) page HTML that a "static" action call always
-     * returns is discarded rather than replacing anything on screen — only
-     * the textual autosave indicator is updated from the callback.
-     */
-    private function autosaveScript(int $encounterId): TElement
-    {
-        $autosaveAction = new TAction([$this, 'onAutosave']);
-        $autosaveAction->setParameter('id', $encounterId);
-        $serializedAction = $autosaveAction->serialize(false);
-
-        $fieldsJs = implode(',', array_map(static function ($field)
-        {
-            return "'" . addslashes($field) . "'";
-        }, self::DRAFT_FIELDS));
-
-        $savedLabel = addslashes(_t('Saved at'));
-
-        $script = new TElement('script');
-        $script->add(<<<JS
-            (function() {
-                var draftFields = [{$fieldsJs}];
-                setInterval(function() {
-                    var query = '{$serializedAction}';
-                    draftFields.forEach(function(name) {
-                        var el = $('[name="' + name + '"]');
-                        if (el.length > 0) {
-                            query += '&' + encodeURIComponent(name) + '=' + encodeURIComponent(el.val() || '');
-                        }
-                    });
-                    __adianti_ajax_exec(query, function() {
-                        var indicator = document.getElementById('encounter_autosave_indicator');
-                        if (indicator) {
-                            indicator.textContent = '{$savedLabel} ' + new Date().toLocaleTimeString();
-                        }
-                    }, false);
-                }, 20000);
-            })();
-            JS
-        );
-
-        return $script;
-    }
-
-    /**
-     * Audit timeline (EncounterService::timeline(), reading `audit_log`
-     * directly — no dedicated table for this, per T-03's own docblock).
-     */
-    private function timelinePanel(array $data): TPanelGroup
-    {
-        $panel = new TPanelGroup(_t('Timeline'));
-        $panel->class = 'cv-section';
-
-        if (empty($data['timeline']))
-        {
-            $panel->add('<p class="text-muted">' . _t('No events yet') . '</p>');
-            return $panel;
-        }
-
-        $list = new TElement('ul');
-        $list->style = 'list-style:none; padding-left:0; margin:0';
-
-        foreach ($data['timeline'] as $event)
-        {
-            $item = new TElement('li');
-            $item->style = 'padding:var(--cv-space-1) 0; border-bottom:1px solid var(--cv-color-border); font-size:12px';
-            $item->add('<strong>' . $event['created_at']->format('d/m H:i') . '</strong> &mdash; ' . htmlspecialchars($event['action']));
-            $list->add($item);
-        }
-
-        $panel->add($list);
-
-        return $panel;
-    }
-
-    /**
-     * Inline actions: Prescricao/Exame/Vacina (T-09) navigate client-side
-     * (__adianti_goto_page, same mechanism as the constructor's own
-     * post-start() redirect and onReload()) straight to their dedicated
-     * screen — PrescriptionForm (T-06), ExamRequestForm (T-07),
-     * VaccinationForm (T-08) — passing encounter_id/patient_id as query
-     * parameters, no server round-trip through this page. Procedimento
-     * remains UI shell only — its click still records, at most, one
-     * audit_log event via onInlineAction(), never its own table. Documento
-     * is a real upload (EncounterDocumentService::attach()) and Retorno a
-     * real scheduling (AppointmentService::schedule()).
-     */
-    private function inlineActionsPanel(array $data): TPanelGroup
-    {
-        $encounter = $data['encounter'];
-        $panel = new TPanelGroup(_t('Inline actions'));
-        $panel->class = 'cv-section';
-
-        $quickActions = new TElement('div');
-        $quickActions->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-2); margin-bottom:var(--cv-space-4)';
-
-        $kinds = [
-            'prescription' => [_t('Prescription'), 'fa:file-medical', 'PrescriptionForm'],
-            'exam' => [_t('Exam'), 'fa:vial', 'ExamRequestForm'],
-            'procedure' => [_t('Procedure'), 'fa:syringe', 'ProcedureExecutionForm'],
-            'vaccine' => [_t('Vaccine'), 'fa:shield-alt', 'VaccinationForm'],
-            'account' => [_t('Account'), 'fa:file-invoice-dollar', 'EncounterAccountForm'],
-        ];
-
-        foreach ($kinds as $kind => $meta)
-        {
-            [$label, $icon, $targetClass] = $meta;
-
-            if ($targetClass === null)
-            {
-                // Procedimento: unchanged — still a UI shell recording a
-                // single audit_log event via onInlineAction().
-                $action = new TAction([$this, 'onInlineAction']);
-                $action->setParameter('id', $encounter->id());
-                $action->setParameter('kind', $kind);
-
-                $button = new TButton('inline_' . $kind);
-                $button->setAction($action, $label);
-                $button->setImage($icon);
-                $button->setFormName('form_EncounterView_' . $encounter->id());
-            }
-            else
-            {
-                // Prescricao/Exame/Vacina: client-side navigation to the
-                // dedicated screen, no TAction/server round-trip.
-                $button = new TButton('inline_' . $kind);
-                $button->setLabel($label);
-                $button->setImage($icon);
-                $button->addFunction(
-                    "__adianti_goto_page('index.php?class={$targetClass}"
-                    . "&encounter_id=" . $encounter->id()
-                    . "&patient_id=" . $encounter->patientId() . "')"
-                );
-            }
-
-            $button->class = 'btn btn-sm btn-outline-secondary';
-            $quickActions->add($button);
-        }
-
-        $panel->add($quickActions);
-
-        // Documento — upload real via TFile + EncounterDocumentService::attach().
-        $docForm = new BootstrapFormBuilder('form_EncounterDocument_' . $encounter->id());
-        $docForm->setFormTitle(_t('Document'));
-
-        $docFile = new TFile('filename');
-        $docForm->addFields([new TLabel(_t('File'))]);
-        $docForm->addFields([$docFile]);
-
-        $attachAction = new TAction([$this, 'onAttachDocument']);
-        $attachAction->setParameter('id', $encounter->id());
-        $attachButton = $docForm->addAction(_t('Attach'), $attachAction, 'fa:paperclip');
-        $attachButton->class = 'btn btn-sm btn-secondary';
-
-        $panel->add($docForm);
-
-        // Retorno — agendamento real via AppointmentService::schedule().
-        $followUpForm = new BootstrapFormBuilder('form_EncounterFollowUp_' . $encounter->id());
-        $followUpForm->setFormTitle(_t('Follow-up'));
-
-        $followUpDate = new TDateTime('followup_scheduled_at');
-        $followUpDate->setSize('100%');
-        $followUpDate->addValidation(_t('Date/time'), new TRequiredValidator);
-
-        $followUpService = new TEntry('followup_service_id');
-        $followUpService->setNumericMask(0, '', '', false, false, false);
-        $followUpService->setSize('100%');
-        $followUpService->addValidation(_t('Service id'), new TRequiredValidator);
-
-        if ($data['serviceId'] !== null)
-        {
-            $followUpService->setValue($data['serviceId']);
-        }
-
-        $followUpForm->addFields([new TLabel(_t('Date/time'))]);
-        $followUpForm->addFields([$followUpDate]);
-        $followUpForm->addFields([new TLabel(_t('Service id'))]);
-        $followUpForm->addFields([$followUpService]);
-
-        $followUpAction = new TAction([$this, 'onScheduleFollowUp']);
-        $followUpAction->setParameter('id', $encounter->id());
-        $followUpButton = $followUpForm->addAction(_t('Schedule follow-up'), $followUpAction, 'fa:calendar-plus');
-        $followUpButton->class = 'btn btn-sm btn-primary';
-
-        $panel->add($followUpForm);
-
-        return $panel;
-    }
-
-    /**
-     * Financial summary: shows the origin appointment's service price
-     * (ServiceCatalogService::findById()) only when a service_id could be
-     * resolved (see the class docblock's documented limitation).
-     */
-    private function financePanel(array $data): TPanelGroup
-    {
-        $panel = new TPanelGroup(_t('Financial summary'));
-        $panel->class = 'cv-section';
-
-        if ($data['priceCents'] === null)
-        {
-            $panel->add('<p class="text-muted">' . _t('No price available for this encounter yet') . '</p>');
-            return $panel;
-        }
-
-        $price = number_format($data['priceCents'] / 100, 2, ',', '.');
-        $panel->add('<p><strong>' . htmlspecialchars((string) $data['serviceName']) . '</strong><br>R$ ' . $price . '</p>');
 
         return $panel;
     }
@@ -1010,15 +1480,15 @@ class EncounterView extends TPage
     }
 
     /**
-     * Procedimento (T-09: the only inline "kind" still routed here —
-     * Prescricao/Exame/Vacina now navigate straight to their own dedicated
-     * screen from inlineActionsPanel() instead of calling this action):
-     * casca de UI. Records a single audit_log event
-     * (CentralVet\Audit\AuditEvent + PdoAuditLogWriter, used directly here
-     * — no dedicated Application service exists for this action in this
-     * phase, and the task explicitly allows this choice) and reloads the
-     * page so the new event shows up in the timeline. Never writes to any
-     * table of its own.
+     * Records an inline clinical-plan action in the audit log. `kind` is one
+     * of the keys of PLAN_ACTIONS (prescription, exam, procedure, vaccine,
+     * account); the plan buttons themselves navigate client-side to the
+     * target screen of PLAN_ACTIONS (planActions()), so this action only
+     * writes a single audit_log event with action
+     * `EncounterView::onInlineAction:<kind>` (entity `encounter`, afterData
+     * ['kind' => <kind>]) through CentralVet\Audit\PdoAuditLogWriter and
+     * reloads the page so the event shows up in the timeline. Never writes
+     * to any table of its own.
      */
     public function onInlineAction($param)
     {
@@ -1217,25 +1687,6 @@ class EncounterView extends TPage
         );
 
         return new \CentralVet\Application\EncounterService($encounters, $authorization, $context, $connection);
-    }
-
-    private static function makePatientService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\PatientService
-    {
-        $connection = TTransaction::get();
-
-        $patients = new \CentralVet\Persistence\PatientRepository($context, $connection);
-        $tutors = new \CentralVet\Persistence\TutorRepository($context, $connection);
-
-        return new \CentralVet\Application\PatientService($patients, $tutors, $context);
-    }
-
-    private static function makeTutorService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\TutorService
-    {
-        $connection = TTransaction::get();
-
-        $tutors = new \CentralVet\Persistence\TutorRepository($context, $connection);
-
-        return new \CentralVet\Application\TutorService($tutors);
     }
 
     private static function makeServiceCatalogService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\ServiceCatalogService

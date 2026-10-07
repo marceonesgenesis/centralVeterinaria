@@ -23,9 +23,13 @@
  */
 class PatientList extends TPage
 {
+    private const LIMIT = 10;
+
     protected $tutor_id;
     protected $datagrid;
-    protected $panel;
+    protected $pageNavigation;
+    protected $footerBox;
+    protected $headerBox;
 
     /**
      * Page constructor
@@ -40,8 +44,9 @@ class PatientList extends TPage
 
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
+        $this->datagrid->setActionSide('right');
 
         $column_name = new TDataGridColumn('name', _t('Name'), 'left');
         $column_species = new TDataGridColumn('species', _t('Species'), 'left');
@@ -50,6 +55,32 @@ class PatientList extends TPage
         $column_birth_date = new TDataGridColumn('birth_date', _t('Birth date'), 'center', 110);
         $column_weight_kg = new TDataGridColumn('weight_kg', _t('Weight (kg)'), 'right', 100);
 
+        $column_name->setTransformer(function ($value, $object) {
+            return CvAvatar::placeholder((string) $object->name, (string) $object->species)
+                 . ' <span class="ms-2">' . CvFormat::e((string) $object->name) . '</span>';
+        });
+        $column_species->setTransformer(function ($value, $object) {
+            return ($object->species === null || $object->species === '') ? '—' : CvBadge::create((string) $object->species, 'info');
+        });
+        $column_birth_date->setTransformer(function ($value, $object) {
+            $date = $object->birth_date ? DateTime::createFromFormat('Y-m-d', substr((string) $object->birth_date, 0, 10)) : false;
+            return $date ? $date->format('d/m/Y') : '—';
+        });
+        $column_weight_kg->setTransformer(function ($value, $object) {
+            return $object->weight_kg === null ? '—' : number_format((float) $object->weight_kg, 2, ',', '.');
+        });
+        foreach ([$column_breed, $column_sex] as $column)
+        {
+            $column->setTransformer(function ($value) {
+                return ($value === null || $value === '') ? '—' : $value;
+            });
+        }
+        foreach ([$column_name, $column_species, $column_birth_date, $column_weight_kg] as $column)
+        {
+            // transformers escape the raw value themselves (CvFormat::e)
+            $column->disableHtmlConversion();
+        }
+
         $this->datagrid->addColumn($column_name);
         $this->datagrid->addColumn($column_species);
         $this->datagrid->addColumn($column_breed);
@@ -57,45 +88,41 @@ class PatientList extends TPage
         $this->datagrid->addColumn($column_birth_date);
         $this->datagrid->addColumn($column_weight_kg);
 
+        $action_open = new TDataGridAction(['PatientForm', 'onEdit'], ['key' => '{id}', 'tutor_id' => '{tutor_id}']);
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Open'), 'action' => $action_open, 'icon' => 'fa:external-link-alt'],
+        ]));
+
         $this->datagrid->createModel();
 
-        $this->panel = new TPanelGroup(_t('Patients'));
-        $this->panel->add($this->datagrid);
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction([$this, 'onReload'], ['tutor_id' => $this->tutor_id]));
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $new_action = new TAction(['PatientForm', 'onEdit'], ['register_state' => 'false']);
-        if ($this->tutor_id !== null)
-        {
-            $new_action->setParameter('tutor_id', $this->tutor_id);
-        }
-        $this->panel->addHeaderActionLink(_t('New'), $new_action, 'fa:plus');
+        $this->footerBox = new TElement('div');
+        $this->headerBox = new TElement('div');
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Patients'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+        $card = new TElement('div');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->add($this->datagrid);
+        $body->add($this->footerBox);
+        $card->add($body);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
-        $container->add($this->panel);
+        $container->add($this->headerBox);
+        $container->add($card);
 
-        parent::add($page_header);
         parent::add($container);
 
         // onReload() is NOT called here: every real entry point to this
-        // screen (TutorList's "Patients" row action, PatientForm's
-        // setAfterSaveAction()) explicitly requests `method=onReload` in
-        // its TAction, so Adianti's dispatcher already invokes onReload()
-        // once per request. onReload() never clears the datagrid before
-        // adding rows (population only happens once per real request), so
-        // calling it a second time here from the constructor used to
-        // duplicate every row (each patient rendered twice).
+        // screen (TutorList's "Patients" row action, TutorForm/PatientForm's
+        // "back") explicitly requests `method=onReload` in its TAction, so
+        // Adianti's dispatcher already invokes onReload() once per request;
+        // show() fills the header/footer when it was not called.
     }
 
     /**
@@ -107,31 +134,26 @@ class PatientList extends TPage
      */
     public function onReload($param = null)
     {
+        $param = is_array($param) ? $param : [];
+        $tutor_name = null;
+        $patients = [];
+
         try
         {
-            if (empty($this->tutor_id))
+            if (!empty($this->tutor_id))
             {
-                return;
-            }
+                TTransaction::open('permission');
 
-            TTransaction::open('permission');
+                $service = $this->buildPatientService();
+                $patients = $service->findByTutor($this->tutor_id);
 
-            $service = $this->buildPatientService();
-            $patients = $service->findByTutor($this->tutor_id);
+                $tutor_service = new \CentralVet\Application\TutorService(
+                    new \CentralVet\Persistence\TutorRepository(self::resolveTenantContext(), TTransaction::get())
+                );
+                $tutor = $tutor_service->findById($this->tutor_id);
+                $tutor_name = $tutor !== null ? $tutor->fullName : null;
 
-            TTransaction::close();
-
-            foreach ($patients as $patient)
-            {
-                $row = new stdClass;
-                $row->name = $patient->name;
-                $row->species = $patient->species;
-                $row->breed = $patient->breed;
-                $row->sex = $patient->sex;
-                $row->birth_date = $patient->birthDate;
-                $row->weight_kg = $patient->weightKg;
-
-                $this->datagrid->addItem($row);
+                TTransaction::close();
             }
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
@@ -144,6 +166,76 @@ class PatientList extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+
+        $total  = count($patients);
+        $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+        if ($offset >= $total)
+        {
+            $offset = 0;
+        }
+        $page_rows = array_slice($patients, $offset, self::LIMIT);
+
+        $this->datagrid->clear();
+
+        foreach ($page_rows as $patient)
+        {
+            $row = new stdClass;
+            $row->id = $patient->id;
+            $row->tutor_id = $patient->tutorId;
+            $row->name = $patient->name;
+            $row->species = $patient->species;
+            $row->breed = $patient->breed;
+            $row->sex = $patient->sex;
+            $row->birth_date = $patient->birthDate;
+            $row->weight_kg = $patient->weightKg;
+
+            $this->datagrid->addItem($row);
+        }
+
+        $this->renderChrome($param, $offset, count($page_rows), $total, $tutor_name);
+    }
+
+    /**
+     * Shows header and empty footer when onReload() was not requested.
+     */
+    public function show()
+    {
+        if (!$this->headerBox->getChildren())
+        {
+            $this->renderChrome([], 0, 0, 0, null);
+        }
+
+        parent::show();
+    }
+
+    /**
+     * CvPage header (back to tutors, new patient) + "Showing X–Y of N" footer.
+     */
+    private function renderChrome(array $param, int $offset, int $count, int $total, ?string $tutor_name): void
+    {
+        $actions = [
+            ['label' => '', 'icon' => 'fa:arrow-left', 'action' => $this->tutor_id !== null
+                ? new TAction(['TutorForm', 'onEdit'], ['key' => $this->tutor_id])
+                : new TAction(['TutorList', 'onReload'])],
+        ];
+
+        $new_action = new TAction(['PatientForm', 'onEdit']);
+        if ($this->tutor_id !== null)
+        {
+            $new_action->setParameter('tutor_id', $this->tutor_id);
+        }
+        $actions[] = ['label' => _t('New patient'), 'action' => $new_action, 'icon' => 'fa:plus', 'class' => 'btn btn-primary'];
+
+        $this->headerBox->clearChildren();
+        $this->headerBox->add(CvPage::header(_t('Patients'), $tutor_name, $actions));
+
+        $this->pageNavigation->setCount($total);
+        $this->pageNavigation->setProperties($param);
+        $this->pageNavigation->setLimit(self::LIMIT);
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $this->footerBox->clearChildren();
+        $this->footerBox->add(CvDatagrid::footer($this->pageNavigation, $from, $offset + $count, $total, mb_strtolower(_t('Patients'))));
     }
 
     /**

@@ -47,7 +47,9 @@ class SystemPHPErrorLogView extends TPage
         }
         
         $lines = [];
-        $data = array_slice(file($error_log), -200);
+        // error_log pode ser stream/pipe (ex.: /proc/self/fd/2): file() devolve false -> grid vazia
+        $content = is_file($error_log) ? @file($error_log) : false;
+        $data = is_array($content) ? array_slice($content, -200) : [];
         $count = 0;
         foreach ($data as $line)
         {

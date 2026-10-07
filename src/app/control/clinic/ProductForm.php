@@ -2,24 +2,20 @@
 /**
  * ProductForm
  *
- * Registration screen for the product catalog (T-07). Follows the exact
- * TStandardForm pattern used by ServiceForm (Fase 1): the form itself
- * carries no business rule — creation, name uniqueness and every other
- * validation live entirely in CentralVet\Application\ProductService::create()
- * (T-03). This controller only forwards form data and translates the
- * outcome (success or domain/tenancy exception) into screen feedback,
- * never letting an exception escape as a fatal error / HTTP 500.
+ * Cadastro/edição de produto em página cheia (fase 10, kit Cv*), aberto por
+ * "Novo produto" e por "…" → Editar em ProductList
+ * (index.php?class=ProductForm&method=onEdit&id=<id>).
  *
- * PENDING: depends on the `product` table created by the not-yet-applied
- * migration src/app/database/migrations/20260924_0005_phase4_procedure_stock_sale.sql
- * (T-01). Validated only with `php -l` / `new ProductForm()` (no fatal
- * error) until that migration is applied.
+ * Criação e edição delegadas a CentralVet\Application\ProductService
+ * (create()/update(), T-34). Leitura para edição via ProductService::findById()
+ * (repositório escopado ao tenant), nunca pelo ActiveRecord Product. Depois de
+ * salvar volta para ProductList.
  *
- * @version    1.0
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
-class ProductForm extends TStandardForm
+class ProductForm extends TPage
 {
     protected $form; // form
 
@@ -27,24 +23,16 @@ class ProductForm extends TStandardForm
      * Class constructor
      * Creates the page and the registration form
      */
-    function __construct()
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
-        $this->setDatabase('permission');            // defines the database
-        $this->setActiveRecord('Product');            // defines the active record
-        $this->setAfterSaveAction( new TAction(['ProductList', 'onReload']) );
-        $this->setUseToast(true);
-
-        // creates the form
         $this->form = new BootstrapFormBuilder('form_Product');
         $this->form->setFormTitle(_t('Product'));
         $this->form->enableClientValidation();
 
         // create the form fields
-        $id = new TEntry('id');
+        $id = new THidden('id');
         $name = new TEntry('name');
         $category = new TEntry('category');
         $unit_of_measure = new TEntry('unit_of_measure');
@@ -53,79 +41,119 @@ class ProductForm extends TStandardForm
         $active = new TCombo('active');
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
 
-        // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Category'))] );
-        $this->form->addFields( [$category] );
-        $this->form->addFields( [new TLabel(_t('Unit of measure'))] );
-        $this->form->addFields( [$unit_of_measure] );
-        $this->form->addFields( [new TLabel(_t('Unit cost'))] );
-        $this->form->addFields( [$unit_cost] );
-        $this->form->addFields( [new TLabel(_t('Minimum stock quantity'))] );
-        $this->form->addFields( [$minimum_stock_quantity] );
-        $this->form->addFields( [new TLabel(_t('Status'))] );
-        $this->form->addFields( [$active] );
+        $hiddenRow = $this->form->addFields([$id]);
+        $hiddenRow->style = 'display: none';
 
-        $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $name->setSize('100%');
-        $category->setSize('100%');
-        $unit_of_measure->setSize('30%');
-        $unit_cost->setSize('30%');
+        $this->form->addFields(
+            [new TLabel(_t('Name'))], [$name],
+            [new TLabel(_t('Category'))], [$category]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Unit of measure'))], [$unit_of_measure],
+            [new TLabel(_t('Unit cost'))], [$unit_cost]
+        );
+        $this->form->addFields(
+            [new TLabel(_t('Minimum stock quantity'))], [$minimum_stock_quantity],
+            [new TLabel(_t('Status'))], [$active]
+        );
+
         $unit_cost->setNumericMask(2, ',', '.');
-        $minimum_stock_quantity->setSize('30%');
         $minimum_stock_quantity->setNumericMask(0, '', '');
-        $active->setSize('100%');
+        $minimum_stock_quantity->setProperty('pattern', '[0-9]*');
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
         $unit_of_measure->addValidation( _t('Unit of measure'), new TRequiredValidator );
         $minimum_stock_quantity->addValidation( _t('Minimum stock quantity'), new TRequiredValidator );
 
+        CvForm::decorate($this->form, 2);
+
         // create the form actions
-        $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $this->form->addActionLink(_t('Clear'), new TAction([$this, 'onClear']), 'fa:eraser');
+        $btn = $this->form->addAction(_t('Save'), new TAction([$this, 'onSave']), 'fa:check');
+        $btn->class = 'btn btn-primary';
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-04)
-        $header = new TElement('header');
-        $header->class = 'cv-page-header';
-
-        $header_text = new TElement('div');
-        $header_title = new TElement('h1');
-        $header_title->class = 'cv-page-title';
-        $header_title->add(_t('Product'));
-        $header_text->add($header_title);
-
-        $header->add($header_text);
-
-        // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($header);
+        $container->add(CvPage::header(_t('Product'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ProductList'],
+        ]));
+        $container->add(CvNav::tabs('stock', 'products'));
         $container->add($this->form);
 
         parent::add($container);
     }
 
     /**
-     * on close
+     * method onClear()
+     * Empties the form (new product).
      */
-    public static function onClose($param)
+    public function onClear($param = null)
     {
-        TScript::create("Template.closeRightPanel()");
+        $this->form->clear(true);
+        $this->form->setData((object) ['active' => 1]);
+    }
+
+    /**
+     * method onEdit()
+     * Loads the product through ProductService::findById() (tenant-scoped
+     * repository). Unknown id or another tenant's id → "Record not found".
+     */
+    public function onEdit($param)
+    {
+        $id = isset($param['id']) ? (int) $param['id'] : (isset($param['key']) ? (int) $param['key'] : 0);
+
+        if ($id <= 0)
+        {
+            $this->onClear($param);
+            return;
+        }
+
+        try
+        {
+            TTransaction::open('permission');
+
+            $tenant_context = self::resolveTenantContext();
+            $product = self::buildProductService($tenant_context)->findById($id);
+
+            TTransaction::close();
+
+            if ($product === null)
+            {
+                $this->form->clear(true);
+                new TMessage('error', _t('Record not found'));
+                return;
+            }
+
+            $data = new stdClass;
+            $data->id = $product->id();
+            $data->name = $product->name();
+            $data->category = $product->category();
+            $data->unit_of_measure = $product->unitOfMeasure();
+            $data->unit_cost = number_format($product->unitCostCents() / 100, 2, ',', '.');
+            $data->minimum_stock_quantity = $product->minimumStockQuantity();
+            $data->active = $product->isActive() ? 1 : 0;
+
+            $this->form->setData($data);
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->form->clear(true);
+            new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            $this->form->clear(true);
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     /**
      * method onSave()
-     * Persists the catalog entry through ProductService::create(). No
-     * validation/decision is made here: required fields, uniqueness and
-     * defaults are all enforced inside the Application service.
+     * New product → ProductService::create(); existing id →
+     * ProductService::update(). Returns to ProductList.
      */
     public function onSave($param = null)
     {
@@ -135,73 +163,79 @@ class ProductForm extends TStandardForm
 
             $this->form->validate();
 
-            // open a transaction with database
             TTransaction::open('permission');
 
             $tenant_context = self::resolveTenantContext();
+            $connection = TTransaction::get();
+            $repository = new \CentralVet\Persistence\ProductRepository($tenant_context, $connection);
+            $service = new \CentralVet\Application\ProductService($repository, $tenant_context);
 
-            $service = self::buildProductService($tenant_context);
+            $active = ((string) $data->active) !== '0';
 
-            $product = $service->create(
-                $tenant_context->tenantId(),
-                $data->name,
-                $data->category ?: null,
-                $data->unit_of_measure,
-                self::toCents($data->unit_cost),
-                (int) $data->minimum_stock_quantity
-            );
-
-            $data->id = $product->id();
-
-            // fill the form with the active record data
-            $this->form->setData($data);
-
-            // close the transaction
-            TTransaction::close();
-
-            // shows the success message
-            if (!empty($this->useToast))
+            if (!empty($data->id))
             {
-                TToast::show('info', _t('Record saved'));
-                AdiantiCoreApplication::loadPageURL( $this->afterSaveAction->serialize() );
+                $product = $service->update(
+                    (int) $data->id,
+                    (string) $data->name,
+                    $data->category ?: null,
+                    (string) $data->unit_of_measure,
+                    self::toCents($data->unit_cost),
+                    (int) $data->minimum_stock_quantity,
+                    $active
+                );
             }
             else
             {
-                new TMessage('info', _t('Record saved'), $this->afterSaveAction);
+                $product = $service->create(
+                    $tenant_context->tenantId(),
+                    (string) $data->name,
+                    $data->category ?: null,
+                    (string) $data->unit_of_measure,
+                    self::toCents($data->unit_cost),
+                    (int) $data->minimum_stock_quantity
+                );
+
+                if (!$active)
+                {
+                    $product->deactivate();
+                    $repository->save($product);
+                }
             }
 
-            return $data;
+            TTransaction::close();
+
+            TToast::show('info', _t('Record saved'));
+            AdiantiCoreApplication::loadPage('ProductList');
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\TenantBoundaryViolation $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('You are not allowed to perform this action'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
         }
         catch (Exception $e) // in case of exception (validation, domain, etc.)
         {
-            // fill the form with the active record data
-            $this->form->setData($data ?? null);
-
-            // shows the exception error message
-            new TMessage('error', $e->getMessage());
-
-            // undo all pending operations
             TTransaction::rollback();
+            $this->form->setData($data ?? null);
+            new TMessage('error', $e->getMessage());
         }
     }
 

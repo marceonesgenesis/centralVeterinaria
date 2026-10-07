@@ -37,10 +37,10 @@ final class Payable
         private ?int $id,
         private readonly int $tenantId,
         private readonly int $systemUnitId,
-        private readonly string $descriptionText,
-        private readonly string $category,
-        private readonly int $amountCents,
-        private readonly ?DateTimeImmutable $dueDate,
+        private string $descriptionText,
+        private string $category,
+        private int $amountCents,
+        private ?DateTimeImmutable $dueDate,
         private string $status,
         private ?DateTimeImmutable $paidAt,
         private readonly int $systemUserId,
@@ -170,6 +170,41 @@ final class Payable
 
         $this->status = self::STATUS_PAID;
         $this->paidAt = $paidAt;
+    }
+
+    /**
+     * Edita os dados da conta (descrição, categoria, valor, vencimento).
+     * Só é legal com status='open': conta paga/cancelada já gerou (ou não
+     * gera mais) lançamento financeiro, então não muda.
+     */
+    public function changeDetails(string $descriptionText, string $category, int $amountCents, ?DateTimeImmutable $dueDate): void
+    {
+        if ($this->status !== self::STATUS_OPEN) {
+            throw new InvalidStatusTransitionException(
+                "Payable {$this->id} cannot be edited from status '{$this->status}'"
+            );
+        }
+
+        $descriptionText = trim($descriptionText);
+
+        if ($descriptionText === '') {
+            throw new InvalidArgumentException('description_text must not be empty');
+        }
+
+        $category = trim($category);
+
+        if ($category === '') {
+            throw new InvalidArgumentException('category must not be empty');
+        }
+
+        if ($amountCents < 1) {
+            throw new InvalidArgumentException('amount_cents must be >= 1');
+        }
+
+        $this->descriptionText = $descriptionText;
+        $this->category = $category;
+        $this->amountCents = $amountCents;
+        $this->dueDate = $dueDate;
     }
 
     public function id(): ?int

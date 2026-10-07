@@ -65,6 +65,24 @@ final class FakeServiceRepository implements ServiceRepositoryInterface
         ));
     }
 
+    /** @return list<Service> active and inactive services of this tenant, ordered by name */
+    public function listAll(): array
+    {
+        $services = array_values(array_filter(
+            $this->services,
+            fn (Service $service): bool => $service->tenantId() === $this->tenantId,
+        ));
+        usort($services, static fn (Service $a, Service $b): int => strcmp($a->name(), $b->name()));
+
+        return $services;
+    }
+
+    /** Number of stored rows, every tenant included (tests check that update() never inserts). */
+    public function storedCount(): int
+    {
+        return count($this->services);
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof Service) {

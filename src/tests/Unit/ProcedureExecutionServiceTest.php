@@ -21,6 +21,8 @@ use CentralVet\Tests\Support\FakeProcedureExecutionRepository;
 use CentralVet\Tests\Support\FakeStockBatchRepository;
 use CentralVet\Tests\Support\FakeStockMovementRepository;
 use DateTimeImmutable;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
+use CentralVet\Tests\Support\FakeTenantUserDirectory;
 
 /**
  * Unit tests for ProcedureExecutionService::execute() (T-05), against fake
@@ -105,6 +107,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(
@@ -174,6 +177,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         $execution = $service->execute($encounterId, $procedureItemId, 10, 'observação', self::ACTION);
@@ -252,6 +256,7 @@ final class ProcedureExecutionServiceTest
             $stockService,
             $policy,
             $context,
+            FakeTenantUserDirectory::allowingAll(),
         );
 
         Assert::throws(
@@ -273,5 +278,62 @@ final class ProcedureExecutionServiceTest
         Assert::notNull($reloadedB);
         Assert::same(5, $reloadedB->quantity());
         Assert::count(0, $movements->listByProduct(2));
+    }
+
+    /**
+     * final-fix: a professional_system_user_id that is not an active member
+     * of the authenticated tenant (another tenant's user, or nonexistent) is
+     * rejected with CrossTenantReferenceException and nothing is persisted.
+     */
+    public function testExecuteRejectsProfessionalOutsideTenantAndPersistsNothingNorConsumesStock(): void
+    {
+        $encounters = new FakeEncounterRepository(1);
+        $encounter = Encounter::start(
+            tenantId: 1,
+            systemUnitId: 1,
+            patientId: 1,
+            appointmentId: null,
+            professionalSystemUserId: 10,
+            now: new DateTimeImmutable('-10 minutes'),
+        );
+        $encounters->save($encounter);
+        $encounterId = $encounter->id();
+
+        $context = TenantContext::authenticated(self::TENANT_ID, 1, 1);
+
+        $catalogService = new ProcedureCatalogService(
+            new FakeProcedureCatalogRepository(self::TENANT_ID),
+            new FakeProcedureCatalogItemInputRepository(self::TENANT_ID),
+            $context,
+        );
+        $procedureItemId = $catalogService->create('Tosquia', 8000, null, null)->id();
+        $catalogService->addInput($procedureItemId, 1, 2);
+
+        $batches = new FakeStockBatchRepository(self::TENANT_ID);
+        $batch = StockBatch::receive(self::TENANT_ID, 1, 1, null, null, 10, new DateTimeImmutable());
+        $batches->save($batch);
+
+        $movements = new FakeStockMovementRepository(self::TENANT_ID);
+        $stockService = new StockService($batches, $movements, new FakeAuthorizationPolicy(allowed: true), $context);
+
+        $executions = new FakeProcedureExecutionRepository(self::TENANT_ID);
+        $service = new ProcedureExecutionService(
+            $executions,
+            $encounters,
+            $catalogService,
+            $stockService,
+            new FakeAuthorizationPolicy(allowed: true),
+            $context,
+            new FakeTenantUserDirectory([10]),
+        );
+
+        Assert::throws(
+            CrossTenantReferenceException::class,
+            static fn () => $service->execute($encounterId, $procedureItemId, 999, null, self::ACTION),
+        );
+
+        Assert::count(0, $executions->listByEncounter($encounterId));
+        Assert::same(10, $batches->findById($batch->id())->quantity());
+        Assert::count(0, $movements->listByProduct(1));
     }
 }

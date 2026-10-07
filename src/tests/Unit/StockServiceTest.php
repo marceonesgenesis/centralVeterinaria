@@ -158,4 +158,34 @@ final class StockServiceTest
 
         Assert::count(0, $movements->listByProduct(self::PRODUCT_ID), 'No stock_movement row may exist when nothing was consumed');
     }
+
+    /**
+     * T-17 Correção 1: receiveBatch() authorizes the caller's own program
+     * action (e.g. 'StockBatchForm::onSave'), like SaleService::create() and
+     * the other Application services — not a hardcoded 'StockService::…',
+     * which has no system_program and was always denied.
+     */
+    public function testReceiveBatchAuthorizesTheCallerAction(): void
+    {
+        $batches = new FakeStockBatchRepository(self::TENANT_ID);
+        $movements = new FakeStockMovementRepository(self::TENANT_ID);
+        $context = TenantContext::authenticated(self::TENANT_ID, 1, self::SYSTEM_UNIT_ID);
+        $policy = new FakeAuthorizationPolicy(allowed: true);
+        $service = new StockService($batches, $movements, $policy, $context);
+
+        $batch = $service->receiveBatch(
+            tenantId: self::TENANT_ID,
+            systemUnitId: self::SYSTEM_UNIT_ID,
+            productId: self::PRODUCT_ID,
+            lot: 'F10-LOTE',
+            expiryDate: null,
+            quantity: 5,
+            professionalSystemUserId: self::PROFESSIONAL_ID,
+            action: 'StockBatchForm::onSave',
+        );
+
+        Assert::notNull($batch->id());
+        Assert::count(1, $policy->requests);
+        Assert::same('StockBatchForm::onSave', $policy->requests[0]->action());
+    }
 }

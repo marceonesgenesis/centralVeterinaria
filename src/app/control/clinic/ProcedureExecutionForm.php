@@ -75,16 +75,7 @@ class ProcedureExecutionForm extends TPage
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Execute procedure'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $container->add(CvPage::header(_t('Execute procedure'), null, self::backAction($this->encounterId)));
 
         if ($this->encounterId === null || $this->patientId === null)
         {
@@ -97,6 +88,7 @@ class ProcedureExecutionForm extends TPage
         $this->form->setFormTitle(_t('Execute procedure'));
         $this->form->enableClientValidation();
 
+        // contexto (vem da URL, sem edição)
         $encounter_id = new THidden('encounter_id');
         $encounter_id->setValue($this->encounterId);
         $patient_id = new THidden('patient_id');
@@ -104,51 +96,50 @@ class ProcedureExecutionForm extends TPage
 
         $procedure_catalog_item_id = new TCombo('procedure_catalog_item_id');
         $procedure_catalog_item_id->addItems($this->loadCatalogOptions());
-        $procedure_catalog_item_id->setSize('100%');
         $procedure_catalog_item_id->addValidation(_t('Procedure'), new TRequiredValidator);
 
-        $professional_system_user_id = new TEntry('professional_system_user_id');
-        $professional_system_user_id->setSize('100%');
+        // combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save
+        $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Professional'), new TRequiredValidator);
 
         $notes_text = new TText('notes_text');
         $notes_text->setSize('100%', 80);
 
-        $this->form->add($encounter_id);
-        $this->form->add($patient_id);
+        $hiddenRow = $this->form->addFields([$encounter_id, $patient_id]);
+        $hiddenRow->style = 'display: none';
 
-        // encounter/patient context strip (design system tokens, T-10):
-        // replaces the plain TLabel concatenation with a muted meta line,
-        // same var(--cv-space-*)/var(--cv-color-text-muted) pattern used by
-        // EncounterAccountForm::buildSummaryPanel()'s $meta block.
-        $meta = new TElement('div');
-        $meta->style = 'display:flex; flex-wrap:wrap; gap:var(--cv-space-1) var(--cv-space-3); '
-            . 'color:var(--cv-color-text-muted); font-size:12px; margin-bottom:var(--cv-space-3);';
-        $meta->add('<div>' . _t('Encounter') . ': ' . $this->encounterId . '</div>');
-        $meta->add('<div>' . _t('Patient') . ': ' . $this->patientId . '</div>');
-
-        $this->form->addFields([new TLabel(_t('Procedure'))]);
-        $this->form->addFields([$procedure_catalog_item_id]);
-        $this->form->addFields([new TLabel(_t('Professional (system user id)'))]);
-        $this->form->addFields([$professional_system_user_id]);
+        $this->form->addFields(
+            [new TLabel(_t('Procedure'))], [$procedure_catalog_item_id],
+            [new TLabel(_t('Professional'))], [$professional_system_user_id]
+        );
         $this->form->addFields([new TLabel(_t('Notes'))]);
         $this->form->addFields([$notes_text]);
 
         $btn = $this->form->addAction(_t('Execute'), new TAction([$this, 'onSave']), 'fa:syringe');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
 
-        // form panel (design system: .cv-section, T-10) — same
-        // TPanelGroup-wraps-BootstrapFormBuilder pattern as
-        // PaymentForm::buildPaymentForm().
-        $panel = new TPanelGroup(_t('Execute procedure'));
-        $panel->class = 'cv-section';
-        $panel->add($meta);
-        $panel->add($this->form);
+        CvForm::decorate($this->form, 2);
 
-        $container->add($panel);
+        $container->add($this->form);
 
         parent::add($container);
+    }
+
+    /**
+     * Voltar ao atendimento de origem (só quando há encounter_id de contexto).
+     */
+    private static function backAction(?int $encounterId): array
+    {
+        if ($encounterId === null)
+        {
+            return [];
+        }
+
+        return [[
+            'icon' => 'fa:arrow-left',
+            'href' => 'index.php?class=EncounterView&encounter_id=' . $encounterId,
+        ]];
     }
 
     private function emptyStatePanel(): TPanelGroup
@@ -244,7 +235,7 @@ class ProcedureExecutionForm extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Procedure executed successfully') . ' (#' . $execution->id() . ')');
+            TToast::show('success', _t('Procedure executed successfully') . ' (#' . $execution->id() . ')');
             TScript::create("__adianti_goto_page('index.php?class=EncounterView&encounter_id={$encounterId}')");
         }
         catch (\CentralVet\Domain\Exception\InsufficientStockException $e)
@@ -330,7 +321,7 @@ class ProcedureExecutionForm extends TPage
 
         $stock = new \CentralVet\Application\StockService($stockBatches, $stockMovements, $authorization, $context);
 
-        return new \CentralVet\Application\ProcedureExecutionService($executions, $encounters, $catalog, $stock, $authorization, $context);
+        return new \CentralVet\Application\ProcedureExecutionService($executions, $encounters, $catalog, $stock, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

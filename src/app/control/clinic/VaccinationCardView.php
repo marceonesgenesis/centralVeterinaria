@@ -42,10 +42,9 @@ class VaccinationCardView extends TPage
 
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid, false);
 
-        $column_vaccine     = new TDataGridColumn('vaccine_catalog_item_id', _t('Vaccine (catalog item id)'), 'center', 130);
+        $column_vaccine     = new TDataGridColumn('vaccine_name', _t('Vaccine'), 'left');
         $column_dose        = new TDataGridColumn('dose_number', _t('Dose'), 'center', 70);
         $column_lot         = new TDataGridColumn('lot', _t('Lot'), 'left');
         $column_expiry      = new TDataGridColumn('expiry_date', _t('Expiry date'), 'center', 110);
@@ -62,43 +61,44 @@ class VaccinationCardView extends TPage
         $this->datagrid->createModel();
 
         $this->panel = new TPanelGroup(_t('Vaccination card'));
+        $this->panel->class = 'card panel cv-card';
         $this->panel->add($this->datagrid);
 
-        $new_action = new TAction(['VaccinationForm', 'onEdit'], ['register_state' => 'false']);
-        if ($this->patient_id !== null)
-        {
-            $new_action->setParameter('patient_id', $this->patient_id);
-        }
-        $this->panel->addHeaderActionLink(_t('Apply vaccine'), $new_action, 'fa:syringe');
+        // aplicar vacina exige atendimento (VaccinationService::apply()):
+        // a ação fica no EncounterView ("Mais" → Vacina), não aqui
 
         // T-10: when no patient_id comes by querystring, show a patient
-        // picker instead of leaving the screen blank. The contextual path
-        // (patient_id already set, coming from VaccinationForm) is
-        // untouched — this block only renders when it is absent.
+        // picker instead of leaving the screen blank.
         $patient_picker_panel = null;
         if ($this->patient_id === null)
         {
             $patient_picker_panel = $this->buildPatientPickerPanel();
         }
 
-        // vertical box container
-        // No TXMLBreadCrumb here on purpose: registering VaccinationCardView
-        // in menu.xml is explicitly T-10's job, not T-08's (same precedent
-        // as ExamCatalogList::__construct()'s own docblock) — TXMLBreadCrumb
-        // throws when the class is not yet listed there, which would make
-        // `new VaccinationCardView()` fatal ahead of that registration.
+        // No TXMLBreadCrumb here on purpose (see class docblock history).
         $container = new TVBox;
         $container->style = 'width: 100%';
 
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Vaccination card'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $patient_name = $this->patient_id !== null ? $this->loadPatientName($this->patient_id) : null;
+
+        $headerActions = [];
+        if ($this->patient_id !== null)
+        {
+            $headerActions[] = [
+                'icon' => 'fa:arrow-left',
+                'href' => 'index.php?class=VaccinationCardView',
+            ];
+        }
+        $container->add(CvPage::header(_t('Vaccination card'), $patient_name, $headerActions));
+
+        if ($patient_name !== null)
+        {
+            $identity = new TElement('div');
+            $identity->style = 'display:flex; align-items:center; gap:var(--cv-space-3); margin-bottom:var(--cv-space-3)';
+            $identity->add(CvAvatar::placeholder($patient_name));
+            $identity->add(TElement::tag('strong', CvFormat::e($patient_name), []));
+            $container->add($identity);
+        }
 
         if ($patient_picker_panel !== null)
         {
@@ -110,6 +110,38 @@ class VaccinationCardView extends TPage
         parent::add($container);
 
         $this->onReload($param);
+    }
+
+    /**
+     * Nome do paciente para o cabeçalho, via PatientService::findById()
+     * (escopo de tenant no serviço). Falha → null (cabeçalho sem subtítulo).
+     */
+    private function loadPatientName(int $patientId): ?string
+    {
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $connection = TTransaction::get();
+
+            $service = new \CentralVet\Application\PatientService(
+                new \CentralVet\Persistence\PatientRepository($context, $connection),
+                new \CentralVet\Persistence\TutorRepository($context, $connection),
+                $context
+            );
+            $patient = $service->findById($patientId);
+
+            TTransaction::close();
+
+            return $patient !== null ? (string) $patient->name : null;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+
+            return null;
+        }
     }
 
     /**
@@ -136,14 +168,15 @@ class VaccinationCardView extends TPage
         $picker_form->setFormTitle(_t('Select a patient'));
 
         $patient_id_picker = new TDBUniqueSearch('patient_id_picker', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
-        $patient_id_picker->setSize('100%');
         $patient_id_picker->addValidation(_t('Patient'), new TRequiredValidator);
 
         $picker_form->addFields( [new TLabel(_t('Patient'))] );
         $picker_form->addFields( [$patient_id_picker] );
 
         $btn = $picker_form->addAction(_t('View card'), new TAction([$this, 'onSelectPatient']), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
+
+        CvForm::decorate($picker_form, 1);
 
         return $picker_form;
     }
@@ -186,12 +219,29 @@ class VaccinationCardView extends TPage
             $service = $this->buildVaccinationService();
             $history = $service->historyByPatient($this->patient_id);
 
+            // nomes das vacinas para exibição (VaccineCatalogService::findById, cache por id)
+            $tenant_context = self::resolveTenantContext();
+            $catalog = new \CentralVet\Application\VaccineCatalogService(
+                new \CentralVet\Persistence\VaccineCatalogRepository($tenant_context, TTransaction::get()),
+                $tenant_context
+            );
+            $vaccine_names = [];
+            foreach ($history as $vaccination)
+            {
+                $vid = $vaccination->vaccineCatalogItemId();
+                if (!array_key_exists($vid, $vaccine_names))
+                {
+                    $item = $catalog->findById($vid);
+                    $vaccine_names[$vid] = $item !== null ? $item->name() : ('#' . $vid);
+                }
+            }
+
             TTransaction::close();
 
             foreach ($history as $vaccination)
             {
                 $row = new stdClass;
-                $row->vaccine_catalog_item_id = $vaccination->vaccineCatalogItemId();
+                $row->vaccine_name            = $vaccine_names[$vaccination->vaccineCatalogItemId()];
                 $row->dose_number             = $vaccination->doseNumber();
                 $row->lot                      = $vaccination->lot();
                 $row->expiry_date              = $vaccination->expiryDate() ? $vaccination->expiryDate()->format('d/m/Y') : '';
@@ -241,7 +291,7 @@ class VaccinationCardView extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\VaccinationService($vaccinations, $catalog, $protocols, $encounters, $authorization, $tenant_context);
+        return new \CentralVet\Application\VaccinationService($vaccinations, $catalog, $protocols, $encounters, $authorization, $tenant_context, new \CentralVet\Persistence\TenantUserDirectory($tenant_context, $connection));
     }
 
     /**

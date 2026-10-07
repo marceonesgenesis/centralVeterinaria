@@ -2,17 +2,73 @@
 
 ## Decisões tomadas
 - 2026-09-23 · plano · onda 0 — Respostas do usuário: Financeiro vira tela nova `FinancialOverview` (DML redigido em T-07, executado só após aprovação do SQL na hora); itens de menu sem tela real (Dashboard clínico, Cirurgias, CRM/Comunicação, Relatórios) aparecem desabilitados ("Em breve", sem navegação). O mesmo critério vale para abas sem tela (Movimentações, Categorias, Fornecedores, Relatórios, Pacotes, Preçários, Modelos), Prontuário e Ajuda.
-- 2026-09-23 · plano · onda 0 — RED sem git (aceito pelo usuário): `sem teste: <motivo>` nas tasks puramente visuais; teste PHP real (`src/tests/Integration/*IntegrationTest.php`, base `MysqlIntegrationTestCase`, rollback) nas tasks de consulta T-04/T-05/T-06, com a falha comprovada pela execução da suíte colada em `## RED` do relatório antes de escrever a implementação. Campo "Commit RED" do relatório: escrever "não se aplica (sem git)".
+- 2026-09-23 · plano · onda 0 — [substituída em 2026-09-29, ver abaixo] RED sem git (aceito pelo usuário): `sem teste: <motivo>` nas tasks puramente visuais; teste PHP real (`src/tests/Integration/*IntegrationTest.php`, base `MysqlIntegrationTestCase`, rollback) nas tasks de consulta T-04/T-05/T-06, com a falha comprovada pela execução da suíte colada em `## RED` do relatório antes de escrever a implementação. Campo "Commit RED" do relatório: escrever "não se aplica (sem git)".
 - 2026-09-23 · plano · onda 0 — Campos do mock sem schema: não criar migration; omitir o elemento ou usar placeholder neutro (avatar com inicial/ícone de espécie) e registrar em Pendências. "Saldo em conta" → "Saldo do caixa aberto" (sessão de caixa aberta da unidade). Preço de venda/código do produto → sem coluna.
 - 2026-09-23 · plano · onda 0 — Comandos do plano (rodar de `/var/www/html/centralvet`): LINT = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo>`; SUITE = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php` (comprovado no planejamento: `Total: 155, Passed: 155, Failed: 0`); a suíte não filtra por arquivo — ler as linhas `PASS/FAIL  Integration\<Classe>::`. GATE = orquestrador reconstrói (`docker compose build app worker && docker compose up -d app worker && docker compose restart nginx`) e só então o validador usa o Playwright MCP.
 - 2026-09-23 · plano · onda 0 — Implementadores não rodam `docker compose build`/`up`/`restart` nem usam o navegador Playwright MCP: são estado global compartilhado pelos agentes em paralelo.
 - 2026-09-23 · plano · onda 0 — Menu: "Pacientes" → `GlobalSearchController` (PatientList exige `tutor_id`); "Prescrições" desabilitado com dica "abra pelo atendimento" (PrescriptionForm é contextual; a fase 09 removeu o item solto); "Atendimentos" → `QueueEntryView`; "Exames" → `PendingExamResultList`; "Vacinação" → `VaccinationCardView`; catálogos clínicos e itens admin/Logs do Adianti dentro de Configurações; grupo demo "Common pages" removido.
 - 2026-09-23 · plano · onda 0 — `translations.json` tem escritor único por onda (T-03 na onda 1, T-20 na onda 4). Task das ondas 2–3 que precisar de chave nova usa `_t('<chave en>')` e registra no board `- [T-xx] i18n: <chave en> → <texto pt>`; até T-20 o Adianti exibe a chave em inglês.
 - 2026-09-23 · plano · onda 0 — `CvShellController` registrado como programa (T-07) porque o parser do template não expõe o grupo do usuário e não existe tela de troca de unidade; ele reaproveita `ApplicationAuthenticationService::setUnit()`, que valida o vínculo do usuário com a unidade.
+- 2026-09-29 · plano (revisão) · onda 0 — O projeto passou a ter git (decisão do usuário): repositório único `/var/www/html/centralvet`, `main` @ `9efef4e` ("chore: estado inicial do projeto"). Deixa de valer tudo o que dizia "sem git / sem commits / Commit RED não se aplica". Branch de trabalho `feat/fidelidade-visual-mocks` (base `main`), criada pelo orquestrador antes da onda 1; commits por task listando os caminhos, com trailer `Task: T-NN`; nas tasks com teste (T-04/T-05/T-06) o teste falhando vai antes, num commit só do arquivo de teste com `Task: T-NN (RED)`, e o hash entra em "Commit RED" do relatório; as tasks visuais seguem `sem teste: <motivo>`. Proibidos na árvore compartilhada: `git add -A`/`.`, `commit -a`, `checkout`, `switch`, `reset`, `stash`, `restore`, `rebase`, `push`. Isolamento continua `caminho exclusivo` no checkout compartilhado (repositório único, sem worktree).
+- 2026-09-29 · plano (revisão) · onda 0 — Varredura Playwright (pedido do usuário): em cada gate, além da Validação das tasks, o validador percorre com o Playwright MCP (sessão admin) as telas tocadas na onda (lista por onda em `plan.md § Critérios gerais de aceite`), exercitando abrir/listar/filtrar/salvar/voltar e checando console (`error`) e rede (≥ 400); bug em tela de task da onda reprova a task dona (fix loop), bug sem dona vira task de correção da onda. Em T-21 a varredura cobre todas as telas do `menu.xml` (inclusive as administrativas do Adianti, só leitura) e mapeia bugs pré-existentes; os bugs abrem `### Onda 6 — correção (usuário)` com IDs a partir de T-22. Registros de teste criados pela varredura levam o prefixo `F10 varredura`; nada de excluir, estornar, fechar caixa ou finalizar atendimento que não seja da própria varredura.
 - 2026-09-23 · plano · onda 0 — `EncounterView`: wizard só no cliente sobre o mesmo formulário (mantém `DRAFT_FIELDS`, autosave de 20 s e finalizar enviando todos os campos); não renomear `onStart`/`onAutosave`/`onFinish` (strings de auditoria em `EncounterTimelineIntegrationTest.php:69-86`); manter o padrão `new TButton(); ->setAction(); ->setFormName('form_EncounterView_' . id)` da fase 08 (nunca `TButton::create()` com `TAction` pronta). Botão Pausar omitido (sem dado de pausa no schema).
+- 2026-09-29 · T-08..T-13 · onda 2 — Texto "Message not found: <chave>" em rótulos com chave pedida no board é aceito até T-20 (o plano previa a chave em inglês, mas o Adianti mostra "Message not found"); lista por tela em reviews/T-*.md § Gate.
+- 2026-09-29 · T-08..T-13 · onda 2 — Mocks images/1-4.png não existem no host: comparação lado a lado não rodada; telas seguiram a especificação escrita. Perguntar ao usuário o caminho dos mocks antes de T-21.
+- 2026-09-29 · T-11 · onda 2 — Achado plano-mandou do revisor: Editar leva a ServiceForm::onSave, que só chama create(); onEdit herdado carrega o Service por id sem filtro de tenant. T-11 aprovada; correção vai para a task da onda 3 dona de ServiceForm.php (onSave atualiza quando houver id; onEdit filtra por tenant); o planejador inclui na spec antes da onda 3.
+- 2026-09-29 · T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados (revisor); defesa em profundidade fica como pendência.
+- 2026-09-29 · plano (revisão) · onda 3 — Correções da onda 2 entram nas tasks da onda 3 donas dos arquivos, sem colisão (BASE da onda 3 = f48ebe0): T-17 (Darwin) recebe `ServiceForm` (onSave → `ServiceCatalogService::update()` com id; onEdit por `findById()` escopado ao tenant) e `ServiceList.php` (filtro Inativo via `listAll()`, sem filtro lista ativos e inativos), com casos de uso novos `update()`/`listAll()`, `Service::changeDetails()`, `ServiceRepositoryInterface::listAll()` e Teste RED em `ServiceCatalogServiceTest` + `FakeServiceRepository` — T-17 passa a `alta`; T-18 (Tesla) recebe `CvNav.php` (aba Receitas → `entry_type=income`, valor do schema); T-19 (Athena) recebe `CvShellController.php` (unidades filtradas por `system_unit.tenant_id` = `tenantid` da sessão em `onContext` e recusa em `onSwitchUnit`) e o CSS de `.cv-unit-switch__select` em `custom.css`.
+- 2026-09-29 · plano (revisão) · onda 3 — Causa do `pattern` inválido (`\d{1,0}`): `TEntry::setNumericMask(0, …)` do framework (`TEntry.php:148`, em `framework_hashes.php`, não editável), não o campo `price`; atinge todo `setNumericMask(0` dos formulários da onda 3. Correção por campo (`setProperty('pattern', '[0-9]*')`, convenção PATTERN0 em `tasks.md`) em T-15 (VaccinationForm), T-16 (4 formulários de catálogo), T-17 (4 formulários) e T-18 (EncounterAccountForm), para a varredura do gate não reprovar essas tasks pelo mesmo erro de console.
+- 2026-09-29 · plano (revisão) · onda 3 — Só existe o tenant 1 no banco de desenvolvimento: "id de outro tenant negado" (ServiceForm, onSwitchUnit) usa o id de outro tenant se o SELECT achar um, senão `999999`; o caso de outro tenant real fica no teste unitário de T-17 (Fake com `tenantId` 2). Um fixture real de tenant 2 exigiria DML com aprovação do usuário.
+- 2026-09-29 · T-13 · onda 2 — Tela "Informe um encounter_id…" após Finalizar já existia no BASE e o timer em atendimento finalizado não se reproduziu; ambos ficam como sugestão.
+- 2026-09-29 · onda 3 · onda 3 — O gate não pôde fazer login admin: a leitura do .env foi negada pelo classificador, também para o orquestrador; o usuário passou a senha na conversa e o orquestrador fez o login no Playwright (senha não registrada em arquivo).
+- 2026-09-29 · T-17 · onda 3 — StockService.php e StockServiceTest.php ficaram fora dos Arquivos prováveis, mas foram autorizados (pedido do orquestrador). O [HIGH] "Spoofable Policy Key" da revisão de segurança não se confirma: o único chamador passa uma constante, no mesmo padrão de SaleService.
+- 2026-09-29 · T-18 · onda 3 — Arquivos de Core e teste (PayableService, Payable, PayableRepository, PayableServiceTest, FakePayableRepository) ficaram fora dos Arquivos prováveis, mas foram autorizados: a correção exigia a camada Core.
+- 2026-09-29 · cruzada-onda-3 · onda 3 — Trailer sem T-NN (`Task: cruzada-onda-3`) aceito, definido pelo orquestrador (b9ea10c, dd4efaa).
+- 2026-09-29 · T-14 · onda 3 — Abrir tutor, paciente ou agendamento só para leitura é limitação pré-existente, não regressão; a edição fica como demanda futura, fora do plano.
+- 2026-09-29 · T-15 · onda 3 — Os pontos "Aplicar vacina" e badge sempre "Solicitado" foram julgados pelo revisor (reviews/T-15.md).
+- 2026-09-29 · plano · onda 3 — Pergunta do planejador sobre fixture de tenant 2: seguiu-se sem fixture; o caso fica coberto pelos testes unitários.
+- 2026-09-29 · plano · onda 3 — Mocks ausentes no host; "Message not found" aceito até T-20.
+- 2026-09-29 · T-20 · onda 4 — `Route` mudou de "Rota" para "Via", conforme o mock (desvio do implementador, aceito pelo revisor).
+- 2026-09-29 · T-20 · onda 4 — Ruling "Message not found aceito até T-20" encerrado: 0 ocorrências no shell e em 21 telas após recarga.
+- 2026-09-29 · plano (revisão) · onda 6 — Onda 6 — correção (usuário), BASE `0a72b8a`, aprovada pelo usuário a partir de `reports/T-21.md`: T-22 (Athena, B1, `layout.html` sem `chart.umd.min.js`, porque `independent-plugins.min.js` já embute o Chart.js v4.5.1), T-23 (Yoda, O1, status `draft`/`issued`/`requested`/`result_available` em `CvBadge` nas abas Prescrições/Exames do plano), T-24 (Tesla, O2, `CvFormat::paymentMethod()` no render de `FinancialOverview`/`FinancialEntryList`; `payable #N` fica). As 9 chaves usadas (`Draft`, `Issued`, `Requested`, `Result available`, `Cash`, `Debit card`, `Credit card`, `Pix`, `Bank transfer`) já existem em `translations.json`: não há task i18n. Sem colisão: cada arquivo em uma task. O gate da onda 6 cobre os fluxos que T-21 não exercitou (fechar conta 1547 → `PaymentForm` → fechar/reabrir caixa → salvar os 3 catálogos); fechar a sessão de caixa aberta (id 1) é exceção pedida pelo usuário.
+- 2026-09-29 · plano · onda 6 — O usuário autorizou fechar a sessão de caixa id 1 da unidade 1; ela foi fechada e a 113 aberta; no complemento a 113 foi fechada e uma nova aberta.
+- 2026-09-29 · cruzada-onda-6 · onda 6 — Rótulo "Dinheiro" do CashSessionForm não aparece no navegador (sessão nova sem pagamentos); aceita a prova do render CLI de Tesla ("Dinheiro: R$ 130,00").
+- 2026-09-29 · cruzada-onda-6 · onda 6 — Trailer `Task: cruzada-onda-6` do commit d006c24 (correção sem dona: encounter_id no EncounterAccountForm, painel único e CvFormat::paymentMethod no CashSessionForm) aceito pelo orquestrador.
+- 2026-09-29 · final · onda final — O bloqueante promovido na revisão final (SystemUser sem tenant nos combos de profissional) contrariava a exceção documentada em plan.md; o orquestrador decidiu corrigir, por ser vazamento entre tenants (commits dbe7318 RED e 12945fa).
+- 2026-09-29 · final-fix · onda final — Trailer `Task: final-fix` aceito nos commits dbe7318 e 12945fa (correção sem T-NN).
+- 2026-09-29 · final-fix · onda final — O gate do final-fix precisou de 2 complementos: a sessão do Playwright caiu, o orquestrador refez o login com a senha fornecida pelo usuário e passou os ids dos dados de teste.
+- 2026-09-29 · plano (revisão) · onda 7 — O usuário pediu as ondas 7–8 de correção a partir de reviews/final.md, reports/final-fix.md e § Pendências. BASE `2c7611d`, IDs T-25..T-36.
+  - Onda 7, 11 tasks com arquivos disjuntos e `caminho exclusivo`: T-25 (Jaspion), T-26 (Aang), T-27 (Arquimedes), T-28 (Tesla), T-29 (Thanos), T-30 (Yoda), T-31 (Platão), T-32 (Kratos), T-33 (Levi), T-34 e T-35 (Darwin, em sequência).
+  - Onda 8: T-36 (Platão), escritor único de `translations.json`, depois das tasks que tocam os mesmos controllers.
+  - Tasks com RED: T-25, T-26, T-27, T-28, T-34. As demais são controllers Adianti ou comentários, que a suíte não carrega; a verificação é por `php -r` com `init.php`, grep e gate.
+- 2026-09-29 · plano (revisão) · onda 7 — Respostas do usuário:
+  - (1) PayableList ganha o filtro Em aberto (padrão) / Pagas / Todas; `listOpen()` continua "em aberto", e o service/repo ganham `listByStatus`/`listBySystemUnitAndStatus` (T-28).
+  - (2) i18n: uma chave canônica por par de caixa (`Patients`, `Results`, `Services`, `Tutors`, `Date/time`); os usos da variante removida migram na mesma task (T-36). O rodapé fica minúsculo com `mb_strtolower(_t(...))`.
+- 2026-09-29 · plano (revisão) · onda 7 — Premissas do orquestrador, sem pergunta ao usuário:
+  - formato de `$action` = `Classe::metodo` (namespaced ou com classe minúscula, como `test::action`) ou chave pontuada (`patient.view`), porque `RbacAuthorizationServiceTest` usa `patient.view`/`schedule.manage`; `EncounterView::onInlineAction:<kind>` é ação de `AuditEvent`, fora de `AuthorizationRequest` (T-27);
+  - `StockBatchForm` lendo `$_GET['product_id']` com fallback em `$param` é o padrão do projeto (`paramInt()` em SaleForm, ProcedureExecutionForm, ExamRequestForm, VaccinationForm, PaymentForm, ExamResultForm, PrescriptionForm, EncounterAccountForm, EncounterView): pendência T-17 fechada sem task;
+  - o construtor de `EncounterAccountService` só é construído em `EncounterAccountForm.php:757` e `EncounterAccountServiceTest.php:97`, e os dois mudam em T-25.
+- 2026-09-29 · plano (revisão) · onda 7 — Token da troca de unidade: não há helper de CSRF no projeto além de `BootstrapFormBuilder::validateCSRFToken` (só para formulários). A regra pura vai para `CentralVet\Security\CsrfToken` (Core, testável), com o token em `TSession 'cv_shell_csrf'`, entregue por `onContext` e exigido por POST em `onSwitchUnit` (T-26). A resposta de `onSwitchUnit` vira JSON (`switched`/`error`), e o reload fica no JS.
+- 2026-09-29 · plano (revisão) · onda 7 — Premissa operacional: os PNGs soltos na raiz (`f10-EncounterView-plan.png`, `f10-FinancialEntryList-cat.png`, `f10-FinancialOverview-cat.png`, `f10-SystemAdministrationDashboard.png`) são evidência de T-21/onda 6. O fechador da onda 7 os move para `reports/`, sem task de código.
+- 2026-09-29 · plano (revisão) · onda 7 — O Review Focus das ondas 1–6, já coberto pelos gates, foi substituído pelos 5 riscos das ondas 7–8 (plan.md).
+- 2026-09-29 · T-27 · onda 7 — src/tests/Unit/RbacAuthorizationServiceTest.php entrou no escopo ('x'→'test::x'); ACTION_PATTERN mantido sem ampliação (resposta a precisa de contexto).
+- 2026-09-29 · T-32 · onda 7 — diff de 14 linhas (limite 12) aceito — mínimo possível para o texto pedido (9 linhas efetivamente modificadas).
+- 2026-09-29 · T-29 · onda 7 — caso "avanço recusado na fila" no navegador aceito como pendência — sem caminho pela UI para criar entrada na fila; coberto por repro CLI e re-revisão.
+- 2026-09-29 · gate · onda 7 — O rebuild do container foi esquecido no primeiro gate e feito pelo orquestrador antes do Complemento (3); passos Playwright com credencial fornecida pelo usuário (não gravada em arquivo); usuário autorizou gravações de teste pela UI no banco local para T-26/T-27/T-35.
 
 ## Bloqueios
-- nenhum no planejamento. T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
+- nenhum no planejamento. Antes da onda 1 o orquestrador cria a branch `feat/fidelidade-visual-mocks` a partir de `main` (os agentes recusam trabalhar em outra branch). T-07 para por definição aguardando a aprovação do SQL pelo usuário; T-08, T-09 e T-19 só verificam no navegador depois do DML executado.
+- 2026-09-29 · T-07 · onda 1 — Usuário aprovou o SQL como estava, com nomes em português; DML executado e conferido por SELECT: system_program 104 'Visão geral financeira'/FinancialOverview e 105 'Contexto da casca'/CvShellController; COUNT(system_program)=105; system_group_program 104/105 no grupo 1.
+- 2026-09-29 · T-05 · onda 1 — Saldo do caixa aberto = abertura + pagamentos da sessão, sem subtrair saídas, porque o schema não liga saídas ao caixa; revisor aprovou.
+- 2026-09-29 · T-01 · onda 1 — Stub de cv-shell.js criado em T-01 para eliminar o erro de console até T-08, que substitui o arquivo inteiro.
+- 2026-09-29 · plano · onda 1 — Linhas `Branch de trabalho`/`Branch base` do plan.md ajustadas ao formato do repos.py; projeto passou a usar git (commit inicial 9efef4e em main, decisão do usuário).
+- 2026-09-29 · plano · onda 1 — Varredura Playwright em cada onda e varredura completa em T-21 (decisão do usuário).
+- 2026-09-29 · T-02 · onda 1 — CvNav `prescription`: `new`/`history` apontam para PrescriptionForm com encounter_id/patient_id de $_REQUEST; CvForm::decorate delega o grid ao CSS (`cv-form__slot`); helpers extras CvFormat::percent() e CvFormat::e().
+- 2026-09-29 · T-06 · onda 1 — ClinicalSummaryService aceita 2º parâmetro opcional `?DateTimeImmutable $today`; ClinicalSummaryReader não estende AbstractTenantRepository (usa TenantQuery::forTenant).
+- 2026-09-29 · T-21 · onda 5 — Task de QA/validação: sem gate de validador nem revisor separados (decisão do orquestrador).
+- 2026-09-29 · plano · onda 5 — Mocks ausentes: o usuário decidiu seguir sem eles; comparação lado a lado fica pendente e as telas seguiram a especificação escrita.
+- 2026-09-29 · plano · onda 5 — Onda 6 de correção aprovada pelo usuário: B1 (layout.html carrega chart.umd.min.js duplicado; TypeError no SystemAdministrationDashboard), O1 (EncounterView mostra draft/result_available crus), O2 (FinancialOverview/FinancialEntryList mostram categoria crua `cash`) e validar fechar caixa (CashSessionForm), salvar PaymentForm e formulários de catálogo.
+- 2026-09-29 · T-21 · onda 5 — Trailer `Task:` não é lido por `%(trailers)` por causa do parágrafo Co-Authored-By; trailers presentes (grep '^Task:'), informativo.
 
 ## Descobertas
 - `{buildid}` só é substituído por `AdiantiTemplateParser` (`src/lib/adianti/core/AdiantiTemplateParser.php:61`) quando existe o arquivo `src/buildid`; hoje ele não existe, daí o cache-busting quebrado. Parser e `index.php` estão em `framework_hashes.php` → a correção vai no `docker/php/Dockerfile` (T-01).
@@ -20,22 +76,141 @@
 - `EncounterDocumentService::list()`/`attach()` já dão anexos reais por atendimento: a área "Fotos e anexos" do mock é atendida em `EncounterView`; na prescrição não há anexos.
 - Suíte contra o código do host via `docker compose run --rm --no-deps -v src:ro` funciona sem rebuild (155/155 no planejamento).
 - Baseline de lint: `php -l` em `app/control/clinic`, `app/lib/widget`, `app/Core/Application`, `app/Core/Persistence` sem erros (`baseline/php-lint.txt`, 0 linhas).
+- [T-04] StockSalesOverviewService (728a64a): status por produto 'normal'|'low'|'out'; só produtos active=1 e vendas completed; items_label = descrições dos itens separadas por ", ".
+- [T-05] FinancialOverviewService (132d88f): $from/$to inclusivos; reference = "<reference_type> #<id>" ou null.
+- [T-06] Readers sem CRUD não podem estender AbstractTenantRepository sem implementar findById/save/remove (Fatal aborta tests/run.php); T-04/T-05 lançam LogicException, T-06 usa TenantQuery::forTenant.
+- [T-06] ClinicalSummaryService::encounterPlanItems: prescriptions.title = medicamentos separados por ", ", detail = status; exams.detail = status; procedures.detail = notes_text (até 80).
+- [T-01] layout.html: {MENUTOP}, {MENUBOTTOM}, {userunitname}, #search-box, trilho master e painel Trace removidos; flags de navbar em '0'; i18n pendente: Toggle menu, Help, Coming soon (T-20).
+- [T-01] cv-shell.js existe como stub (b325eb4); T-08 substitui o conteúdo inteiro. `#sidebar.collapsed` recolhe para largura 0.
+- [T-02] Kit Cv* (d2989e4): `CvDatagrid::decorate()` antes dos demais addColumn; textos são escapados internamente (não passar HTML pronto); `.cv-kpi-row` é só classe CSS. Correção 1 (e1e5ae6): atributos escapados com CvFormat::e(); CvForm com grid só em linhas de slot.
+- [T-03] translations.json: 43 chaves novas (total 630); `Showing %1–%2 of %3` usa %1..%3, substituição em CvDatagrid::footer.
+- [T-08] Board onda 2: CvShellController onContext devolve {user:{name,role},units:[...]}; role = grupo de menor id; `window.CvShell.init()`/`reload()`; select `.cv-unit-switch__select` montado por JS.
+- [T-09] FinancialOverview: aceita from/to em Y-m-d ou dd/mm/yyyy; canvas `#cv-fin-line` e `#cv-fin-donut`; Descrição = reference ou "—".
+- [T-10] ProductList virou TPage; Entrada de lote usa `StockBatchForm&method=onEdit&product_id=<id>`; título "Estoque e vendas" vem de T-03.
+- [T-11] ServiceList virou TPage (filtros `search`/`category`/`status`, painel por `service_id`); ServiceCatalogService só expõe listActive().
+- [T-12] PrescriptionForm sem right panel; novo `onClear`; `onSave` inclui bloco de medicamento preenchido e não adicionado; veterinário por TDBCombo sem critério.
+- [T-13] EncounterView: TForm `form_EncounterView_<id>` com painéis `#encounter_step_<id>_<n>`; autosave escopado ao form com clearInterval; ações Vacina/Conta no dropdown "Mais".
+- Ondas 2 (i18n): chaves novas pedidas no board por T-09..T-13 ficam como "Message not found" até T-20 (lista em board.md).
+- [T-14] TPageNavigation desenha sempre 10 páginas (inexistentes como li.off.page-item); dd4efaa oculta os marcadores vazios em cv-components.css (Task: cruzada-onda-3).
+- [T-14] i18n pedida ao board: tutors, patients, results, Scheduled, Confirmed, Canceled, No-show. TutorForm/PatientForm/AppointmentForm em página cheia, modo leitura com key/id (serviços sem update).
+- [T-15] i18n: Requested → Solicitado; Result available → Resultado disponível. Lote clínico (78e1b4b): forms voltam a EncounterView após salvar.
+- [T-16] Catálogos (490b414): listas TStandardList com barra form_search_<Record>; forms em página cheia com voltar para a lista.
+- [T-17] ServiceCatalogService::update/listAll (5e4f840); Service/Product/StockBatchForm viraram TPage; StockService::receiveBatch ganhou $action obrigatório (c96fee2); ProductService sem update().
+- [T-18] i18n: entries, accounts, sessions, Authorized by. CvNav finance revenues → FinancialEntryList&entry_type=income; PayableService::update novo (68206c7); PayableService::listOpen: conta paga some ao recarregar.
+- [T-19] i18n: Encounters, Surgeries, CRM / Communication, Clinical catalogs. menu.xml com itens desabilitados via CvShellController#onComingSoon; allowedUnitIds() filtra unidades por tenant.
+- [cruzada-onda-3] Dockerfile ganhou extensão calendar e SystemPHPErrorLogView corrigida (b9ea10c); tela Log do PHP fica vazia porque error_log aponta para stderr (decisão de infra).
+- Dados de teste da onda 3: Tutor/Pet F10, payable id 2, financial_entry 1623, stock_batch 729. Suíte 182/182; 40 itens de menu sem erro.
+- [T-21] B1: independent-plugins.min.js já embute Chart.js v4.5.1; a carga extra de chart.umd.min.js no layout.html quebra o SystemAdministrationDashboard. Varredura de 65 telas, suíte 182/182.
+- Dados de teste da T-21: tutor 1595, pet 1452, atendimento 1547, exam_request 263, prescription 524, produto "F10 varredura Produto T21"; capturas em .playwright-mcp/f10-*.png (fora do git).
+- [T-33] ServiceList: coluna Nome agora renderiza `<a class="cv-row-link text-reset" ... generator="adianti">` (linha ~85-95); T-36 migra `_t('services')` na mesma classe e a linha mudou de número. Commit e3478b3.
+- [T-26] CvShellController: onContext agora devolve também `csrf_token` (TSession `cv_shell_csrf`) e `labels` {coming_soon, open_from_encounter, unit, error}; 500 genérico com error_log. onSwitchUnit só aceita POST com `csrf_token` (CentralVet\Security\CsrfToken) e responde só JSON: 403 {error} / 200 {switched:true}; o reload é do cv-shell.js. Menu desabilitado é neutralizado no init e recebe o se
+- [T-34] ProductService::update() pronto (1d4941c); ProductForm::updateProduct() removido. Id inexistente agora lança "Product <id> not found for this tenant" (antes _t('Record not found')).
+- [T-28] PayableRepositoryInterface ganhou listBySystemUnitAndStatus(int, ?string) (listOpenBySystemUnit delega a ela); PayableService::listByStatus() pronto (ba02a97). No banco atual payable id 2 está 'open' e ids 1 e 3 'paid' (tenant 1/unidade 1): o gate que cita "conta paga id 2" deve usar id 1 ou 3.
+- [T-36] O diff de translations.json por chave exige `git diff -U0` (sem ele o critério conta linhas de contexto: 35 em vez de 12). Total 685 chaves; 7 chaves da onda 7 gravadas (f1fda5f).
 
 ## Pendências
 - Sem schema, ficam fora desta fase: preço de venda, código/barcode e imagem de produto; foto, alergia e "ativo" do paciente; validade, modelos, anexos e orientação por item da prescrição; descrição/preparo/observações e ícone de serviço; forma de pagamento/status em `financial_entry`; saldo bancário; variação vs mês anterior de "Produtos em estoque"/"Estoque baixo" (sem histórico de estoque); pausa de atendimento.
 - Ações sem backend: Exportar (financeiro), Importar/Duplicar/Excluir (serviços), Salvar como modelo e Pré-visualizar (prescrição, a menos que o implementador de T-12 encontre geração de documento existente), Gerar relatório (estoque).
+- T-01: layout.html convertido de CRLF para LF (diff mostra reescrita; conferir com --ignore-cr-at-eol -w).
+- T-01: botão de ajuda `disabled` + `pointer-events: none` esconde o tooltip "Em breve".
+- T-01: chave `Toggle menu` ausente em translations.json até T-20.
+- T-02: ação só com ícone e sem title recebe `aria-label=""` em CvPage; `cv-avatar--species` sem regra CSS.
+- T-04: limite ≤ 0 inconsistente (recentSales(0) devolve 1, lowStock(0) devolve []); items_label via GROUP_CONCAT trunca em group_concat_max_len.
+- T-05: saldo do caixa aberto = abertura + pagamentos da sessão, sem subtrair saídas (schema não liga saídas ao caixa); soma todos os métodos, rotular com cuidado em T-09 ("total recebido na sessão").
+- T-05: teste do saldo sem pagamento de ruído (outra sessão/tenant); filtro por cash_session_id não exercitado.
+- T-06: lastEncounter($p, $exclude) devolve o mais recente diferente do excluído, não o anterior; filtrar por started_at se T-13 precisar de "anterior"; faltam testes de tutor sem e-mail/telefone e do "…" de truncamento.
+- T-07: CvShellController só no grupo 1 (usuário só do grupo 2 teria seletor/cartão negados); ids 104/105 fixos no SQL (já executado).
+- Onda 1 (validador): varredura cobriu só abrir, sidebar e dropdown, sem paginar, filtrar ou salvar; `adianti_right_panel` ainda em 16 *Form.php (escopo T-14 a T-18); comparação com os mocks fica para as ondas 2 e 3.
+- T-08: filtrar unidades por tenant em CvShellController onContext/onSwitchUnit (defesa em profundidade); onSwitchUnit muda estado por GET sem token; aria-label "Unidade" fixo em pt (T-20); caso de usuário com unidade única sem evidência de gate; `.cv-unit-switch__select` sem CSS.
+- T-09: "Lançamentos recentes" não filtra pelo período mas o vazio diz "neste período"; KPI mostra fixo "vs. mês anterior" com filtro fora do mês cheio.
+- T-10: "Ver tudo" de estoque baixo leva a status=low (exclui Sem estoque) enquanto o card lista low+out; dois TMessage sem tenant; products() varrido 3x por carga; título "Estoque e vendas"/KPI "Vendas do mês" diferem do critério (traduções de T-03).
+- T-11: filtro Inativo sempre vazio (listActive); clique na linha sem link focável (teclado); CvCard e CvFormat::e fora de "Consome"; correção de ServiceForm (onSave atualiza com id; onEdit filtra por tenant) vai para a task da onda 3 dona de ServiceForm.php.
+- T-12: rótulo "Rota" vs "Via" do mock (T-20); onEdit vazio sem chamador; estilos inline em vez de classes do kit; loadSummary captura só Exception (usar Throwable).
+- T-13: após Finalizar aparece o vazio "Informe um encounter_id…" (já no BASE); "Atendimento anterior" usa lastEncounter (mais recente diferente do excluído); docblock de onInlineAction desatualizado.
+- Onda 2 (validador): mocks images/1-4.png ausentes no host, screenshot lado a lado não rodada (perguntar caminho ao usuário antes de T-21); CvNav usa entry_type=revenue mas o schema usa 'income' (T-18); ServiceForm com `pattern` inválido `{1,0}` no campo price gera erro de console (onda 3); EncounterDocumentService::list() sempre vazio.
+- Dados de teste que permanecem: serviço "F10 varredura Banho" id 2, prescrição 247, atendimento 556 finalizado.
+- Onda 3: tela Log do PHP sempre vazia (error_log para stderr; decisão de infra); `<style>` inline de GlobalSearchController redundante com a regra de cv-components.css; "Message not found: results" no rodapé (T-20); `&query=` na URL não dispara a busca global; ProductService sem update() (ProductForm edita no controller); PayableService::listOpen: conta paga some ao recarregar; PHPSESSID na URL parece vir do Playwright, não do código.
+- Onda 3, não rodados no gate (vão para T-21): fluxo de exames (sem atendimento em andamento), salvar catálogos, CashSessionForm e PaymentForm, agenda e fila.
+- T-14: QueueEntryView carrega a fila duas vezes por requisição com method (pré-existente); editar tutor/paciente/agendamento é demanda futura.
+- T-15: ramo morto "Result available" no transformer de status; VaccinationCardView sem pista de onde aplicar vacina; `Requested`/`Result available` sem tradução até T-20; `CvDatagrid::actionMenu` e `CvPage::columns` não usados.
+- T-16: evidência do filtro por tenant não discrimina (banco só tem tenant 1); reset de offset não refletido em pageNavigation->setProperties; combo filtra active=1 (id inativo por URL fica vazio); cards das listas montados à mão em vez de CvCard::create.
+- T-17: validar `$action` contra padrão em AuthorizationRequest (opcional); link "Gerar PDF" do SaleForm perdeu target=_blank; StockBatchForm lê $_GET direto no construtor.
+- T-18: UPDATE de PayableRepository sem teste de SQL; docblock de PayableForm desatualizado; editar conta paga mostra mensagem crua em inglês.
+- T-19: itens desabilitados apontam para CvShellController (programa 105, só grupo 1); "Em breve"/"Abra pelo atendimento" fixos em pt no JS; units sem `current: true` se a unidade da sessão não pertencer ao tenant.
+- T-20: chaves minúsculas novas (`patients`, `results`, `services`, `tutors`) convivem com as de maiúscula existentes (`Patients` etc.); normalização futura de caixa vai colidir.
+- T-21: comparação lado a lado com os mocks não feita (ausentes); seletor de unidade ausente no cabeçalho do EncounterView a confirmar; ícone fa-stethoscope text-primary em ServiceList (cosmético); dados de teste da T-21 permanecem no banco.
+- T-21: B1, O1, O2 e fluxos não exercitados (fechar caixa, PaymentForm, formulários de catálogo) vão para a onda 6.
+- Onda 6: layout-basic.html ainda tem o link "Trace"; não se verificou se alguma tela usa esse template.
+- Onda 6: dados de teste no banco: conta do atendimento 1547 (40) fechada, recebível 39 pago, payment 2, sessões de caixa 1 e 113 fechadas mais uma nova aberta, catálogos "F10 varredura … T22", conta do atendimento 373 fechada.
+- T-23: mapa de status em planStatusBadge usa literais em vez de Prescription::STATUS_*/ExamRequest::STATUS_* (EncounterView.php:886-891).
+- T-23: status null/vazio não gera badge no item (EncounterView.php:922); só robustez.
+- T-24: mapa método→rótulo duplicado entre CvFormat::paymentMethod e PaymentForm, com literais em vez de Payment::METHOD_* (CvFormat.php:51-57, PaymentForm.php:275-281).
+- final-fix: EncounterAccountService não valida `authorized_by_system_user_id` do desconto no save (o combo filtra, o serviço não); fora do escopo.
+- final-fix: comentários obsoletos ("system_user não tem tenant_id: combo sem filtro de tenant") em ExamRequestForm.php:72-73, ProcedureExecutionForm.php:101-102, VaccinationForm.php:62-63 e no docblock de PrescriptionForm.php:28.
+- final-fix: dados de teste no banco: atendimento 1708 em andamento, exam_request 312 com resultado, conta #46 com item e desconto.
+- Revisão final: triagem mantém 30 pendências, conforme reviews/final.md.
+- Ondas 7–8 (plano), fora de escopo por decisão ou premissa:
+  - itens desabilitados só no grupo 1 (DML em `system_group_program`, decisão de produto);
+  - units sem `current` (placeholder "—" já trata);
+  - `StockBatchForm` com `$_GET` (padrão do projeto);
+  - `products()` 3x em ProductList (contrato de leitura de T-04);
+  - offset do pageNavigation e cards à mão (T-16);
+  - VaccinationCardView sem pista, `actionMenu`/`columns` sem uso (T-15);
+  - estilos inline e `onEdit` vazio (T-12);
+  - título/KPI de estoque (T-10);
+  - CvCard/CvFormat::e fora de "Consome" (T-11, documental);
+  - mensagem crua de `CrossTenantReferenceException` em inglês nos 5 forms (entrada só por POST adulterado).
+- T-25: Critério 3 (GATE no navegador: desconto R$ 5,00 com autorizador 1 e POST adulterado com 999999 na conta 46) sem evidência; o validador o marcou [não rodado]. O código do diff sustenta o fluxo (guarda antes de requireAccount/save, catch exis
+- T-25: A guarda roda antes de requireAccount() (e da checagem RBAC da ação), como tasks.md mandou: um usuário sem permissão de desconto distingue "não é membro ativo" (CrossTenantReferenceException) de AuthorizationDenied e consegue sondar ids ati
+- T-25: O docblock de applyDiscount() não cita o novo motivo do @throws CrossTenantReferenceException (autorizador fora do tenant ou inativo) → src/app/Core/Application/EncounterAccountService.php:316
+- T-25: O catch de CrossTenantReferenceException em onApplyDiscount mostra ao operador a mensagem em inglês com o id ("authorized_by_system_user_id 999999 was not found…"); inalterado por ordem do plano → src/app/control/clinic/EncounterAccountForm
+- T-26: Os critérios de gate da task (onContext com csrf_token/labels, GET 403, POST sem token ou com `x` 403, 999999 403, unidade atual 200 switched, current inalterado, sidebar "Em breve" e console 0 error em ServiceList/ProductList) e o item da 
+- T-26: A reprodução exigida (`browser_evaluate` GET onSwitchUnit → 200) foi feita por leitura de código, não no navegador. Confere com o BASE: em `git show 2c7611d:src/app/templates/adminbs5/js/cv-shell.js` L82-96 a troca é por GET sem token → rep
+- T-26: O catch genérico de onSwitchUnit transforma falha de infraestrutura (SQL em allowedUnitIds/setUnit) em 403 "Unauthorized access to that unit". Isso esconde do operador um erro de servidor como se fosse recusa de acesso; um 500 com mensagem 
+- T-26: Sem `labels` (onContext falhou), o seletor recebe `aria-label=""` e os itens desabilitados ficam sem selo e sem title, porque o JS não tem fallback. É um desvio declarado, e o contexto também é pré-requisito do próprio seletor → src/app/tem
+- T-27: O teste não confere a mensagem `Invalid authorization action format: '...'` fixada na Interface, só a classe da exceção → src/tests/Unit/AuthorizationRequestTest.php:46
+- T-27: A mensagem interpola `$action` cru, inclusive `\n`, e pode quebrar uma linha de log. O formato veio da Interface (plano-mandou), por isso fica como sugestão → src/app/Core/Authorization/AuthorizationRequest.php:41
+- T-28: Gate de navegador da task não rodou (validador sem credencial): critérios de UI (PayableList sem status/`paid`/`all`/`xyz`, PayableForm onEdit→Salvar de conta paga sem `cannot be edited from status`) e o item da Review Focus (filtro `paid` 
+- T-28: plano: o critério e a validação do GATE usam `payable` id 2 como conta paga, mas no banco o id 2 está `open` (pagas: 1 e 3) → tasks.md § T-28 Critério de aceite/Validação; reports/T-28.md § Pendências
+- T-28: `testUpdateScopedByTenantDoesNotTouchOtherTenantRowWithSameId` só verifica que a linha de B ficou intacta; não verifica que o save forjado não inseriu linha nem o que save() devolve (UPDATE com 0 linhas afetadas passa em silêncio) → src/tes
+- T-28: resolveStatus() lê `$_REQUEST['status']` como fallback (necessário porque TStandardList::show() chama onReload() sem parâmetro); vale uma linha no docblock dizendo por quê → src/app/control/clinic/PayableList.php resolveStatus()
+- T-29: a ocultação de `.page-item.off` agora depende só de `.tpagenavigation .pagination > li.page-item.off` (cv-components.css:375), que casa com a marcação de TPageNavigation.php:243/247/333; o `getComputedStyle` do critério e as contagens de `t
+- T-30: Docblock de `onInlineAction` afirma que `kind` "is one of the keys of PLAN_ACTIONS", mas o método não valida `kind` contra `PLAN_ACTIONS` (qualquer string não vazia é gravada na auditoria), e nenhum código em `src/app` chama mais a ação → s
+- T-30: Comentário `// listPending() only returns requested exams` depende de contrato de outra classe sem referência a `ExamRequest::STATUS_REQUESTED`; se `listPending()` mudar, o badge "Solicitado" mente em silêncio → src/app/control/clinic/Pendi
+- T-33: GATE do navegador não rodado (Tab até o 1º `a.cv-row-link` + Enter → `service_id` na URL; console com 0 `error` e combo com opções nos 2 forms): critérios 1 e 3 ficam sem evidência de execução; o código sustenta o comportamento (`<a href ge
+- T-33: Combo com item inativo validado só pelo `dump()` do critério (banco sem item inativo); o render real com item inativo e o Salvar mantendo o vínculo não foram exercitados → reports/T-33.md § Pendências; src/app/control/clinic/ProcedureInputF
+- T-33: `catalogCriteria()` duplicado byte a byte nos 2 forms; aceitável pelo plano (Interface sugere o método privado em cada form), mas é candidato a helper comum se um 3º combo precisar → src/app/control/clinic/ProcedureInputForm.php:341-358, Va
+- T-34: Testes de rejeição só afirmam a classe da exceção, não a mensagem da Interface ("A product named \"B\" already exists…", "Product 999 not found for this tenant"), e o caso de nome duplicado não confere que B ficou intacto → src/tests/Unit/P
+- T-34: Nenhum teste cobre id de outro tenant (fixture só semeia o tenant 1; FakeProductRepository já filtra por tenant) → src/tests/Unit/ProductServiceTest.php:25-35
+- T-34: plano-mandou: id inexistente agora mostra ao usuário a mensagem em inglês "Product <id> not found for this tenant" no lugar de _t('Record not found') → src/app/Core/Application/ProductService.php:91 / src/app/control/clinic/ProductForm.php:
+- T-35: filtro `attention` compara com literais `'low'`/`'out'` em vez de `StockSalesOverviewService::STATUS_LOW`/`STATUS_OUT`, que já existem (padrão das constantes de T-30/T-31) → src/app/control/clinic/ProductList.php:103
+- T-35: critério 1 (attention = low + out no navegador; clique em "Ver tudo" → URL com `status=attention`) segue sem evidência de runtime: o gate Playwright ficou `[não rodado]`. Pela leitura do código a equivalência vale: `products(null)` filtrado
+- Validador (onda 7): T-29 avanço recusado no navegador não rodado (sem caminho pela UI para criar entrada na fila; coberto por repro CLI e re-revisão).
+- Dados de teste no banco local pela UI (onda 7): payable id 2 marcada paga, venda sale_id 1715 (F10), atendimento 2189 (paciente 1452) em "Em atendimento", produto 946 com custo 3,01.
 
 ## Riscos
 - `EncounterView.php` (1328 linhas) concentra autosave, ditado, `__adianti_goto_page` e os fixes da fase 08 → um único agente (Yoda) com critério de grep + fluxo real no gate; o Review Focus cobre autosave com etapa oculta.
 - Remover o right panel de 21 formulários quebra ações de "Fechar"/`closeRightPanel` e `register_state=false` → cada lote troca "Fechar" por voltar à lista e é conferido por grep (`adianti_right_panel` = 0) e por um fluxo salvar/voltar no gate.
 - Menu builder oculta item cujo programa não está em `system_program` → T-19 depende do DML de T-07 executado; se o usuário não aprovar o SQL, Financeiro aponta para `FinancialEntryList` e o seletor de unidade/papel do usuário ficam ocultos (registrar como ruling).
 - Até T-20, rótulos novos pedidos nas ondas 2–3 aparecem em inglês → a validação visual final (T-21) acontece depois de T-20.
+- Commits concorrentes na mesma árvore (até 7 agentes na onda 1): `index.lock` disputado → o agente repete o commit após alguns segundos, sem apagar o lock; commit sempre por caminho listado para não levar arquivo alheio.
+- A varredura de T-21 cobre telas fora do escopo da fase (admin do Adianti, telas não tocadas): bugs pré-existentes podem alongar a onda de correção; bug em `src/lib/adianti`/`framework_hashes.php` não é corrigido (vai para Pendências).
 - Integration tests inserem dados na transação e fazem rollback no banco de desenvolvimento real (convenção existente); dados criados pela UI no gate (tutor/paciente "F10") permanecem, como nas fases 08/09.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20260923-1630-fidelidade-visual-mocks/`
-- Branch de trabalho: não se aplica — projeto sem git (base: não se aplica)
-- BASE da onda 1: {hash7}
-- Commits por onda: {Onda N: BASE <hash7> → HEAD <hash7> (<hashes dos commits>)}
-- Último status conhecido: {resumo}
-- Próxima onda recomendada: {onda}
+- Sessões: 004a97f0-faff-49ba-997a-092d97b4dffc, a4d85a4e-ac84-4bb6-b1c2-cdadb6248b2b, 460ad1be-51d4-4e12-8f14-86b62c3dfad9
+- Branch de trabalho: feat/fidelidade-visual-mocks (base: main)
+- BASE da onda 1: 9efef4e
+- Commits por onda:
+  - Onda 1: BASE 9efef4e → HEAD e1e5ae6 (70211df, 646f016, a492cc2, ae079cf, 728a64a, cfcdf05, fb9dee2, 132d88f, d2989e4, a1da8e8, b325eb4, e1e5ae6)
+  - Onda 2: BASE beb884c → HEAD b079655 (9e8ff1b, dcbd3a2, f3b1a5c, 745ef58, c6c946b, b079655)
+  - Onda 3: BASE f48ebe0 → HEAD 68206c7 (f300a8b, 209a3bf, c814ce1, 69b4fb7, 78e1b4b, 490b414, e68adc2, 5e4f840, 5db0f24, b9ea10c, d2d25ef, 6258d7e, c96fee2, 32130d9, dd4efaa, 09ded2c, 68206c7)
+  - Onda 4: BASE 1b6087b → HEAD 06a40d4 (06a40d4)
+  - Onda 5: sem commits de código (QA); só chore(tasks)
+  - Onda 6: BASE 0a72b8a → HEAD d006c24 (57eec6a, 851a947, 0df204b, d006c24)
+  - Correção da revisão final (final-fix): BASE 720f185 → HEAD 12945fa (dbe7318, 12945fa)
+  - Onda 7: BASE 2c7611d → HEAD e82a889 (ecbd0e3, 44576d9, 145b788, 2df282a, f56c67e, c7057f8, c2583b0, 700e761, 1d4941c, be2ed81, 4542605, e3478b3, 8e46e57, d264dcf, 645929e, ba02a97, e82a889)
+  - Onda 8: BASE c3e186e → HEAD f1fda5f (f1fda5f)
+- Último status conhecido: T-01 a T-36 [x] (onda 8 aprovada: T-36 i18n, gate e complemento do 403 aprovados; onda 7 aprovada; T-29 com 1 rodada de fix loop). [anterior: T-01 a T-24 [x]; correção final-fix (combos de profissional filtrados por tenant, 4 serviços recusam profissional de fora) aprovada na re-revisão; suíte 186/186.]
+- Próxima onda recomendada: nenhuma (T-36 é a última task; seguir para a revisão final).

@@ -19,7 +19,8 @@ use PDO;
  * listOpenBySystemUnit() orders by "due_date IS NULL, due_date ASC": bills
  * with a real due date come first, earliest first; bills with no due date
  * sort last, mirroring StockBatchRepository::listByProductOrderedByExpiry()'s
- * own null-last convention (Phase 4).
+ * own null-last convention (Phase 4). listBySystemUnitAndStatus() (T-28)
+ * shares that query and order; a null status lists every status.
  *
  * PENDING / DO NOT WIRE YET: this class depends on the `payable` table
  * created by the not-yet-applied migration
@@ -51,9 +52,16 @@ final class PayableRepository extends AbstractTenantRepository implements Payabl
 
     public function listOpenBySystemUnit(int $systemUnitId): array
     {
-        $query = $this->tenantQuery()
-            ->andEquals('system_unit_id', $systemUnitId)
-            ->andEquals('status', Payable::STATUS_OPEN);
+        return $this->listBySystemUnitAndStatus($systemUnitId, Payable::STATUS_OPEN);
+    }
+
+    public function listBySystemUnitAndStatus(int $systemUnitId, ?string $status): array
+    {
+        $query = $this->tenantQuery()->andEquals('system_unit_id', $systemUnitId);
+
+        if ($status !== null) {
+            $query = $query->andEquals('status', $status);
+        }
 
         $statement = $this->connection->prepare(
             "SELECT * FROM payable WHERE {$query->whereSql()} "
@@ -110,11 +118,17 @@ final class PayableRepository extends AbstractTenantRepository implements Payabl
         $query = $this->tenantQuery()->andEquals('id', $entity->id());
 
         $statement = $this->connection->prepare(
-            'UPDATE payable SET status = :status, paid_at = :paid_at, updated_at = CURRENT_TIMESTAMP '
+            'UPDATE payable SET description_text = :description_text, category = :category, '
+            . 'amount_cents = :amount_cents, due_date = :due_date, '
+            . 'status = :status, paid_at = :paid_at, updated_at = CURRENT_TIMESTAMP '
             . "WHERE {$query->whereSql()}"
         );
         $statement->execute([
             ...$query->parameters(),
+            ':description_text' => $entity->descriptionText(),
+            ':category' => $entity->category(),
+            ':amount_cents' => $entity->amountCents(),
+            ':due_date' => $entity->dueDate()?->format('Y-m-d'),
             ':status' => $entity->status(),
             ':paid_at' => $entity->paidAt()?->format('Y-m-d H:i:s'),
         ]);

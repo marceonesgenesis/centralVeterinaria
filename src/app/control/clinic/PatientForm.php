@@ -2,8 +2,10 @@
 /**
  * PatientForm
  *
- * Tela de cadastro de paciente (T-10), vinculada a um tutor recebido por
- * parâmetro de querystring (?tutor_id=...). Nenhuma regra de negócio própria
+ * Tela de cadastro de paciente (T-10) em página cheia (kit Cv*), vinculada a
+ * um tutor recebido por querystring (?tutor_id=...) ou escolhido por
+ * TDBUniqueSearch de Tutor filtrado pelo tenant; com key/id na URL o
+ * paciente salvo é reaberto em modo leitura. Nenhuma regra de negócio própria
  * vive aqui: criação e validação (inclusive a rejeição de um tutor_id de
  * outro tenant) são responsabilidade exclusiva de
  * CentralVet\Application\PatientService (T-05). Este controller apenas monta
@@ -11,8 +13,8 @@
  * (sucesso ou exceção) em feedback de tela — nunca deixando escapar um erro
  * HTTP 500/fatal.
  *
- * Este arquivo não implementa nenhuma tela/consulta de Tutor: o tutor_id é
- * apenas recebido e repassado ao serviço, conforme escopo da T-10.
+ * Do Tutor, esta tela só lê o nome (TutorService::findById) para exibição;
+ * o tutor_id é repassado ao serviço, que valida o vínculo com o tenant.
  *
  * @version    8.6
  * @package    control
@@ -21,34 +23,102 @@
 class PatientForm extends TStandardForm
 {
     protected $form; // form
-    protected $tutor_id; // received via querystring, forwarded to PatientService
+    protected $tutor_id; // received via querystring (or from the opened patient), forwarded to PatientService
+
+    /** @var int|null paciente aberto em modo leitura (key/id na URL) */
+    protected $viewId = null;
+
+    /** @var \CentralVet\Domain\Patient|null paciente carregado no modo leitura */
+    protected $viewPatient = null;
 
     /**
      * Class constructor
-     * Creates the page and the registration form
+     * Creates the page: registration form (new) or the patient's record
+     * opened read-only (key/id in the URL — PatientService has no update use case).
      */
     function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->tutor_id = (isset($param['tutor_id']) && $param['tutor_id'] !== '')
             ? (int) $param['tutor_id']
             : null;
 
+        $key = $param['key'] ?? ($param['id'] ?? null);
+        $this->viewId = (is_numeric($key) && (int) $key > 0) ? (int) $key : null;
+
         $this->setDatabase('permission');          // defines the database
         $this->setActiveRecord('Patient');          // defines the active record
-        $this->setAfterSaveAction( new TAction(['PatientList', 'onReload']) );
         $this->setUseToast(true);
+
+        // modo leitura: o tutor vem do próprio paciente
+        $tutor_name = null;
+        try
+        {
+            TTransaction::open('permission');
+            $service = $this->buildPatientService();
+
+            if ($this->viewId !== null)
+            {
+                $this->viewPatient = $service->findById($this->viewId);
+                if ($this->viewPatient !== null)
+                {
+                    $this->tutor_id = (int) $this->viewPatient->tutorId;
+                }
+            }
+
+            if ($this->tutor_id !== null)
+            {
+                $tutor_service = new \CentralVet\Application\TutorService(
+                    new \CentralVet\Persistence\TutorRepository(self::resolveTenantContext(), TTransaction::get())
+                );
+                $tutor = $tutor_service->findById($this->tutor_id);
+                $tutor_name = $tutor !== null ? $tutor->fullName : null;
+            }
+
+            TTransaction::close();
+        }
+        catch (Exception $e)
+        {
+            // sem tenant/tutor resolvido: a tela abre e onSave/onEdit tratam o erro
+            TTransaction::rollback();
+        }
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_Patient');
-        $this->form->setFormTitle(_t('Patient'));
         $this->form->enableClientValidation();
 
         // create the form fields
-        $tutor_id = new TEntry('tutor_id');
+        if ($this->tutor_id !== null)
+        {
+            // tutor fixado pela URL (ou pelo paciente aberto): só exibe o nome
+            $tutor_field = new THidden('tutor_id');
+            $tutor_field->setValue($this->tutor_id);
+            $tutor_label = new TEntry('tutor_name');
+            $tutor_label->setEditable(FALSE);
+            $tutor_label->setValue($tutor_name ?? ('#' . $this->tutor_id));
+        }
+        else
+        {
+            // sem tutor na URL: busca de Tutor restrita ao tenant da sessão
+            try
+            {
+                $tenant_id = self::resolveTenantContext()->tenantId();
+            }
+            catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+            {
+                $tenant_id = -1;
+            }
+
+            $tenant_criteria = new TCriteria;
+            $tenant_criteria->add(new TFilter('tenant_id', '=', $tenant_id));
+
+            $tutor_field = new TDBUniqueSearch('tutor_id', 'permission', 'Tutor', 'id', 'full_name', 'full_name', $tenant_criteria);
+            $tutor_field->setMinLength(1);
+            $tutor_field->addValidation( _t('Tutor'), new TRequiredValidator );
+            $tutor_label = null;
+        }
+
         $name = new TEntry('name');
         $species = new TRadioGroup('species');
         $breed = new TEntry('breed');
@@ -69,95 +139,106 @@ class PatientForm extends TStandardForm
         $birth_date->setMask('dd/mm/yyyy');
         $birth_date->setDatabaseMask('yyyy-mm-dd');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Tutor'))] );
-        $this->form->addFields( [$tutor_id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Species'))] );
-        $this->form->addFields( [$species] );
-        $this->form->addFields( [new TLabel(_t('Breed'))] );
-        $this->form->addFields( [$breed] );
-        $this->form->addFields( [new TLabel(_t('Sex'))] );
-        $this->form->addFields( [$sex] );
-        $this->form->addFields( [new TLabel(_t('Birth date'))] );
-        $this->form->addFields( [$birth_date] );
-        $this->form->addFields( [new TLabel(_t('Weight (kg)'))] );
-        $this->form->addFields( [$weight_kg] );
-        $this->form->addFields( [new TLabel(_t('Color'))] );
-        $this->form->addFields( [$color] );
-        $this->form->addFields( [new TLabel(_t('Notes'))] );
-        $this->form->addFields( [$notes] );
-
-        // tutor_id comes exclusively from the querystring param; the field
-        // only echoes it back read-only, no Tutor lookup/UI is built here
-        $tutor_id->setEditable(FALSE);
-        $tutor_id->setSize('30%');
-        if ($this->tutor_id !== null)
+        // add the fields (pares rótulo/campo em 2 colunas)
+        if ($tutor_label !== null)
         {
-            $tutor_id->setValue($this->tutor_id);
+            $this->form->addFields( [new TLabel(_t('Tutor'))], [$tutor_label, $tutor_field], [new TLabel(_t('Name'))], [$name] );
         }
+        else
+        {
+            $this->form->addFields( [new TLabel(_t('Tutor'))], [$tutor_field], [new TLabel(_t('Name'))], [$name] );
+        }
+        $this->form->addFields( [new TLabel(_t('Species'))], [$species], [new TLabel(_t('Breed'))], [$breed] );
+        $this->form->addFields( [new TLabel(_t('Sex'))], [$sex], [new TLabel(_t('Birth date'))], [$birth_date] );
+        $this->form->addFields( [new TLabel(_t('Weight (kg)'))], [$weight_kg], [new TLabel(_t('Color'))], [$color] );
+        $this->form->addFields( [new TLabel(_t('Notes'))], [$notes] );
 
-        $name->setSize('100%');
         $name->addValidation( _t('Name'), new TRequiredValidator );
         $species->addValidation( _t('Species'), new TRequiredValidator );
-        $breed->setSize('100%');
-        $weight_kg->setSize('30%');
-        $color->setSize('100%');
         $notes->setSize('100%', 80);
 
-        // create the form actions
-        $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $back = $this->tutor_id !== null
+            ? ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->tutor_id])]
+            : ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['GlobalSearchController', 'onSearch'], ['query' => TSession::getValue('GlobalSearchController_query')->query ?? ''])];
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        if ($this->viewId === null)
+        {
+            // create the form actions
+            $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
+            $btn->class = 'btn btn-sm btn-primary';
+            $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit'), ['tutor_id' => $this->tutor_id]), 'fa:eraser');
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Patient'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+            $header = CvPage::header(_t('New patient'), $tutor_name, [$back]);
+        }
+        else
+        {
+            foreach ([$name, $species, $breed, $sex, $birth_date, $weight_kg, $color, $notes] as $field)
+            {
+                $field->setEditable(FALSE);
+            }
+
+            $actions = [$back];
+            if ($this->tutor_id !== null)
+            {
+                $actions[] = ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction([__CLASS__, 'onEdit'], ['tutor_id' => $this->tutor_id])];
+            }
+
+            $header = CvPage::header(_t('Patient'), $tutor_name, $actions);
+        }
+
+        CvForm::decorate($this->form, 2);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
+        $container->add($header);
         $container->add($this->form);
 
-        parent::add($page_header);
         parent::add($container);
     }
 
     /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
-    }
-
-    /**
      * method onEdit()
-     * Patient has no update use case in PatientService (T-05 exposes only
-     * create()/findById()/findByTutor()), so this screen is create-only:
-     * onEdit() just clears the form and re-applies the tutor_id received in
-     * the querystring, mirroring the "new" flow used by SystemUnitForm's
-     * addHeaderActionLink('+') convention.
+     * Without key: clears the form and re-applies the tutor_id received in
+     * the querystring (new patient). With key/id: shows the patient loaded
+     * by PatientService::findById() (tenant-scoped) read-only — there is no
+     * update use case in PatientService.
      */
     public function onEdit($param)
     {
         $this->form->clear(true);
 
-        if ($this->tutor_id !== null)
+        if ($this->viewId === null)
         {
-            $data = new stdClass;
-            $data->tutor_id = $this->tutor_id;
-            $this->form->setData($data);
+            if ($this->tutor_id !== null)
+            {
+                $data = new stdClass;
+                $data->tutor_id = $this->tutor_id;
+                $this->form->setData($data);
+            }
+            return;
         }
+
+        if ($this->viewPatient === null)
+        {
+            new TMessage('error', _t('Record not found'));
+            return;
+        }
+
+        $patient = $this->viewPatient;
+        $birth = $patient->birthDate ? DateTime::createFromFormat('Y-m-d', substr($patient->birthDate, 0, 10)) : false;
+
+        $this->form->setData((object) [
+            'tutor_id'   => $patient->tutorId,
+            'name'       => $patient->name,
+            'species'    => $patient->species,
+            'breed'      => $patient->breed,
+            'sex'        => $patient->sex,
+            'birth_date' => $birth ? $birth->format('d/m/Y') : null,
+            'weight_kg'  => $patient->weightKg,
+            'color'      => $patient->color,
+            'notes'      => $patient->notes,
+        ]);
     }
 
     /**
@@ -200,17 +281,17 @@ class PatientForm extends TStandardForm
 
             TTransaction::close();
 
+            // reabre o registro salvo em página cheia
+            $open = new TAction([__CLASS__, 'onEdit'], ['key' => $patient->id, 'tutor_id' => $tutor_id]);
+
             if (!empty($this->useToast))
             {
                 TToast::show('info', _t('Record saved'));
-                if (!empty($this->afterSaveAction))
-                {
-                    AdiantiCoreApplication::loadPageURL( $this->afterSaveAction->serialize() );
-                }
+                AdiantiCoreApplication::loadPageURL( $open->serialize() );
             }
             else
             {
-                new TMessage('info', _t('Record saved'), $this->afterSaveAction);
+                new TMessage('info', _t('Record saved'), $open);
             }
 
             return $patient;

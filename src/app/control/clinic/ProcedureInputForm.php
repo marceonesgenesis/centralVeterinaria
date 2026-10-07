@@ -48,76 +48,69 @@ class ProcedureInputForm extends TPage
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
-        $this->procedure_catalog_item_id = (isset($param['procedure_catalog_item_id']) && $param['procedure_catalog_item_id'] !== '')
+        $this->procedure_catalog_item_id = (isset($param['procedure_catalog_item_id']) && (int) $param['procedure_catalog_item_id'] > 0)
             ? (int) $param['procedure_catalog_item_id']
             : null;
 
+        // combo de item de catálogo escopado ao tenant da sessão (precedente:
+        // AppointmentForm); sem tenant resolvido, tenant_id impossível -1
+        // (combo vazio em vez de erro fatal)
+        try
+        {
+            $tenant_id = self::resolveTenantContext()->tenantId();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            $tenant_id = -1;
+        }
+
+        $tenant_criteria = self::catalogCriteria((int) $tenant_id, $this->procedure_catalog_item_id);
+
         // creates the entry form
         $this->form = new BootstrapFormBuilder('form_ProcedureCatalogItemInput');
-        $this->form->setFormTitle(_t('Procedure inputs'));
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
-        $procedure_catalog_item_id = new TEntry('procedure_catalog_item_id');
+        $procedure_catalog_item_id = new TDBCombo('procedure_catalog_item_id', 'permission', 'ProcedureCatalogItem', 'id', 'name', 'name', $tenant_criteria);
         $product_id = new TCombo('product_id');
         $quantity_per_execution = new TEntry('quantity_per_execution');
 
         $procedure_catalog_item_id->setValue($this->procedure_catalog_item_id);
-        $procedure_catalog_item_id->setEditable(FALSE);
+        $procedure_catalog_item_id->setChangeAction(new TAction([__CLASS__, 'onChangeProcedure']));
         $quantity_per_execution->setNumericMask(0, '', '');
+        $quantity_per_execution->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
 
-        $this->form->addFields( [new TLabel(_t('Procedure (catalog item id)'))] );
-        $this->form->addFields( [$procedure_catalog_item_id] );
-        $this->form->addFields( [new TLabel(_t('Product'))] );
-        $this->form->addFields( [$product_id] );
-        $this->form->addFields( [new TLabel(_t('Quantity per execution'))] );
-        $this->form->addFields( [$quantity_per_execution] );
+        // pares rótulo/campo em 2 colunas, rótulo acima (CvForm)
+        $this->form->addFields( [new TLabel(_t('Procedure'))], [$procedure_catalog_item_id] );
+        $this->form->addFields( [new TLabel(_t('Product'))], [$product_id], [new TLabel(_t('Quantity per execution'))], [$quantity_per_execution] );
 
-        $procedure_catalog_item_id->setSize('30%');
-        $product_id->setSize('100%');
-        $quantity_per_execution->setSize('30%');
-
+        $procedure_catalog_item_id->addValidation( _t('Procedure'), new TRequiredValidator );
         $product_id->addValidation( _t('Product'), new TRequiredValidator );
         $quantity_per_execution->addValidation( _t('Quantity per execution'), new TRequiredValidator );
 
         $btn = $this->form->addAction(_t('Add input'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        $btn->class = 'btn btn-primary';
 
         // creates the inputs listing
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(240);
+        CvDatagrid::decorate($this->datagrid, false);
 
         $column_product  = new TDataGridColumn('product_label', _t('Product'), 'left');
-        $column_quantity = new TDataGridColumn('quantity_per_execution', _t('Quantity per execution'), 'center', 140);
+        $column_quantity = new TDataGridColumn('quantity_per_execution', _t('Quantity per execution'), 'right');
 
         $this->datagrid->addColumn($column_product);
         $this->datagrid->addColumn($column_quantity);
 
         $this->datagrid->createModel();
 
-        $this->panel = new TPanelGroup(_t('Inputs (bill of materials)'));
-        $this->panel->add($this->datagrid);
+        $this->panel = CvCard::create(_t('Inputs (bill of materials)'), $this->datagrid);
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-04)
-        $header = new TElement('header');
-        $header->class = 'cv-page-header';
-
-        $header_text = new TElement('div');
-        $header_title = new TElement('h1');
-        $header_title->class = 'cv-page-title';
-        $header_title->add(_t('Procedure inputs'));
-        $header_text->add($header_title);
-
-        $header->add($header_text);
-
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista de procedimentos
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($header);
+        $container->add(CvPage::header(_t('Procedure inputs'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ProcedureCatalogList'],
+        ]));
         $container->add($this->form);
         $container->add($this->panel);
 
@@ -128,11 +121,13 @@ class ProcedureInputForm extends TPage
     }
 
     /**
-     * on close
+     * Troca do procedimento no combo: recarrega a página com o item escolhido.
      */
-    public static function onClose($param)
+    public static function onChangeProcedure($param)
     {
-        TScript::create("Template.closeRightPanel()");
+        $id = isset($param['procedure_catalog_item_id']) ? (int) $param['procedure_catalog_item_id'] : 0;
+
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onEdit', $id > 0 ? ['procedure_catalog_item_id' => $id] : []);
     }
 
     /**
@@ -287,6 +282,8 @@ class ProcedureInputForm extends TPage
 
             new TMessage('info', _t('Input added'));
 
+            $this->procedure_catalog_item_id = (int) $data->procedure_catalog_item_id;
+
             $this->form->clear();
             $this->form->setData((object) ['procedure_catalog_item_id' => $this->procedure_catalog_item_id]);
 
@@ -335,6 +332,29 @@ class ProcedureInputForm extends TPage
         $repository = new \CentralVet\Persistence\ProductRepository($tenant_context, $connection);
 
         return new \CentralVet\Application\ProductService($repository, $tenant_context);
+    }
+
+    /**
+     * Critério do combo de catálogo: itens ativos do tenant e, quando há item
+     * atual, também ele (mesmo inativo), para o combo não perder o vínculo.
+     */
+    private static function catalogCriteria(int $tenantId, ?int $currentId): TCriteria
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('tenant_id', '=', $tenantId));
+
+        if ($currentId === null)
+        {
+            $criteria->add(new TFilter('active', '=', 1));
+            return $criteria;
+        }
+
+        $visible = new TCriteria;
+        $visible->add(new TFilter('active', '=', 1));
+        $visible->add(new TFilter('id', '=', $currentId), TExpression::OR_OPERATOR);
+        $criteria->add($visible);
+
+        return $criteria;
     }
 
     /**

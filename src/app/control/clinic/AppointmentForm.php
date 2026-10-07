@@ -29,15 +29,20 @@ class AppointmentForm extends TPage
 {
     protected $form; // form
 
+    /** @var int|null agendamento aberto em modo leitura (key na URL, vindo da AgendaView) */
+    protected $viewId = null;
+
     /**
      * Class constructor
-     * Creates the appointment scheduling form
+     * Creates the appointment scheduling form in full page (kit Cv*); with
+     * key in the URL the appointment is shown read-only (no reschedule use case).
      */
-    public function __construct()
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
+        $key = $param['key'] ?? null;
+        $this->viewId = (is_numeric($key) && (int) $key > 0) ? (int) $key : null;
 
         // resolveTenantContext() is only guaranteed after an authenticated
         // session; the constructor must never throw (mirrors onSave()'s own
@@ -58,7 +63,6 @@ class AppointmentForm extends TPage
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_Appointment');
-        $this->form->setFormTitle(_t('New appointment'));
         $this->form->enableClientValidation();
 
         // create the form fields
@@ -71,67 +75,83 @@ class AppointmentForm extends TPage
         $professional_system_user_id = new TDBUniqueSearch('professional_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name');
         $scheduled_at = new TDateTime('scheduled_at');
 
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Patient'))] );
-        $this->form->addFields( [$patient_id] );
-        $this->form->addFields( [new TLabel(_t('Service'))] );
-        $this->form->addFields( [$service_id] );
-        $this->form->addFields( [new TLabel(_t('Professional'))] );
-        $this->form->addFields( [$professional_system_user_id] );
-        $this->form->addFields( [new TLabel(_t('Date/Time'))] );
-        $this->form->addFields( [$scheduled_at] );
-
-        $patient_id->setSize('100%');
-        $service_id->setSize('100%');
-        $professional_system_user_id->setSize('100%');
-        $scheduled_at->setSize('100%');
+        // add the fields (pares rótulo/campo em 2 colunas)
+        $this->form->addFields( [new TLabel(_t('Patient'))], [$patient_id], [new TLabel(_t('Service'))], [$service_id] );
+        $this->form->addFields( [new TLabel(_t('Professional'))], [$professional_system_user_id], [new TLabel(_t('Date/time'))], [$scheduled_at] );
 
         $patient_id->addValidation( _t('Patient'), new TRequiredValidator );
         $service_id->addValidation( _t('Service'), new TRequiredValidator );
         $professional_system_user_id->addValidation( _t('Professional'), new TRequiredValidator );
-        $scheduled_at->addValidation( _t('Date/Time'), new TRequiredValidator );
+        $scheduled_at->addValidation( _t('Date/time'), new TRequiredValidator );
 
-        // create the form actions
-        $btn = $this->form->addAction(_t('Schedule'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $back_date = isset($param['scheduled_at']) ? substr((string) $param['scheduled_at'], 0, 10) : date('Y-m-d');
+        $back = ['label' => '', 'icon' => 'fa:arrow-left', 'action' => new TAction(['AgendaView', 'onReload'], ['date' => $back_date])];
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        if ($this->viewId === null)
+        {
+            // create the form actions
+            $btn = $this->form->addAction(_t('Schedule'), new TAction(array($this, 'onSave')), 'fa:check');
+            $btn->class = 'btn btn-sm btn-primary';
+            $this->form->addActionLink(_t('Clear'), new TAction(array($this, 'onEdit')), 'fa:eraser');
+        }
+        else
+        {
+            foreach ([$patient_id, $service_id, $professional_system_user_id, $scheduled_at] as $field)
+            {
+                $field->setEditable(FALSE);
+            }
+        }
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-02)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-        $page_header_titlebox = new TElement('div');
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('New appointment'));
-        $page_header_titlebox->add($page_header_title);
-        $page_header->add($page_header_titlebox);
+        CvForm::decorate($this->form, 2);
 
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
+        $container->add(CvPage::header($this->viewId === null ? _t('New appointment') : _t('Appointment'), null, [$back]));
         $container->add($this->form);
 
-        parent::add($page_header);
         parent::add($container);
-    }
-
-    /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
     }
 
     /**
      * method onEdit()
      * Prefills the form (e.g. with a date coming from AgendaView's date
-     * navigator) or clears it when no key/date is given.
+     * navigator), shows the appointment read-only when a key is given
+     * (AgendaView block link), or clears it.
      */
     public function onEdit($param)
     {
+        if ($this->viewId !== null)
+        {
+            try
+            {
+                TTransaction::open('permission');
+
+                $appointment = self::buildAppointmentService(self::resolveTenantContext())->findById($this->viewId);
+
+                TTransaction::close();
+
+                if ($appointment === null)
+                {
+                    new TMessage('error', _t('Record not found'));
+                    return;
+                }
+
+                $this->form->setData((object) [
+                    'patient_id' => $appointment->patientId,
+                    'service_id' => $appointment->serviceId,
+                    'professional_system_user_id' => $appointment->professionalSystemUserId,
+                    'scheduled_at' => $appointment->scheduledAt->format('Y-m-d H:i'),
+                ]);
+            }
+            catch (Exception $e)
+            {
+                TTransaction::rollback();
+                new TMessage('error', $e->getMessage());
+            }
+            return;
+        }
+
         if (isset($param['scheduled_at']))
         {
             $this->form->setData((object) ['scheduled_at' => $param['scheduled_at']]);
@@ -171,8 +191,10 @@ class AppointmentForm extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Appointment scheduled successfully'));
-            TScript::create("Template.closeRightPanel(); AgendaView.onReload();");
+            // volta para a agenda do dia agendado
+            new TMessage('info', _t('Appointment scheduled successfully'), new TAction(['AgendaView', 'onReload'], [
+                'date' => $appointment->scheduledAt->format('Y-m-d'),
+            ]));
         }
         catch (\CentralVet\Domain\Exception\SchedulingConflictException $e)
         {

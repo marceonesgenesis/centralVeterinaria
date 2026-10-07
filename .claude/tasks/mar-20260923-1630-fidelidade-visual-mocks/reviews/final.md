@@ -1,0 +1,125 @@
+# Revisão final
+Rodada 3 (após ondas 7–8, T-25..T-36). Branch feat/fidelidade-visual-mocks @ b1a5b3b contra main (208 arquivos, +16872/−4215). Novas mudanças: `git diff 2c7611d..HEAD` (40 arquivos de código, +1051/−235, 17 commits da onda 7 + f1fda5f da onda 8). A rodada anterior (720f185 + Rodada 2 do final-fix) está no histórico git deste arquivo.
+Comandos: `git diff --stat main...feat/fidelidade-visual-mocks`; `git diff 2c7611d..HEAD -- src/app/Core src/app/control/clinic src/app/lib src/app/templates src/tests`; `git diff -U0 2c7611d..HEAD -- src/app/config/translations.json`; `php -l` read-only dos 38 PHP tocados (container `-v src:ro`) → 38/38 "No syntax errors detected"; python sobre translations.json → 685 entradas, 0 duplicadas, 0 duplicadas por caixa, todas as chaves usadas pelo código novo presentes (`Unauthorized access to that unit` vem de AdiantiTemplateTranslator); `grep -rnE "_t\('(patients|results|services|tutors|Date/Time)'\)" src/app` → vazio. Suíte não re-executada (grava e faz rollback no banco); evidência do validador: `Total: 205, Passed: 205, Failed: 0` (reviews/T-35.md, T-36.md).
+
+## Triagem
+- [aberta] Campos sem schema (preço de venda, código, foto/alergia, validade/modelos, forma de pagamento em financial_entry, saldo bancário, pausa) → fora do escopo por premissa
+- [aberta] Ações sem backend (Exportar, Importar/Duplicar/Excluir, Salvar como modelo, Gerar relatório) → Excluído
+- [aberta] T-01 layout.html CRLF→LF → informativo
+- [aberta] T-01 botão de ajuda disabled + pointer-events:none esconde o tooltip → layout.html não tocado nas ondas 7–8
+- [resolvida] T-01 `Toggle menu` → rodada anterior
+- [resolvida] T-02 aria-label vazio / `.cv-avatar--species` → rodada anterior
+- [aberta] T-04 limite ≤ 0; GROUP_CONCAT → sem correção
+- [aberta] T-05 saldo sem saídas; teste sem ruído → sem correção
+- [aberta] T-06 lastEncounter; testes de tutor sem contato → sem correção
+- [aberta] T-07 / T-19 CvShellController e itens desabilitados só no grupo 1 → Excluído ondas 7–8 (DML)
+- [resolvida] T-08 onSwitchUnit por GET sem token → CvShellController.php:105-115 (CsrfToken::isValid, POST + `cv_shell_csrf`), cv-shell.js:470-474 (fetch POST com csrf_token); gate T-26 Complemento (3)/(4): GET 403, token `x` 403, sessão sem token 403 sem laço de reload
+- [resolvida] T-08 aria-label "Unidade" fixo em pt → cv-shell.js:498-500 (`labels.unit`)
+- [resolvida] T-08 filtro de unidades por tenant e CSS do select → rodada anterior
+- [aberta] T-09 "Lançamentos recentes" x período; "vs. mês anterior" fixo → sem correção
+- [resolvida] T-10 "Ver tudo" low x low+out → ProductList.php:349 `status=attention`, filtro em :98-104; gate T-35: attention=2 (low 1 + out 1)
+- [resolvida] T-10 dois TMessage sem tenant → ProductList.php:59,110-114 (`tenantErrorShown`)
+- [aberta] T-10 products() 3x; título/KPI de estoque → Excluído ondas 7–8
+- [resolvida] T-11 clique na linha sem link focável → ServiceList.php:87-94 (`a.cv-row-link`); gate T-33: Tab + Enter → service_id=1
+- [resolvida] T-12 loadSummary só Exception → PrescriptionForm.php:298 `catch (\Throwable $e)`
+- [aberta] T-12 estilos inline; onEdit vazio → Excluído ondas 7–8
+- [aberta] T-13 vazio "Informe um encounter_id…" após Finalizar → pré-existente (ruling T-13)
+- [resolvida] T-13 docblock de onInlineAction desatualizado → EncounterView.php:1482-1492 reescrito (resta imprecisão, ver T-30 abaixo)
+- [aberta] Onda 2 mocks ausentes; EncounterDocumentService::list() vazio → sem correção
+- [aberta] Dados de teste (ondas 2, 3, 6, T-21, final-fix, onda 7: payable 2 paga, sale 1715, atendimento 2189, produto 946) → Excluído ondas 7–8
+- [aberta] Onda 3 Log do PHP vazio → decisão de infra
+- [resolvida] Onda 3 `<style>` inline em GlobalSearchController → removido (645929e); regra em cv-components.css:375
+- [resolvida] Onda 3 `&query=` não dispara a busca → GlobalSearchController.php:127-130 chama onSearch() (mesma regra de tamanho mínimo)
+- [resolvida] Onda 3 ProductService sem update() → ProductService.php:78-127; ProductForm.php:177-185 delega (1d4941c)
+- [resolvida] Onda 3 PayableService::listOpen oculta conta paga → PayableList.php filtro Em aberto/Pagas/Todas (listByStatus); gate T-28: paid → [Pago,Pago], all → 3, xyz → [Aberto]
+- [aberta] Onda 3 fluxos não rodados (exames, agenda, fila) → Excluído ondas 7–8
+- [resolvida] T-14 fila carregada 2x → QueueEntryView.php:122-127; onAdvance recarrega na recusa (:387-394, e82a889)
+- [aberta] T-14 edição de tutor/paciente/agendamento → demanda futura
+- [resolvida] T-15 ramo morto "Result available" → PendingExamResultList.php:108-111
+- [aberta] T-15 VaccinationCardView sem pista; actionMenu/columns sem uso → Excluído
+- [aberta] T-16 evidência de tenant; offset; combo só active=1 nos catálogos TStandardForm; cards à mão → Excluído (combo resolvido só em ProcedureInputForm/VaccineProtocolForm)
+- [resolvida] T-17 validar `$action` → AuthorizationRequest.php:25,40-42 (ACTION_PATTERN; be2ed81)
+- [aberta] T-17 StockBatchForm lê $_GET → aceito como padrão do projeto (premissa onda 7)
+- [resolvida] T-17 "Gerar PDF" sem target=_blank → SaleForm.php:187-195; gate T-35 Complemento (4)
+- [resolvida] T-18 UPDATE de PayableRepository sem teste de SQL → PayableRepositoryIntegrationTest.php (4542605)
+- [resolvida] T-18 docblock de PayableForm → PayableForm.php:5-17
+- [resolvida] T-18 mensagem crua ao editar conta paga → PayableForm.php:167 `_t('Only open payables can be edited')`
+- [resolvida] T-19 textos pt fixos no JS → cv-shell.js sem literais (labels do onContext)
+- [aberta] T-19 units sem `current` → Excluído (placeholder "—")
+- [resolvida] T-20 chaves minúsculas x maiúsculas → f1fda5f; 0 duplicadas por caixa; rodapés com `mb_strtolower(_t('Patients'|'Results'|'Services'|'Tutors'))`
+- [aberta] T-21 comparação com mocks; seletor no EncounterView; ícone text-primary → Excluído
+- [aberta] Onda 6 layout-basic.html com "Trace" → framework, não editável
+- [resolvida] T-23 literais em planStatusBadge → EncounterView.php:887-890 (Prescription/ExamRequest::STATUS_*)
+- [resolvida] T-23 status vazio sem badge → EncounterView.php:893-896,927-930
+- [resolvida] T-24 mapa método→rótulo duplicado → CvFormat.php:52-56 (Payment::METHOD_*); PaymentForm.php:275-280 usa CvFormat::paymentMethod
+- [resolvida] Final: onContext devolve getMessage no 500 → CvShellController.php:95-96 (error_log + mensagem genérica)
+- [resolvida] Final: regra de edição de produto no controller → ProductForm::updateProduct removido
+- [aberta] Final: ServiceForm cria com active=0 em dois writes → ServiceForm.php não tocado
+- [resolvida] final-fix: EncounterAccountService não valida authorized_by → EncounterAccountService.php:331-339 (isActiveMember antes de requireAccount); gate T-25: 999999 recusado
+- [resolvida] final-fix: comentários obsoletos do combo de profissional → ExamRequestForm.php:72, ProcedureExecutionForm.php:101, VaccinationForm.php:62, PrescriptionForm.php:27
+- [aberta] Mensagem em inglês de CrossTenantReferenceException nos forms (T-25 onApplyDiscount incluso) → Excluído ondas 7–8
+- [resolvida] T-25 critério 3 sem evidência → reviews/T-25.md:17 (desconto R$ 5,00 ok; 999999 recusado)
+- [aberta] T-25 guarda antes do RBAC permite sondar ids ativos → plano-mandou, sugestão
+- [aberta] T-25 docblock de applyDiscount sem o novo @throws → EncounterAccountService.php:316
+- [resolvida] T-26 critérios de gate e reprodução GET → reviews/T-26.md Complemento (3)/(4)
+- [aberta] T-26 catch genérico de onSwitchUnit devolve 403 para falha de infraestrutura → CvShellController.php:131-135
+- [aberta] T-26 sem labels o seletor fica com aria-label vazio → cv-shell.js:498
+- [aberta] T-27 teste não confere a mensagem; mensagem interpola `$action` cru → AuthorizationRequestTest.php:46, AuthorizationRequest.php:41
+- [resolvida] T-28 gate de navegador → reviews/T-28.md:17-18
+- [aberta] T-28 id 2 x conta paga no plano (documental); teste de UPDATE não verifica inserção/retorno; docblock de resolveStatus → PayableRepositoryIntegrationTest.php, PayableList.php:301
+- [aberta] T-29 ocultação depende de `.tpagenavigation … li.page-item.off` → cv-components.css:375 (informativo)
+- [aberta] T-29 avanço recusado no navegador não rodado → sem caminho pela UI; coberto por repro CLI (ruling T-29)
+- [aberta] T-30 docblock de onInlineAction diz que `kind` é validado contra PLAN_ACTIONS e não é → EncounterView.php:1485
+- [aberta] T-30 comentário de listPending() sem referência a STATUS_REQUESTED → PendingExamResultList.php:110
+- [resolvida] T-33 gate de navegador → reviews/T-33.md:15-16
+- [aberta] T-33 combo com item inativo sem render real; catalogCriteria duplicado → ProcedureInputForm.php:341-358, VaccineProtocolForm.php:317-334
+- [aberta] T-34 testes só afirmam a classe; sem caso de outro tenant; mensagem em inglês para id inexistente (plano-mandou) → ProductServiceTest.php, ProductService.php:96
+- [aberta] T-35 literais 'low'/'out' no filtro attention → ProductList.php:103
+- [resolvida] T-35 critério 1 sem evidência → reviews/T-35.md:14
+
+## Rulings
+- plano · onda 0 — Financeiro vira FinancialOverview (DML em T-07 com aprovação); itens e abas sem tela desabilitados "Em breve"
+- plano · onda 0 — [substituída em 2026-09-29] RED sem git
+- plano · onda 0 — Campos do mock sem schema: omitir/placeholder, sem migration; "Saldo do caixa aberto"
+- plano · onda 0 — Comandos LINT/SUITE/GATE fixados; implementadores não rebuildam nem usam Playwright
+- plano · onda 0 — Menu: Pacientes → GlobalSearchController; Prescrições desabilitado; catálogos e admin em Configurações
+- plano · onda 0 — translations.json com escritor único (T-03, T-20)
+- plano · onda 0 — CvShellController registrado como programa, reaproveita setUnit()
+- plano (revisão) · onda 0 — Projeto em git; trailer Task:, RED antes da implementação, comandos git proibidos
+- plano (revisão) · onda 0 — Varredura Playwright em todo gate
+- plano · onda 0 — EncounterView: wizard só no cliente; onStart/onAutosave/onFinish mantidos; Pausar omitido
+- T-08..T-13 · onda 2 — "Message not found" aceito até T-20; mocks ausentes
+- T-11 · onda 2 — plano-mandou: correção de ServiceForm movida para T-17
+- T-08 · onda 2 — Troca de unidade sem recalcular tenantid não vaza dados
+- plano (revisão) · onda 3 — Correções da onda 2 em T-17/T-18/T-19; PATTERN0 por campo; só tenant 1 no banco
+- T-13 · onda 2 — Vazio após Finalizar pré-existente
+- onda 3 · onda 3 — Login do gate com senha dada na conversa (não registrada)
+- T-17 · onda 3 — StockService fora dos Arquivos prováveis autorizado; HIGH descartado
+- T-18 · onda 3 — Arquivos de Core/teste de Payable autorizados
+- cruzada-onda-3 · onda 3 — Trailer `Task: cruzada-onda-3` aceito
+- T-14 · onda 3 — Leitura só de tutor/paciente/agendamento pré-existente
+- T-15 · onda 3 — "Aplicar vacina" e badge "Solicitado" julgados pelo revisor
+- plano · onda 3 — Sem fixture de tenant 2; mocks ausentes
+- T-20 · onda 4 — `Route` → "Via"; ruling "Message not found" encerrado
+- plano (revisão) · onda 6 — Onda 6 (T-22..T-24) aprovada; usuário autorizou fechar caixa id 1
+- cruzada-onda-6 · onda 6 — Prova CLI de "Dinheiro" aceita; trailer `Task: cruzada-onda-6` aceito
+- final · onda final — SystemUser sem tenant nos combos corrigido (dbe7318, 12945fa); trailer `Task: final-fix` aceito; gate com 2 complementos
+- plano (revisão) · onda 7 — Ondas 7–8 (T-25..T-36), BASE 2c7611d; PayableList com filtro de status; uma chave canônica por par de caixa
+- plano (revisão) · onda 7 — Formato de `$action` = Classe::metodo ou chave pontuada; StockBatchForm com $_GET é padrão do projeto; construtor de EncounterAccountService só em 2 lugares
+- plano (revisão) · onda 7 — CSRF por CentralVet\Security\CsrfToken, token em TSession `cv_shell_csrf`, onSwitchUnit JSON
+- plano (revisão) · onda 7 — PNGs soltos movidos para reports/; Review Focus substituído pelos 5 riscos das ondas 7–8
+- T-27 · onda 7 — RbacAuthorizationServiceTest no escopo ('x'→'test::x'); ACTION_PATTERN sem ampliação
+- T-32 · onda 7 — diff de 14 linhas (limite 12) aceito
+- T-29 · onda 7 — avanço recusado no navegador aceito como pendência (repro CLI)
+- gate · onda 7 — rebuild feito antes do Complemento (3); gravações de teste pela UI autorizadas (T-26/T-27/T-35)
+### Decisões que tomei (revisor final, rodada 3)
+- final · onda final — Review Focus T-26 ok: sem `static=1`, o engine instancia a TPage e AdiantiPageControlTrait::run() passa `$_REQUEST` (inclui o POST), então unit_id/csrf_token chegam a onSwitchUnit; a checagem do token vem antes de qualquer setUnit(); o JS antigo em cache (GET via __adianti_ajax_exec) recebe 403 e não recarrega. Confirmado pelo gate (Complemento 4).
+- final · onda final — Review Focus T-25 ok: guarda `isActiveMember` antes de requireAccount/save; teste do inativo (FakeTenantUserDirectory([])) presente; os 2 construtores atualizados (EncounterAccountForm.php:757, EncounterAccountServiceTest.php:99).
+- final · onda final — Review Focus T-28 ok: resolveStatus() sem `status` volta ao valor da sessão; o setData do filtro é sobrescrito por sessionStatus(); justPaid só entra no filtro Em aberto.
+- final · onda final — Review Focus T-29 ok: o construtor chama o mesmo onSearch(), logo a mesma regra de tamanho mínimo.
+- final · onda final — Review Focus T-34 ok: nome duplicado lança antes de save(), nenhum produto muda.
+- final · onda final — ACTION_PATTERN não quebra chamadores: todos os serviços recebem `$action` do controller como `__CLASS__ . '::' . __FUNCTION__` ou literal `Classe::metodo` (EncounterView.php:1348, EncounterAccountForm.php:584); nenhum `__METHOD__`/closure.
+- final · onda final — Não re-executei a suíte (escreve e faz rollback no banco de desenvolvimento); aceito a evidência 205/205 do validador, que é coerente com os testes novos vistos no diff.
+
+## Achados
+- nenhum bloqueante. As sugestões seguem na Triagem como [aberta].

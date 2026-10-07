@@ -32,8 +32,6 @@ class VaccineCatalogForm extends TStandardForm
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->setDatabase('permission');              // defines the database
         $this->setActiveRecord('VaccineCatalogItem');   // defines the active record
         $this->setAfterSaveAction( new TAction(['VaccineCatalogList', 'onReload']) );
@@ -41,8 +39,8 @@ class VaccineCatalogForm extends TStandardForm
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_VaccineCatalogItem');
-        $this->form->setFormTitle(_t('Vaccine'));
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
         // create the form fields
         $id = new TEntry('id');
@@ -53,60 +51,32 @@ class VaccineCatalogForm extends TStandardForm
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
 
         // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Manufacturer'))] );
-        $this->form->addFields( [$manufacturer] );
-        $this->form->addFields( [new TLabel(_t('Stock quantity'))] );
-        $this->form->addFields( [$stock_quantity] );
-        $this->form->addFields( [new TLabel(_t('Status'))] );
-        $this->form->addFields( [$active] );
+        // pares rótulo/campo em 2 colunas, rótulo acima (CvForm)
+        $this->form->addFields( [new TLabel(_t('Name'))], [$name], [new TLabel(_t('Manufacturer'))], [$manufacturer] );
+        $this->form->addFields( [new TLabel(_t('Stock quantity'))], [$stock_quantity], [new TLabel(_t('Status'))], [$active] );
+        $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $name->setSize('100%');
-        $manufacturer->setSize('100%');
-        $stock_quantity->setSize('30%');
         $stock_quantity->setNumericMask(0, '', '');
-        $active->setSize('100%');
+        $stock_quantity->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
 
         // create the form actions
         $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Vaccine'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
-
+        $container->add(CvPage::header(_t('Vaccine'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=VaccineCatalogList'],
+        ]));
         $container->add($this->form);
 
         parent::add($container);
-    }
-
-    /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
     }
 
     /**

@@ -44,79 +44,77 @@ class VaccineProtocolForm extends TPage
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
-        $this->vaccine_catalog_item_id = (isset($param['vaccine_catalog_item_id']) && $param['vaccine_catalog_item_id'] !== '')
+        $this->vaccine_catalog_item_id = (isset($param['vaccine_catalog_item_id']) && (int) $param['vaccine_catalog_item_id'] > 0)
             ? (int) $param['vaccine_catalog_item_id']
             : null;
 
+        // combo de item de catálogo escopado ao tenant da sessão (precedente:
+        // AppointmentForm); sem tenant resolvido, tenant_id impossível -1
+        // (combo vazio em vez de erro fatal)
+        try
+        {
+            $tenant_id = self::resolveTenantContext()->tenantId();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            $tenant_id = -1;
+        }
+
+        $tenant_criteria = self::catalogCriteria((int) $tenant_id, $this->vaccine_catalog_item_id);
+
         // creates the entry form
         $this->form = new BootstrapFormBuilder('form_VaccineProtocol');
-        $this->form->setFormTitle(_t('Vaccine protocol'));
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
-        $vaccine_catalog_item_id = new TEntry('vaccine_catalog_item_id');
+        $vaccine_catalog_item_id = new TDBCombo('vaccine_catalog_item_id', 'permission', 'VaccineCatalogItem', 'id', 'name', 'name', $tenant_criteria);
         $dose_number = new TEntry('dose_number');
         $interval_days_from_previous = new TEntry('interval_days_from_previous');
 
         $vaccine_catalog_item_id->setValue($this->vaccine_catalog_item_id);
-        $vaccine_catalog_item_id->setEditable(FALSE);
+        $vaccine_catalog_item_id->setChangeAction(new TAction([__CLASS__, 'onChangeVaccine']));
         $dose_number->setNumericMask(0, '', '');
+        $dose_number->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
         $interval_days_from_previous->setNumericMask(0, '', '');
+        $interval_days_from_previous->setProperty('pattern', '[0-9]*'); // PATTERN0
 
-        $this->form->addFields( [new TLabel(_t('Vaccine (catalog item id)'))] );
-        $this->form->addFields( [$vaccine_catalog_item_id] );
-        $this->form->addFields( [new TLabel(_t('Dose number'))] );
-        $this->form->addFields( [$dose_number] );
-        $this->form->addFields( [new TLabel(_t('Interval from previous dose (days)'))] );
-        $this->form->addFields( [$interval_days_from_previous] );
+        // pares rótulo/campo em 2 colunas, rótulo acima (CvForm)
+        $this->form->addFields( [new TLabel(_t('Vaccine'))], [$vaccine_catalog_item_id] );
+        $this->form->addFields( [new TLabel(_t('Dose number'))], [$dose_number], [new TLabel(_t('Interval from previous dose (days)'))], [$interval_days_from_previous] );
 
-        $vaccine_catalog_item_id->setSize('30%');
-        $dose_number->setSize('30%');
-        $interval_days_from_previous->setSize('30%');
-
+        $vaccine_catalog_item_id->addValidation( _t('Vaccine'), new TRequiredValidator );
         $dose_number->addValidation( _t('Dose number'), new TRequiredValidator );
 
         $btn = $this->form->addAction(_t('Add dose'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
+        $btn->class = 'btn btn-primary';
 
         // creates the schedule listing
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(240);
+        CvDatagrid::decorate($this->datagrid, false);
+        $this->datagrid->setActionSide('right');
 
-        $column_dose     = new TDataGridColumn('dose_number', _t('Dose'), 'center', 80);
+        $column_dose     = new TDataGridColumn('dose_number', _t('Dose'), 'left');
         $column_interval = new TDataGridColumn('interval_label', _t('Interval from previous dose'), 'left');
 
         $this->datagrid->addColumn($column_dose);
         $this->datagrid->addColumn($column_interval);
 
-        $action_delete = new TDataGridAction(array($this, 'onDelete'), array('id' => '{id}', 'register_state' => 'false'));
-        $action_delete->setLabel(_t('Delete'));
-        $action_delete->setImage('fa:trash-alt red');
-        $this->datagrid->addAction($action_delete);
+        // a exclusão repassa o item de catálogo para a recarga manter o contexto
+        $action_delete = new TDataGridAction(array($this, 'onDelete'), array('id' => '{id}', 'vaccine_catalog_item_id' => (string) $this->vaccine_catalog_item_id, 'register_state' => 'false'));
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Delete'), 'action' => $action_delete, 'icon' => 'fa:trash-alt red'],
+        ]));
 
         $this->datagrid->createModel();
 
-        $this->panel = new TPanelGroup(_t('Dose schedule'));
-        $this->panel->add($this->datagrid);
+        $this->panel = CvCard::create(_t('Dose schedule'), $this->datagrid);
 
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista de vacinas
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Vaccine protocol'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
-
+        $container->add(CvPage::header(_t('Vaccine protocol'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=VaccineCatalogList'],
+        ]));
         $container->add($this->form);
         $container->add($this->panel);
 
@@ -126,11 +124,13 @@ class VaccineProtocolForm extends TPage
     }
 
     /**
-     * on close
+     * Troca da vacina no combo: recarrega a página com o item escolhido.
      */
-    public static function onClose($param)
+    public static function onChangeVaccine($param)
     {
-        TScript::create("Template.closeRightPanel()");
+        $id = isset($param['vaccine_catalog_item_id']) ? (int) $param['vaccine_catalog_item_id'] : 0;
+
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onEdit', $id > 0 ? ['vaccine_catalog_item_id' => $id] : []);
     }
 
     /**
@@ -234,6 +234,8 @@ class VaccineProtocolForm extends TPage
 
             new TMessage('info', _t('Dose added to the schedule'));
 
+            $this->vaccine_catalog_item_id = (int) $data->vaccine_catalog_item_id;
+
             $this->form->clear();
             $this->form->setData((object) ['vaccine_catalog_item_id' => $this->vaccine_catalog_item_id]);
 
@@ -306,6 +308,29 @@ class VaccineProtocolForm extends TPage
         $repository = new \CentralVet\Persistence\VaccineProtocolRepository($tenant_context, $connection);
 
         return new \CentralVet\Application\VaccineProtocolService($repository, $tenant_context);
+    }
+
+    /**
+     * Critério do combo de catálogo: itens ativos do tenant e, quando há item
+     * atual, também ele (mesmo inativo), para o combo não perder o vínculo.
+     */
+    private static function catalogCriteria(int $tenantId, ?int $currentId): TCriteria
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('tenant_id', '=', $tenantId));
+
+        if ($currentId === null)
+        {
+            $criteria->add(new TFilter('active', '=', 1));
+            return $criteria;
+        }
+
+        $visible = new TCriteria;
+        $visible->add(new TFilter('active', '=', 1));
+        $visible->add(new TFilter('id', '=', $currentId), TExpression::OR_OPERATOR);
+        $criteria->add($visible);
+
+        return $criteria;
     }
 
     /**

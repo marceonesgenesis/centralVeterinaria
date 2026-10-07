@@ -8,6 +8,7 @@ use CentralVet\Application\EncounterAccountService;
 use CentralVet\Application\ProcedureCatalogService;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccountItem;
+use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\DiscountExceedsSubtotalException;
 use CentralVet\Domain\Patient;
 use CentralVet\Domain\ProcedureExecution;
@@ -25,6 +26,7 @@ use CentralVet\Tests\Support\FakeProcedureCatalogItemInputRepository;
 use CentralVet\Tests\Support\FakeProcedureCatalogRepository;
 use CentralVet\Tests\Support\FakeProcedureExecutionRepository;
 use CentralVet\Tests\Support\FakeReceivableRepository;
+use CentralVet\Tests\Support\FakeTenantUserDirectory;
 use DateTimeImmutable;
 
 /**
@@ -57,7 +59,7 @@ final class EncounterAccountServiceTest
      *
      * @return array{0: EncounterAccountService, 1: int, 2: FakeEncounterAccountItemRepository, 3: FakeProcedureExecutionRepository, 4: FakeProcedureCatalogRepository, 5: FakeProcedureCatalogItemInputRepository}
      */
-    private function buildService(): array
+    private function buildService(?FakeTenantUserDirectory $tenantUsers = null): array
     {
         $context = TenantContext::authenticated(self::TENANT_ID, 1, self::UNIT_ID);
 
@@ -106,6 +108,7 @@ final class EncounterAccountServiceTest
             $examCatalog,
             new FakeAuthorizationPolicy(allowed: true),
             $context,
+            $tenantUsers ?? FakeTenantUserDirectory::allowingAll(),
         );
 
         return [$service, $encounterId, $items, $procedureExecutions, $procedureCatalogItems, $procedureCatalogInputs];
@@ -221,5 +224,53 @@ final class EncounterAccountServiceTest
 
         $closedAccount = $service->openOrGet($encounterId, self::ACTION);
         Assert::same($closedAccount->totalCents(), $receivable->totalCents(), 'Receivable::totalCents must equal EncounterAccount::totalCents exactly');
+    }
+
+    /**
+     * T-25: the discount authorizer comes from caller input (a combo that
+     * a tampered POST can bypass), so an id outside the authenticated
+     * tenant is refused before anything is persisted.
+     */
+    public function testApplyDiscountWithAuthorizerOutsideTenantThrowsAndPersistsNothing(): void
+    {
+        $this->assertDiscountRefusedFor(new FakeTenantUserDirectory([10]), 999);
+    }
+
+    /**
+     * T-25 (Review Focus): a user of the tenant that is inactive
+     * (active='N', i.e. not an active member) is refused the same way.
+     */
+    public function testApplyDiscountWithInactiveAuthorizerThrowsAndPersistsNothing(): void
+    {
+        $this->assertDiscountRefusedFor(new FakeTenantUserDirectory([]), 10);
+    }
+
+    private function assertDiscountRefusedFor(FakeTenantUserDirectory $tenantUsers, int $authorizerId): void
+    {
+        [$service, $encounterId, , $procedureExecutions, $procedureCatalogItems] = $this->buildService($tenantUsers);
+
+        $procedureItem = $procedureCatalogItems->save(
+            \CentralVet\Domain\ProcedureCatalogItem::create(self::TENANT_ID, 'Consulta', 10000, null, null)
+        );
+        $procedureExecutions->save(ProcedureExecution::record(
+            tenantId: self::TENANT_ID,
+            encounterId: $encounterId,
+            patientId: 7,
+            procedureCatalogItemId: $procedureItem->id(),
+            professionalSystemUserId: 10,
+            notesText: null,
+            executedAt: new DateTimeImmutable(),
+        ));
+
+        $account = $service->openOrGet($encounterId, self::ACTION);
+        $service->syncAutomaticItems($account->id(), self::ACTION);
+
+        Assert::throws(
+            CrossTenantReferenceException::class,
+            fn () => $service->applyDiscount($account->id(), 500, $authorizerId, self::ACTION),
+        );
+
+        $reloaded = $service->openOrGet($encounterId, self::ACTION);
+        Assert::same(0, $reloaded->discountCents(), 'discount_cents must remain untouched when the authorizer is not an active tenant member');
     }
 }

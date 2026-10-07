@@ -1,0 +1,508 @@
+/*
+ * Central Vet Pro — kit de componentes Cv* (src/app/lib/widget/Cv*.php).
+ * Usa apenas os tokens --cv-* de custom.css; nada de azul Bootstrap padrão.
+ */
+
+/* ---------- Cabeçalho de página ---------- */
+.cv-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--cv-space-4);
+    margin: 0 0 var(--cv-space-5);
+}
+.cv-page-head__title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--cv-color-text);
+}
+.cv-page-head__subtitle {
+    margin: var(--cv-space-1) 0 0;
+    color: var(--cv-color-text-muted);
+    font-size: 0.95rem;
+}
+.cv-page-head__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cv-space-2);
+}
+.cv-page-head__actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    min-height: var(--cv-touch-target);
+    border-radius: var(--cv-radius-sm);
+}
+.cv-unit-switch {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--cv-touch-target);
+}
+.cv-unit-switch:empty {
+    display: none;
+}
+
+/* ---------- Colunas 8/4 ---------- */
+.cv-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    gap: var(--cv-space-5);
+    align-items: start;
+}
+.cv-columns__main,
+.cv-columns__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-5);
+    min-width: 0;
+}
+@media (max-width: 991.98px) {
+    .cv-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ---------- Abas ---------- */
+.cv-tabs {
+    margin: 0 0 var(--cv-space-5);
+    border-bottom: 1px solid var(--cv-color-border);
+    overflow-x: auto;
+}
+.cv-tabs__list {
+    display: flex;
+    gap: var(--cv-space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.cv-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--cv-touch-target);
+    padding: 0 var(--cv-space-1);
+    border-bottom: 3px solid transparent;
+    color: var(--cv-color-text-muted);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+a.cv-tab:hover {
+    color: var(--cv-color-text);
+}
+.cv-tab--active {
+    color: var(--cv-color-primary);
+    border-bottom-color: var(--cv-color-primary);
+}
+.cv-tab--disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* ---------- Barra de filtros ---------- */
+.cv-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cv-space-3);
+    margin: 0 0 var(--cv-space-4);
+}
+.cv-filter-bar__item {
+    flex: 0 1 12rem;
+    min-width: 10rem;
+}
+.cv-filter-bar__item:first-child {
+    flex: 1 1 18rem;
+}
+.cv-filter-bar__item .form-control,
+.cv-filter-bar__item .form-select,
+.cv-filter-bar__item .tfield {
+    width: 100% !important;
+    min-height: var(--cv-touch-target);
+}
+
+/* ---------- Card ---------- */
+.cv-card {
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-border);
+    border-radius: var(--cv-radius-md);
+    box-shadow: var(--cv-shadow-sm);
+}
+.cv-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cv-space-3);
+    padding: var(--cv-space-4) var(--cv-space-5);
+    border-bottom: 1px solid var(--cv-color-border);
+}
+.cv-card__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--cv-color-text);
+}
+.cv-card__link {
+    color: var(--cv-color-primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+.cv-card__link:hover {
+    color: var(--cv-color-primary-hover);
+    text-decoration: underline;
+}
+.cv-card__body {
+    padding: var(--cv-space-4) var(--cv-space-5);
+}
+
+/* ---------- KPI ---------- */
+.cv-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--cv-space-4);
+    margin: 0 0 var(--cv-space-5);
+}
+.cv-kpi {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cv-space-4);
+    padding: var(--cv-space-4) var(--cv-space-5);
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-border);
+    border-radius: var(--cv-radius-md);
+    box-shadow: var(--cv-shadow-sm);
+}
+.cv-kpi__icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    background: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text-muted);
+}
+.cv-kpi--success .cv-kpi__icon { background: var(--cv-color-success-soft); color: var(--cv-color-success); }
+.cv-kpi--warning .cv-kpi__icon { background: var(--cv-color-warning-soft); color: var(--cv-color-warning); }
+.cv-kpi--danger  .cv-kpi__icon { background: var(--cv-color-danger-soft);  color: var(--cv-color-danger); }
+.cv-kpi--info    .cv-kpi__icon { background: var(--cv-color-info-soft);    color: var(--cv-color-info); }
+.cv-kpi__body {
+    min-width: 0;
+}
+.cv-kpi__label {
+    color: var(--cv-color-text-muted);
+    font-size: 0.875rem;
+}
+.cv-kpi__value {
+    color: var(--cv-color-text);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.cv-kpi__delta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cv-space-1);
+    margin-top: var(--cv-space-1);
+    font-size: 0.8rem;
+    color: var(--cv-color-text-muted);
+}
+.cv-kpi__delta-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-weight: 700;
+}
+.cv-kpi__delta--up .cv-kpi__delta-value   { color: var(--cv-color-success); }
+.cv-kpi__delta--down .cv-kpi__delta-value { color: var(--cv-color-danger); }
+
+/* ---------- Badge ---------- */
+.cv-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    background: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text-muted);
+}
+.cv-badge--success { background: var(--cv-color-success-soft); color: var(--cv-color-success); }
+.cv-badge--warning { background: var(--cv-color-warning-soft); color: var(--cv-color-warning); }
+.cv-badge--danger  { background: var(--cv-color-danger-soft);  color: var(--cv-color-danger); }
+.cv-badge--info    { background: var(--cv-color-info-soft);    color: var(--cv-color-info); }
+.cv-badge--neutral { background: var(--cv-color-surface-subtle); color: var(--cv-color-text-muted); }
+
+/* ---------- Avatar ---------- */
+.cv-avatar {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: var(--cv-color-primary-soft);
+    color: var(--cv-color-primary);
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1;
+}
+.cv-avatar--species {
+    background: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text-muted);
+}
+.cv-avatar--lg {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.5rem;
+}
+
+/* ---------- Tabela ---------- */
+.cv-table {
+    width: 100%;
+    margin: 0;
+    color: var(--cv-color-text);
+    background: var(--cv-color-surface);
+    --bs-table-bg: var(--cv-color-surface);
+    --bs-table-striped-bg: transparent;
+    --bs-table-hover-bg: var(--cv-color-surface-subtle);
+}
+.cv-table > thead > tr > th,
+.cv-table > thead > tr > td,
+.cv-table th.tdatagrid_col {
+    padding: var(--cv-space-3) var(--cv-space-4);
+    background: var(--cv-color-surface-subtle) !important;
+    color: var(--cv-color-text-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--cv-color-border);
+    white-space: nowrap;
+}
+.cv-table th a,
+.cv-table th span {
+    color: inherit;
+}
+.cv-table > tbody > tr > td {
+    padding: var(--cv-space-3) var(--cv-space-4);
+    vertical-align: middle;
+    border-bottom: 1px solid var(--cv-color-border);
+}
+.cv-table > tbody > tr:hover > td {
+    background: var(--cv-color-surface-subtle);
+}
+.cv-table__check,
+.cv-table .cv-table__check {
+    width: 44px;
+    text-align: center;
+}
+.cv-table .form-check-input:checked {
+    background-color: var(--cv-color-primary);
+    border-color: var(--cv-color-primary);
+}
+.cv-table .dropdown-toggle {
+    border: 0;
+    background: transparent;
+    color: var(--cv-color-text-muted);
+    min-width: 2rem;
+}
+.cv-table .dropdown-toggle::after {
+    display: none;
+}
+.cv-table .dropdown-toggle:hover,
+.cv-table .dropdown-toggle:focus-visible {
+    background: var(--cv-color-surface-subtle);
+    color: var(--cv-color-text);
+}
+
+/* ---------- Rodapé de tabela + paginação ---------- */
+.cv-table-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cv-space-3);
+    padding: var(--cv-space-3) var(--cv-space-4);
+    color: var(--cv-color-text-muted);
+    font-size: 0.875rem;
+}
+.cv-pager .tpagenavigation,
+.cv-pager .pagination {
+    margin: 0;
+}
+.cv-pager .tpagenavigation_resume {
+    display: none;
+}
+.cv-pager .pagination {
+    --bs-pagination-color: var(--cv-color-text);
+    --bs-pagination-bg: var(--cv-color-surface);
+    --bs-pagination-border-color: var(--cv-color-border);
+    --bs-pagination-hover-color: var(--cv-color-primary-hover);
+    --bs-pagination-hover-bg: var(--cv-color-primary-soft);
+    --bs-pagination-hover-border-color: var(--cv-color-border);
+    --bs-pagination-focus-color: var(--cv-color-primary-hover);
+    --bs-pagination-focus-bg: var(--cv-color-primary-soft);
+    --bs-pagination-focus-box-shadow: 0 0 0 3px var(--cv-color-focus);
+    --bs-pagination-active-color: #ffffff;
+    --bs-pagination-active-bg: var(--cv-color-primary);
+    --bs-pagination-active-border-color: var(--cv-color-primary);
+    --bs-pagination-disabled-color: var(--cv-color-text-muted);
+    --bs-pagination-disabled-bg: var(--cv-color-surface-subtle);
+    --bs-pagination-disabled-border-color: var(--cv-color-border);
+    gap: var(--cv-space-1);
+}
+.cv-pager .page-link {
+    border-radius: var(--cv-radius-sm) !important;
+    color: var(--cv-color-text);
+}
+.cv-pager .page-item.active .page-link {
+    background: var(--cv-color-primary);
+    border-color: var(--cv-color-primary);
+    color: #ffffff;
+}
+/* TPageNavigation (framework) sempre desenha 10 itens: as páginas inexistentes
+   saem como <li class="off page-item"> sem href. A página atual ("active page-item")
+   e as setas (<li> sem classe, só quando válidas) não levam "off". */
+.tpagenavigation .pagination > li.page-item.off {
+    display: none;
+}
+
+/* ---------- Formulário ---------- */
+.cv-form.card {
+    border: 1px solid var(--cv-color-border);
+    border-radius: var(--cv-radius-md);
+    box-shadow: var(--cv-shadow-sm);
+    background: var(--cv-color-surface);
+}
+.cv-form .card-header {
+    background: var(--cv-color-surface);
+    border-bottom: 1px solid var(--cv-color-border);
+    padding: var(--cv-space-4) var(--cv-space-5);
+}
+.cv-form .card-body,
+.cv-form .panel-body {
+    padding: var(--cv-space-4) var(--cv-space-5);
+}
+/* grid só nas linhas montadas pelo CvForm (slots cv-form__slot); linhas com setLayout ficam no row do Bootstrap */
+.cv-form .tformrow:has(> .cv-form__slot) {
+    display: grid;
+    grid-template-columns: repeat(var(--cv-form-columns, 2), minmax(0, 1fr));
+    column-gap: var(--cv-space-4);
+    row-gap: var(--cv-space-1);
+    margin: 0 0 var(--cv-space-4);
+}
+/* pares [rótulo][campo]: rótulo acima do campo, um par por coluna */
+.cv-form .tformrow:has(> .cv-form__slot.control-label) {
+    grid-auto-flow: column;
+    grid-template-rows: auto auto;
+}
+/* linha de slot único (addContent, campo sozinho, rótulo numa linha e campo na outra) e
+   linha com um único par ocupam a largura toda */
+.cv-form .tformrow:has(> .cv-form__slot:only-child),
+.cv-form .tformrow:has(> .cv-form__slot.control-label:first-child + .cv-form__slot:last-child) {
+    grid-template-columns: minmax(0, 1fr);
+}
+.cv-form .cv-form__slot {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    min-height: 0 !important;
+}
+.cv-form .cv-form__slot.control-label,
+.cv-form .col-form-label {
+    padding: 0;
+    color: var(--cv-color-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: left;
+}
+.cv-form .cv-form__slot .form-control,
+.cv-form .cv-form__slot .form-select,
+.cv-form .cv-form__slot .tfield {
+    min-height: var(--cv-touch-target);
+    border-radius: var(--cv-radius-sm);
+}
+.cv-form .card-footer,
+.cv-form .panel-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--cv-space-2);
+    padding: var(--cv-space-4) var(--cv-space-5);
+    background: var(--cv-color-surface);
+    border-top: 1px solid var(--cv-color-border);
+}
+@media (max-width: 767.98px) {
+    .cv-form .tformrow:has(> .cv-form__slot),
+    .cv-form .tformrow:has(> .cv-form__slot.control-label) {
+        grid-auto-flow: row;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+    }
+}
+
+/* ---------- Wizard ---------- */
+.cv-wizard {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cv-space-2);
+    margin: 0 0 var(--cv-space-5);
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+}
+.cv-wizard__step {
+    flex: 1 1 8rem;
+    position: relative;
+}
+.cv-wizard__button {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    width: 100%;
+    min-height: var(--cv-touch-target);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    border: 1px solid var(--cv-color-border);
+    border-radius: var(--cv-radius-sm);
+    background: var(--cv-color-surface);
+    color: var(--cv-color-text-muted);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.cv-wizard__number {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--cv-color-surface-subtle);
+    border: 1px solid var(--cv-color-border);
+    font-size: 0.85rem;
+}
+.cv-wizard__step--done .cv-wizard__number {
+    background: var(--cv-color-success-soft);
+    border-color: var(--cv-color-success);
+    color: var(--cv-color-success);
+}
+.cv-wizard__step--active .cv-wizard__button {
+    border-color: var(--cv-color-primary);
+    background: var(--cv-color-primary-soft);
+    color: var(--cv-color-primary);
+}
+.cv-wizard__step--active .cv-wizard__number {
+    background: var(--cv-color-primary);
+    border-color: var(--cv-color-primary);
+    color: #ffffff;
+}

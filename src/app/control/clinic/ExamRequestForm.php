@@ -46,16 +46,7 @@ class ExamRequestForm extends TPage
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(_t('Exam request'));
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+        $container->add(CvPage::header(_t('Exam request'), null, self::backAction($encounterId)));
 
         if ($encounterId === null || $patientId === null)
         {
@@ -68,6 +59,7 @@ class ExamRequestForm extends TPage
         $this->form->setFormTitle(_t('Exam request'));
         $this->form->enableClientValidation();
 
+        // contexto (vem da URL, sem edição)
         $encounter_id = new THidden('encounter_id');
         $encounter_id->setValue($encounterId);
         $patient_id = new THidden('patient_id');
@@ -75,29 +67,45 @@ class ExamRequestForm extends TPage
 
         $exam_catalog_item_id = new TCombo('exam_catalog_item_id');
         $exam_catalog_item_id->addItems($this->loadCatalogOptions());
-        $exam_catalog_item_id->setSize('100%');
         $exam_catalog_item_id->addValidation(_t('Exam'), new TRequiredValidator);
 
-        $professional_system_user_id = new TEntry('professional_system_user_id');
-        $professional_system_user_id->setSize('100%');
+        // combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save
+        $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
         $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Professional'), new TRequiredValidator);
 
-        $this->form->add($encounter_id);
-        $this->form->add($patient_id);
+        $hiddenRow = $this->form->addFields([$encounter_id, $patient_id]);
+        $hiddenRow->style = 'display: none';
 
-        $this->form->addFields([new TLabel(_t('Encounter') . ': ' . $encounterId . ' &middot; ' . _t('Patient') . ': ' . $patientId)]);
-        $this->form->addFields([new TLabel(_t('Exam'))]);
-        $this->form->addFields([$exam_catalog_item_id]);
-        $this->form->addFields([new TLabel(_t('Professional (system user id)'))]);
-        $this->form->addFields([$professional_system_user_id]);
+        $this->form->addFields(
+            [new TLabel(_t('Exam'))], [$exam_catalog_item_id],
+            [new TLabel(_t('Professional'))], [$professional_system_user_id]
+        );
 
         $btn = $this->form->addAction(_t('Request exam'), new TAction([$this, 'onSave']), 'fa:vial');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn->class = 'btn btn-primary';
+
+        CvForm::decorate($this->form, 2);
 
         $container->add($this->form);
 
         parent::add($container);
+    }
+
+    /**
+     * Voltar ao atendimento de origem (só quando há encounter_id de contexto).
+     */
+    private static function backAction(?int $encounterId): array
+    {
+        if ($encounterId === null)
+        {
+            return [];
+        }
+
+        return [[
+            'icon' => 'fa:arrow-left',
+            'href' => 'index.php?class=EncounterView&encounter_id=' . $encounterId,
+        ]];
     }
 
     private function emptyStatePanel(): TPanelGroup
@@ -184,7 +192,8 @@ class ExamRequestForm extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Exam requested successfully') . ' (#' . $request->id() . ')');
+            TToast::show('success', _t('Exam requested successfully') . ' (#' . $request->id() . ')');
+            TScript::create("__adianti_goto_page('index.php?class=EncounterView&encounter_id={$encounterId}')");
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -259,7 +268,7 @@ class ExamRequestForm extends TPage
             new \CentralVet\Audit\PdoAuditLogWriter($connection),
         );
 
-        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context);
+        return new \CentralVet\Application\ExamService($examRequests, $examResults, $encounters, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
     }
 
     /**

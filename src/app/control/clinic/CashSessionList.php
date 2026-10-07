@@ -20,6 +20,7 @@ class CashSessionList extends TStandardList
     protected $form;     // registration form
     protected $datagrid; // listing
     protected $pageNavigation;
+    protected $footerBox;
 
     /**
      * Page constructor
@@ -42,78 +43,98 @@ class CashSessionList extends TStandardList
         $criteria->add(new TFilter('system_unit_id', '=', $tenant_context->requireUnitId()));
         parent::setCriteria($criteria);
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_CashSession');
-        $this->form->setFormTitle(_t('Cash sessions'));
+        // creates the form (sem filtros: histórico da unidade ativa)
+        $this->form = new TForm('form_search_CashSession');
 
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
 
         // creates the datagrid columns
-        $column_id            = new TDataGridColumn('id', 'Id', 'center', 50);
-        $column_opened_at     = new TDataGridColumn('opened_at', _t('Opened at'), 'center', 150);
-        $column_opening       = new TDataGridColumn('opening_balance_cents', _t('Opening balance'), 'right', 120);
-        $column_status        = new TDataGridColumn('status', _t('Status'), 'center', 100);
-        $column_closing       = new TDataGridColumn('closing_balance_cents', _t('Closing balance'), 'right', 120);
-        $column_closed_at     = new TDataGridColumn('closed_at', _t('Closed at'), 'center', 150);
+        $column_opened_at     = new TDataGridColumn('opened_at', _t('Opened at'), 'left', 150);
+        $column_opening       = new TDataGridColumn('opening_balance_cents', _t('Opening balance'), 'right', 140);
+        $column_closed_at     = new TDataGridColumn('closed_at', _t('Closed at'), 'left', 150);
+        $column_closing       = new TDataGridColumn('closing_balance_cents', _t('Closing balance'), 'right', 140);
+        $column_status        = new TDataGridColumn('status', _t('Status'), 'left', 110);
 
-        $column_opening->setTransformer(function ($value) {
-            return $value !== null ? number_format(((int) $value) / 100, 2, ',', '.') : '';
-        });
-        $column_closing->setTransformer(function ($value) {
-            return $value !== null ? number_format(((int) $value) / 100, 2, ',', '.') : '';
-        });
+        $money = function ($value) {
+            return $value !== null && $value !== '' ? CvFormat::e(CvFormat::money((int) $value)) : '—';
+        };
+        $date = function ($value) {
+            if ($value === null || $value === '')
+            {
+                return '—';
+            }
+            $time = strtotime((string) $value);
+            return CvFormat::e($time !== false ? date('d/m/Y H:i', $time) : (string) $value);
+        };
+
+        $column_opening->setTransformer($money);
+        $column_closing->setTransformer($money);
+        $column_opened_at->setTransformer($date);
+        $column_closed_at->setTransformer($date);
         $column_status->setTransformer(function ($value) {
-            return $value === 'open' ? _t('Open') : _t('Closed');
+            return $value === 'open'
+                ? CvBadge::create(_t('Open (status)'), 'success')
+                : CvBadge::create(_t('Closed'), 'neutral');
         });
 
         // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
         $this->datagrid->addColumn($column_opened_at);
         $this->datagrid->addColumn($column_opening);
-        $this->datagrid->addColumn($column_status);
-        $this->datagrid->addColumn($column_closing);
         $this->datagrid->addColumn($column_closed_at);
+        $this->datagrid->addColumn($column_closing);
+        $this->datagrid->addColumn($column_status);
 
         // create the datagrid model
         $this->datagrid->createModel();
 
         // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
         $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
+        $this->footerBox = new TElement('div');
 
-        $panel->addHeaderActionLink(_t('Cash session'), new TAction(['CashSessionForm', 'onReload']), 'fa:cash-register');
-
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Cash sessions'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
-
-        // vertical box container
+        // No TXMLBreadCrumb: o cabeçalho do kit substitui a trilha e a tela
+        // não quebra quando o menu.xml é reorganizado.
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
-        $container->add($page_header);
-        $container->add($panel);
+        $container->add(CvPage::header(_t('Cash sessions'), _t('Financial'), [
+            ['label' => _t('Cash session'), 'href' => 'index.php?class=CashSessionForm', 'icon' => 'fa:cash-register', 'class' => 'btn btn-primary'],
+        ]));
+        $container->add(CvNav::tabs('finance', 'cashflow'));
+        $container->add($this->datagrid);
+        $container->add($this->footerBox);
 
         parent::add($container);
+    }
+
+    /**
+     * Carregamento padrão do TStandardList (CashSession + critério de
+     * tenant/unidade) seguido do rodapé "Mostrando X–Y de N".
+     */
+    public function onReload($param = NULL)
+    {
+        $objects = parent::onReload($param);
+
+        if ($this->loaded)
+        {
+            $offset = is_array($param) && isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+            $shown  = is_array($objects) ? count($objects) : 0;
+
+            $this->footerBox->clearChildren();
+            $this->footerBox->add(CvDatagrid::footer(
+                $this->pageNavigation,
+                $offset + 1,
+                $offset + $shown,
+                (int) $this->pageNavigation->getCount(),
+                _t('sessions')
+            ));
+        }
+
+        return $objects;
     }
 
     /**

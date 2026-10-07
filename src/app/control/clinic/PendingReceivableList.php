@@ -37,6 +37,7 @@ class PendingReceivableList extends TStandardList
     protected $form;     // registration form
     protected $datagrid; // listing
     protected $pageNavigation;
+    protected $footerBox;
 
     /**
      * Page constructor
@@ -54,122 +55,89 @@ class PendingReceivableList extends TStandardList
         parent::addFilterField('tutor_name', 'like', 'tutor_name'); // filterField, operator, formField
         parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
+        // barra de filtros em linha (busca por tutor), no lugar da cortina
+        $this->form = new TForm('form_search_Receivable');
 
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_Receivable');
-        $this->form->setFormTitle(_t('Open receivables'));
-
-        // create the form fields
         $tutor_name = new TEntry('tutor_name');
-
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Tutor'))] );
-        $this->form->addFields( [$tutor_name] );
-
+        $tutor_name->placeholder = _t('Tutor');
         $tutor_name->setSize('100%');
+
+        $find = new TButton('find');
+        $find->setAction(new TAction([$this, 'onSearch']), _t('Find'));
+        $find->setImage('fa:search');
+        $find->{'class'} = 'btn btn-primary';
+
+        $this->form->add(CvPage::filterBar([$tutor_name, $find]));
+        $this->form->setFields([$tutor_name, $find]);
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue('Receivable_filter_data') );
 
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
         // creates a DataGrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick();
 
         // row action: receive a payment for this receivable. PaymentForm is
         // a plain TPage (not a TStandardForm), so it has no onEdit() of its
         // own — only its constructor reads receivable_id back from
         // $_GET/$param. A TDataGridAction (which extends TAction) requires a
         // real class+method callback validated via method_exists(); even a
-        // real inherited method like TPage::show() is unsafe here, because
-        // AdiantiCoreApplication::run() already calls show() once for a bare
-        // navigation, and TPage::show() itself calls $this->run()
-        // (AdiantiPageControlTrait), which re-reads $_GET['method'] and,
-        // since class === get_class($this), invokes that very same method
-        // again — 'show' calling itself forever (confirmed via a real
-        // browser click: "Maximum call stack size... Infinite recursion?").
-        // The safe, already-proven pattern in this codebase for linking to a
-        // plain TPage with a querystring parameter is a raw <a href> (see
-        // EncounterAccountForm::onClose()'s link to PaymentForm), which never
-        // sends a `method=` parameter at all.
-        $column_action = new TDataGridColumn('id', _t('Receive payment'), 'center', 40);
+        // real inherited method like TPage::show() is unsafe here (infinite
+        // recursion through AdiantiPageControlTrait::run()), so the action
+        // stays a raw <a href> without `method=` — rendered as a button in
+        // the last column instead of the "…" menu.
+        $column_action = new TDataGridColumn('id', '', 'right', 150);
         $column_action->setTransformer(function ($value) {
             $url = 'index.php?class=PaymentForm&receivable_id=' . (int) $value;
-            return '<a href="' . $url . '" title="' . _t('Receive payment') . '"><i class="fa fa-money-bill-wave text-success"></i></a>';
+            return '<a href="' . CvFormat::e($url) . '" generator="adianti" class="btn btn-default btn-sm" title="' . CvFormat::e(_t('Receive payment')) . '">'
+                 . '<i class="fa fa-money-bill-wave text-success" aria-hidden="true"></i> ' . CvFormat::e(_t('Receive payment')) . '</a>';
         });
-        $column_action->disableHtmlConversion();
 
         // creates the datagrid columns
-        $column_id           = new TDataGridColumn('id', 'Id', 'center', 50);
         $column_tutor        = new TDataGridColumn('tutor_name', _t('Tutor'), 'left');
-        $column_total        = new TDataGridColumn('total_label', _t('Total'), 'right', 110);
-        $column_paid         = new TDataGridColumn('paid_label', _t('Paid'), 'right', 110);
-        $column_status       = new TDataGridColumn('status_label', _t('Status'), 'center', 100);
+        $column_total        = new TDataGridColumn('total_cents', _t('Total'), 'right', 130);
+        $column_paid         = new TDataGridColumn('paid_cents', _t('Paid'), 'right', 130);
+        $column_status       = new TDataGridColumn('status', _t('Status'), 'left', 130);
+
+        foreach ([$column_total, $column_paid] as $column)
+        {
+            $column->setTransformer(function ($value) {
+                return CvFormat::e(CvFormat::money((int) $value));
+            });
+        }
+        $column_status->setTransformer(function ($value) {
+            return $value === \CentralVet\Domain\Receivable::STATUS_PARTIALLY_PAID
+                ? CvBadge::create(_t('Partially paid'), 'warning')
+                : CvBadge::create(_t('Open (status)'), 'info');
+        });
 
         // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_action);
-        $this->datagrid->addColumn($column_id);
         $this->datagrid->addColumn($column_tutor);
         $this->datagrid->addColumn($column_total);
         $this->datagrid->addColumn($column_paid);
         $this->datagrid->addColumn($column_status);
+        $this->datagrid->addColumn($column_action);
 
         // create the datagrid model
         $this->datagrid->createModel();
 
         // create the page navigation
         $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
         $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
-
-        $btnf = TButton::create('find', [$this, 'onSearch'], '', 'fa:search');
-        $btnf->style = 'height: 37px; margin-right:4px;';
-
-        $form_search = new TForm('form_search_tutor_name');
-        $form_search->style = 'float:left;display:flex';
-        $form_search->add($tutor_name, true);
-        $form_search->add($btnf, true);
-
-        $panel->addHeaderWidget($form_search);
-
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
-
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-
-        // page header (design system: .cv-page-header / .cv-page-title,
-        // mirrors src/design-system.html)
-        $page_header = new TElement('header');
-        $page_header->class = 'cv-page-header';
-
-        $page_header_content = new TElement('div');
-
-        $page_header_title = new TElement('h1');
-        $page_header_title->class = 'cv-page-title';
-        $page_header_title->add(_t('Open receivables'));
-
-        $page_header_content->add($page_header_title);
-        $page_header->add($page_header_content);
+        $this->footerBox = new TElement('div');
 
         // vertical box container
         // No TXMLBreadCrumb here on purpose — see class docblock.
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($page_header);
-        $container->add($panel);
+        $container->add(CvPage::header(_t('Open receivables'), _t('Financial')));
+        $container->add(CvNav::tabs('finance', 'receivables'));
+        $container->add($this->form);
+        $container->add($this->datagrid);
+        $container->add($this->footerBox);
 
         parent::add($container);
     }
@@ -222,12 +190,9 @@ class PendingReceivableList extends TStandardList
                 $row = new stdClass;
                 $row->id           = $receivable->id();
                 $row->tutor_name   = $tutor_name;
-                $row->total_label  = number_format($receivable->totalCents() / 100, 2, ',', '.');
-                $row->paid_label   = number_format($receivable->paidCents() / 100, 2, ',', '.');
+                $row->total_cents  = $receivable->totalCents();
+                $row->paid_cents   = $receivable->paidCents();
                 $row->status       = $receivable->status();
-                $row->status_label = $receivable->status() === \CentralVet\Domain\Receivable::STATUS_PARTIALLY_PAID
-                    ? _t('Partially paid')
-                    : _t('Open (status)');
 
                 $rows[] = $row;
             }
@@ -237,7 +202,7 @@ class PendingReceivableList extends TStandardList
             // semantics)
             $count = count($rows);
 
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
+            $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
             $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
 
             $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
@@ -248,12 +213,18 @@ class PendingReceivableList extends TStandardList
                 $this->datagrid->addItem($row);
             }
 
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
+            $this->pageNavigation->setCount($count); // count of records
+            $this->pageNavigation->setProperties($param); // order, page
+            $this->pageNavigation->setLimit($limit); // limit
+
+            $this->footerBox->clearChildren();
+            $this->footerBox->add(CvDatagrid::footer(
+                $this->pageNavigation,
+                $offset + 1,
+                $offset + count($page_rows),
+                $count,
+                _t('accounts')
+            ));
 
             // close the transaction
             TTransaction::close();
@@ -283,67 +254,10 @@ class PendingReceivableList extends TStandardList
     /**
      *
      */
-    public function onAfterSearch($datagrid, $options)
-    {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
-        }
-
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            $obj = new stdClass;
-            $obj->tutor_name = TSession::getValue(get_class($this).'_filter_data')->tutor_name;
-            TForm::sendData('form_search_tutor_name', $obj);
-        }
-    }
-
-    /**
-     *
-     */
     public static function onChangeLimit($param)
     {
         TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
         AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
-        }
-        catch (Exception $e)
-        {
-            new TMessage('error', $e->getMessage());
-        }
     }
 
     /**

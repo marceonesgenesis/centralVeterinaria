@@ -14,6 +14,7 @@ use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Contract\ProcedureExecutionRepositoryInterface;
 use CentralVet\Domain\Contract\ReceivableRepositoryInterface;
 use CentralVet\Domain\Contract\EncounterRepositoryInterface;
+use CentralVet\Domain\Contract\TenantUserDirectoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccount;
 use CentralVet\Domain\EncounterAccountItem;
@@ -93,6 +94,7 @@ final class EncounterAccountService
         private readonly ExamCatalogRepositoryInterface $examCatalog,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TenantUserDirectoryInterface $tenantUsers,
     ) {
     }
 
@@ -326,6 +328,16 @@ final class EncounterAccountService
         int $authorizedBySystemUserId,
         string $action,
     ): EncounterAccount {
+        // T-25: the authorizer comes from caller input (the form combo can be
+        // bypassed by a tampered POST), so it must resolve to an active user
+        // of the authenticated tenant before anything is loaded or saved.
+        // Ids <= 0 fall through to the domain's InvalidArgumentException.
+        if ($authorizedBySystemUserId > 0 && !$this->tenantUsers->isActiveMember($authorizedBySystemUserId)) {
+            throw new CrossTenantReferenceException(
+                "authorized_by_system_user_id {$authorizedBySystemUserId} was not found for the authenticated tenant"
+            );
+        }
+
         $account = $this->requireAccount($accountId, $action);
 
         $itemsSumCents = $this->sumItemsCents($accountId);

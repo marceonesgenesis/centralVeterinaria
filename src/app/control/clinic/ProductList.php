@@ -1,336 +1,424 @@
 <?php
 /**
- * ProductList
+ * ProductList — "Estoque e Vendas" (Fase 10, T-10).
  *
- * Listing screen for the product catalog (T-07). Mirrors ServiceList
- * (Fase 1) / VaccineCatalogList (T-08): this listing has no data-access
- * logic of its own — onReload() is overridden to source every row from
- * CentralVet\Application\ProductService::listActive() (T-03) — the
- * Persistence layer (CentralVet\Persistence\ProductRepository) is never
- * touched from here.
+ * Presentation-only screen over CentralVet\Application\StockSalesOverviewService
+ * (T-04): KPI cards, stock tabs, filter bar (search/category/status), product
+ * table with stock status badges and a side column with recent sales and
+ * low-stock products. Every figure comes from the service; tenant scoping lives
+ * in StockSalesOverviewReader, never here.
  *
- * There is no Edit/Delete row action: ProductService only exposes
- * create()/listActive()/findById() for now, so offering edit/delete here
- * would force this controller to bypass the Application service and hit
- * Persistence/Domain directly, which is out of scope for this task.
+ * Filters travel as request parameters (GET or POST): search, category,
+ * status (normal|low|out).
  *
- * The "Batch" row action opens StockBatchForm filtered by product_id, same
- * technique used by VaccineCatalogList's "Protocol" row action targeting
- * VaccineProtocolForm.
+ * No sale price / product code column: the schema has neither (plan ruling).
  *
- * PENDING: depends on the `product` table created by the not-yet-applied
- * migration src/app/database/migrations/20260924_0005_phase4_procedure_stock_sale.sql
- * (T-01). Validated only with `php -l` / `new ProductList()` (no fatal
- * error) until that migration is applied.
- *
- * @version    1.0
+ * @version    2.0
  * @package    control
  * @subpackage clinic
  */
-class ProductList extends TStandardList
+class ProductList extends TPage
 {
-    protected $form;     // registration form
-    protected $datagrid; // listing
-    protected $pageNavigation;
+    private const LIMIT = 10;
+    private const STATUSES = ['normal', 'low', 'out', 'attention'];
 
-    /**
-     * Page constructor
-     */
-    public function __construct()
+    protected $datagrid;
+    protected $pageNavigation;
+    protected $filterForm;
+    protected $footerSlot;
+    protected $loaded = false;
+    private bool $tenantErrorShown = false;
+
+    private array $filters = ['search' => null, 'category' => null, 'status' => null];
+    private ?\CentralVet\Application\StockSalesOverviewService $service = null;
+
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        // 'Product' is only used here as the session-key namespace for the
-        // filter form (see AdiantiStandardCollectionTrait::onSearch()); the
-        // actual listing never queries the `product` table through it.
-        parent::setActiveRecord('Product');
-        parent::setDefaultOrder('name', 'asc');
-        parent::addFilterField('name', 'like', 'name'); // filterField, operator, formField
-        parent::setLimit(TSession::getValue(__CLASS__ . '_limit') ?? 10);
+        $this->filters = self::readFilters(is_array($param) ? $param : []);
 
-        parent::setAfterSearchCallback( [$this, 'onAfterSearch' ] );
-
-        // creates the form
-        $this->form = new BootstrapFormBuilder('form_search_Product');
-        $this->form->setFormTitle(_t('Products'));
-
-        // create the form fields
-        $name = new TEntry('name');
-
-        // add the fields
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-
-        $name->setSize('100%');
-
-        // keep the form filled during navigation with session data
-        $this->form->setData( TSession::getValue('Product_filter_data') );
-
-        // add the search form actions
-        $btn = $this->form->addAction(_t('Find'), new TAction(array($this, 'onSearch')), 'fa:search');
-        $btn->class = 'btn btn-sm btn-primary';
-
-        // creates a DataGrid
-        $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
-
-        // creates the datagrid columns
-        $column_id       = new TDataGridColumn('id', 'Id', 'center', 50);
-        $column_name     = new TDataGridColumn('name', _t('Name'), 'left');
-        $column_category = new TDataGridColumn('category', _t('Category'), 'left');
-        $column_unit     = new TDataGridColumn('unit_of_measure', _t('Unit'), 'center', 90);
-        $column_cost     = new TDataGridColumn('unit_cost', _t('Unit cost'), 'right', 110);
-        $column_minimum  = new TDataGridColumn('minimum_stock_quantity', _t('Minimum stock'), 'center', 110);
-        $column_status   = new TDataGridColumn('status_label', _t('Status'), 'center', 100);
-
-        // add the columns to the DataGrid
-        $this->datagrid->addColumn($column_id);
-        $this->datagrid->addColumn($column_name);
-        $this->datagrid->addColumn($column_category);
-        $this->datagrid->addColumn($column_unit);
-        $this->datagrid->addColumn($column_cost);
-        $this->datagrid->addColumn($column_minimum);
-        $this->datagrid->addColumn($column_status);
-
-        // row action: receive a new stock batch for this product
-        $action_batch = new TDataGridAction(['StockBatchForm', 'onEdit'], ['product_id' => '{id}', 'register_state' => 'false']);
-        $action_batch->setLabel(_t('Batch'));
-        $action_batch->setImage('fa:boxes blue');
-        $this->datagrid->addAction($action_batch);
-
-        // create the datagrid model
-        $this->datagrid->createModel();
-
-        // create the page navigation
-        $this->pageNavigation = new TPageNavigation;
-        $this->pageNavigation->enableCounters();
-        $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
-        $this->pageNavigation->setWidth($this->datagrid->getWidth());
-
-        $panel = new TPanelGroup;
-        $panel->add($this->datagrid);
-        $panel->addFooter($this->pageNavigation);
-
-        $btnf = TButton::create('find', [$this, 'onSearch'], '', 'fa:search');
-        $btnf->style = 'height: 37px; margin-right:4px;';
-
-        $form_search = new TForm('form_search_name');
-        $form_search->style = 'float:left;display:flex';
-        $form_search->add($name, true);
-        $form_search->add($btnf, true);
-
-        $panel->addHeaderWidget($form_search);
-
-        $panel->addHeaderActionLink('', new TAction(['ProductForm', 'onEdit'], ['register_state' => 'false']), 'fa:plus');
-        $this->filter_label = $panel->addHeaderActionLink(_t('Filters'), new TAction([$this, 'onShowCurtainFilters']), 'fa:filter');
-
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-04)
-        $header = new TElement('header');
-        $header->class = 'cv-page-header';
-
-        $header_text = new TElement('div');
-        $header_title = new TElement('h1');
-        $header_title->class = 'cv-page-title';
-        $header_title->add(_t('Products'));
-        $header_text->add($header_title);
-
-        $header->add($header_text);
-
-        // vertical box container
-        $container = new TVBox;
-        $container->style = 'width: 100%';
-        $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
-        $container->add($header);
-        $container->add($panel);
-
-        parent::add($container);
-    }
-
-    /**
-     * method onReload()
-     * Loads the datagrid exclusively from
-     * CentralVet\Application\ProductService::listActive() — the tenant
-     * scoping happens inside that service/repository, never here.
-     */
-    public function onReload($param = NULL)
-    {
-        if (!isset($this->datagrid))
-        {
-            return;
-        }
+        $summary    = ['products_in_stock' => 0, 'low_stock' => 0, 'out_of_stock' => 0, 'sales_month_cents' => 0, 'sales_prev_month_cents' => 0, 'items_sold_month' => 0, 'items_sold_prev_month' => 0];
+        $categories = [];
+        $recent     = [];
+        $low        = [];
 
         try
         {
-            // open a transaction with database
             TTransaction::open('permission');
-
-            $tenant_context = self::resolveTenantContext();
-
-            $service = self::buildProductService($tenant_context);
-
-            // every row this listing can ever show comes from this call
-            $products = $service->listActive($tenant_context->tenantId());
-
-            $name_filter = TSession::getValue('Product_filter_name');
-            $name_filter = !empty($name_filter) ? mb_strtolower((string) $name_filter) : null;
-
-            $rows = [];
-            foreach ($products as $product)
-            {
-                if ($name_filter !== null && mb_strpos(mb_strtolower($product->name()), $name_filter) === false)
-                {
-                    continue;
-                }
-
-                $row = new stdClass;
-                $row->id                      = $product->id();
-                $row->name                    = $product->name();
-                $row->category                = $product->category();
-                $row->unit_of_measure         = $product->unitOfMeasure();
-                $row->unit_cost                = number_format($product->unitCostCents() / 100, 2, ',', '.');
-                $row->minimum_stock_quantity  = $product->minimumStockQuantity();
-                $row->status_label            = $product->isActive() ? _t('Active') : _t('Inactive');
-
-                $rows[] = $row;
-            }
-
-            // total count for this tenant, as returned by listActive()
-            // (after the optional name filter, mirroring TStandardList's
-            // own filtered-count semantics)
-            $count = count($rows);
-
-            $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
-            $limit  = isset($this->limit) ? ( $this->limit > 0 ? $this->limit : NULL) : 10;
-
-            $page_rows = $limit ? array_slice($rows, $offset, $limit) : $rows;
-
-            $this->datagrid->clear();
-            foreach ($page_rows as $row)
-            {
-                $this->datagrid->addItem($row);
-            }
-
-            if (isset($this->pageNavigation))
-            {
-                $this->pageNavigation->setCount($count); // count of records
-                $this->pageNavigation->setProperties($param); // order, page
-                $this->pageNavigation->setLimit($limit); // limit
-            }
-
-            // close the transaction
+            $service    = $this->service();
+            $summary    = $service->summary(new DateTimeImmutable('now'));
+            $categories = $service->categories();
+            $recent     = $service->recentSales(5);
+            $low        = $service->lowStock(5);
             TTransaction::close();
-            $this->loaded = true;
-
-            return $rows;
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            $this->tenantErrorShown = true;
             new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
-        }
-        catch (Exception $e) // in case of exception
-        {
-            // shows the exception error message
-            new TMessage('error', $e->getMessage());
-            // undo all pending operations
-            TTransaction::rollback();
-        }
-    }
-
-    /**
-     *
-     */
-    public function onAfterSearch($datagrid, $options)
-    {
-        if (TSession::getValue(get_class($this).'_filter_counter') > 0)
-        {
-            $this->filter_label->class = 'btn btn-primary';
-            $this->filter_label->setLabel(_t('Filters') . ' ('. TSession::getValue(get_class($this).'_filter_counter').')');
-        }
-        else
-        {
-            $this->filter_label->class = 'btn btn-default';
-            $this->filter_label->setLabel(_t('Filters'));
-        }
-
-        if (!empty(TSession::getValue(get_class($this).'_filter_data')))
-        {
-            $obj = new stdClass;
-            $obj->name = TSession::getValue(get_class($this).'_filter_data')->name;
-            TForm::sendData('form_search_name', $obj);
-        }
-    }
-
-    /**
-     *
-     */
-    public static function onChangeLimit($param)
-    {
-        TSession::setValue(__CLASS__ . '_limit', $param['limit'] );
-        AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
-    }
-
-    /**
-     *
-     */
-    public static function onShowCurtainFilters($param = null)
-    {
-        try
-        {
-            // create empty page for right panel
-            $page = new TPage;
-            $page->setTargetContainer('adianti_right_panel');
-            $page->setProperty('override', 'true');
-            $page->setPageName(__CLASS__);
-
-            $btn_close = new TButton('closeCurtain');
-            $btn_close->onClick = "Template.closeRightPanel();";
-            $btn_close->setLabel(_t('Close'));
-            $btn_close->setImage('fas:times red');
-
-            // instantiate self class, populate filters in construct
-            $embed = new self;
-            $embed->form->addHeaderWidget($btn_close);
-
-            // embed form inside curtain
-            $page->add($embed->form);
-            $page->setIsWrapped(true);
-            $page->show();
         }
         catch (Exception $e)
         {
+            TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+
+        $page = new TElement('div');
+        $page->{'class'} = 'cv-page';
+
+        $page->add(CvPage::header(_t('Stock and sales'), null, [
+            ['label' => _t('New product'), 'href' => 'index.php?class=ProductForm', 'icon' => 'fa:plus', 'class' => 'btn btn-primary'],
+        ]));
+
+        $page->add(self::kpiRow($summary));
+        $page->add(CvNav::tabs('stock', 'products'));
+
+        $main = new TElement('div');
+        $main->add($this->buildFilterForm($categories));
+        $main->add($this->buildDatagrid());
+
+        $page->add(CvPage::columns($main, self::sideColumn($recent, $low)));
+
+        parent::add($page);
     }
 
     /**
-     * Builds CentralVet\Application\ProductService with its dependencies.
-     * Requires an already-open TTransaction('permission') connection.
+     * Loads the product table (filters + pagination) from StockSalesOverviewService::products().
      */
-    private static function buildProductService(\CentralVet\Tenancy\TenantContext $tenant_context)
+    public function onReload($param = null)
     {
-        $connection = TTransaction::get();
+        $param = is_array($param) ? $param : [];
+        $this->filters = self::readFilters($param);
 
-        $repository = new \CentralVet\Persistence\ProductRepository($tenant_context, $connection);
+        try
+        {
+            TTransaction::open('permission');
+            // 'attention' is a filter, not a row status: low + out (same set as the low-stock card).
+            $attention = $this->filters['status'] === 'attention';
+            $rows = $this->service()->products($this->filters['search'], $this->filters['category'], $attention ? null : $this->filters['status']);
+            if ($attention)
+            {
+                $rows = array_values(array_filter($rows, static fn (array $row): bool => in_array($row['status'], ['low', 'out'], true)));
+            }
+            TTransaction::close();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            if (!$this->tenantErrorShown)
+            {
+                $this->tenantErrorShown = true;
+                new TMessage('error', _t('Your session does not have an active tenant. Please log in again'));
+            }
+            return;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+            return;
+        }
 
-        return new \CentralVet\Application\ProductService($repository, $tenant_context);
+        $total  = count($rows);
+        $offset = isset($param['offset']) ? max(0, (int) $param['offset']) : 0;
+        if ($offset >= $total)
+        {
+            $offset = 0;
+        }
+        $page_rows = array_slice($rows, $offset, self::LIMIT);
+
+        $this->datagrid->clear();
+        foreach ($page_rows as $product)
+        {
+            $row = new stdClass;
+            $row->id                     = $product['id'];
+            $row->name                   = $product['name'];
+            $row->unit                   = $product['unit'];
+            $row->category               = $product['category'];
+            $row->stock_quantity         = $product['stock_quantity'];
+            $row->minimum_stock_quantity = $product['minimum_stock_quantity'];
+            $row->status                 = $product['status'];
+            $this->datagrid->addItem($row);
+        }
+
+        $navigation_param = array_filter($this->filters, static fn ($value) => $value !== null);
+        $this->pageNavigation->setAction(new TAction([$this, 'onReload'], $navigation_param));
+        $this->pageNavigation->setCount($total);
+        $this->pageNavigation->setProperties(['offset' => $offset, 'page' => intdiv($offset, self::LIMIT) + 1] + $param);
+        $this->pageNavigation->setLimit(self::LIMIT);
+
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to   = $offset + count($page_rows);
+        $this->footerSlot->add(CvDatagrid::footer($this->pageNavigation, $from, $to, $total, mb_strtolower(_t('Products'), 'UTF-8')));
+
+        $this->loaded = true;
+    }
+
+    public function show()
+    {
+        if (!$this->loaded && (!isset($_REQUEST['method']) || $_REQUEST['method'] !== 'onReload'))
+        {
+            $this->onReload($_REQUEST);
+        }
+
+        parent::show();
+    }
+
+    private function buildFilterForm(array $categories): TForm
+    {
+        $this->filterForm = new TForm('form_ProductList_filter');
+
+        $search = new TEntry('search');
+        $search->placeholder = _t('Search');
+        $search->setSize('100%');
+        $search->setValue($this->filters['search'] ?? '');
+
+        $category = new TCombo('category');
+        $category->setDefaultOption(_t('Category'));
+        $category->addItems(array_combine($categories, $categories) ?: []);
+        $category->setSize('100%');
+        $category->setValue($this->filters['category'] ?? '');
+
+        $status = new TCombo('status');
+        $status->setDefaultOption(_t('Status'));
+        $status->addItems(self::statusLabels());
+        $status->setSize('100%');
+        $status->setValue($this->filters['status'] ?? '');
+
+        $button = new TButton('find');
+        $button->setAction(new TAction([$this, 'onReload']), _t('Search'));
+        $button->setImage('fa:search');
+        $button->class = 'btn btn-primary';
+
+        $this->filterForm->add(CvPage::filterBar([$search, $category, $status, $button]));
+        $this->filterForm->setFields([$search, $category, $status, $button]);
+
+        return $this->filterForm;
+    }
+
+    private function buildDatagrid(): TElement
+    {
+        $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
+        CvDatagrid::decorate($this->datagrid);
+        $this->datagrid->disableDefaultClick(); // row click would hijack the checkbox
+
+        $column_name     = new TDataGridColumn('name', _t('Product'), 'left');
+        $column_category = new TDataGridColumn('category', _t('Category'), 'left');
+        $column_stock    = new TDataGridColumn('stock_quantity', _t('Current stock'), 'right');
+        $column_minimum  = new TDataGridColumn('minimum_stock_quantity', _t('Minimum stock'), 'right');
+        $column_status   = new TDataGridColumn('status', _t('Status'), 'center');
+
+        $column_name->setTransformer(function ($value, $object) {
+            $cell = new TElement('div');
+            $cell->{'class'} = 'd-flex align-items-center gap-2';
+            $cell->add(CvAvatar::placeholder((string) $value));
+
+            $text = new TElement('div');
+            $text->add(TElement::tag('div', CvFormat::e((string) $value), ['class' => 'fw-semibold']));
+            if (!empty($object->unit))
+            {
+                $text->add(TElement::tag('div', CvFormat::e((string) $object->unit), ['class' => 'small text-muted']));
+            }
+            $cell->add($text);
+
+            return $cell;
+        });
+
+        $column_category->setTransformer(fn ($value) => CvFormat::e((string) $value));
+        $column_stock->setTransformer(fn ($value, $object) => CvFormat::e(self::quantity((float) $value, $object->unit ?? null)));
+        $column_minimum->setTransformer(fn ($value, $object) => CvFormat::e(self::quantity((float) $value, $object->unit ?? null)));
+        $column_status->setTransformer(fn ($value) => self::statusBadge((string) $value));
+
+        $this->datagrid->addColumn($column_name);
+        $this->datagrid->addColumn($column_category);
+        $this->datagrid->addColumn($column_stock);
+        $this->datagrid->addColumn($column_minimum);
+        $this->datagrid->addColumn($column_status);
+
+        $action_edit = new TDataGridAction(['ProductForm', 'onEdit'], ['id' => '{id}']);
+        $action_batch = new TDataGridAction(['StockBatchForm', 'onEdit'], ['product_id' => '{id}']);
+
+        $this->datagrid->addActionGroup(CvDatagrid::actionMenu([
+            ['label' => _t('Edit'), 'action' => $action_edit, 'icon' => 'far:edit'],
+            ['label' => _t('Stock batch entry'), 'action' => $action_batch, 'icon' => 'fa:boxes'],
+        ]));
+
+        $this->datagrid->createModel();
+
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction([$this, 'onReload']));
+
+        $this->footerSlot = new TElement('div');
+
+        $card = new TElement('section');
+        $card->{'class'} = 'cv-card';
+        $body = new TElement('div');
+        $body->{'class'} = 'cv-card__body';
+        $body->add($this->datagrid);
+        $body->add($this->footerSlot);
+        $card->add($body);
+
+        return $card;
+    }
+
+    private static function kpiRow(array $summary): TElement
+    {
+        $row = new TElement('div');
+        $row->{'class'} = 'cv-kpi-row';
+
+        $row->add(CvKpiCard::create('fa:boxes', 'info', (string) $summary['products_in_stock'], _t('Products in stock')));
+        $row->add(CvKpiCard::create('fa:exclamation-triangle', 'warning', (string) $summary['low_stock'], _t('Low stock products')));
+        $row->add(CvKpiCard::create(
+            'fa:dollar-sign',
+            'success',
+            CvFormat::money((int) $summary['sales_month_cents']),
+            _t('Sales this month'),
+            CvFormat::delta((int) $summary['sales_month_cents'], (int) $summary['sales_prev_month_cents'])
+        ));
+        $row->add(CvKpiCard::create(
+            'fa:shopping-cart',
+            'info',
+            (string) $summary['items_sold_month'],
+            _t('Items sold'),
+            CvFormat::delta((int) $summary['items_sold_month'], (int) $summary['items_sold_prev_month'])
+        ));
+
+        return $row;
+    }
+
+    private static function sideColumn(array $recent, array $low): TElement
+    {
+        $side = new TElement('div');
+
+        $sales = new TElement('ul');
+        $sales->{'class'} = 'list-unstyled mb-0';
+        foreach ($recent as $sale)
+        {
+            $who = $sale['patient_name'] ?? null;
+
+            $item = new TElement('li');
+            $item->{'class'} = 'd-flex align-items-center gap-2 py-2 border-bottom';
+            $item->add(CvAvatar::placeholder($who ?? (string) $sale['items_label']));
+
+            $text = new TElement('div');
+            $text->{'class'} = 'flex-grow-1 text-truncate';
+            $text->add(TElement::tag('div', CvFormat::e((string) $sale['items_label']), ['class' => 'fw-semibold text-truncate']));
+            $meta = self::dateTime((string) $sale['sold_at']);
+            if ($who !== null && $who !== '')
+            {
+                $meta = $who . ' · ' . $meta;
+            }
+            $text->add(TElement::tag('div', CvFormat::e($meta), ['class' => 'small text-muted text-truncate']));
+            $item->add($text);
+
+            $item->add(TElement::tag('div', CvFormat::e(CvFormat::money((int) $sale['total_cents'])), ['class' => 'fw-semibold text-nowrap']));
+            $sales->add($item);
+        }
+        if (!$recent)
+        {
+            $sales->add(TElement::tag('li', CvFormat::e(_t('No recent sales')), ['class' => 'text-muted py-2']));
+        }
+        $side->add(CvCard::create(_t('Recent sales'), $sales));
+
+        $stock = new TElement('ul');
+        $stock->{'class'} = 'list-unstyled mb-0';
+        foreach ($low as $product)
+        {
+            $item = new TElement('li');
+            $item->{'class'} = 'd-flex align-items-center gap-2 py-2 border-bottom';
+            $item->add(CvAvatar::placeholder((string) $product['name']));
+
+            $text = new TElement('div');
+            $text->{'class'} = 'flex-grow-1 text-truncate';
+            $text->add(TElement::tag('div', CvFormat::e((string) $product['name']), ['class' => 'fw-semibold text-truncate']));
+            $text->add(TElement::tag('div', CvFormat::e(
+                self::quantity((float) $product['stock_quantity'], $product['unit']) . ' / ' . _t('Minimum stock') . ': '
+                . self::quantity((float) $product['minimum_stock_quantity'], $product['unit'])
+            ), ['class' => 'small text-muted text-truncate']));
+            $item->add($text);
+
+            $item->add(self::statusBadge((string) $product['status']));
+            $stock->add($item);
+        }
+        if (!$low)
+        {
+            $stock->add(TElement::tag('li', CvFormat::e(_t('No low stock products')), ['class' => 'text-muted py-2']));
+        }
+        $side->add(CvCard::create(_t('Low stock products'), $stock, _t('View all'), 'index.php?class=ProductList&status=attention'));
+
+        return $side;
+    }
+
+    private static function statusLabels(): array
+    {
+        return [
+            'normal' => _t('Normal'),
+            'low'    => _t('Low stock'),
+            'out'    => _t('Out of stock'),
+            'attention' => _t('Low or out of stock'),
+        ];
+    }
+
+    private static function statusBadge(string $status): TElement
+    {
+        $tones = ['normal' => 'success', 'low' => 'warning', 'out' => 'danger'];
+        $labels = self::statusLabels();
+
+        return CvBadge::create($labels[$status] ?? $status, $tones[$status] ?? 'neutral');
+    }
+
+    private static function quantity(float $value, ?string $unit): string
+    {
+        $text = rtrim(rtrim(number_format($value, 3, ',', '.'), '0'), ',');
+
+        return $unit !== null && $unit !== '' ? $text . ' ' . $unit : $text;
+    }
+
+    private static function dateTime(string $value): string
+    {
+        $time = strtotime($value);
+
+        return $time ? date('d/m/Y H:i', $time) : $value;
+    }
+
+    private static function readFilters(array $param): array
+    {
+        $text = static function ($value): ?string {
+            $value = is_string($value) ? trim($value) : '';
+            return $value === '' ? null : $value;
+        };
+
+        $status = $text($param['status'] ?? null);
+
+        return [
+            'search'   => $text($param['search'] ?? null),
+            'category' => $text($param['category'] ?? null),
+            'status'   => in_array($status, self::STATUSES, true) ? $status : null,
+        ];
     }
 
     /**
-     * Resolves the tenant context of the authenticated session (T-03).
-     * Falls back to the tenant_user membership table for legacy sessions
-     * created before this task, since TSession does not carry 'tenantid'
-     * yet (LoginForm.php / ApplicationAuthenticationService::loadSessionVars()
-     * are out of scope for this task).
+     * Requires an already-open TTransaction('permission').
      */
-    private static function resolveTenantContext()
+    private function service(): \CentralVet\Application\StockSalesOverviewService
+    {
+        if ($this->service === null)
+        {
+            $reader = new \CentralVet\Persistence\StockSalesOverviewReader(self::resolveTenantContext(), TTransaction::get());
+            $this->service = new \CentralVet\Application\StockSalesOverviewService($reader);
+        }
+
+        return $this->service;
+    }
+
+    /**
+     * Resolves the tenant context of the authenticated session, falling back to
+     * the tenant_user membership for legacy sessions without 'tenantid'.
+     * Runs inside the caller's open transaction.
+     */
+    private static function resolveTenantContext(): \CentralVet\Tenancy\TenantContext
     {
         $source = new \CentralVet\Tenancy\AdiantiSessionContextSource();
 
@@ -347,11 +435,9 @@ class ProductList extends TStandardList
                 throw $e;
             }
 
-            TTransaction::open('permission');
             $stmt = TTransaction::get()->prepare('SELECT tenant_id FROM tenant_user WHERE system_user_id = :userid ORDER BY id ASC LIMIT 1');
             $stmt->execute(['userid' => (int) $userid]);
             $tenant_id = $stmt->fetchColumn();
-            TTransaction::close();
 
             if (empty($tenant_id))
             {

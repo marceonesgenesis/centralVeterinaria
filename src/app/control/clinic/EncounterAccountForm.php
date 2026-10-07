@@ -87,20 +87,19 @@ class EncounterAccountForm extends TPage
         $container = new TVBox;
         $container->style = 'width: 100%';
 
-        // page header (design system: .cv-page-header/.cv-page-title, T-06)
-        $pageHeader = new TElement('header');
-        $pageHeader->class = 'cv-page-header';
-        $pageHeaderTitleWrap = new TElement('div');
-        $pageHeaderTitle = new TElement('h1');
-        $pageHeaderTitle->class = 'cv-page-title';
-        $pageHeaderTitle->add(
+        // cabeçalho do kit Cv*: voltar para o atendimento de origem
+        $actions = [];
+        if ($this->encounterId !== null)
+        {
+            $actions[] = ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=EncounterView&encounter_id=' . $this->encounterId];
+        }
+        $container->add(CvPage::header(
             $this->encounterId !== null
                 ? _t('Encounter account') . ' #' . $this->encounterId
-                : _t('Encounter account')
-        );
-        $pageHeaderTitleWrap->add($pageHeaderTitle);
-        $pageHeader->add($pageHeaderTitleWrap);
-        $container->add($pageHeader);
+                : _t('Encounter account'),
+            _t('Financial'),
+            $actions
+        ));
 
         if ($this->encounterId === null)
         {
@@ -120,19 +119,12 @@ class EncounterAccountForm extends TPage
             return;
         }
 
-        // Grupo B layout (T-07): items + manual-item entry on the wide
-        // column, financial summary highlighted on the narrow column —
-        // same two-column pattern as EncounterView.php's cv-section
-        // columns, mirrored here for the account screen.
-        $columns = new TElement('div');
-        $columns->style = 'display:flex; gap:var(--cv-space-4); align-items:flex-start; flex-wrap:wrap';
-
+        // colunas 8/4 do kit: itens + item manual à esquerda, resumo,
+        // desconto e fechar conta à direita
         $left = new TElement('div');
-        $left->style = 'flex:2 1 420px; min-width:320px; display:flex; flex-direction:column; gap:var(--cv-space-4)';
         $left->add($this->buildItemsPanel());
 
         $right = new TElement('div');
-        $right->style = 'flex:1 1 280px; min-width:260px; display:flex; flex-direction:column; gap:var(--cv-space-4)';
         $right->add($this->buildSummaryPanel());
 
         if ($this->account->status() === \CentralVet\Domain\EncounterAccount::STATUS_OPEN)
@@ -142,9 +134,7 @@ class EncounterAccountForm extends TPage
             $right->add($this->buildCloseButton());
         }
 
-        $columns->add($left);
-        $columns->add($right);
-        $container->add($columns);
+        $container->add(CvPage::columns($left, $right));
 
         parent::add($container);
     }
@@ -234,7 +224,10 @@ class EncounterAccountForm extends TPage
             . 'color:var(--cv-color-text-muted); font-size:12px; margin-bottom:var(--cv-space-3)';
         $meta->add('<div>' . _t('Encounter') . ': ' . $this->account->encounterId() . '</div>');
         $meta->add('<div>' . _t('Patient') . ': ' . $this->account->patientId() . '</div>');
-        $meta->add('<div>' . _t('Status') . ': ' . $this->account->status() . '</div>');
+        $status = new TElement('div');
+        $status->add(CvFormat::e(_t('Status')) . ': ');
+        $status->add(self::statusBadge($this->account->status()));
+        $meta->add($status);
         $panel->add($meta);
 
         $totals = new TElement('div');
@@ -277,7 +270,7 @@ class EncounterAccountForm extends TPage
     private function buildItemsDatagrid()
     {
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->datagrid->style = 'width: 100%';
+        CvDatagrid::decorate($this->datagrid, false);
 
         $column_type = new TDataGridColumn('source_type', _t('Type'), 'left', 140);
         $column_description = new TDataGridColumn('description_text', _t('Description'), 'left');
@@ -336,6 +329,7 @@ class EncounterAccountForm extends TPage
 
         $this->form = new BootstrapFormBuilder('form_EncounterAccountManualItem');
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
         $account_id = new THidden('account_id');
         $account_id->setValue($this->account->id());
@@ -350,13 +344,10 @@ class EncounterAccountForm extends TPage
         $amount_cents->setSize('100%');
         $amount_cents->addValidation(_t('Amount'), new TRequiredValidator);
 
-        $this->form->addFields([new TLabel(_t('Description'))]);
-        $this->form->addFields([$description_text]);
-        $this->form->addFields([new TLabel(_t('Amount (R$)'))]);
-        $this->form->addFields([$amount_cents]);
+        $this->form->addFields([new TLabel(_t('Description'))], [$description_text], [new TLabel(_t('Amount (R$)'))], [$amount_cents]);
 
-        $btn = $this->form->addAction(_t('Add manual item'), new TAction([$this, 'onSave']), 'fa:plus');
-        $btn->class = 'btn btn-sm btn-secondary';
+        $btn = $this->form->addAction(_t('Add manual item'), new TAction([$this, 'onSave'], ['encounter_id' => $this->encounterId]), 'fa:plus');
+        $btn->class = 'btn btn-default';
 
         $panel->add($this->form);
 
@@ -370,6 +361,7 @@ class EncounterAccountForm extends TPage
 
         $discountForm = new BootstrapFormBuilder('form_EncounterAccountDiscount');
         $discountForm->enableClientValidation();
+        CvForm::decorate($discountForm, 1);
 
         $account_id = new THidden('account_id');
         $account_id->setValue($this->account->id());
@@ -380,22 +372,23 @@ class EncounterAccountForm extends TPage
         $discount_cents->setSize('100%');
         $discount_cents->addValidation(_t('Discount'), new TRequiredValidator);
 
-        $authorized_by_system_user_id = new TEntry('authorized_by_system_user_id');
-        $authorized_by_system_user_id->setNumericMask(0, '', '', false, false, false);
+        // quem autorizou: combo de usuários ativos do tenant (antes, id digitado)
+        $authorized_by_system_user_id = new TDBCombo(
+            'authorized_by_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name', self::tenantUsersCriteria()
+        );
+        $authorized_by_system_user_id->enableSearch();
         $authorized_by_system_user_id->setSize('100%');
         $authorized_by_system_user_id->setValue(TSession::getValue('userid'));
-        $authorized_by_system_user_id->addValidation(_t('Authorized by (system user id)'), new TRequiredValidator);
+        $authorized_by_system_user_id->addValidation(_t('Authorized by'), new TRequiredValidator);
 
-        $discountForm->addFields([new TLabel(_t('Discount (R$)'))]);
-        $discountForm->addFields([$discount_cents]);
-        $discountForm->addFields([new TLabel(_t('Authorized by (system user id)'))]);
-        $discountForm->addFields([$authorized_by_system_user_id]);
+        $discountForm->addFields([new TLabel(_t('Discount (R$)'))], [$discount_cents]);
+        $discountForm->addFields([new TLabel(_t('Authorized by'))], [$authorized_by_system_user_id]);
 
         // Distinct $action from every other button on this screen (see
         // class docblock): 'EncounterAccountForm::onApplyDiscount', never
         // shared with onSave()/onClose() — the RBAC hook T-12 relies on.
-        $btn = $discountForm->addAction(_t('Apply discount'), new TAction([$this, 'onApplyDiscount']), 'fa:percent');
-        $btn->class = 'btn btn-sm btn-warning';
+        $btn = $discountForm->addAction(_t('Apply discount'), new TAction([$this, 'onApplyDiscount'], ['encounter_id' => $this->encounterId]), 'fa:percent');
+        $btn->class = 'btn btn-default';
 
         $panel->add($discountForm);
 
@@ -408,13 +401,14 @@ class EncounterAccountForm extends TPage
         $wrapper->class = 'cv-section';
 
         $form = new BootstrapFormBuilder('form_EncounterAccountClose');
+        CvForm::decorate($form, 1);
 
         $account_id = new THidden('account_id');
         $account_id->setValue($this->account->id());
         $form->add($account_id);
 
-        $btn = $form->addAction(_t('Close account'), new TAction([$this, 'onClose']), 'fa:check-circle');
-        $btn->class = 'btn btn-sm btn-primary';
+        $btn = $form->addAction(_t('Close account'), new TAction([$this, 'onClose'], ['encounter_id' => $this->encounterId]), 'fa:check-circle');
+        $btn->class = 'btn btn-primary';
 
         $wrapper->add($form);
 
@@ -660,7 +654,33 @@ class EncounterAccountForm extends TPage
 
     private static function formatCents(int $cents): string
     {
-        return 'R$ ' . number_format($cents / 100, 2, ',', '.');
+        return CvFormat::money($cents);
+    }
+
+    /**
+     * Badge de status da conta: Aberto / Fechado / Cancelado.
+     */
+    private static function statusBadge(string $status): TElement
+    {
+        if ($status === \CentralVet\Domain\EncounterAccount::STATUS_OPEN)
+        {
+            return CvBadge::create(_t('Open (status)'), 'info');
+        }
+        if ($status === \CentralVet\Domain\EncounterAccount::STATUS_CLOSED)
+        {
+            return CvBadge::create(_t('Closed'), 'success');
+        }
+
+        return CvBadge::create($status, 'neutral');
+    }
+
+    /**
+     * Usuários ativos vinculados ao tenant da sessão (tenant_user); sem
+     * tenant resolvido, nenhum usuário (fail-closed).
+     */
+    private static function tenantUsersCriteria(): TCriteria
+    {
+        return CvTenantUsers::criteria(static fn () => self::resolveTenantContext());
     }
 
     /**
@@ -672,8 +692,13 @@ class EncounterAccountForm extends TPage
      */
     private function reloadSelf(): void
     {
+        // as TAction levam encounter_id na URL do post; a conta carregada é
+        // o fallback caso o post chegue sem ele
+        $encounterId = $this->encounterId
+            ?? ($this->account instanceof \CentralVet\Domain\EncounterAccount ? $this->account->encounterId() : null);
+
         TScript::create(
-            "__adianti_goto_page('index.php?class=EncounterAccountForm&encounter_id={$this->encounterId}')"
+            "__adianti_goto_page('index.php?class=EncounterAccountForm&encounter_id=" . (int) $encounterId . "')"
         );
     }
 
@@ -741,6 +766,7 @@ class EncounterAccountForm extends TPage
             $examCatalog,
             $authorization,
             $context,
+            new \CentralVet\Persistence\TenantUserDirectory($context, $connection),
         );
     }
 

@@ -31,6 +31,7 @@ RUN apt-get update \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
+        calendar \
         gd \
         intl \
         mbstring \
@@ -72,5 +73,12 @@ WORKDIR /var/www/html/src
 # classes instead of baking in an empty map for that namespace.
 RUN composer dump-autoload --no-dev --classmap-authoritative \
     && composer clear-cache
+
+# AdiantiTemplateParser only replaces `{buildid}` (cache-busting `?appver=`
+# on template assets) when `src/buildid` exists. Generate a fresh id on each
+# image build so browsers refetch changed CSS/JS after a deploy.
+ARG APP_BUILD_ID=
+RUN if [ -n "$APP_BUILD_ID" ]; then printf '%s' "$APP_BUILD_ID"; else date -u +%Y%m%d%H%M%S; fi > /var/www/html/src/buildid \
+    && chown www-data:www-data /var/www/html/src/buildid
 
 USER www-data

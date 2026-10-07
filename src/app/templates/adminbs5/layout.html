@@ -25,6 +25,8 @@
     <script src="app/templates/{template}/js/creator.js?appver={buildid}"></script>
     <!--[/ISCREATOR]-->
     <link rel="stylesheet" href="app/templates/{template}/custom.css?appver={buildid}">
+    <link rel="stylesheet" href="app/templates/{template}/cv-components.css?appver={buildid}">
+    <script src="app/templates/{template}/js/cv-shell.js?appver={buildid}"></script>
     
     <script>
         $(function() {
@@ -49,7 +51,7 @@
             <div class="h-100" id="menu-wrapper">
                 <span class="sidebar-system-name border-bottom cv-brand">
                     <span class="sidebar-logo cv-brand-mark" style="margin-left: 0;">
-                        <svg class="cv-brand-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false" style="display:block;margin:5px auto 0;">
+                        <svg class="cv-brand-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false">
                             <ellipse cx="4.4" cy="12.1" rx="1.9" ry="2.5"/>
                             <ellipse cx="9.3" cy="7.7" rx="2" ry="2.7"/>
                             <ellipse cx="14.7" cy="7.7" rx="2" ry="2.7"/>
@@ -64,10 +66,6 @@
                 
                 <span class="sidebar-menu-title">
                     <span class="name">MENU</span>
-                    <div id="has_menu_mode_switch" class="form-check form-switch" title="_t{Dark mode}" style="display: inline;position: absolute;right: 0;margin-right: 15px; display:none">
-                        <input class="form-check-input" type="checkbox" role="switch" id="menu_theme_switch" checked="" style="cursor:pointer" onclick="Template.toggleMenuTheme(this)">
-                        <i class="fa-solid fa-circle-half-stroke"></i>
-                    </div>
                 </span>
                 
                 <div id="search-box" style="margin-left:15px"></div>
@@ -78,47 +76,42 @@
         <!--[/SIDEBAR]-->
         
         <div class="main">
-            <nav class="navbar navbar-expand px-3 border-bottom">
-                <button class="btn superlight" id="sidebar-toggle" type="button">
-                    <span class="navbar-toggler-icon"></span>
+            <nav class="navbar navbar-expand px-3 border-bottom cv-topbar">
+                <button class="btn superlight cv-topbar-toggle" id="sidebar-toggle" type="button" title="_t{Toggle menu}" aria-label="_t{Toggle menu}">
+                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
                 </button>
-                <div class="navbar-collapse navbar">
-                    <div class="nav-item" style="float:left">
-                        {MENUTOP}
-                    </div>
-                    
+                <div class="navbar-collapse navbar cv-topbar-body">
+                    <form id="cv-global-search" class="cv-global-search" role="search" action="index.php" method="get" autocomplete="off">
+                        <input type="hidden" name="class" value="GlobalSearchController">
+                        <input type="hidden" name="method" value="onSearch">
+                        <i class="fa-solid fa-magnifying-glass cv-global-search__icon" aria-hidden="true"></i>
+                        <label for="cv-global-search-input" class="cv-visually-hidden">Buscar paciente, tutor, atendimento...</label>
+                        <input type="search" id="cv-global-search-input" name="query" class="form-control cv-global-search__input" placeholder="Buscar paciente, tutor, atendimento...">
+                    </form>
+
                     <ul id="navbar-wrapper" class="navbar-nav hide-mobile" style="margin-right:10px">
                     </ul>
-                    
-                    <div class="nav-item" id="navbar-top-right-area">
+
+                    <div class="nav-item cv-topbar-actions" id="navbar-top-right-area">
                         <div class="btn-group" id="has_notifications" style="display:none">
-                            <button type="button" data-bs-toggle="dropdown" title="_t{Notifications}" class="dropdown-toggle btn superlight" style="padding:5px;font-size:1rem">
-                                <i class="fa-regular fa-bell" style="font-size:1.2rem;float: left;margin-top: 3px;"></i>
+                            <button type="button" data-bs-toggle="dropdown" title="_t{Notifications}" aria-label="_t{Notifications}" class="dropdown-toggle btn superlight cv-topbar-icon">
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
                                 <span id="alert_notifications" class="position-absolute top-0 start-100 translate-middle p-2 bg-warning border border-light rounded-circle" style="padding: 5px !important;display:none"></span>
                             </button>
-                            <ul class="dropdown-menu dropdown-menu-end dropdown-menu-lg-start" id="envelope_notifications">
+                            <ul class="dropdown-menu dropdown-menu-end" id="envelope_notifications">
                                 <li></li>
                             </ul>
                         </div>
-                        <div class="btn-group dropdown-center hide-mobile" id="has_messages" style="display:none">
-                            <button type="button" data-bs-toggle="dropdown" title="_t{Messages}" class="dropdown-toggle btn superlight" style="padding:5px;font-size:1rem">
-                                <i class="fa-regular fa-envelope" style="font-size:1.2rem;float: left;margin-top: 3px;"></i>
-                                <span id="alert_messages" class="position-absolute top-0 start-100 translate-middle p-2 bg-warning border border-light rounded-circle" style="padding: 5px !important;display:none"></span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end dropdown-menu-lg-start" id="envelope_messages">
-                                <li></li>
-                            </ul>
-                        </div>
-                        <a id="has_docs" class="btn superlight hide-mobile" style="padding:5px;font-size:1rem;display:none" title="_t{Documents}" generator="adianti" href="index.php?class=SystemDriveList&method=onLoad&filter=my">
-                            <i class="far fa-folder" style="font-size:1.2rem;float: left;margin-top: 3px;"></i>
-                        </a>
-                        <a id="has_contacts" class="btn superlight hide-mobile" style="padding:5px;font-size:1rem;display:none" title="_t{Contacts}" generator="adianti" href="index.php?class=SystemContactsList&register_state=false">
-                            <i class="far fa-address-card" style="font-size:1.2rem;float: left;margin-top: 3px;"></i>
-                        </a>
-                        <div class="btn-group">
-                            <button type="button" data-bs-toggle="dropdown" class="dropdown-toggle btn superlight" style="padding:5px;font-size:1rem">
-                                <i class="far fa-circle-user" style="font-size:1.2rem;float: left;margin-top: 3px;"></i>
-                                <span class="username" style="float: left;margin-left: 5px;">{username}</span>
+                        <button type="button" id="cv-help" class="btn superlight cv-topbar-icon hide-mobile" title="_t{Help} — _t{Coming soon}" aria-label="_t{Help} — _t{Coming soon}" aria-disabled="true" disabled>
+                            <i class="fa-regular fa-circle-question" aria-hidden="true"></i>
+                        </button>
+                        <div class="btn-group cv-user-card">
+                            <button type="button" data-bs-toggle="dropdown" class="dropdown-toggle btn superlight cv-user-card__button" aria-label="{username}">
+                                <span class="cv-user-card__avatar" aria-hidden="true"><i class="fa-solid fa-user-doctor"></i></span>
+                                <span class="cv-user-card__text">
+                                    <span class="username cv-user-card__name">{username}</span>
+                                    <span id="cv-user-role" class="cv-user-card__role"></span>
+                                </span>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><h6 class="dropdown-header">{usermail}</h6></li>
@@ -132,124 +125,39 @@
                     </div>
                 </div>
             </nav>
-            
+
             <ul id="adianti_tab_area" class="nav nav-underline" style="display:none">
               <li class="nav-item">
                 <a class="nav-link active" aria-current="page" onclick="Template.goFirstPageTab()"> <i class="fa-solid fa-house"></i> <span>Home</span></a>
               </li>
             </ul>
-            
+
             <main id="adianti_div_content_wrapper" class="content px-3 py-2">
                 <div class="container-fluid" style="padding-right:0">
                     <div id="adianti_div_content"></div>
                 </div>
-                
+
                 <div id="adianti_right_panel" class="right-panel"></div>
                 <div id="adianti_online_content"></div>
             </main>
-            
+
             <main id="adianti_tab_content_wrapper">
                 <div class="container-fluid" style="padding-right:0">
                     <div id="adianti_tab_content"></div>
                 </div>
             </main>
-            
-            <footer class="footer">
+
+            <footer class="footer cv-footer">
                 <div class="container-fluid">
-                    <div class="row text-muted">
-                        <div class="col-12 text-start">
-                            
-                            <span class="hide-mobile" style="font-weight:bold;display: block;padding: 5px;float: left;">{userunitname}</span>
-                            
-                            <div style="text-align:right">
-                                {MENUBOTTOM}
-                                
-                                <!--[ISCREATORADMIN]-->
-                                <a class="btn superlight hide-mobile" generator="adianti" href="index.php?class=SystemUpdateList&method=fetchProject&static=1&register_state=false">
-                                    <i class="fa fa-circle-down" aria-hidden="true"></i>
-                                    _t{Updater}
-                                </a>
-                                <!--[/ISCREATORADMIN]-->
-                                
-                                <!--[IFADMIN]-->
-                                <button class="btn superlight hide-mobile" type="button" data-bs-toggle="offcanvas" data-bs-target="#debug-panel" aria-controls="debug-panel">
-                                    <i class="fa-solid fa-magnifying-glass"></i>
-                                    Trace
-                                </button>
-                                <a class="btn superlight hide-mobile" generator="adianti" href="index.php?class=SystemDatabaseExplorer">
-                                    <i class="fa-solid fa-database"></i>
-                                    DB
-                                </a>
-                                <a class="btn superlight hide-mobile" generator="adianti" href="index.php?class=SystemModulesCheckView&register_state=false">
-                                    <i class="fab fa-php" aria-hidden="true"></i>
-                                    PHP
-                                </a>
-                                <a class="btn superlight hide-mobile" generator="adianti" href="index.php?class=SystemFilesDiff&register_state=false">
-                                    <i class="fa fa-sitemap" aria-hidden="true"></i>
-                                    Framework
-                                </a>
-                                <a class="btn superlight hide-mobile" generator="adianti" href="index.php?class=SystemInformationView&register_state=false">
-                                    <i class="fa fa-microchip" aria-hidden="true"></i>
-                                    _t{System}
-                                </a>
-                                <!--[/IFADMIN]-->
-                                <a id="has_news" class="btn superlight" generator="adianti" href="index.php?class=SystemPostFeedView" style="display:none;padding:5px">
-                                    <i class="fa fa-rss"></i>
-                                    _t{News}
-                                </a>
-                                <a id="has_wiki" class="btn superlight" generator="adianti" href="index.php?class=SystemWikiSearchList" style="display:none;padding:5px">
-                                    <i class="fab fa-wikipedia-w"></i>
-                                    _t{Manuals}
-                                </a>
-                                <a id="has_support_form" class="btn superlight" generator="adianti" href="index.php?class=SystemSupportForm&register_state=false" style="display:none;padding:5px">
-                                    <i class="far fa-life-ring"></i>
-                                    _t{Open ticket}
-                                </a>
-                                
-                                <div id="has_main_mode_switch" class="form-check form-switch" title="_t{Dark mode}" style="margin-left: 10px;padding-top:5px;display:none">
-                                    <input class="form-check-input" type="checkbox" role="switch" id="global_theme_switch" checked="" style="cursor:pointer" onclick="Template.toggleGlobalTheme(this)">
-                                    <i class="fa-solid fa-circle-half-stroke"></i>
-                                </div>
-                            </div>
-                            
-                            
-                        </div>
-                    </div>
+                    <p class="cv-footer__text">
+                        <strong>CENTRAL VET PRO v1.0.0</strong>
+                        <span class="cv-footer__sep" aria-hidden="true">|</span>
+                        <span>Tecnologia que cuida de vidas 🐾</span>
+                        <span class="cv-footer__sep" aria-hidden="true">|</span>
+                        <span>Clínica. Gestão. Resultado.</span>
+                    </p>
                 </div>
             </footer>
-            
-            <div class="offcanvas offcanvas-bottom debug-panel" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1" id="debug-panel">
-              <div class="offcanvas-header" style="padding-bottom:0">
-                <span class="btn" style="margin-left:auto" aria-label="Rotate" onclick="$(this).closest('.offcanvas').toggleClass('offcanvas-bottom').toggleClass('offcanvas-start');">
-                    <i class="fa-solid fa-rotate-left" style="color: gray;"></i>
-                </span>
-                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close" style="margin-left:0"></button>
-              </div>
-              <div class="offcanvas-body" style="padding-top:0">
-                <ul class="nav nav-pills" id="pills-tab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="pills-request-tab" data-bs-toggle="pill" data-bs-target="#pills-request" type="button" role="tab">Request URL</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pills-payload-tab" data-bs-toggle="pill" data-bs-target="#pills-payload" type="button" role="tab">Payload</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pills-dumps-tab" data-bs-toggle="pill" data-bs-target="#pills-dumps" type="button" role="tab">Dumps </button>
-                    </li>
-                </ul>
-                <div class="tab-content" id="pills-tabContent" style="height:calc(100% - 40px)">
-                    <div class="tab-pane fade show active" id="pills-request" role="tabpanel" style="height:100%">
-                        <div class="debug-block" id="request_url_panel"> </div>
-                    </div>
-                    <div class="tab-pane fade" id="pills-payload" role="tabpanel" style="height:100%">
-                        <div class="debug-block" id="request_data_panel"> </div>
-                    </div>
-                    <div class="tab-pane fade" id="pills-dumps" role="tabpanel" style="height:100%">
-                        <div class="debug-block" id="request_dump_panel"> </div>
-                    </div>
-                </div>
-              </div>
-            </div>
         </div>
     </div>
 </body>

@@ -8,6 +8,7 @@ use CentralVet\Authorization\AuthorizationRequest;
 use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\PrescriptionRepositoryInterface;
+use CentralVet\Domain\Contract\TenantUserDirectoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Prescription;
@@ -56,6 +57,7 @@ final class PrescriptionService
         private readonly EncounterRepositoryInterface $encounters,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TenantUserDirectoryInterface $tenantUsers,
     ) {
     }
 
@@ -117,6 +119,15 @@ final class PrescriptionService
         if (!$encounter instanceof Encounter) {
             throw new CrossTenantReferenceException(
                 "encounter_id {$encounterId} was not found for the authenticated tenant"
+            );
+        }
+
+        // final-fix: the professional comes from caller input, so it must
+        // resolve within the authenticated tenant like any other reference
+        // (nonexistent and other-tenant users are indistinguishable).
+        if (!$this->tenantUsers->isActiveMember($professionalSystemUserId)) {
+            throw new CrossTenantReferenceException(
+                "professional_system_user_id {$professionalSystemUserId} was not found for the authenticated tenant"
             );
         }
 

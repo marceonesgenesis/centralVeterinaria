@@ -30,8 +30,6 @@ class ProcedureCatalogForm extends TStandardForm
     {
         parent::__construct();
 
-        parent::setTargetContainer('adianti_right_panel');
-
         $this->setDatabase('permission');                // defines the database
         $this->setActiveRecord('ProcedureCatalogItem');   // defines the active record
         $this->setAfterSaveAction( new TAction(['ProcedureCatalogList', 'onReload']) );
@@ -39,8 +37,8 @@ class ProcedureCatalogForm extends TStandardForm
 
         // creates the form
         $this->form = new BootstrapFormBuilder('form_ProcedureCatalogItem');
-        $this->form->setFormTitle(_t('Procedure'));
         $this->form->enableClientValidation();
+        CvForm::decorate($this->form, 2);
 
         // create the form fields
         $id = new TEntry('id');
@@ -52,28 +50,17 @@ class ProcedureCatalogForm extends TStandardForm
         $active->addItems([1 => _t('Active'), 0 => _t('Inactive')]);
 
         // add the fields
-        $this->form->addFields( [new TLabel('Id')] );
-        $this->form->addFields( [$id] );
-        $this->form->addFields( [new TLabel(_t('Name'))] );
-        $this->form->addFields( [$name] );
-        $this->form->addFields( [new TLabel(_t('Price'))] );
-        $this->form->addFields( [$price] );
-        $this->form->addFields( [new TLabel(_t('Duration (minutes)'))] );
-        $this->form->addFields( [$duration_minutes] );
-        $this->form->addFields( [new TLabel(_t('Preparation notes'))] );
-        $this->form->addFields( [$preparation_text] );
-        $this->form->addFields( [new TLabel(_t('Status'))] );
-        $this->form->addFields( [$active] );
+        // pares rótulo/campo em 2 colunas, rótulo acima (CvForm)
+        $this->form->addFields( [new TLabel(_t('Name'))], [$name], [new TLabel(_t('Status'))], [$active] );
+        $this->form->addFields( [new TLabel(_t('Price'))], [$price], [new TLabel(_t('Duration (minutes)'))], [$duration_minutes] );
+        $this->form->addFields( [new TLabel(_t('Preparation notes'))], [$preparation_text] );
+        $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $id->setSize('30%');
-        $name->setSize('100%');
-        $price->setSize('30%');
         $price->setNumericMask(2, ',', '.');
-        $duration_minutes->setSize('30%');
         $duration_minutes->setNumericMask(0, '', '');
+        $duration_minutes->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
         $preparation_text->setSize('100%', 80);
-        $active->setSize('100%');
         $active->setValue(1);
 
         $name->addValidation( _t('Name'), new TRequiredValidator );
@@ -81,38 +68,18 @@ class ProcedureCatalogForm extends TStandardForm
 
         // create the form actions
         $btn = $this->form->addAction(_t('Save'), new TAction(array($this, 'onSave')), 'fa:check');
-        $btn->class = 'btn btn-sm btn-primary';
-        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser red');
+        $btn->class = 'btn btn-primary';
+        $this->form->addActionLink(_t('Clear'),  new TAction(array($this, 'onEdit')), 'fa:eraser');
 
-        $this->form->addHeaderActionLink(_t('Close'), new TAction([$this, 'onClose']), 'fa:times red');
-
-        // page header (design system: .cv-page-header/.cv-page-title, T-04)
-        $header = new TElement('header');
-        $header->class = 'cv-page-header';
-
-        $header_text = new TElement('div');
-        $header_title = new TElement('h1');
-        $header_title->class = 'cv-page-title';
-        $header_title->add(_t('Procedure'));
-        $header_text->add($header_title);
-
-        $header->add($header_text);
-
-        // vertical box container
+        // página cheia: cabeçalho do kit com voltar para a lista
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add($header);
+        $container->add(CvPage::header(_t('Procedure'), null, [
+            ['icon' => 'fa:arrow-left', 'href' => 'index.php?class=ProcedureCatalogList'],
+        ]));
         $container->add($this->form);
 
         parent::add($container);
-    }
-
-    /**
-     * on close
-     */
-    public static function onClose($param)
-    {
-        TScript::create("Template.closeRightPanel()");
     }
 
     /**
