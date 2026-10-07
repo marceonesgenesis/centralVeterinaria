@@ -296,9 +296,10 @@
     display: none;
 }
 
-.cv-topbar-icon:disabled {
+/* Botão sem ação ainda: continua recebendo hover, para o tooltip (title) aparecer. */
+.cv-topbar-icon[aria-disabled="true"] {
     opacity: 0.55;
-    pointer-events: none;
+    cursor: not-allowed;
 }
 
 .cv-global-search {

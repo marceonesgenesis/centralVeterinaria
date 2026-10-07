@@ -8,6 +8,7 @@ use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Patient;
+use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
 
 /**
@@ -19,10 +20,30 @@ use CentralVet\Tenancy\TenantContext;
  */
 final class PatientService
 {
+    /** Content types accepted by attachPhoto() (rodada 2, T-12). */
+    public const PHOTO_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    /** Largest photo attachPhoto() accepts, in bytes (2 MB). */
+    public const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+
+    /** Message of the InvalidArgumentException for an unparseable weight_kg (T-27). */
+    public const INVALID_WEIGHT_MESSAGE = 'weight_kg must be a number between 0 and 9999.99, e.g. 4,5';
+
+    /** Largest weight_kg the column patient.weight_kg decimal(6,2) holds. */
+    private const MAX_WEIGHT_KG = 9999.99;
+
+    /** Key replaced by the last successful attachPhoto() (T-47). */
+    private ?string $previousPhotoKey = null;
+
+    /**
+     * $storage is optional so the existing 3-argument callers keep working;
+     * only attachPhoto()/photo() need it (LogicException when absent).
+     */
     public function __construct(
         private readonly PatientRepositoryInterface $patients,
         private readonly TutorRepositoryInterface $tutors,
         private readonly TenantContext $context,
+        private readonly ?StorageInterface $storage = null,
     ) {
     }
 
@@ -36,6 +57,7 @@ final class PatientService
      *     weight_kg?: float|int|string|null,
      *     color?: string|null,
      *     notes?: string|null,
+     *     allergies?: string|null,
      *     tutor_id: int|string,
      * } $data
      *
@@ -65,18 +87,305 @@ final class PatientService
             tutorId: $tutorId,
             name: (string) $data['name'],
             species: (string) $data['species'],
-            breed: isset($data['breed']) ? (string) $data['breed'] : null,
-            sex: isset($data['sex']) ? (string) $data['sex'] : null,
-            birthDate: isset($data['birth_date']) ? (string) $data['birth_date'] : null,
-            weightKg: isset($data['weight_kg']) ? (float) $data['weight_kg'] : null,
-            color: isset($data['color']) ? (string) $data['color'] : null,
-            notes: isset($data['notes']) ? (string) $data['notes'] : null,
+            breed: self::optional($data, 'breed'),
+            sex: self::optional($data, 'sex'),
+            birthDate: self::optional($data, 'birth_date'),
+            weightKg: self::parseWeightKg($data['weight_kg'] ?? null),
+            color: self::optional($data, 'color'),
+            notes: self::optional($data, 'notes'),
+            allergies: self::optional($data, 'allergies'),
         );
 
         /** @var Patient $saved */
         $saved = $this->patients->save($patient);
 
         return $saved;
+    }
+
+    /**
+     * Updates the clinical data of an existing patient of the current tenant
+     * (rodada 2, T-07). The tutor never changes here: any `tutor_id` in
+     * $data is ignored, and id, tenantId, tutorId and createdAt are carried
+     * over from the stored patient. Optional fields map '' to null. The
+     * photo (photoObjectKey/photoContentType) is never changed here, only by
+     * attachPhoto() (T-12).
+     *
+     * @param array{
+     *     name: string,
+     *     species: string,
+     *     breed?: string|null,
+     *     sex?: string|null,
+     *     birth_date?: string|null,
+     *     weight_kg?: float|int|string|null,
+     *     color?: string|null,
+     *     notes?: string|null,
+     *     allergies?: string|null,
+     * } $data
+     *
+     * @throws \InvalidArgumentException when the patient is missing (or
+     *         belongs to another tenant), a required field is blank, or the
+     *         entity rejects sex/weight_kg.
+     */
+    public function update(int $id, array $data): Patient
+    {
+        $current = $this->findById($id);
+
+        if ($current === null) {
+            throw new \InvalidArgumentException("Patient {$id} not found for this tenant");
+        }
+
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('name is required');
+        }
+
+        $species = trim((string) ($data['species'] ?? ''));
+        if ($species === '') {
+            throw new \InvalidArgumentException('species is required');
+        }
+
+        $weight = self::parseWeightKg($data['weight_kg'] ?? null);
+
+        $patient = new Patient(
+            id: $current->id,
+            tenantId: $current->tenantId,
+            tutorId: $current->tutorId,
+            name: $name,
+            species: $species,
+            breed: self::optional($data, 'breed'),
+            sex: self::optional($data, 'sex'),
+            birthDate: self::optional($data, 'birth_date'),
+            weightKg: $weight,
+            color: self::optional($data, 'color'),
+            notes: self::optional($data, 'notes'),
+            createdAt: $current->createdAt,
+            allergies: self::optional($data, 'allergies'),
+            photoObjectKey: $current->photoObjectKey,
+            photoContentType: $current->photoContentType,
+        );
+
+        /** @var Patient $saved */
+        $saved = $this->patients->save($patient);
+
+        return $saved;
+    }
+
+    /**
+     * Stores the patient's photo in object storage under
+     * `tenant/<tenantId>/patient/<patientId>/photo-<12 hex>-<sanitized name>`
+     * (a new key per upload) and then records the key and content type on
+     * the patient (rodada 2, T-12). The previous photo object is NOT
+     * deleted here: its key is kept in previousPhotoKey(), and the caller
+     * passes it to discardPhoto() only after the transaction commits, so a
+     * failed commit never leaves the row pointing at a deleted object
+     * (T-47). If the save fails the new object is deleted and the exception
+     * rethrown (T-32).
+     *
+     * @throws \LogicException when no storage was injected
+     * @throws \InvalidArgumentException when the patient is missing (or of
+     *         another tenant), the content type is not JPEG/PNG/WEBP, or the
+     *         file is larger than 2 MB
+     */
+    public function attachPhoto(int $patientId, string $fileName, string $contents, string $contentType): Patient
+    {
+        if ($this->storage === null) {
+            throw new \LogicException('Storage not configured');
+        }
+
+        $current = $this->findById($patientId);
+
+        if ($current === null) {
+            throw new \InvalidArgumentException("Patient {$patientId} not found for this tenant");
+        }
+
+        if (!in_array($contentType, self::PHOTO_CONTENT_TYPES, true)) {
+            throw new \InvalidArgumentException('Photo must be a JPEG, PNG or WEBP image');
+        }
+
+        if (strlen($contents) > self::PHOTO_MAX_BYTES) {
+            throw new \InvalidArgumentException('Photo must be at most 2 MB');
+        }
+
+        // A fresh random segment per upload: re-sending the same file name
+        // must not reuse the key, so the previous object can be deleted and
+        // photoVersion() changes. The browser cache is keyed by URL, not by
+        // this key: the preview URL carries &v=photoVersion() (T-32).
+        $key = sprintf(
+            'tenant/%d/patient/%d/photo-%s-%s',
+            $this->context->tenantId(),
+            $patientId,
+            bin2hex(random_bytes(6)),
+            self::sanitizeFileName($fileName),
+        );
+        $this->previousPhotoKey = null;
+        $previousKey = $current->photoObjectKey;
+
+        $this->storage->put($key, $contents, $contentType);
+
+        $patient = new Patient(
+            id: $current->id,
+            tenantId: $current->tenantId,
+            tutorId: $current->tutorId,
+            name: $current->name,
+            species: $current->species,
+            breed: $current->breed,
+            sex: $current->sex,
+            birthDate: $current->birthDate,
+            weightKg: $current->weightKg,
+            color: $current->color,
+            notes: $current->notes,
+            createdAt: $current->createdAt,
+            updatedAt: $current->updatedAt,
+            allergies: $current->allergies,
+            photoObjectKey: $key,
+            photoContentType: $contentType,
+        );
+
+        try {
+            /** @var Patient $saved */
+            $saved = $this->patients->save($patient);
+        } catch (\Throwable $e) {
+            // The row still points at the previous photo: drop the object we
+            // just wrote so it does not stay orphaned in the bucket.
+            $this->discardPhoto($key);
+
+            throw $e;
+        }
+
+        $this->previousPhotoKey = $previousKey;
+
+        return $saved;
+    }
+
+    /**
+     * Photo key the patient had before the last successful attachPhoto(),
+     * or null (no previous photo, or attachPhoto() not called / failed).
+     * The caller discards it with discardPhoto() after the commit (T-47).
+     */
+    public function previousPhotoKey(): ?string
+    {
+        return $this->previousPhotoKey;
+    }
+
+    /**
+     * Short version tag of the patient's current photo (12 hex chars of the
+     * sha1 of photo_object_key), or null without a photo. Presentation adds
+     * it as `&v=` to the onPhoto URL, so replacing the photo yields a new URL
+     * and the private max-age cache never serves the previous one (T-32).
+     */
+    public static function photoVersion(Patient $patient): ?string
+    {
+        return $patient->photoObjectKey === null ? null : substr(sha1($patient->photoObjectKey), 0, 12);
+    }
+
+    /**
+     * Best-effort delete of a photo object: a storage failure is logged
+     * with error_log(), never thrown (T-47).
+     */
+    public function discardPhoto(string $objectKey): void
+    {
+        try {
+            $this->storage?->delete($objectKey);
+        } catch (\Throwable $e) {
+            error_log(sprintf('PatientService: could not delete photo object "%s": %s', $objectKey, $e->getMessage()));
+        }
+    }
+
+    /**
+     * The patient's photo bytes and content type, or null when the patient
+     * does not exist in this tenant or has no photo.
+     *
+     * @return array{contents: string, content_type: string}|null
+     *
+     * @throws \LogicException when the patient has a photo but no storage was injected
+     */
+    public function photo(int $patientId): ?array
+    {
+        $patient = $this->findById($patientId);
+
+        if ($patient === null || $patient->photoObjectKey === null) {
+            return null;
+        }
+
+        if ($this->storage === null) {
+            throw new \LogicException('Storage not configured');
+        }
+
+        return [
+            'contents' => $this->storage->get($patient->photoObjectKey),
+            'content_type' => $patient->photoContentType ?? 'application/octet-stream',
+        ];
+    }
+
+    private static function sanitizeFileName(string $fileName): string
+    {
+        $safe = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $fileName);
+
+        return $safe === '' ? '_' : $safe;
+    }
+
+    /**
+     * Single conversion of weight_kg for create() and update() (T-27):
+     * null/blank → null; int/float as is; a string of up to 4 digits with
+     * an optional 1–2 decimal part after '.' or ',' ("4,5", "4.50", "12").
+     * Anything else, or a value outside 0..9999.99, is rejected.
+     *
+     * @throws \InvalidArgumentException with INVALID_WEIGHT_MESSAGE
+     */
+    private static function parseWeightKg(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $weight = (float) $value;
+        } elseif (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return null;
+            }
+            if (preg_match('/^\d{1,4}([.,]\d{1,2})?$/', $value) !== 1) {
+                throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+            }
+            $weight = (float) str_replace(',', '.', $value);
+        } else {
+            throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+        }
+
+        if (!is_finite($weight) || $weight < 0 || $weight > self::MAX_WEIGHT_KG) {
+            throw new \InvalidArgumentException(self::INVALID_WEIGHT_MESSAGE);
+        }
+
+        return $weight;
+    }
+
+    /**
+     * weight_kg as the form shows it (T-27, correção 1): decimal comma, no
+     * thousands separator, trailing zeros dropped (4.5 → "4,5", 12.0 → "12").
+     * The result parses back to the same value through parseWeightKg().
+     */
+    public static function formatWeightKg(?float $weightKg): ?string
+    {
+        if ($weightKg === null) {
+            return null;
+        }
+
+        $text = number_format($weightKg, 2, ',', '');
+
+        return rtrim(rtrim($text, '0'), ',');
+    }
+
+    /** Optional field of $data as a string, with null/'' (after trim) → null. */
+    private static function optional(array $data, string $key): ?string
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+
+        $value = trim((string) $data[$key]);
+
+        return $value === '' ? null : $value;
     }
 
     public function findById(int $id): ?Patient

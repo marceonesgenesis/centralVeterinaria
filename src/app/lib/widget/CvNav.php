@@ -23,6 +23,7 @@ class CvNav
                 'payables'    => ['Payables',    'index.php?class=PayableList'],
                 'receivables' => ['Receivables', 'index.php?class=PendingReceivableList'],
                 'cashflow'    => ['Cash flow',   'index.php?class=CashSessionList'],
+                'bank_accounts' => ['Bank accounts', 'index.php?class=BankAccountList'],
             ],
             'stock' => [
                 'products'   => ['Products',   'index.php?class=ProductList'],

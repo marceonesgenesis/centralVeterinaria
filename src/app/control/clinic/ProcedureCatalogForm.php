@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * ProcedureCatalogForm
  *
@@ -57,7 +60,11 @@ class ProcedureCatalogForm extends TStandardForm
         $this->form->addFields( [new TLabel('Id')], [$id] );
 
         $id->setEditable(FALSE);
-        $price->setNumericMask(2, ',', '.');
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $price->setProperty('placeholder', _t('e.g. 12,34'));
+        $price->setProperty('inputmode', 'decimal');
+        $price->setMaxLength(16);
         $duration_minutes->setNumericMask(0, '', '');
         $duration_minutes->setProperty('pattern', '[0-9]*'); // PATTERN0: máscara numérica sem decimais gera regex inválida (d{1,0})
         $preparation_text->setSize('100%', 80);
@@ -112,7 +119,7 @@ class ProcedureCatalogForm extends TStandardForm
 
             $item = $catalog->create(
                 $data->name,
-                self::toCents($data->price),
+                MoneyInput::toCents((string) $data->price, false, MoneyInput::MAX_UNSIGNED_INT_CENTS),
                 $duration_minutes,
                 $preparation_text
             );
@@ -150,23 +157,11 @@ class ProcedureCatalogForm extends TStandardForm
             $this->form->setData($data ?? null);
 
             // shows the exception error message
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
 
             // undo all pending operations
             TTransaction::rollback();
         }
-    }
-
-    /**
-     * Converts a "1.234,56"-style amount typed by the user into integer
-     * cents, matching ProcedureCatalogService::create()'s priceCents input.
-     */
-    private static function toCents($amount)
-    {
-        $normalized = str_replace('.', '', (string) $amount);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     /**

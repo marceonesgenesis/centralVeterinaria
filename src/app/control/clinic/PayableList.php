@@ -181,9 +181,11 @@ class PayableList extends TStandardList
     }
 
     /**
-     * Resolve o filtro de status: $param['status'] (ou da URL) quando
-     * presente, senão o da sessão; valor inválido vira 'open'. O resultado
-     * fica na sessão PayableList_filter_status.
+     * Resolve o filtro de status: $param['status'] quando presente, senão
+     * $_REQUEST['status'] — lido porque TStandardList::show() chama
+     * onReload() sem parâmetro —, senão o valor da sessão; valor inválido
+     * vira 'open'. Só grava na sessão PayableList_filter_status quando
+     * `status` vem na requisição; sem ele, apenas lê a sessão.
      */
     private static function resolveStatus($param): string
     {

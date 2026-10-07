@@ -218,7 +218,8 @@ class SystemDatabaseExplorer extends TPage
             }
             
             $zip = new ZipArchive();
-            $output = 'tmp/' . $database. '.zip';
+            // T-63: nome imprevisível em tmp/ (o download usa o nome amigável)
+            $output = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $database . '.zip';
             if (file_exists($output))
             {
                 unlink($output);
@@ -245,7 +246,8 @@ class SystemDatabaseExplorer extends TPage
                     $sql->setEntity($table);
                     $result = $conn->query( $sql->getInstruction() );
                     
-                    $file = 'tmp/' . $table . '.csv';
+                    $entry = $table . '.csv';
+                    $file = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $entry;
                     $files[] = $file;
                     
                     $handler = fopen($file, 'w');
@@ -263,11 +265,15 @@ class SystemDatabaseExplorer extends TPage
                             fputcsv($handler, $row, ',', "\"", '', "\n");
                         }
                         fclose($handler);
-                        $zip->addFile($file);
+                        $zip->addFile($file, $entry);
                     }
                 }
                 $zip->close();
-                parent::openFile($output);
+                foreach ($files as $tmp_file)
+                {
+                    @unlink($tmp_file);
+                }
+                parent::openFile($output, $database . '.zip');
             }
             TTransaction::close();
         }
@@ -298,7 +304,8 @@ class SystemDatabaseExplorer extends TPage
             }
             
             $zip = new ZipArchive();
-            $output = 'tmp/' . $database. '.zip';
+            // T-63: nome imprevisível em tmp/ (o download usa o nome amigável)
+            $output = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $database . '.zip';
             if (file_exists($output))
             {
                 unlink($output);
@@ -324,7 +331,8 @@ class SystemDatabaseExplorer extends TPage
                     $sql->setEntity($table);
                     $result = $conn->query( $sql->getInstruction() );
                     
-                    $file = 'tmp/' . $table . '.sql';
+                    $entry = $table . '.sql';
+                    $file = 'tmp/' . bin2hex(random_bytes(16)) . '-' . $entry;
                     $files[] = $file;
                     
                     $handler = fopen($file, 'w');
@@ -352,11 +360,15 @@ class SystemDatabaseExplorer extends TPage
                             fwrite($handler, "INSERT INTO {$table} ({$columns}) VALUES ({$values});\n");
                         }
                         fclose($handler);
-                        $zip->addFile($file);
+                        $zip->addFile($file, $entry);
                     }
                 }
                 $zip->close();
-                parent::openFile($output);
+                foreach ($files as $tmp_file)
+                {
+                    @unlink($tmp_file);
+                }
+                parent::openFile($output, $database . '.zip');
             }
             TTransaction::close();
         }
@@ -376,6 +388,8 @@ class SystemDatabaseExplorer extends TPage
         $db = new THidden('database');
         $file = new TFile('file');
         $file->setAllowedExtensions(['zip']);
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $file->setService('CvUploaderService');
         $db->setValue($param['database']);
 
         $form->addFields( [$db]);
@@ -405,7 +419,10 @@ class SystemDatabaseExplorer extends TPage
         
         try
         {
-            $file = 'tmp/'.$param['file'];
+            // T-62/T-63: only a regular file inside tmp/ (no ../, separators or
+            // symlink out) uploaded by this session through CvUploaderService
+            $upload_name = (string) ($param['file'] ?? '');
+            $file = CvUpload::resolve($upload_name);
             if (file_exists($file))
             {
                 $dbinfo = TConnection::getDatabaseInfo($param['database']);
@@ -471,8 +488,19 @@ class SystemDatabaseExplorer extends TPage
                 }
                 
                 TTransaction::close();
+                @unlink($file);
+                CvUpload::forget($upload_name);
                 new TMessage('info', _t('Records imported successfully'));
             }
+        }
+        catch (InvalidArgumentException $e)
+        {
+            if ($e->getMessage() !== 'Invalid file')
+            {
+                new TMessage('error', $e->getMessage() . ' in <b>' . $table . '</b>');
+                return;
+            }
+            new TMessage('error', _t('Invalid file'));
         }
         catch (Exception $e)
         {

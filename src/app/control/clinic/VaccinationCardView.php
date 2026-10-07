@@ -168,6 +168,7 @@ class VaccinationCardView extends TPage
         $picker_form->setFormTitle(_t('Select a patient'));
 
         $patient_id_picker = new TDBUniqueSearch('patient_id_picker', 'permission', 'Patient', 'id', 'name', 'name', $tenant_criteria);
+        $patient_id_picker->setMask(Patient::safeSearchMask('name_safe')); // T-65: rótulo escapado no select2
         $patient_id_picker->addValidation(_t('Patient'), new TRequiredValidator);
 
         $picker_form->addFields( [new TLabel(_t('Patient'))] );

@@ -97,6 +97,7 @@ class FinancialEntryList extends TStandardList
         $column_occurred_at   = new TDataGridColumn('occurred_at_label', _t('Date'), 'left', 130);
         $column_reference     = new TDataGridColumn('reference_label', _t('Reference'), 'left');
         $column_category      = new TDataGridColumn('category', _t('Category'), 'left');
+        $column_payment       = new TDataGridColumn('payment_method_label', _t('Payment method'), 'left');
         $column_entry_type    = new TDataGridColumn('entry_type', _t('Type'), 'left', 110);
         $column_amount        = new TDataGridColumn('amount_cents', _t('Amount'), 'right', 130);
 
@@ -116,6 +117,7 @@ class FinancialEntryList extends TStandardList
         $this->datagrid->addColumn($column_occurred_at);
         $this->datagrid->addColumn($column_reference);
         $this->datagrid->addColumn($column_category);
+        $this->datagrid->addColumn($column_payment);
         $this->datagrid->addColumn($column_entry_type);
         $this->datagrid->addColumn($column_amount);
 
@@ -200,6 +202,9 @@ class FinancialEntryList extends TStandardList
                 $row->id                 = $entry->id();
                 $row->entry_type         = $entry->entryType();
                 $row->category           = CvFormat::paymentMethod((string) $entry->category());
+                $row->payment_method_label = $entry->paymentMethod() !== null
+                    ? CvFormat::paymentMethod($entry->paymentMethod())
+                    : '—';
                 $row->amount_cents       = $entry->amountCents();
                 $row->occurred_at_label  = $entry->occurredAt()->format('d/m/Y H:i');
                 $row->reference_label    = $entry->referenceType() !== null

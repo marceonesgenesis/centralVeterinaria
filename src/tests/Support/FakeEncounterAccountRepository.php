@@ -23,11 +23,20 @@ final class FakeEncounterAccountRepository implements EncounterAccountRepository
     private array $accounts = [];
     private int $nextId = 1;
 
+    /**
+     * T-59: number of save() calls made after construction (seed accounts
+     * are not counted). Public and writable so a test can zero it right
+     * before the call under test and assert nothing was persisted.
+     */
+    public int $saveCount = 0;
+
     public function __construct(private readonly int $tenantId, EncounterAccount ...$seed)
     {
         foreach ($seed as $account) {
             $this->save($account);
         }
+
+        $this->saveCount = 0;
     }
 
     public function tenantId(): int
@@ -68,6 +77,7 @@ final class FakeEncounterAccountRepository implements EncounterAccountRepository
         }
 
         $this->accounts[$entity->id()] = $entity;
+        $this->saveCount++;
 
         return $entity;
     }

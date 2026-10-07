@@ -9,6 +9,7 @@ use CentralVet\Domain\Service;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeServiceRepository;
+use DomainException;
 use InvalidArgumentException;
 
 /**
@@ -161,5 +162,274 @@ final class ServiceCatalogServiceTest
 
         Assert::same(['Banho', 'Consulta'], $all);
         Assert::same(['Consulta'], $activeOnly);
+    }
+
+    public function testCreateWithActiveFalseStoresInactiveServiceInOneSave(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $created = $service->create([
+            'name' => 'Consulta noturna',
+            'duration_minutes' => 30,
+            'price_cents' => 20000,
+            'active' => false,
+        ]);
+
+        Assert::same(1, $repository->storedCount());
+        Assert::false($created->isActive());
+        Assert::same([], $service->listActive());
+    }
+
+    public function testDuplicateCreatesInactiveCopiesWithFreeNames(): void
+    {
+        $original = Service::create(1, 'A', 'clinica', 40, 12050);
+        $repository = new FakeServiceRepository(1, $original);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+        $id = (int) $original->id();
+
+        $first = $service->duplicate($id, 'cópia');
+        $second = $service->duplicate($id, 'cópia');
+
+        Assert::same('A (cópia)', $first->name());
+        Assert::same('A (cópia 2)', $second->name());
+        Assert::false($first->isActive());
+        Assert::false($second->isActive());
+        Assert::same('clinica', $second->category());
+        Assert::same(40, $second->durationMinutes());
+        Assert::same(12050, $second->priceCents());
+        Assert::true($original->isActive());
+        Assert::same(3, $repository->storedCount());
+    }
+
+    public function testDuplicateRejectsServiceFromAnotherTenant(): void
+    {
+        $foreign = Service::create(2, 'Alheio', null, 30, 1000);
+        $repository = new FakeServiceRepository(1, $foreign);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $message = null;
+
+        try {
+            $service->duplicate((int) $foreign->id());
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Service not found for this tenant', $message);
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testDeleteRejectsServiceWithAppointments(): void
+    {
+        $used = Service::create(1, 'Consulta', null, 30, 15000);
+        $repository = new FakeServiceRepository(1, $used);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+        $id = (int) $used->id();
+        $repository->markHasAppointments($id);
+
+        $message = null;
+
+        try {
+            $service->delete($id);
+        } catch (DomainException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same("Service {$id} has appointments; deactivate it instead", $message);
+        Assert::notNull($service->findById($id));
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testDeleteRemovesServiceWithoutAppointments(): void
+    {
+        $unused = Service::create(1, 'Banho', null, 30, 5000);
+        $repository = new FakeServiceRepository(1, $unused);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+        $id = (int) $unused->id();
+
+        $service->delete($id);
+
+        Assert::null($service->findById($id));
+        Assert::same(0, $repository->storedCount());
+    }
+
+    public function testDeleteRejectsUnknownId(): void
+    {
+        $foreign = Service::create(2, 'Alheio', null, 30, 1000);
+        $repository = new FakeServiceRepository(1, $foreign);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $message = null;
+
+        try {
+            $service->delete((int) $foreign->id());
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Service not found for this tenant', $message);
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testImportCsvCreatesValidRowsAndReportsSkippedLines(): void
+    {
+        $existing = Service::create(1, 'Consulta', null, 30, 15000);
+        $repository = new FakeServiceRepository(1, $existing);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "\xEF\xBB\xBFname;category;duration_minutes;price\r\n"
+            . "Vacina V10;preventivo;15;120,50\r\n"
+            . "Retorno;;20;80.00\r\n"
+            . "Consulta;clinica;30;150\r\n"
+            . "Exame;lab;10;abc\r\n"
+            . "\r\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(2, $result['created']);
+        Assert::same([
+            ['line' => 4, 'reason' => 'duplicated name'],
+            ['line' => 5, 'reason' => 'invalid price'],
+        ], $result['skipped']);
+
+        $vacina = $repository->findByName('Vacina V10');
+        Assert::notNull($vacina);
+        Assert::same(12050, $vacina->priceCents());
+        Assert::same('preventivo', $vacina->category());
+        Assert::true($vacina->isActive());
+        Assert::same(8000, $repository->findByName('Retorno')?->priceCents());
+        Assert::same(3, $repository->storedCount());
+    }
+
+    public function testImportCsvReportsMissingNameInvalidDurationAndRepeatedName(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . ";x;10;10\n"
+            . "Banho;;zero;10\n"
+            . "Tosa;;30;10\n"
+            . "Tosa;;30;10\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([
+            ['line' => 2, 'reason' => 'name is required'],
+            ['line' => 3, 'reason' => 'invalid duration_minutes'],
+            ['line' => 5, 'reason' => 'duplicated name'],
+        ], $result['skipped']);
+    }
+
+    public function testImportCsvSkipsRowsBeyondColumnLimits(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Valido;;30;10\n"
+            . str_repeat('n', 191) . ";;30;10\n"
+            . "Categoria longa;" . str_repeat('c', 61) . ";30;10\n"
+            . "Duracao enorme;;4294967296;10\n"
+            . "Preco enorme;;30;42949672,96\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([
+            ['line' => 3, 'reason' => 'name too long'],
+            ['line' => 4, 'reason' => 'category too long'],
+            ['line' => 5, 'reason' => 'invalid duration_minutes'],
+            ['line' => 6, 'reason' => 'invalid price'],
+        ], $result['skipped']);
+        Assert::same(1, $repository->storedCount());
+    }
+
+    public function testImportCsvAcceptsValuesAtColumnLimits(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $name = str_repeat('á', 190);
+        $csv = "name;category;duration_minutes;price\n"
+            . $name . ";" . str_repeat('ç', 60) . ";4294967295;42949672,95\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([], $result['skipped']);
+        $imported = $repository->findByName($name);
+        Assert::notNull($imported);
+        Assert::same(4294967295, $imported->priceCents());
+        Assert::same(4294967295, $imported->durationMinutes());
+        Assert::same(str_repeat('ç', 60), $imported->category());
+        Assert::same(190, mb_strlen($imported->name()));
+    }
+
+    public function testDuplicateKeepsNameWithinMaxLength(): void
+    {
+        $original = Service::create(1, str_repeat('a', 190), null, 30, 1000);
+        $repository = new FakeServiceRepository(1, $original);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $first = $service->duplicate((int) $original->id(), 'cópia');
+        $second = $service->duplicate((int) $original->id(), 'cópia');
+
+        Assert::true(mb_strlen($first->name()) <= ServiceCatalogService::MAX_NAME_LENGTH);
+        Assert::true(str_ends_with($first->name(), '(cópia)'));
+        Assert::true(mb_strlen($second->name()) <= ServiceCatalogService::MAX_NAME_LENGTH);
+        Assert::true(str_ends_with($second->name(), '(cópia 2)'));
+    }
+
+    public function testImportCsvReportsLineRejectedByCreate(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $repository->failNextSaveWith(new InvalidArgumentException('x'));
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Banho;;30;10\n"
+            . "Tosa;;30;10\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(1, $result['created']);
+        Assert::same([['line' => 2, 'reason' => 'x']], $result['skipped']);
+        Assert::notNull($repository->findByName('Tosa'));
+    }
+
+    public function testImportCsvIgnoresBlankLineBetweenValidRows(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $csv = "name;category;duration_minutes;price\n"
+            . "Banho;;30;10\n"
+            . "   \n"
+            . "Tosa;;30;10\n";
+
+        $result = $service->importCsv($csv);
+
+        Assert::same(2, $result['created']);
+        Assert::same([], $result['skipped']);
+    }
+
+    public function testImportCsvRejectsInvalidHeader(): void
+    {
+        $repository = new FakeServiceRepository(1);
+        $service = new ServiceCatalogService($repository, TenantContext::authenticated(1, 1));
+
+        $message = null;
+
+        try {
+            $service->importCsv("nome;categoria;duracao;preco\nA;;10;10\n");
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Invalid header: expected name;category;duration_minutes;price', $message);
+        Assert::same(0, $repository->storedCount());
     }
 }

@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\MoneyInput;
+
 /**
  * EncounterAccountForm
  *
@@ -72,6 +75,7 @@ class EncounterAccountForm extends TPage
 {
     protected $form;
     protected $datagrid;
+    protected $discountForm;
     private ?int $encounterId;
     private ?\CentralVet\Domain\EncounterAccount $account = null;
 
@@ -183,7 +187,8 @@ class EncounterAccountForm extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -340,7 +345,11 @@ class EncounterAccountForm extends TPage
         $description_text->addValidation(_t('Description'), new TRequiredValidator);
 
         $amount_cents = new TEntry('amount_cents');
-        $amount_cents->setNumericMask(2, ',', '.', false);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $amount_cents->setProperty('placeholder', _t('e.g. 12,34'));
+        $amount_cents->setProperty('inputmode', 'decimal');
+        $amount_cents->setMaxLength(16);
         $amount_cents->setSize('100%');
         $amount_cents->addValidation(_t('Amount'), new TRequiredValidator);
 
@@ -360,6 +369,7 @@ class EncounterAccountForm extends TPage
         $panel->class = 'cv-section';
 
         $discountForm = new BootstrapFormBuilder('form_EncounterAccountDiscount');
+        $this->discountForm = $discountForm;
         $discountForm->enableClientValidation();
         CvForm::decorate($discountForm, 1);
 
@@ -368,14 +378,19 @@ class EncounterAccountForm extends TPage
         $discountForm->add($account_id);
 
         $discount_cents = new TEntry('discount_cents');
-        $discount_cents->setNumericMask(2, ',', '.', false);
+        // digitação livre, sem máscara nem filtro (padrão BankAccountForm):
+        // MoneyInput::toCents() converte ou recusa ("Valor inválido").
+        $discount_cents->setProperty('placeholder', _t('e.g. 12,34'));
+        $discount_cents->setProperty('inputmode', 'decimal');
+        $discount_cents->setMaxLength(16);
         $discount_cents->setSize('100%');
         $discount_cents->addValidation(_t('Discount'), new TRequiredValidator);
 
         // quem autorizou: combo de usuários ativos do tenant (antes, id digitado)
         $authorized_by_system_user_id = new TDBCombo(
-            'authorized_by_system_user_id', 'permission', 'SystemUser', 'id', 'name', 'name', self::tenantUsersCriteria()
-        );
+            'authorized_by_system_user_id', 'permission', 'SystemUser', 'id',
+            SystemUser::safeSearchMask('name_safe'), 'name', self::tenantUsersCriteria()
+        ); // T-65: enableSearch passa pelo select2; rótulo escapado, ordem pela coluna real
         $authorized_by_system_user_id->enableSearch();
         $authorized_by_system_user_id->setSize('100%');
         $authorized_by_system_user_id->setValue(TSession::getValue('userid'));
@@ -428,7 +443,7 @@ class EncounterAccountForm extends TPage
         {
             $accountId = isset($param['account_id']) ? (int) $param['account_id'] : 0;
             $descriptionText = isset($param['description_text']) ? (string) $param['description_text'] : '';
-            $amountCents = self::toCents($param['amount_cents'] ?? null);
+            $amountCents = MoneyInput::toCents((string) ($param['amount_cents'] ?? null), false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
 
             if ($accountId <= 0)
             {
@@ -450,26 +465,32 @@ class EncounterAccountForm extends TPage
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', _t('You are not allowed to add items to this account'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->form);
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->form);
             new TMessage('error', $e->getMessage());
         }
     }
@@ -490,7 +511,7 @@ class EncounterAccountForm extends TPage
         try
         {
             $accountId = isset($param['account_id']) ? (int) $param['account_id'] : 0;
-            $discountCents = self::toCents($param['discount_cents'] ?? null);
+            $discountCents = MoneyInput::toCents((string) ($param['discount_cents'] ?? null), false, MoneyInput::MAX_UNSIGNED_INT_CENTS);
             $authorizedBySystemUserId = isset($param['authorized_by_system_user_id']) && $param['authorized_by_system_user_id'] !== ''
                 ? (int) $param['authorized_by_system_user_id']
                 : 0;
@@ -525,32 +546,52 @@ class EncounterAccountForm extends TPage
         catch (\CentralVet\Domain\Exception\DiscountExceedsSubtotalException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->discountForm);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->discountForm);
             new TMessage('error', $e->getMessage());
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->discountForm);
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->discountForm);
             new TMessage('error', _t('You are not allowed to apply a discount to this account'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $this->keepTypedData($this->discountForm);
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
+            $this->keepTypedData($this->discountForm);
             new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Depois de um erro, devolve ao formulário o que o usuário digitou
+     * (ex.: "abc" → "Valor inválido" sem perder os campos): a ação é de
+     * instância, então a página é redesenhada pelo construtor logo depois.
+     */
+    private function keepTypedData($form): void
+    {
+        if ($form instanceof BootstrapFormBuilder)
+        {
+            $form->setData($form->getData());
         }
     }
 
@@ -614,7 +655,8 @@ class EncounterAccountForm extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -624,32 +666,13 @@ class EncounterAccountForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
-    }
-
-    /**
-     * Converts a "1.234,56"/"1234.56"-style amount typed in a TEntry with a
-     * numeric mask into integer cents, matching ServiceForm::toCents()'s
-     * convention (SaleForm/PrescriptionForm siblings use the same rounding
-     * approach for money fields).
-     */
-    private static function toCents($value): int
-    {
-        if ($value === null || $value === '')
-        {
-            return 0;
-        }
-
-        $normalized = str_replace('.', '', (string) $value);
-        $normalized = str_replace(',', '.', $normalized);
-
-        return (int) round(((float) $normalized) * 100);
     }
 
     private static function formatCents(int $cents): string

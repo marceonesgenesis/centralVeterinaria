@@ -251,7 +251,8 @@ class VaccinationForm extends TPage
         {
             TTransaction::rollback();
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {

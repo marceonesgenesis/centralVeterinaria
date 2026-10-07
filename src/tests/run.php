@@ -34,12 +34,81 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 // Integration tests connect to the real `redis` service (see
-// Support\RedisIntegrationTestCase). Force a dedicated database for the
-// test run unless the caller already picked one explicitly, so a forgotten
-// REDIS_DATABASE never points this suite at whatever a developer is using
-// for local session/cache/queue data on database 0.
-if (getenv('REDIS_DATABASE') === false) {
-    putenv('REDIS_DATABASE=15');
+// Support\RedisIntegrationTestCase). The inherited REDIS_DATABASE is the
+// APPLICATION's database (docker-compose.yml injects REDIS_DATABASE=0 into
+// the `app` container, and browser sessions live there), so it is always
+// ignored: the suite runs on TEST_REDIS_DATABASE, default 15. If that
+// resolves to the application's own database, refuse to run at all.
+// ('0' is falsy in PHP, so an explicit TEST_REDIS_DATABASE=0 is checked
+// against false/'' instead of using ?:.)
+$centralvetInheritedRedisDatabase = getenv('REDIS_DATABASE');
+$centralvetApplicationRedisDatabase = ($centralvetInheritedRedisDatabase === false || $centralvetInheritedRedisDatabase === '')
+    ? 0
+    : (int) $centralvetInheritedRedisDatabase;
+$centralvetTestRedisDatabaseRaw = getenv('TEST_REDIS_DATABASE');
+$centralvetTestRedisDatabase = ($centralvetTestRedisDatabaseRaw === false || $centralvetTestRedisDatabaseRaw === '')
+    ? '15'
+    : $centralvetTestRedisDatabaseRaw;
+
+// Redis has databases 0..15 (redis.conf default `databases 16`). Anything
+// else must be refused up front: RedisConnectionFactory skips select() for
+// values <= 0 and ignores select()'s false return for values > 15, so both
+// "-1" and "99" would silently run the suite on DB 0, next to the browser
+// sessions (T-55).
+if (!ctype_digit($centralvetTestRedisDatabase) || (int) $centralvetTestRedisDatabase > 15) {
+    fwrite(STDERR, sprintf(
+        "Refusing to run: TEST_REDIS_DATABASE must be an integer between 0 and 15 (%s)\n",
+        $centralvetTestRedisDatabase,
+    ));
+    exit(1);
+}
+
+if ((int) $centralvetTestRedisDatabase === $centralvetApplicationRedisDatabase) {
+    fwrite(STDERR, sprintf(
+        "Refusing to run: test Redis database equals the application database (%d)\n",
+        $centralvetApplicationRedisDatabase,
+    ));
+    exit(1);
+}
+
+putenv('REDIS_DATABASE=' . $centralvetTestRedisDatabase);
+
+// Preflight: when the real Redis is reachable, select() the test database
+// once and abort if the server refuses it (false), instead of letting the
+// integration tests fall back to DB 0. Unreachable Redis is not an error
+// here: RedisIntegrationTestCase reports those tests as SKIP.
+if (extension_loaded('redis')) {
+    $centralvetPreflightRedis = new \Redis();
+
+    try {
+        $centralvetPreflightConnected = @$centralvetPreflightRedis->connect(
+            (string) (getenv('REDIS_HOST') ?: '127.0.0.1'),
+            (int) (getenv('REDIS_PORT') ?: 6379),
+            1.5,
+        );
+    } catch (\Throwable) {
+        $centralvetPreflightConnected = false;
+    }
+
+    if ($centralvetPreflightConnected) {
+        $centralvetPreflightPassword = getenv('REDIS_PASSWORD');
+
+        if (is_string($centralvetPreflightPassword) && $centralvetPreflightPassword !== '') {
+            $centralvetPreflightRedis->auth($centralvetPreflightPassword);
+        }
+
+        if ($centralvetPreflightRedis->select((int) $centralvetTestRedisDatabase) === false) {
+            fwrite(STDERR, sprintf(
+                "Refusing to run: Redis refused SELECT %d for TEST_REDIS_DATABASE\n",
+                (int) $centralvetTestRedisDatabase,
+            ));
+            exit(1);
+        }
+
+        $centralvetPreflightRedis->close();
+    }
+
+    unset($centralvetPreflightRedis, $centralvetPreflightConnected, $centralvetPreflightPassword);
 }
 
 // Belt-and-braces autoloader for the CentralVet\Tests\ namespace: the

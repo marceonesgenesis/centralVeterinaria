@@ -139,10 +139,41 @@ class AgendaView extends TPage
 
         $patient_names = $this->resolvePatientNames($tenant_context, $appointments_by_professional);
         $service_names = $this->resolveServiceNames($tenant_context, $appointments_by_professional);
+        $in_queue = $this->resolveAppointmentsInQueue($tenant_context, $appointments_by_professional);
 
         TTransaction::close();
 
-        return $this->renderGrid($professionals, $appointments_by_professional, $patient_names, $service_names);
+        return $this->renderGrid($professionals, $appointments_by_professional, $patient_names, $service_names, $in_queue);
+    }
+
+    /**
+     * Ids of the day's appointments that already have a queue entry (T-41),
+     * in one QueueEntryService::appointmentIdsInQueue() call per load. Must
+     * run inside buildGrid()'s open 'permission' transaction.
+     *
+     * @param array<int|string, list<\CentralVet\Domain\Appointment>> $appointments_by_professional
+     * @return array<int, true> appointment_id => true
+     */
+    private function resolveAppointmentsInQueue(\CentralVet\Tenancy\TenantContext $tenant_context, array $appointments_by_professional): array
+    {
+        $appointment_ids = [];
+
+        foreach ($appointments_by_professional as $appointments)
+        {
+            foreach ($appointments as $appointment)
+            {
+                $appointment_ids[] = (int) $appointment->id;
+            }
+        }
+
+        if (empty($appointment_ids))
+        {
+            return [];
+        }
+
+        $ids = self::buildQueueEntryService($tenant_context)->appointmentIdsInQueue($appointment_ids);
+
+        return array_fill_keys($ids, true);
     }
 
     /**
@@ -253,8 +284,9 @@ class AgendaView extends TPage
      * @param array<int|string, list<\CentralVet\Domain\Appointment>> $appointments_by_professional
      * @param array<int, string|null> $patient_names patient_id => name (null when not found)
      * @param array<int, string|null> $service_names service_id => name (null when not found)
+     * @param array<int, true> $in_queue appointment_id => true when already in the queue (T-41)
      */
-    private function renderGrid(array $professionals, array $appointments_by_professional, array $patient_names = [], array $service_names = [])
+    private function renderGrid(array $professionals, array $appointments_by_professional, array $patient_names = [], array $service_names = [], array $in_queue = [])
     {
         if (empty($professionals))
         {
@@ -283,6 +315,22 @@ class AgendaView extends TPage
         $table->add($thead);
 
         $tbody = new TElement('tbody');
+        $agenda_slots = self::agendaSlots();
+
+        // agrupa por linha da grade: horário fora do slot exato cai no slot
+        // anterior (14:21 → 14:00); fora da grade, no primeiro/último slot
+        $appointments_by_cell = [];
+
+        foreach ($professionals as $professional)
+        {
+            $appointments = $appointments_by_professional[$professional->id] ?? [];
+            usort($appointments, static fn ($a, $b) => $a->scheduledAt <=> $b->scheduledAt);
+
+            foreach ($appointments as $appointment)
+            {
+                $appointments_by_cell[$agenda_slots->slotFor($appointment->scheduledAt)][$professional->id][] = $appointment;
+            }
+        }
 
         foreach ($this->buildTimeSlots() as $slot)
         {
@@ -295,14 +343,10 @@ class AgendaView extends TPage
             foreach ($professionals as $professional)
             {
                 $cell = new TElement('td');
-                $appointments = $appointments_by_professional[$professional->id] ?? [];
 
-                foreach ($appointments as $appointment)
+                foreach ($appointments_by_cell[$slot][$professional->id] ?? [] as $appointment)
                 {
-                    if ($appointment->scheduledAt->format('H:i') === $slot)
-                    {
-                        $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names));
-                    }
+                    $cell->add($this->renderAppointmentBlock($appointment, $patient_names, $service_names, isset($in_queue[(int) $appointment->id])));
                 }
 
                 $row->add($cell);
@@ -316,24 +360,23 @@ class AgendaView extends TPage
         return $table;
     }
 
+    private static function agendaSlots(): \CentralVet\Application\AgendaSlots
+    {
+        return new \CentralVet\Application\AgendaSlots(self::SLOT_START_MINUTES, self::SLOT_END_MINUTES, self::SLOT_STEP_MINUTES);
+    }
+
     /** @return string[] list of "H:i" slots between SLOT_START_MINUTES and SLOT_END_MINUTES */
     private function buildTimeSlots(): array
     {
-        $slots = [];
-
-        for ($minutes = self::SLOT_START_MINUTES; $minutes < self::SLOT_END_MINUTES; $minutes += self::SLOT_STEP_MINUTES)
-        {
-            $slots[] = sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
-        }
-
-        return $slots;
+        return self::agendaSlots()->slots();
     }
 
     /**
      * @param array<int, string|null> $patient_names patient_id => name (null when not found)
      * @param array<int, string|null> $service_names service_id => name (null when not found)
+     * @param bool $in_queue the appointment already has a queue entry (T-41)
      */
-    private function renderAppointmentBlock(\CentralVet\Domain\Appointment $appointment, array $patient_names = [], array $service_names = [])
+    private function renderAppointmentBlock(\CentralVet\Domain\Appointment $appointment, array $patient_names = [], array $service_names = [], bool $in_queue = false)
     {
         $block = new TElement('div');
         $block->class = 'agenda-block';
@@ -357,6 +400,9 @@ class AgendaView extends TPage
 
         $block->add($badge);
 
+        // horário exato, já que a linha da grade é o slot arredondado
+        $block->add(TElement::tag('span', $appointment->scheduledAt->format('H:i'), ['class' => 'agenda-block-time ms-1']));
+
         // abre o agendamento em página cheia (AppointmentForm, modo leitura)
         $edit_link = TElement::tag('a', CvFormat::e($patient_label . ' - ' . $service_label), [
             'href' => 'index.php?class=AppointmentForm&method=onEdit&key=' . (int) $appointment->id
@@ -366,7 +412,144 @@ class AgendaView extends TPage
         ]);
         $block->add($edit_link);
 
+        // já na fila (T-41): badge no lugar do Check-in; só para agendamento
+        // ativo (T-57), cancelado/atendido/faltou mostram só o status
+        $active_statuses = [
+            \CentralVet\Domain\Appointment::STATUS_SCHEDULED,
+            \CentralVet\Domain\Appointment::STATUS_CONFIRMED,
+            \CentralVet\Domain\Appointment::STATUS_IN_PROGRESS,
+        ];
+
+        if ($in_queue)
+        {
+            if (in_array($appointment->status, $active_statuses, true))
+            {
+                $queued_badge = CvBadge::create(_t('In queue'), 'info');
+                $queued_badge->class .= ' agenda-block-queued ms-1';
+                $block->add($queued_badge);
+            }
+        }
+        // check-in na fila (T-29): só agendado/confirmado; confirma antes
+        elseif (in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
+        {
+            $block->add(TElement::tag('a', CvFormat::e(_t('Check-in')), [
+                'href' => 'index.php?class=AgendaView&method=onAskCheckIn&static=1&appointment_id=' . (int) $appointment->id
+                        . '&date=' . $appointment->scheduledAt->format('Y-m-d'),
+                'generator' => 'adianti',
+                'class' => 'agenda-block-checkin ms-1',
+            ]));
+        }
+
         return $block;
+    }
+
+    /**
+     * Confirmação do check-in (T-29): TQuestion que, confirmada, chama
+     * onCheckIn() com o agendamento e a data da grade.
+     */
+    public static function onAskCheckIn($param = null)
+    {
+        $action = new TAction([__CLASS__, 'onCheckIn']);
+        $action->setParameter('appointment_id', (int) ($param['appointment_id'] ?? 0));
+        $action->setParameter('date', self::validDate($param['date'] ?? null));
+
+        new TQuestion(_t('Check in this appointment?'), $action);
+    }
+
+    /**
+     * Põe o paciente do agendamento na fila por QueueEntryService::checkIn()
+     * (T-29). Só agendado/confirmado; um agendamento já na fila é recusado
+     * pelo serviço (DomainException). Sempre recarrega a Agenda na mesma
+     * data, no sucesso e na recusa.
+     */
+    public function onCheckIn($param)
+    {
+        $appointment_id = (int) ($param['appointment_id'] ?? 0);
+        $date = self::validDate($param['date'] ?? null);
+        $checked_in = false;
+
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $appointment = $appointment_id > 0 ? self::buildAppointmentService($context)->findById($appointment_id) : null;
+
+            if ($appointment === null)
+            {
+                TTransaction::close();
+                new TMessage('error', _t('Record not found'));
+            }
+            elseif (!in_array($appointment->status, [\CentralVet\Domain\Appointment::STATUS_SCHEDULED, \CentralVet\Domain\Appointment::STATUS_CONFIRMED], true))
+            {
+                TTransaction::close();
+                new TMessage('error', _t('Only scheduled or confirmed appointments can be checked in'));
+            }
+            else
+            {
+                self::buildQueueEntryService($context)->checkIn([
+                    'patient_id' => $appointment->patientId,
+                    'professional_system_user_id' => $appointment->professionalSystemUserId,
+                    'system_unit_id' => $appointment->systemUnitId,
+                    'appointment_id' => $appointment->id,
+                ], __CLASS__ . '::onCheckIn');
+
+                TTransaction::close();
+                $checked_in = true;
+            }
+        }
+        catch (DomainException | \CentralVet\Domain\Exception\CrossTenantReferenceException | \CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+
+        $this->onReload(['date' => $date]);
+
+        if ($checked_in)
+        {
+            TToast::show('success', _t('Patient checked in'));
+        }
+    }
+
+    /** 'Y-m-d' válido ou a data de hoje. */
+    private static function validDate($value): string
+    {
+        $value = is_string($value) ? $value : '';
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return ($parsed !== false && $parsed->format('Y-m-d') === $value) ? $value : date('Y-m-d');
+    }
+
+    /**
+     * QueueEntryService (T-08) na transação 'permission' já aberta, com o
+     * mesmo wiring de QueueEntryView::makeQueueEntryService().
+     */
+    private static function buildQueueEntryService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\QueueEntryService
+    {
+        $connection = TTransaction::get();
+
+        $queue_entries = new \CentralVet\Persistence\QueueEntryRepository($context, $connection);
+        $patients = new \CentralVet\Application\PatientService(
+            new \CentralVet\Persistence\PatientRepository($context, $connection),
+            new \CentralVet\Persistence\TutorRepository($context, $connection),
+            $context,
+        );
+
+        $authorization = new \CentralVet\Authorization\RbacAuthorizationService(
+            new \CentralVet\Authorization\AdiantiProgramPermissionProvider(new \CentralVet\Tenancy\AdiantiSessionContextSource()),
+            new \CentralVet\Audit\PdoAuditLogWriter($connection),
+        );
+
+        return new \CentralVet\Application\QueueEntryService($queue_entries, $patients, $context, $authorization);
     }
 
     /**

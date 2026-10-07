@@ -19,6 +19,7 @@ use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
  * handful of dedicated tests to prove the unit-scope authorization check
  * added to AppointmentService::schedule() / QueueEntryService::checkIn()/
  * advanceStatus() actually blocks the call instead of being decorative.
+ * setAllowed() switches the decision mid-test (EncounterAccountServiceTest).
  */
 final class FakeAuthorizationPolicy implements AuthorizationPolicyInterface
 {
@@ -26,9 +27,18 @@ final class FakeAuthorizationPolicy implements AuthorizationPolicyInterface
     public array $requests = [];
 
     public function __construct(
-        private readonly bool $allowed = true,
+        private bool $allowed = true,
         private readonly string $reason = 'granted',
     ) {
+    }
+
+    /**
+     * Flips the decision for the following calls, so a test can set up
+     * state under "allow" and then prove the guarded call is denied.
+     */
+    public function setAllowed(bool $allowed): void
+    {
+        $this->allowed = $allowed;
     }
 
     public function decide(AuthorizationRequest $request): AuthorizationDecision

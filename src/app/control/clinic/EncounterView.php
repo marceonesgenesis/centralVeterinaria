@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\DateTimeInput;
+
 /**
  * EncounterView
  *
@@ -24,7 +27,15 @@
  *
  * IA: NullAiClinicalAssistant continua carregado (onAcceptAiSummary), mas
  * os blocos de IA nao sao exibidos nesta fase (aiPanel/suggestionsPanel
- * mantidos sem uso). Sem botao Pausar (sem dado de pausa no schema).
+ * mantidos sem uso).
+ *
+ * Pausa (rodada 2): Pausar/Retomar no cabecalho (EncounterService::pause/
+ * resume, encounter.paused_at/paused_seconds, status continua
+ * in_progress). Pausado, o selo "Pausado" aparece, o cronometro para e o
+ * tempo exibido desconta pausedSeconds(); o autosave continua.
+ *
+ * Recarregamento: Finalizar, Pausar e Retomar recarregam a tela sempre
+ * com `encounter_id` (nunca `id`), para o construtor achar o atendimento.
  *
  * Entrada: `encounter_id` (atendimento ja iniciado) OU `patient_id`
  * (+ `appointment_id`/`service_id` opcionais) para iniciar um novo
@@ -196,7 +207,8 @@ class EncounterView extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
@@ -206,7 +218,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
 
         return null;
@@ -259,6 +272,19 @@ class EncounterView extends TPage
             catch (Exception $e)
             {
                 // display only — never blocks the rest of the screen
+            }
+
+            // Patient aggregate (tenant-aware repository) only for the
+            // allergy alert and the photo — best-effort, like the card.
+            $patient = null;
+
+            try
+            {
+                $patient = (new \CentralVet\Persistence\PatientRepository($context, TTransaction::get()))
+                    ->findById($encounter->patientId());
+            }
+            catch (Exception $e)
+            {
             }
 
             $professional = null;
@@ -352,6 +378,7 @@ class EncounterView extends TPage
             return [
                 'encounter' => $encounter,
                 'patientCard' => $patientCard,
+                'patient' => $patient,
                 'previousEncounter' => $previousEncounter,
                 'planItems' => $planItems,
                 'professional' => $professional,
@@ -376,13 +403,15 @@ class EncounterView extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
             return null;
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
             return null;
         }
     }
@@ -393,9 +422,11 @@ class EncounterView extends TPage
     }
 
     /**
-     * Page header: back, "Atendimento" + status badge, timer since
-     * started_at, Print (window.print()) and Finish encounter
-     * (EncounterService::finish(), action 'EncounterView::onFinish').
+     * Page header: back, "Atendimento" + status badge (+ "Pausado" when
+     * paused), timer since started_at (minus paused time), Print
+     * (window.print()), Pause/Resume (EncounterService::pause/resume) and
+     * Finish encounter (EncounterService::finish(), action
+     * 'EncounterView::onFinish').
      */
     private function pageHeader(array $data): TElement
     {
@@ -421,6 +452,11 @@ class EncounterView extends TPage
         $text->add(TElement::tag('h1', CvFormat::e(_t('Encounter')), ['class' => 'cv-page-head__title']));
         $text->add($finished ? CvBadge::create(_t('Finished'), 'success') : CvBadge::create(_t('In service'), 'info'));
 
+        if (!$finished && $encounter->isPaused())
+        {
+            $text->add(CvBadge::create(_t('Paused'), 'warning'));
+        }
+
         $header->add($text);
 
         $actions = new TElement('div');
@@ -437,6 +473,9 @@ class EncounterView extends TPage
 
         if (!$finished)
         {
+            $actions->add($encounter->isPaused()
+                ? $this->headerButton($encounter->id(), 'resume_encounter', 'onResume', _t('Resume'), 'fa:play', 'btn btn-default')
+                : $this->headerButton($encounter->id(), 'pause_encounter', 'onPause', _t('Pause'), 'fa:pause', 'btn btn-default'));
             $actions->add($this->finishButton($encounter->id(), 'finish_encounter'));
         }
 
@@ -452,30 +491,55 @@ class EncounterView extends TPage
      */
     private function finishButton(int $encounterId, string $name): TButton
     {
-        $finishAction = new TAction([$this, 'onFinish']);
-        $finishAction->setParameter('id', $encounterId);
+        return $this->headerButton($encounterId, $name, 'onFinish', _t('Finish encounter'), 'fa:check-circle', 'btn btn-success');
+    }
 
-        $finishButton = new TButton($name);
-        $finishButton->setAction($finishAction, _t('Finish encounter'));
-        $finishButton->setImage('fa:check-circle');
-        $finishButton->setFormName('form_EncounterView_' . $encounterId);
-        $finishButton->class = 'btn btn-success';
+    /**
+     * Header action button (Finish/Pause/Resume) bound to
+     * form_EncounterView_<id>, phase 08 pattern: new TButton + setAction +
+     * setFormName. The action carries `encounter_id`, so the constructor
+     * that runs before the method renders the encounter, not the empty state.
+     */
+    private function headerButton(int $encounterId, string $name, string $method, string $label, string $icon, string $class): TButton
+    {
+        $action = new TAction([$this, $method]);
+        $action->setParameter('encounter_id', $encounterId);
 
-        return $finishButton;
+        $button = new TButton($name);
+        $button->setAction($action, $label);
+        $button->setImage($icon);
+        $button->setFormName('form_EncounterView_' . $encounterId);
+        $button->class = $class;
+
+        return $button;
     }
 
     /**
      * Elapsed time since started_at. The elapsed seconds are computed on the
      * server (same clock/timezone that wrote started_at) and only counted up
      * on the client, so a client clock skew never shows a wrong duration.
-     * Finished encounters show the fixed started→finished duration.
+     * Finished encounters show the fixed started→finished duration. Paused
+     * time (pausedSeconds()) is always discounted; a paused encounter shows
+     * the duration up to paused_at and does not count up.
      */
     private function timerElement($encounter): TElement
     {
-        $end = self::isFinished($encounter) && $encounter->finishedAt() !== null
-            ? $encounter->finishedAt()
-            : new DateTimeImmutable('now', $encounter->startedAt()->getTimezone());
-        $elapsed = max(0, $end->getTimestamp() - $encounter->startedAt()->getTimestamp());
+        $paused = !self::isFinished($encounter) && $encounter->isPaused();
+
+        if (self::isFinished($encounter) && $encounter->finishedAt() !== null)
+        {
+            $end = $encounter->finishedAt();
+        }
+        elseif ($paused && $encounter->pausedAt() !== null)
+        {
+            $end = $encounter->pausedAt();
+        }
+        else
+        {
+            $end = new DateTimeImmutable('now', $encounter->startedAt()->getTimezone());
+        }
+
+        $elapsed = max(0, $end->getTimestamp() - $encounter->startedAt()->getTimestamp() - $encounter->pausedSeconds());
         $timerId = 'encounter_timer_' . $encounter->id();
 
         $wrap = new TElement('span');
@@ -485,7 +549,7 @@ class EncounterView extends TPage
         $wrap->add(new TImage('fa:clock'));
         $wrap->add(TElement::tag('span', self::formatDuration($elapsed), ['id' => $timerId]));
 
-        if (!self::isFinished($encounter))
+        if (!self::isFinished($encounter) && !$paused)
         {
             $script = new TElement('script');
             $script->add(<<<JS
@@ -514,9 +578,11 @@ class EncounterView extends TPage
     }
 
     /**
-     * Patient header: avatar placeholder (no photo in the schema), name,
-     * breed, age, weight, tutor and phone (ClinicalSummaryService::
-     * patientCard()), plus professional/unit.
+     * Patient header: photo (PatientForm::onPhoto) when the patient has
+     * photoObjectKey, otherwise the avatar placeholder; name, breed, age,
+     * weight, tutor and phone (ClinicalSummaryService::patientCard()), plus
+     * professional/unit; allergy alert (.cv-alert-allergy) when
+     * Patient::$allergies is not empty.
      */
     private function patientHeader(array $data): TElement
     {
@@ -541,9 +607,24 @@ class EncounterView extends TPage
         $body = new TElement('div');
         $body->style = 'display:flex; align-items:center; gap:var(--cv-space-4); flex-wrap:wrap';
 
-        $avatar = CvAvatar::placeholder($name, $card['species'] ?? null);
-        $avatar->{'class'} .= ' cv-avatar--lg';
-        $body->add($avatar);
+        $patient = $data['patient'] ?? null;
+
+        if ($patient !== null && trim((string) $patient->photoObjectKey) !== '')
+        {
+            $body->add(TElement::tag('img', '', [
+                'class' => 'cv-patient-photo',
+                // &v= muda a cada troca de foto: o cache privado (max-age) é por URL (T-32)
+                'src' => 'engine.php?class=PatientForm&method=onPhoto&static=1&key=' . (int) $patient->id
+                       . '&v=' . \CentralVet\Application\PatientService::photoVersion($patient),
+                'alt' => CvFormat::e($name),
+            ]));
+        }
+        else
+        {
+            $avatar = CvAvatar::placeholder($name, $card['species'] ?? null);
+            $avatar->{'class'} .= ' cv-avatar--lg';
+            $body->add($avatar);
+        }
 
         $info = new TElement('div');
         $info->style = 'flex:1 1 auto; min-width:0';
@@ -561,6 +642,19 @@ class EncounterView extends TPage
         }
 
         $info->add($list);
+
+        $allergies = $patient !== null ? trim((string) $patient->allergies) : '';
+
+        if ($allergies !== '')
+        {
+            $alert = new TElement('div');
+            $alert->{'class'} = 'cv-alert-allergy';
+            $alert->{'role'} = 'alert';
+            $alert->add(new TImage('fa:exclamation-triangle'));
+            $alert->add(TElement::tag('span', CvFormat::e(_t('Allergies') . ': ' . $allergies)));
+            $info->add($alert);
+        }
+
         $body->add($info);
 
         $section = new TElement('section');
@@ -996,7 +1090,7 @@ class EncounterView extends TPage
     private function autosaveScript(int $encounterId): TElement
     {
         $autosaveAction = new TAction([$this, 'onAutosave']);
-        $autosaveAction->setParameter('id', $encounterId);
+        $autosaveAction->setParameter('encounter_id', $encounterId);
         $serializedAction = $autosaveAction->serialize(false);
 
         $fieldsJs = implode(',', array_map(static function ($field)
@@ -1114,8 +1208,25 @@ class EncounterView extends TPage
 
             foreach ($data['documents'] as $document)
             {
-                $label = is_object($document) && isset($document->key) ? basename((string) $document->key) : (string) json_encode($document);
-                $list->add(TElement::tag('li', CvFormat::e($label), []));
+                $item = new TElement('li');
+                $link = new TElement('a');
+                $link->href = 'engine.php?' . http_build_query([
+                    'class' => 'EncounterView',
+                    'method' => 'onDownloadDocument',
+                    'static' => 1,
+                    'encounter_id' => $encounter->id(),
+                    'public_id' => (string) $document['public_id'],
+                ]);
+                $link->target = '_blank';
+                $link->rel = 'noopener';
+                $link->add(CvFormat::e((string) $document['original_name']));
+                $item->add($link);
+
+                $createdAt = strtotime((string) $document['created_at']);
+                $details = number_format(((int) $document['size_bytes']) / 1024, 1, ',', '.') . ' KB'
+                    . ($createdAt !== false ? ' · ' . date('d/m/Y H:i', $createdAt) : '');
+                $item->add(TElement::tag('span', CvFormat::e(' ' . $details), ['class' => 'text-muted']));
+                $list->add($item);
             }
 
             $body->add($list);
@@ -1124,11 +1235,13 @@ class EncounterView extends TPage
         $docForm = new BootstrapFormBuilder('form_EncounterDocument_' . $encounter->id());
 
         $docFile = new TFile('filename');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $docFile->setService('CvUploaderService');
         $docForm->addFields([new TLabel(_t('File'))]);
         $docForm->addFields([$docFile]);
 
         $attachAction = new TAction([$this, 'onAttachDocument']);
-        $attachAction->setParameter('id', $encounter->id());
+        $attachAction->setParameter('encounter_id', $encounter->id());
         $attachButton = $docForm->addAction(_t('Attach'), $attachAction, 'fa:paperclip');
         $attachButton->class = 'btn btn-sm btn-secondary';
 
@@ -1148,7 +1261,15 @@ class EncounterView extends TPage
 
         $followUpForm = new BootstrapFormBuilder('form_EncounterFollowUp_' . $encounter->id());
 
-        $followUpDate = new TDateTime('followup_scheduled_at');
+        // TEntry com máscara, sem TDateTime: o datetimepicker reescrevia no
+        // cliente a data inválida (31/02 → 03/03) e o setDatabaseMask
+        // convertia sem validar. O texto digitado (dd/mm/aaaa hh:mm) vai cru
+        // a onScheduleFollowUp, que o lê com DateTimeInput::parse (T-60, como T-53).
+        $followUpDate = new TEntry('followup_scheduled_at');
+        $followUpDate->setMask('99/99/9999 99:99');
+        $followUpDate->placeholder = 'dd/mm/aaaa hh:mm';
+        $followUpDate->setProperty('inputmode', 'numeric');
+        $followUpDate->setProperty('autocomplete', 'off');
         $followUpDate->setSize('100%');
         $followUpDate->addValidation(_t('Date/time'), new TRequiredValidator);
 
@@ -1170,7 +1291,7 @@ class EncounterView extends TPage
         $followUpForm->addFields([$followUpService]);
 
         $followUpAction = new TAction([$this, 'onScheduleFollowUp']);
-        $followUpAction->setParameter('id', $encounter->id());
+        $followUpAction->setParameter('encounter_id', $encounter->id());
         $followUpButton = $followUpForm->addAction(_t('Schedule follow-up'), $followUpAction, 'fa:calendar-plus');
         $followUpButton->class = 'btn btn-sm btn-primary';
 
@@ -1266,7 +1387,7 @@ class EncounterView extends TPage
             $panel->add('<p>' . nl2br(htmlspecialchars($data['aiSummary'])) . '</p>');
 
             $acceptAction = new TAction([$this, 'onAcceptAiSummary']);
-            $acceptAction->setParameter('id', $data['encounter']->id());
+            $acceptAction->setParameter('encounter_id', $data['encounter']->id());
 
             $acceptButton = new TButton('accept_ai_summary');
             $acceptButton->setAction($acceptAction, _t('Accept'));
@@ -1333,7 +1454,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
 
             if ($id <= 0)
             {
@@ -1349,7 +1470,7 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Encounter finished'), new TAction(['EncounterView', 'onReload'], ['id' => $id]));
+            new TMessage('info', _t('Encounter finished'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -1359,27 +1480,132 @@ class EncounterView extends TPage
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
     }
 
     /**
-     * Reloads the page for the same encounter_id (used after finishing).
+     * "Pausar" (EncounterService::pause(), action 'EncounterView::onPause'):
+     * stamps paused_at, status stays in_progress, then reloads with
+     * encounter_id.
+     */
+    public function onPause($param)
+    {
+        $this->changePause($param, 'pause', __CLASS__ . '::' . __FUNCTION__);
+    }
+
+    /**
+     * "Retomar" (EncounterService::resume(), action 'EncounterView::onResume'):
+     * adds the paused stretch to paused_seconds, then reloads with
+     * encounter_id.
+     */
+    public function onResume($param)
+    {
+        $this->changePause($param, 'resume', __CLASS__ . '::' . __FUNCTION__);
+    }
+
+    /**
+     * Shared body of onPause/onResume: $operation is 'pause' or 'resume'.
+     * Refusals (AuthorizationDenied, already paused / not paused / finished)
+     * are handled TMessages, never fatal errors.
+     */
+    private function changePause($param, string $operation, string $action): void
+    {
+        try
+        {
+            $id = self::encounterIdParam($param);
+
+            if ($id <= 0)
+            {
+                throw new InvalidArgumentException(_t('Invalid encounter id'));
+            }
+
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $service = self::makeEncounterService($context);
+
+            if ($operation === 'pause')
+            {
+                $service->pause($id, $action);
+            }
+            else
+            {
+                $service->resume($id, $action);
+            }
+
+            TTransaction::close();
+
+            $this->onReload(['encounter_id' => $id]);
+        }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('Permission denied'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
+        }
+    }
+
+    /**
+     * Reloads the page for the same encounter_id (used after finishing,
+     * pausing and resuming). Reads `encounter_id` (falls back to `id`).
      */
     public function onReload($param)
     {
-        $id = isset($param['id']) ? (int) $param['id'] : 0;
+        $id = self::encounterIdParam($param);
         TScript::create("__adianti_goto_page('index.php?class=EncounterView&encounter_id={$id}')");
+    }
+
+    /**
+     * Encounter id of an action: `encounter_id`, falling back to the legacy
+     * `id` parameter. 0 when neither is present.
+     */
+    private static function encounterIdParam($param): int
+    {
+        if (is_array($param) && isset($param['encounter_id']) && $param['encounter_id'] !== '')
+        {
+            return (int) $param['encounter_id'];
+        }
+
+        return is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
+    }
+
+    /**
+     * Error text for the screen: database/driver failures (PDOException or
+     * any message carrying an SQLSTATE) become a generic translated text, so
+     * no SQL detail leaks; everything else follows CvFormat::userError().
+     * The caller logs the original message with error_log() first.
+     */
+    private static function screenError(\Throwable $e): string
+    {
+        for ($current = $e; $current !== null; $current = $current->getPrevious())
+        {
+            if ($current instanceof \PDOException || str_contains($current->getMessage(), 'SQLSTATE['))
+            {
+                return CvFormat::e(_t('Could not complete the operation. Please try again'));
+            }
+        }
+
+        return CvFormat::userError($e);
     }
 
     /**
@@ -1392,7 +1618,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
 
             if ($id <= 0)
             {
@@ -1425,12 +1651,13 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Summary accepted'));
+            new TMessage('info', _t('Summary accepted'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1446,7 +1673,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
 
             if ($id <= 0)
             {
@@ -1480,10 +1707,14 @@ class EncounterView extends TPage
     }
 
     /**
-     * Records an inline clinical-plan action in the audit log. `kind` is one
-     * of the keys of PLAN_ACTIONS (prescription, exam, procedure, vaccine,
-     * account); the plan buttons themselves navigate client-side to the
-     * target screen of PLAN_ACTIONS (planActions()), so this action only
+     * Records an inline clinical-plan action in the audit log. `kind` must
+     * be one of array_keys(self::PLAN_ACTIONS) (prescription, exam,
+     * procedure, vaccine, account): any other value is refused with
+     * TMessage('error', _t('Invalid action')) before any transaction, so
+     * nothing is written to audit_log. The encounter id comes from
+     * `encounter_id` (falls back to `id`). The plan buttons themselves
+     * navigate client-side to the target screen of PLAN_ACTIONS
+     * (planActions()), so this action only
      * writes a single audit_log event with action
      * `EncounterView::onInlineAction:<kind>` (entity `encounter`, afterData
      * ['kind' => <kind>]) through CentralVet\Audit\PdoAuditLogWriter and
@@ -1494,10 +1725,16 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
             $kind = isset($param['kind']) ? (string) $param['kind'] : '';
 
-            if ($id <= 0 || $kind === '')
+            if (!in_array($kind, array_keys(self::PLAN_ACTIONS), true))
+            {
+                new TMessage('error', _t('Invalid action'));
+                return;
+            }
+
+            if ($id <= 0)
             {
                 throw new InvalidArgumentException(_t('Invalid inline action'));
             }
@@ -1525,12 +1762,13 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Recorded') . ': ' . $kind, new TAction(['EncounterView', 'onReload'], ['id' => $id]));
+            new TMessage('info', _t('Recorded') . ': ' . $kind, new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1546,7 +1784,7 @@ class EncounterView extends TPage
     {
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
             $scheduledAt = isset($param['followup_scheduled_at']) ? (string) $param['followup_scheduled_at'] : '';
             $serviceId = isset($param['followup_service_id']) && $param['followup_service_id'] !== ''
                 ? (int) $param['followup_service_id']
@@ -1556,6 +1794,11 @@ class EncounterView extends TPage
             {
                 throw new InvalidArgumentException(_t('Date/time and service id are required to schedule a follow-up'));
             }
+
+            // estrito (d/m/Y H:i[:s] ou Y-m-d H:i[:s], ano 1900–2100); fora
+            // disso InvalidArgumentException('Invalid date and time'), que o
+            // catch final mostra por CvFormat::userError ("Data e hora inválidas")
+            $scheduledAt = DateTimeInput::parse($scheduledAt);
 
             $context = self::resolveTenantContext();
 
@@ -1581,17 +1824,19 @@ class EncounterView extends TPage
 
             TTransaction::close();
 
-            new TMessage('info', _t('Follow-up scheduled successfully'));
+            new TMessage('info', _t('Follow-up scheduled successfully'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (\CentralVet\Domain\Exception\SchedulingConflictException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -1601,7 +1846,8 @@ class EncounterView extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
     }
 
@@ -1613,9 +1859,12 @@ class EncounterView extends TPage
      */
     public function onAttachDocument($param)
     {
+        $documents = null;
+        $metadata = null;
+
         try
         {
-            $id = isset($param['id']) ? (int) $param['id'] : 0;
+            $id = self::encounterIdParam($param);
             $fileName = isset($param['filename']) ? (string) $param['filename'] : '';
 
             if ($id <= 0 || $fileName === '')
@@ -1623,31 +1872,110 @@ class EncounterView extends TPage
                 throw new InvalidArgumentException(_t('Choose a file to attach'));
             }
 
-            $sourcePath = 'tmp/' . $fileName;
-
-            if (!file_exists($sourcePath))
-            {
-                throw new InvalidArgumentException(_t('Uploaded file was not found'));
-            }
+            // T-62/T-63: only a regular file inside tmp/ (no ../, separators
+            // or symlink out) uploaded by this session through
+            // CvUploaderService; anything else throws 'Invalid file'
+            $sourcePath = CvUpload::resolve($fileName);
+            $uploadName = trim($fileName);
+            $fileName = CvUpload::originalName($uploadName);
 
             $contents = file_get_contents($sourcePath);
             $contentType = function_exists('mime_content_type')
                 ? ((string) (mime_content_type($sourcePath) ?: 'application/octet-stream'))
                 : 'application/octet-stream';
 
+            TTransaction::open('permission');
             $context = self::resolveTenantContext();
 
             $documents = self::makeEncounterDocumentService($context);
-            $documents->attach($id, $fileName, (string) $contents, $contentType);
+            $metadata = $documents->attach($id, $fileName, (string) $contents, $contentType);
+            TTransaction::close();
+            // committed: from here on the object is referenced by stored_object
+            $metadata = null;
 
             @unlink($sourcePath);
+            CvUpload::forget($uploadName);
 
-            new TMessage('info', _t('Document attached successfully'));
+            new TMessage('info', _t('Document attached successfully'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            TTransaction::rollback();
+            // T-56: the commit (or a step after attach) failed, so the row is
+            // gone and the object just written would be an orphan
+            if ($documents !== null && $metadata !== null)
+            {
+                $documents->discard($metadata);
+            }
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', self::screenError($e));
         }
+    }
+
+    /**
+     * Streams one attachment of the encounter (T-52): bytes of
+     * EncounterDocumentService::download() as a download (T-56: ASCII filename
+     * plus filename*=UTF-8''), or 404 with the text _t('Attachment not found')
+     * when the public_id is unknown for the tenant or belongs to another
+     * encounter.
+     */
+    public static function onDownloadDocument($param)
+    {
+        $id = self::encounterIdParam($param);
+        $publicId = isset($param['public_id']) ? (string) $param['public_id'] : '';
+        $document = null;
+
+        try
+        {
+            if ($id > 0 && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $publicId) === 1)
+            {
+                TTransaction::open('permission');
+                $context = self::resolveTenantContext();
+                $document = self::makeEncounterDocumentService($context)->download($id, $publicId);
+                TTransaction::close();
+            }
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $document = null;
+        }
+
+        while (ob_get_level() > 0)
+        {
+            ob_end_clean();
+        }
+
+        if ($document === null)
+        {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo _t('Attachment not found');
+            exit;
+        }
+
+        $fileName = (string) preg_replace('/[^A-Za-z0-9_.\-]+/', '_', $document['original_name']);
+        $fileName = trim($fileName, '.') === '' ? 'attachment' : $fileName;
+        // RFC 6266/5987: ASCII fallback plus the original UTF-8 name
+        $originalName = str_replace(["\r", "\n", "\0"], '', $document['original_name']);
+        $originalName = $originalName === '' ? $fileName : $originalName;
+
+        header('Content-Type: ' . self::headerValue($document['content_type'], 'application/octet-stream'));
+        header('Content-Disposition: attachment; filename="' . $fileName . '"; filename*=UTF-8\'\'' . rawurlencode($originalName));
+        header('Content-Length: ' . strlen($document['contents']));
+        header('Cache-Control: private, no-store');
+        header('Content-Security-Policy: sandbox');
+        echo $document['contents'];
+        exit;
+    }
+
+    /** Header value without control characters (no header injection). */
+    private static function headerValue(string $value, string $fallback): string
+    {
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/', '', $value));
+
+        return $clean === '' ? $fallback : $clean;
     }
 
     private static function paramInt(string $name, $param): ?int
@@ -1725,14 +2053,16 @@ class EncounterView extends TPage
     /**
      * Wires EncounterDocumentService (T-05) against the real S3-compatible
      * storage adapter (Fase 0), same CentralVet\Storage\S3CompatibleStorage::fromEnvironment()
-     * factory the storage layer already exposes for this purpose. Needs no
-     * PDO connection — StorageInterface never touches MySQL.
+     * factory the storage layer already exposes for this purpose, plus the
+     * `stored_object` index (T-52) on the open TTransaction connection — so
+     * callers must have TTransaction::open('permission') first.
      */
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
             \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
             $context,
+            new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
         );
     }
 

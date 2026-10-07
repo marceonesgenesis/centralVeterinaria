@@ -26,9 +26,22 @@
  *
  * Profissional: combo filtrado pelo tenant da sessão (CvTenantUsers); o serviço revalida no save.
  *
- * PDF: após salvar, a tela oferece "Gerar PDF" (onGeneratePdf, dompdf).
+ * PDF: após salvar, a tela oferece "Gerar PDF" (onGeneratePdf, dompdf), com a
+ * linha "Válida até" quando a prescrição tem validade.
  *
- * Sem schema (omitidos): validade, modelos, anexos e orientação por item.
+ * Validade (`valid_until`, dd/mm/aaaa, opcional) vai como Y-m-d ao create();
+ * a regra (não pode ser passada) é do PrescriptionService.
+ *
+ * Modelos (rodada 2, T-19): "Salvar como modelo" pede o nome num TInputDialog
+ * e grava os itens em edição por PrescriptionTemplateService::saveFromItems();
+ * "Aplicar modelo" troca os itens e a orientação em edição pelos do modelo.
+ * Orientação e validade em edição viajam num segundo rascunho em TSession
+ * (mesma chave por encounter_id), para sobreviver às recargas da tela.
+ *
+ * Estilos: nenhum inline; as regras ficam nas classes .cv-rx-* de
+ * cv-components.css.
+ *
+ * Sem schema (omitidos): anexos e orientação por item.
  *
  * @version    8.6
  * @package    control
@@ -67,6 +80,9 @@ class PrescriptionForm extends TPage
         'issued' => ['Issued', 'success'],
     ];
 
+    /** Nome do formulário principal (TCombo::reload e TButton::setFormName). */
+    private const FORM_NAME = 'form_Prescription';
+
     private const SIDE_HISTORY_LIMIT = 5;
     private const TAB_HISTORY_LIMIT = 50;
 
@@ -97,7 +113,7 @@ class PrescriptionForm extends TPage
         $this->form = $this->buildForm();
 
         $container = new TVBox;
-        $container->style = 'width: 100%';
+        $container->class = 'cv-rx-page';
 
         $headerActions = [];
         if ($this->encounterId !== null)
@@ -139,8 +155,7 @@ class PrescriptionForm extends TPage
                     $pdfLink->href = 'engine.php?class=PrescriptionForm&method=onGeneratePdf&static=1&prescription_id=' . $this->savedPrescriptionId;
                     $pdfLink->target = '_blank';
                     $pdfLink->rel = 'noopener';
-                    $pdfLink->class = 'btn btn-sm btn-outline-secondary';
-                    $pdfLink->style = 'margin-bottom: var(--cv-space-3)';
+                    $pdfLink->class = 'btn btn-sm btn-outline-secondary cv-rx-pdf-link';
                     $pdfLink->add(new TImage('fa:file-pdf'));
                     $pdfLink->add(' ' . CvFormat::e(_t('Generate PDF')));
                     $main->add($pdfLink);
@@ -162,7 +177,7 @@ class PrescriptionForm extends TPage
      */
     private function buildForm(): BootstrapFormBuilder
     {
-        $form = new BootstrapFormBuilder('form_Prescription');
+        $form = new BootstrapFormBuilder(self::FORM_NAME);
         $form->setFormTitle(_t('Prescription data'));
         $form->enableClientValidation();
 
@@ -178,15 +193,37 @@ class PrescriptionForm extends TPage
         $prescription_date->setEditable(false);
 
         $professional_system_user_id = CvTenantUsers::combo('professional_system_user_id', static fn () => self::resolveTenantContext());
-        $professional_system_user_id->setValue(TSession::getValue('userid'));
         $professional_system_user_id->addValidation(_t('Veterinarian'), new TRequiredValidator);
 
+        $header = $this->draftHeader();
+
+        $professional_system_user_id->setValue(
+            $header['professional_system_user_id'] !== '' ? $header['professional_system_user_id'] : TSession::getValue('userid')
+        );
+
+        $valid_until = new TDate('valid_until');
+        $valid_until->setMask('dd/mm/yyyy');
+        $valid_until->setValue($header['valid_until']);
+
+        $template_id = new TCombo('template_id');
+        $template_id->addItems($this->templateOptions());
+
+        $applyBtn = new TButton('apply_template');
+        $applyBtn->setAction(new TAction([$this, 'onApplyTemplate']), _t('Apply template'));
+        $applyBtn->setImage('fa:file-import');
+        $applyBtn->class = 'btn btn-sm btn-outline-secondary cv-rx-apply-template';
+
         $hiddenRow = $form->addFields([$encounter_id, $patient_id]);
-        $hiddenRow->style = 'display: none';
+        $hiddenRow->class = 'cv-rx-hidden';
 
         $form->addFields(
             [new TLabel(_t('Date'))], [$prescription_date],
             [new TLabel(_t('Veterinarian'))], [$professional_system_user_id]
+        );
+
+        $form->addFields(
+            [new TLabel(_t('Valid until'))], [$valid_until],
+            [new TLabel(_t('Template'))], [$template_id, $applyBtn]
         );
 
         // bloco de medicamento (repetível via "Adicionar outro medicamento")
@@ -198,8 +235,7 @@ class PrescriptionForm extends TPage
         $duration = new TEntry('duration');
 
         $form->addContent([TElement::tag('h3', CvFormat::e(_t('Medication')), [
-            'class' => 'cv-card__title',
-            'style' => 'margin: var(--cv-space-2) 0 0',
+            'class' => 'cv-card__title cv-rx-section-title',
         ])]);
 
         $form->addFields([new TLabel(_t('Medication'))], [$medication_name]);
@@ -211,7 +247,7 @@ class PrescriptionForm extends TPage
             [new TLabel(_t('Frequency'))], [$frequency],
             [new TLabel(_t('Duration'))], [$duration]
         );
-        $doseRow->style = '--cv-form-columns: 5';
+        $doseRow->class = 'cv-rx-dose-row';
 
         $form->addContent([$this->itemsTable()]);
 
@@ -223,6 +259,7 @@ class PrescriptionForm extends TPage
 
         $orientation_text = new TText('orientation_text');
         $orientation_text->setSize('100%', 100);
+        $orientation_text->setValue($header['orientation_text']);
         $form->addFields([new TLabel(_t('Additional instructions'))], [$orientation_text]);
 
         CvForm::decorate($form, 2);
@@ -232,19 +269,12 @@ class PrescriptionForm extends TPage
             'patient_id' => $this->patientId,
         ]), 'fa:eraser');
 
+        $form->addAction(_t('Save as template'), new TAction([$this, 'onAskTemplateName']), 'fa:copy');
+
         $saveBtn = $form->addAction(_t('Save prescription'), new TAction([$this, 'onSave']), 'fa:check');
         $saveBtn->class = 'btn btn-primary';
 
         return $form;
-    }
-
-    /**
-     * method onEdit()
-     * Kept for compatibility: re-renders the screen (the form already starts
-     * from the URL context).
-     */
-    public function onEdit($param)
-    {
     }
 
     /**
@@ -255,6 +285,7 @@ class PrescriptionForm extends TPage
     public function onClear($param)
     {
         TSession::setValue($this->draftSessionKey(), null);
+        TSession::setValue($this->headerSessionKey(), null);
 
         $this->reloadSelf();
     }
@@ -310,7 +341,7 @@ class PrescriptionForm extends TPage
     private function sideColumn(array $summary): TElement
     {
         $side = new TElement('div');
-        $side->style = 'display: flex; flex-direction: column; gap: var(--cv-space-4)';
+        $side->class = 'cv-rx-side';
 
         $patient = $summary['patient'];
 
@@ -321,9 +352,9 @@ class PrescriptionForm extends TPage
 
         // paciente
         $identity = new TElement('div');
-        $identity->style = 'display: flex; align-items: center; gap: var(--cv-space-3); margin-bottom: var(--cv-space-3)';
+        $identity->class = 'cv-rx-identity';
         $identity->add(CvAvatar::placeholder((string) $patient['name'], (string) $patient['species']));
-        $identity->add(TElement::tag('strong', CvFormat::e((string) $patient['name']), ['style' => 'font-size: 1.05rem']));
+        $identity->add(TElement::tag('strong', CvFormat::e((string) $patient['name']), ['class' => 'cv-rx-identity__name']));
 
         $patientBody = new TElement('div');
         $patientBody->add($identity);
@@ -350,24 +381,24 @@ class PrescriptionForm extends TPage
         }
         else
         {
-            $lastBody = TElement::tag('p', '—', ['style' => 'margin: 0; color: var(--cv-color-text-muted)']);
+            $lastBody = TElement::tag('p', '—', ['class' => 'cv-rx-empty']);
         }
         $side->add(CvCard::create(_t('Last encounter'), $lastBody));
 
         // histórico curto
         $list = new TElement('ul');
-        $list->style = 'list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--cv-space-3)';
+        $list->class = 'cv-rx-history';
 
         foreach (array_slice($summary['history'], 0, self::SIDE_HISTORY_LIMIT) as $row)
         {
             $item = new TElement('li');
-            $item->style = 'display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cv-space-2)';
+            $item->class = 'cv-rx-history__item';
 
             $text = new TElement('div');
-            $text->add(TElement::tag('div', CvFormat::e((string) ($row['first_medication'] ?? '—')), ['style' => 'font-weight: 600']));
+            $text->add(TElement::tag('div', CvFormat::e((string) ($row['first_medication'] ?? '—')), ['class' => 'cv-rx-history__title']));
             $text->add(TElement::tag('small', CvFormat::e(
                 self::formatDate((string) $row['created_at']) . ' · ' . _t('Items') . ': ' . (int) $row['items_count']
-            ), ['style' => 'color: var(--cv-color-text-muted)']));
+            ), ['class' => 'cv-rx-muted']));
 
             $item->add($text);
             $item->add(self::statusBadge((string) $row['status']));
@@ -376,7 +407,7 @@ class PrescriptionForm extends TPage
 
         if (empty($summary['history']))
         {
-            $list->add(TElement::tag('li', '—', ['style' => 'color: var(--cv-color-text-muted)']));
+            $list->add(TElement::tag('li', '—', ['class' => 'cv-rx-muted']));
         }
 
         $side->add(CvCard::create(
@@ -446,13 +477,13 @@ class PrescriptionForm extends TPage
     private static function definitionList(array $pairs): TElement
     {
         $dl = new TElement('dl');
-        $dl->style = 'display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--cv-space-3); row-gap: var(--cv-space-1); margin: 0';
+        $dl->class = 'cv-rx-dl';
 
         foreach ($pairs as $label => $value)
         {
             $value = ($value === null || $value === '') ? '—' : (string) $value;
-            $dl->add(TElement::tag('dt', CvFormat::e((string) $label), ['style' => 'font-weight: 600; color: var(--cv-color-text-muted)']));
-            $dl->add(TElement::tag('dd', CvFormat::e($value), ['style' => 'margin: 0; overflow-wrap: anywhere']));
+            $dl->add(TElement::tag('dt', CvFormat::e((string) $label)));
+            $dl->add(TElement::tag('dd', CvFormat::e($value)));
         }
 
         return $dl;
@@ -473,14 +504,9 @@ class PrescriptionForm extends TPage
     private function itemsTable(): TElement
     {
         $table = new TElement('table');
-        $table->class = 'table table-sm cv-table';
-
         $items = $this->draftItems();
 
-        if (empty($items))
-        {
-            $table->style = 'display: none';
-        }
+        $table->class = 'table table-sm cv-table' . (empty($items) ? ' cv-rx-hidden' : '');
 
         $thead = new TElement('thead');
         $headerRow = new TElement('tr');
@@ -507,13 +533,17 @@ class PrescriptionForm extends TPage
                 $row->add($td);
             }
 
+            // posta o formulário: onRemoveItem recebe validade, orientação e
+            // profissional digitados (não os do rascunho anterior)
             $removeTd = new TElement('td');
-            $removeLink = new TElement('a');
-            $removeLink->href = "javascript:__adianti_post_lock_function('index.php?class=PrescriptionForm&method=onRemoveItem&index={$index}&encounter_id={$this->encounterId}&patient_id={$this->patientId}')";
-            $removeLink->title = _t('Remove');
-            $removeLink->{'aria-label'} = _t('Remove');
-            $removeLink->add('<i class="fa fa-trash red"></i>');
-            $removeTd->add($removeLink);
+            $removeBtn = new TButton('remove_item_' . (int) $index);
+            $removeBtn->setAction(new TAction([$this, 'onRemoveItem'], ['index' => (int) $index]));
+            $removeBtn->setFormName(self::FORM_NAME);
+            $removeBtn->setImage('fa:trash red');
+            $removeBtn->class = 'btn btn-sm btn-link';
+            $removeBtn->title = _t('Remove');
+            $removeBtn->{'aria-label'} = _t('Remove');
+            $removeTd->add($removeBtn);
             $row->add($removeTd);
 
             $tbody->add($row);
@@ -542,6 +572,150 @@ class PrescriptionForm extends TPage
     private function draftSessionKey(): string
     {
         return 'prescription_form_draft_items_' . ($this->encounterId ?? 0);
+    }
+
+    private static function templateSourceKey(?int $encounterId): string
+    {
+        return 'prescription_form_template_source_' . ($encounterId ?? 0);
+    }
+
+    private function headerSessionKey(): string
+    {
+        return 'prescription_form_draft_header_' . ($this->encounterId ?? 0);
+    }
+
+    /**
+     * Orientação e validade em edição (dd/mm/aaaa), guardadas em TSession
+     * pelas ações que recarregam a tela.
+     *
+     * @return array{orientation_text: string, valid_until: string, professional_system_user_id: string}
+     */
+    private function draftHeader(): array
+    {
+        $header = TSession::getValue($this->headerSessionKey());
+        $header = is_array($header) ? $header : [];
+
+        return [
+            'orientation_text' => (string) ($header['orientation_text'] ?? ''),
+            'valid_until' => (string) ($header['valid_until'] ?? ''),
+            'professional_system_user_id' => (string) ($header['professional_system_user_id'] ?? ''),
+        ];
+    }
+
+    private function storeDraftHeader(?string $orientationText, ?string $validUntil, $professionalId = null): void
+    {
+        TSession::setValue($this->headerSessionKey(), [
+            'orientation_text' => (string) $orientationText,
+            'valid_until' => (string) $validUntil,
+            'professional_system_user_id' => (string) ($professionalId ?? ''),
+        ]);
+    }
+
+    /**
+     * Contexto obrigatório (encounter_id e patient_id > 0) para gravar
+     * prescrição ou modelo; ausente → a tela recusa antes de chamar o serviço.
+     */
+    private static function hasContext($encounterId, $patientId): bool
+    {
+        return (int) $encounterId > 0 && (int) $patientId > 0;
+    }
+
+    /**
+     * Rascunho de itens + bloco de medicamento, se todo preenchido (entra
+     * como último item). Bloco parcial → InvalidArgumentException; nenhum
+     * item → InvalidArgumentException.
+     *
+     * @return list<array<string, string>>
+     */
+    private function collectItems(object $data): array
+    {
+        $items = $this->draftItems();
+
+        $filled = array_filter(self::ITEM_FIELDS, fn ($field) => trim((string) ($data->$field ?? '')) !== '');
+
+        if (count($filled) === count(self::ITEM_FIELDS))
+        {
+            $items[] = array_combine(self::ITEM_FIELDS, array_map(
+                fn ($field) => (string) $data->$field,
+                self::ITEM_FIELDS
+            ));
+        }
+        elseif (!empty($filled))
+        {
+            throw new InvalidArgumentException(_t('Fill in all item fields before adding'));
+        }
+
+        if (empty($items))
+        {
+            throw new InvalidArgumentException(_t('Add at least one item before saving'));
+        }
+
+        return $items;
+    }
+
+    /**
+     * dd/mm/aaaa → Y-m-d; vazio → null. Texto fora do formato segue como
+     * veio, para o PrescriptionService recusar ("valid_until must be a Y-m-d
+     * date").
+     */
+    private static function validUntilToIso(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '')
+        {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!d/m/Y', $value);
+
+        if ($date === false || $date->format('d/m/Y') !== $value)
+        {
+            return $value;
+        }
+
+        return $date->format('Y-m-d');
+    }
+
+    /**
+     * Modelos do tenant (id => nome) para o combo; falha degrada para lista vazia.
+     *
+     * @return array<int, string>
+     */
+    private function templateOptions(): array
+    {
+        if ($this->encounterId === null)
+        {
+            return [];
+        }
+
+        return self::loadTemplateOptions();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function loadTemplateOptions(): array
+    {
+        $options = [];
+
+        try
+        {
+            TTransaction::open('permission');
+
+            foreach (self::buildTemplateService(self::resolveTenantContext())->listAll() as $template)
+            {
+                $options[(int) $template->id()] = $template->name();
+            }
+
+            TTransaction::close();
+        }
+        catch (\Throwable $e)
+        {
+            TTransaction::rollback();
+        }
+
+        return $options;
     }
 
     /**
@@ -573,18 +747,26 @@ class PrescriptionForm extends TPage
             ));
 
             TSession::setValue($this->draftSessionKey(), $items);
+            $this->storeDraftHeader($data->orientation_text ?? null, $data->valid_until ?? null, $data->professional_system_user_id ?? null);
 
             $this->reloadSelf();
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            if (isset($data))
+            {
+                $this->form->setData($data);
+            }
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
     /**
      * method onRemoveItem()
      * Removes one line from the TSession draft by its index and reloads.
+     * O botão posta o formulário: o cabeçalho (validade, orientação,
+     * profissional) é restaurado a partir de $param, não do rascunho anterior.
      */
     public function onRemoveItem($param)
     {
@@ -604,6 +786,12 @@ class PrescriptionForm extends TPage
             TSession::setValue($this->draftSessionKey(), array_values($items));
         }
 
+        $this->storeDraftHeader(
+            isset($param['orientation_text']) ? (string) $param['orientation_text'] : null,
+            isset($param['valid_until']) ? (string) $param['valid_until'] : null,
+            isset($param['professional_system_user_id']) ? (string) $param['professional_system_user_id'] : null
+        );
+
         $this->reloadSelf();
     }
 
@@ -621,30 +809,20 @@ class PrescriptionForm extends TPage
         try
         {
             $data = $this->form->getData();
-            $this->form->validate();
 
-            $items = $this->draftItems();
+            if (!self::hasContext($data->encounter_id ?? null, $data->patient_id ?? null))
+            {
+                $this->form->setData($data);
+                new TMessage('error', _t('Open the prescription from the encounter'));
+
+                return;
+            }
+
+            $this->form->validate();
 
             // bloco de medicamento preenchido e ainda não adicionado entra
             // como último item (só em memória; o rascunho não muda aqui)
-            $filled = array_filter(self::ITEM_FIELDS, fn ($field) => trim((string) ($data->$field ?? '')) !== '');
-
-            if (count($filled) === count(self::ITEM_FIELDS))
-            {
-                $items[] = array_combine(self::ITEM_FIELDS, array_map(
-                    fn ($field) => (string) $data->$field,
-                    self::ITEM_FIELDS
-                ));
-            }
-            elseif (!empty($filled))
-            {
-                throw new InvalidArgumentException(_t('Fill in all item fields before adding'));
-            }
-
-            if (empty($items))
-            {
-                throw new InvalidArgumentException(_t('Add at least one item before saving'));
-            }
+            $items = $this->collectItems($data);
 
             TTransaction::open('permission');
 
@@ -656,6 +834,7 @@ class PrescriptionForm extends TPage
                 'patient_id' => (int) $data->patient_id,
                 'professional_system_user_id' => (int) $data->professional_system_user_id,
                 'orientation' => $data->orientation_text ?? null,
+                'valid_until' => self::validUntilToIso($data->valid_until ?? null),
                 'items' => $items,
             ], __CLASS__ . '::' . __FUNCTION__);
 
@@ -664,6 +843,7 @@ class PrescriptionForm extends TPage
             // draft consumed: clear it so a fresh prescription for the same
             // encounter does not start pre-filled with the previous one
             TSession::setValue($this->draftSessionKey(), null);
+            TSession::setValue($this->headerSessionKey(), null);
 
             new TMessage('info', _t('Prescription saved successfully'));
             TScript::create(
@@ -677,29 +857,177 @@ class PrescriptionForm extends TPage
             // inexistente recusado por PrescriptionService::create() vira
             // mensagem tratada na tela, nunca uma exceção não tratada.
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
             // Critério de aceite (T-06): AuthorizationDenied capturada e
             // exibida como TMessage tratado, nunca erro fatal.
             TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', _t('You are not allowed to issue a prescription for this unit'));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
             TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', _t('An authenticated session with an active unit is required'));
         }
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // catch-all: never let a fatal error reach the screen
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * method onAskTemplateName()
+     * "Salvar como modelo": separa os itens em edição (rascunho + bloco de
+     * medicamento, se todo preenchido) e a orientação numa chave própria de
+     * TSession — o rascunho da prescrição não muda — e pede o nome do modelo
+     * num TInputDialog.
+     */
+    public function onAskTemplateName($param)
+    {
+        try
+        {
+            $data = $this->form->getData();
+            $this->form->setData($data);
+
+            TSession::setValue(self::templateSourceKey($this->encounterId), [
+                'items' => $this->collectItems($data),
+                'orientation_text' => trim((string) ($data->orientation_text ?? '')),
+            ]);
+
+            $dialog = new BootstrapFormBuilder('form_PrescriptionTemplateName');
+
+            $name = new TEntry('template_name');
+            $name->setSize('100%');
+            $name->addValidation(_t('Name'), new TRequiredValidator);
+            $dialog->addFields([new TLabel(_t('Name'))], [$name]);
+
+            $dialog->addAction(_t('Save'), new TAction([__CLASS__, 'onSaveTemplate'], [
+                'encounter_id' => $this->encounterId,
+                'patient_id' => $this->patientId,
+                'static' => '1',
+            ]), 'fa:check');
+
+            new TInputDialog(_t('Save as template'), $dialog);
+        }
+        catch (Exception $e)
+        {
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * method onSaveTemplate()
+     * Confirmação do TInputDialog: grava os itens e a orientação do rascunho
+     * deste atendimento como modelo do tenant
+     * (PrescriptionTemplateService::saveFromItems). Nome repetido ou inválido
+     * vira TMessage de erro.
+     */
+    public static function onSaveTemplate($param)
+    {
+        try
+        {
+            $encounterId = isset($param['encounter_id']) && $param['encounter_id'] !== '' ? (int) $param['encounter_id'] : 0;
+
+            if (!self::hasContext($encounterId, $param['patient_id'] ?? null))
+            {
+                new TMessage('error', _t('Open the prescription from the encounter'));
+
+                return;
+            }
+
+            $source = TSession::getValue(self::templateSourceKey($encounterId));
+            $items = is_array($source) ? ($source['items'] ?? []) : [];
+            $orientation = is_array($source) ? (string) ($source['orientation_text'] ?? '') : '';
+
+            TTransaction::open('permission');
+
+            self::buildTemplateService(self::resolveTenantContext())->saveFromItems(
+                trim((string) ($param['template_name'] ?? '')),
+                $orientation === '' ? null : $orientation,
+                is_array($items) ? $items : [],
+                (int) TSession::getValue('userid')
+            );
+
+            TTransaction::close();
+
+            TSession::setValue(self::templateSourceKey($encounterId), null);
+
+            // o modelo novo entra no combo sem recarregar a página
+            TCombo::reload(self::FORM_NAME, 'template_id', self::loadTemplateOptions(), true);
+
+            new TMessage('info', _t('Template saved'));
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('An authenticated session with a tenant is required'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * method onApplyTemplate()
+     * "Aplicar modelo": troca os itens do rascunho e a orientação pelos do
+     * modelo escolhido no combo (validade em edição mantida) e recarrega.
+     */
+    public function onApplyTemplate($param)
+    {
+        try
+        {
+            $data = $this->form->getData();
+            $this->form->setData($data);
+
+            $templateId = (int) ($data->template_id ?? 0);
+            $template = null;
+
+            if ($templateId > 0)
+            {
+                TTransaction::open('permission');
+                $template = self::buildTemplateService(self::resolveTenantContext())->findById($templateId);
+                TTransaction::close();
+            }
+
+            if ($template === null)
+            {
+                new TMessage('error', _t('Record not found'));
+
+                return;
+            }
+
+            TSession::setValue($this->draftSessionKey(), $template->items());
+            $this->storeDraftHeader($template->orientationText(), $data->valid_until ?? null, $data->professional_system_user_id ?? null);
+
+            $this->reloadSelf();
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('An authenticated session with a tenant is required'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -757,7 +1085,8 @@ class PrescriptionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -795,6 +1124,9 @@ class PrescriptionForm extends TPage
             . '<th>' . _t('Route') . '</th><th>' . _t('Frequency') . '</th><th>' . _t('Duration') . '</th>'
             . '</tr></thead><tbody>' . $rows . '</tbody></table>'
             . '<p>' . _t('Orientation') . ': ' . $orientation . '</p>'
+            . ($prescription->validUntil() !== null
+                ? '<p>' . htmlspecialchars(_t('Valid until'), ENT_QUOTES, 'UTF-8') . ' ' . $prescription->validUntil()->format('d/m/Y') . '</p>'
+                : '')
             . '</body></html>';
     }
 
@@ -825,6 +1157,17 @@ class PrescriptionForm extends TPage
         );
 
         return new \CentralVet\Application\PrescriptionService($prescriptions, $encounters, $authorization, $context, new \CentralVet\Persistence\TenantUserDirectory($context, $connection));
+    }
+
+    /**
+     * PrescriptionTemplateService (T-13) sobre o PDO da transação aberta.
+     */
+    private static function buildTemplateService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\PrescriptionTemplateService
+    {
+        return new \CentralVet\Application\PrescriptionTemplateService(
+            new \CentralVet\Persistence\PrescriptionTemplateRepository($context, TTransaction::get()),
+            $context
+        );
     }
 
     /**

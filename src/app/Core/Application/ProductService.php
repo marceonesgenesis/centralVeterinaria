@@ -42,6 +42,8 @@ final class ProductService
         string $unitOfMeasure,
         int $unitCostCents,
         int $minimumStockQuantity,
+        ?int $salePriceCents = null,
+        ?string $code = null,
     ): Product {
         $this->context->assertTenant($tenantId);
 
@@ -62,7 +64,11 @@ final class ProductService
             unitOfMeasure: $unitOfMeasure,
             unitCostCents: $unitCostCents,
             minimumStockQuantity: $minimumStockQuantity,
+            salePriceCents: $salePriceCents,
+            code: $code,
         );
+
+        $this->assertCodeAvailable($product->code(), null);
 
         /** @var Product $saved */
         $saved = $this->products->save($product);
@@ -74,6 +80,9 @@ final class ProductService
      * Edits a catalog entry of the session tenant (T-34): same rules as
      * Product::create() (name trimmed), name unique within the tenant
      * (keeping its own name is allowed), id/tenantId/createdAt preserved.
+     * Rodada 2 (T-11): sale price and code (code unique within the tenant,
+     * keeping its own code is allowed). The id is resolved through the
+     * tenant-scoped repository, so another tenant's id is "not found".
      */
     public function update(
         int $productId,
@@ -83,6 +92,8 @@ final class ProductService
         int $unitCostCents,
         int $minimumStockQuantity,
         bool $active,
+        ?int $salePriceCents = null,
+        ?string $code = null,
     ): Product {
         /** @var Product|null $current */
         $current = $this->products->findById($productId);
@@ -98,6 +109,8 @@ final class ProductService
             unitOfMeasure: $unitOfMeasure,
             unitCostCents: $unitCostCents,
             minimumStockQuantity: $minimumStockQuantity,
+            salePriceCents: $salePriceCents,
+            code: $code,
         );
 
         $name = $validated->name();
@@ -106,6 +119,8 @@ final class ProductService
         if ($sameName instanceof Product && $sameName->id() !== $current->id()) {
             throw new InvalidArgumentException("A product named \"{$name}\" already exists for this tenant");
         }
+
+        $this->assertCodeAvailable($validated->code(), (int) $current->id());
 
         $product = Product::reconstitute(
             (int) $current->id(),
@@ -118,12 +133,31 @@ final class ProductService
             $active,
             $current->createdAt(),
             $current->updatedAt(),
+            $validated->salePriceCents(),
+            $validated->code(),
         );
 
         /** @var Product $saved */
         $saved = $this->products->save($product);
 
         return $saved;
+    }
+
+    /**
+     * Rejects a code already used by another product of the tenant
+     * ($ownId = the product being edited, whose own code is allowed).
+     */
+    private function assertCodeAvailable(?string $code, ?int $ownId): void
+    {
+        if ($code === null) {
+            return;
+        }
+
+        $sameCode = $this->products->findByCode($code);
+
+        if ($sameCode instanceof Product && $sameCode->id() !== $ownId) {
+            throw new InvalidArgumentException("A product with code \"{$code}\" already exists for this tenant");
+        }
     }
 
     /** @return list<Product> */

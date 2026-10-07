@@ -21,6 +21,9 @@ final class FakeServiceRepository implements ServiceRepositoryInterface
     /** @var array<int, Service> */
     private array $services = [];
     private int $nextId = 1;
+    /** @var array<int, true> service ids flagged by markHasAppointments() */
+    private array $withAppointments = [];
+    private ?\Throwable $nextSaveFailure = null;
 
     public function __construct(private readonly int $tenantId, Service ...$seed)
     {
@@ -83,8 +86,32 @@ final class FakeServiceRepository implements ServiceRepositoryInterface
         return count($this->services);
     }
 
+    /** Flags a service as referenced by an appointment, so hasAppointments() returns true for it. */
+    public function markHasAppointments(int $serviceId): void
+    {
+        $this->withAppointments[$serviceId] = true;
+    }
+
+    public function hasAppointments(int $serviceId): bool
+    {
+        return isset($this->withAppointments[$serviceId]);
+    }
+
+    /** The next save() throws $e once; later saves behave normally. */
+    public function failNextSaveWith(\Throwable $e): void
+    {
+        $this->nextSaveFailure = $e;
+    }
+
     public function save(object $entity): object
     {
+        if ($this->nextSaveFailure !== null) {
+            $failure = $this->nextSaveFailure;
+            $this->nextSaveFailure = null;
+
+            throw $failure;
+        }
+
         if (!$entity instanceof Service) {
             throw new InvalidArgumentException('FakeServiceRepository only stores Service entities');
         }

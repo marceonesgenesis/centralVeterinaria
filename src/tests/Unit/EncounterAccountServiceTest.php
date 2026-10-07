@@ -6,6 +6,9 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterAccountService;
 use CentralVet\Application\ProcedureCatalogService;
+use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
+use CentralVet\Authorization\Exception\AuthorizationDenied;
+use CentralVet\Domain\Contract\EncounterAccountRepositoryInterface;
 use CentralVet\Domain\Encounter;
 use CentralVet\Domain\EncounterAccountItem;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
@@ -59,7 +62,11 @@ final class EncounterAccountServiceTest
      *
      * @return array{0: EncounterAccountService, 1: int, 2: FakeEncounterAccountItemRepository, 3: FakeProcedureExecutionRepository, 4: FakeProcedureCatalogRepository, 5: FakeProcedureCatalogItemInputRepository}
      */
-    private function buildService(?FakeTenantUserDirectory $tenantUsers = null): array
+    private function buildService(
+        ?FakeTenantUserDirectory $tenantUsers = null,
+        ?AuthorizationPolicyInterface $policy = null,
+        ?EncounterAccountRepositoryInterface $accounts = null,
+    ): array
     {
         $context = TenantContext::authenticated(self::TENANT_ID, 1, self::UNIT_ID);
 
@@ -92,7 +99,7 @@ final class EncounterAccountServiceTest
         $examRequests = new FakeExamRequestRepository(self::TENANT_ID);
         $examCatalog = new FakeExamCatalogRepository(self::TENANT_ID);
 
-        $accounts = new FakeEncounterAccountRepository(self::TENANT_ID);
+        $accounts ??= new FakeEncounterAccountRepository(self::TENANT_ID);
         $items = new FakeEncounterAccountItemRepository(self::TENANT_ID);
         $receivables = new FakeReceivableRepository(self::TENANT_ID);
 
@@ -106,7 +113,7 @@ final class EncounterAccountServiceTest
             $examRequests,
             $procedureCatalog,
             $examCatalog,
-            new FakeAuthorizationPolicy(allowed: true),
+            $policy ?? new FakeAuthorizationPolicy(allowed: true),
             $context,
             $tenantUsers ?? FakeTenantUserDirectory::allowingAll(),
         );
@@ -243,6 +250,51 @@ final class EncounterAccountServiceTest
     public function testApplyDiscountWithInactiveAuthorizerThrowsAndPersistsNothing(): void
     {
         $this->assertDiscountRefusedFor(new FakeTenantUserDirectory([]), 10);
+    }
+
+    /**
+     * T-36: RBAC runs before the authorizer lookup, so a user without the
+     * discount permission cannot probe which authorizer ids are active: the
+     * answer is AuthorizationDenied even for a nonexistent authorizer.
+     */
+    public function testApplyDiscountDeniedByPolicyThrowsAuthorizationDeniedEvenForUnknownAuthorizer(): void
+    {
+        $policy = new FakeAuthorizationPolicy(allowed: true);
+        $accounts = new FakeEncounterAccountRepository(self::TENANT_ID);
+        [$service, $encounterId, , $procedureExecutions, $procedureCatalogItems] = $this->buildService(new FakeTenantUserDirectory([]), $policy, $accounts);
+        $this->recordConsultation($encounterId, $procedureExecutions, $procedureCatalogItems);
+
+        $account = $service->openOrGet($encounterId, self::ACTION);
+        $service->syncAutomaticItems($account->id(), self::ACTION);
+        $accounts->saveCount = 0;
+        $policy->setAllowed(false);
+
+        Assert::throws(
+            AuthorizationDenied::class,
+            fn () => $service->applyDiscount($account->id(), 500, 999, self::ACTION),
+        );
+
+        Assert::same(0, $accounts->saveCount, 'a denied applyDiscount must not save the account');
+        Assert::same(0, $accounts->findById($account->id())?->discountCents(), 'discount_cents must remain 0 after a denied applyDiscount');
+    }
+
+    private function recordConsultation(
+        int $encounterId,
+        FakeProcedureExecutionRepository $procedureExecutions,
+        FakeProcedureCatalogRepository $procedureCatalogItems,
+    ): void {
+        $procedureItem = $procedureCatalogItems->save(
+            \CentralVet\Domain\ProcedureCatalogItem::create(self::TENANT_ID, 'Consulta', 10000, null, null)
+        );
+        $procedureExecutions->save(ProcedureExecution::record(
+            tenantId: self::TENANT_ID,
+            encounterId: $encounterId,
+            patientId: 7,
+            procedureCatalogItemId: $procedureItem->id(),
+            professionalSystemUserId: 10,
+            notesText: null,
+            executedAt: new DateTimeImmutable(),
+        ));
     }
 
     private function assertDiscountRefusedFor(FakeTenantUserDirectory $tenantUsers, int $authorizerId): void

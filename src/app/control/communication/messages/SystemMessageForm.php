@@ -31,10 +31,14 @@ class SystemMessageForm extends TPage
         
         // create the form fields
         $system_user_to_id = new TDBMultiSearch('system_user_to_id', 'permission', 'SystemUser', 'id', 'name');
+        // T-65: nome do usuário (autoeditável) escapado no select2; busca/ordem seguem em name
+        $system_user_to_id->setMask(SystemUser::safeSearchMask('name_safe'));
         $subject = new TEntry('subject');
         $message = new THtmlEditor('message');
         $attachments = new TMultiFile('attachments');
         $attachments->enableFileHandling();
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
+        $attachments->setService('CvUploaderService');
         $system_user_to_id->setMinLength(2);
         
         // add the fields
@@ -152,6 +156,16 @@ class SystemMessageForm extends TPage
             // validate data
             $this->form->validate();
             
+            // T-62: AdiantiFileSaveTrait faz unlink(delFile) e rename(fileName)
+            // com o JSON do POST; só passam uploads novos em tmp/ (sem delFile),
+            // senão 'Invalid file' antes de qualquer store() ou do trait.
+            // T-63: o nome também precisa ter sido enviado por esta sessão
+            $data->attachments = \CentralVet\Presentation\UploadedTmpFile::newUploadItems(
+                is_array($data->attachments ?? null) ? $data->attachments : (empty($data->attachments) ? [] : [$data->attachments]),
+                null,
+                CvUpload::uploads()
+            );
+            
             if ($data->system_user_to_id)
             {
                 foreach ($data->system_user_to_id as $target)
@@ -177,6 +191,11 @@ class SystemMessageForm extends TPage
                 }
                 // close the transaction
                 TTransaction::close();
+                
+                foreach ($data->attachments as $item)
+                {
+                    CvUpload::forget(substr((string) json_decode(urldecode($item))->fileName, 4));
+                }
             }
             
             // shows the success message
@@ -185,6 +204,11 @@ class SystemMessageForm extends TPage
             TScript::create('Template.closeRightPanel()');
             
             return $object;
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception
         {

@@ -49,7 +49,8 @@ final class FinancialEntryService
      * CentralVet\Application\StockService::receiveBatch(), a "simple"
      * write that still authorizes first) using the caller-supplied
      * $action. entry_type validity ('income'/'expense') is enforced by
-     * CentralVet\Domain\FinancialEntry::record() itself.
+     * CentralVet\Domain\FinancialEntry::record() itself, as is the
+     * optional $paymentMethod (one of Payment::METHOD_* or null, T-14).
      */
     public function record(
         int $systemUnitId,
@@ -60,6 +61,7 @@ final class FinancialEntryService
         ?int $referenceId,
         int $systemUserId,
         string $action,
+        ?string $paymentMethod = null,
     ): FinancialEntry {
         $this->authorization->decide(new AuthorizationRequest(
             context: $this->context,
@@ -80,6 +82,7 @@ final class FinancialEntryService
             referenceId: $referenceId,
             occurredAt: new DateTimeImmutable(),
             systemUserId: $systemUserId,
+            paymentMethod: $paymentMethod,
         );
 
         /** @var FinancialEntry $saved */

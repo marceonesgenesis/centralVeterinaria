@@ -18,6 +18,11 @@ use CentralVet\Redis\RedisConnectionFactory;
  * dedicated prefixes/tenant ids, and every test cleans up exactly the keys
  * it created in tearDown() — no FLUSHALL/FLUSHDB, so this never touches
  * unrelated data that might already live in the same Redis instance.
+ *
+ * The database comes from REDIS_DATABASE as set by tests/run.php, which
+ * always replaces the inherited (application) value with
+ * TEST_REDIS_DATABASE (default 15) and refuses to run when both match, so
+ * these tests never share a database with the application's sessions.
  */
 abstract class RedisIntegrationTestCase
 {

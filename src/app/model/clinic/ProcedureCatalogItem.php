@@ -19,6 +19,8 @@
  */
 class ProcedureCatalogItem extends TRecord
 {
+    use CvSafeLabelTrait;
+
     const TABLENAME = 'procedure_catalog_item';
     const PRIMARYKEY= 'id';
     const IDPOLICY =  'serial'; // {max, serial}
@@ -35,5 +37,13 @@ class ProcedureCatalogItem extends TRecord
         parent::addAttribute('duration_minutes');
         parent::addAttribute('preparation_text');
         parent::addAttribute('active');
+    }
+
+    /**
+     * Rótulo escapado para os combos de busca (T-65): {name_safe}.
+     */
+    public function get_name_safe(): string
+    {
+        return $this->safeLabel('name');
     }
 }

@@ -61,17 +61,137 @@ final class ProductServiceTest
 
     public function testUpdateRejectsNameOfAnotherProductOfTheTenant(): void
     {
-        [$service, $repository, $idA] = $this->fixture();
+        [$service, $repository, $idA, $idB] = $this->fixture();
 
-        Assert::throws(InvalidArgumentException::class, static fn () => $service->update($idA, 'B', null, 'un', 1000, 2, true));
+        self::assertThrowsMessage(
+            'A product named "B" already exists for this tenant',
+            static fn () => $service->update($idA, 'B', null, 'un', 1000, 2, true),
+        );
         Assert::same('A', $repository->findById($idA)?->name());
+        Assert::same(1000, $repository->findById($idA)?->unitCostCents());
+        Assert::same('B', $repository->findById($idB)?->name(), 'Product B must stay untouched');
+        Assert::same(2000, $repository->findById($idB)?->unitCostCents(), 'Product B cost must stay untouched');
     }
 
     public function testUpdateRejectsUnknownId(): void
     {
         [$service] = $this->fixture();
 
-        Assert::throws(InvalidArgumentException::class, static fn () => $service->update(999, 'X', null, 'un', 1000, 0, true));
+        self::assertThrowsMessage(
+            'Product 999 not found for this tenant',
+            static fn () => $service->update(999, 'X', null, 'un', 1000, 0, true),
+        );
+    }
+
+    public function testUpdateRejectsProductOfAnotherTenant(): void
+    {
+        $createdAt = new DateTimeImmutable('2026-01-02 03:04:05');
+        $foreign = Product::reconstitute(30, 2, 'Outro', null, 'un', 500, 0, true, $createdAt, $createdAt, 700, 'T2-1');
+        $repository = new FakeProductRepository(self::TENANT_ID, $foreign);
+        $service = new ProductService($repository, TenantContext::authenticated(self::TENANT_ID, 1));
+
+        self::assertThrowsMessage(
+            'Product 30 not found for this tenant',
+            static fn () => $service->update(30, 'Invadido', null, 'un', 1, 0, true),
+        );
+        Assert::null($repository->findByCode('T2-1'), 'Code of another tenant must not be visible');
+        Assert::same([], $repository->findActive(), 'Rejected update must not store a product for tenant 1');
+        Assert::null($repository->findByName('Invadido'), 'Rejected update must not persist the new name');
+
+        $stored = $repository->storedProduct(30);
+        Assert::same(2, $stored?->tenantId(), 'Product of tenant 2 must stay in the shared storage');
+        Assert::same('Outro', $stored?->name(), 'Rejected update must not overwrite the name of tenant 2 product');
+        Assert::same(500, $stored?->unitCostCents(), 'Rejected update must not overwrite the cost of tenant 2 product');
+    }
+
+    public function testCreateStoresSalePriceAndCode(): void
+    {
+        [$service, $repository] = $this->fixture();
+
+        $created = $service->create(self::TENANT_ID, 'C', null, 'un', 1000, 0, salePriceCents: 1990, code: '  SKU-1  ');
+
+        Assert::same(1990, $created->salePriceCents());
+        Assert::same('SKU-1', $created->code());
+        Assert::same($created->id(), $repository->findByCode('SKU-1')?->id());
+    }
+
+    public function testCreateRejectsCodeOfAnotherProduct(): void
+    {
+        [$service] = $this->fixture();
+        $service->create(self::TENANT_ID, 'C', null, 'un', 1000, 0, salePriceCents: 1990, code: 'SKU-1');
+
+        self::assertThrowsMessage(
+            'A product with code "SKU-1" already exists for this tenant',
+            static fn () => $service->create(self::TENANT_ID, 'D', null, 'un', 1000, 0, salePriceCents: null, code: 'SKU-1'),
+        );
+    }
+
+    public function testCreateRejectsCodeDifferingOnlyInCase(): void
+    {
+        [$service] = $this->fixture();
+        $service->create(self::TENANT_ID, 'C', null, 'un', 1000, 0, salePriceCents: 1990, code: 'SKU-1');
+
+        self::assertThrowsMessage(
+            'A product with code "sku-1" already exists for this tenant',
+            static fn () => $service->create(self::TENANT_ID, 'D', null, 'un', 1000, 0, salePriceCents: null, code: 'sku-1'),
+        );
+    }
+
+    public function testUpdateCodeRulesAndKeepingOwnCode(): void
+    {
+        [$service, $repository, $idA, $idB] = $this->fixture();
+
+        $a = $service->update($idA, 'A', null, 'un', 1000, 2, true, 2500, 'SKU-A');
+        Assert::same(2500, $a->salePriceCents());
+        Assert::same('SKU-A', $a->code());
+
+        $again = $service->update($idA, 'A', null, 'un', 1000, 2, true, 2600, 'SKU-A');
+        Assert::same(2600, $again->salePriceCents(), 'Keeping its own code is allowed');
+
+        self::assertThrowsMessage(
+            'A product with code "SKU-A" already exists for this tenant',
+            static fn () => $service->update($idB, 'B', null, 'kg', 2000, 0, true, null, 'SKU-A'),
+        );
+        Assert::null($repository->findById($idB)?->code());
+
+        $cleared = $service->update($idA, 'A', null, 'un', 1000, 2, true, null, '   ');
+        Assert::null($cleared->code(), 'Blank code becomes null');
+        Assert::null($cleared->salePriceCents());
+    }
+
+    public function testSalePriceAndCodeValidation(): void
+    {
+        [$service, , $idA] = $this->fixture();
+
+        self::assertThrowsMessage(
+            'sale_price_cents cannot be negative',
+            static fn () => $service->update($idA, 'A', null, 'un', 1000, 2, true, -1, null),
+        );
+        self::assertThrowsMessage(
+            'code must have at most 60 characters',
+            static fn () => $service->update($idA, 'A', null, 'un', 1000, 2, true, null, str_repeat('x', 61)),
+        );
+    }
+
+    public function testExistingCallersKeepDefaults(): void
+    {
+        $product = Product::create(self::TENANT_ID, 'E', null, 'un', 100, 0);
+
+        Assert::null($product->salePriceCents());
+        Assert::null($product->code());
+    }
+
+    private static function assertThrowsMessage(string $expected, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (InvalidArgumentException $e) {
+            Assert::same($expected, $e->getMessage());
+
+            return;
+        }
+
+        Assert::true(false, "Expected InvalidArgumentException \"{$expected}\" was not thrown");
     }
 
     public function testUpdateAppliesProductCreateRules(): void

@@ -1,5 +1,13 @@
 [
   {
+    "en": "%s days",
+    "pt": "%s dias"
+  },
+  {
+    "en": "A bank account named \"^1\" already exists for this unit",
+    "pt": "Já existe uma conta bancária chamada \"^1\" nesta unidade"
+  },
+  {
     "en": "A new seed is required in the application.ini for security reasons",
     "pt": "É necessária uma nova seed no application.ini por motivos de segurança"
   },
@@ -12,8 +20,28 @@
     "pt": "É necessário informar um produto para receber um lote de estoque"
   },
   {
+    "en": "A product named \"^1\" already exists",
+    "pt": "Já existe um produto chamado \"^1\""
+  },
+  {
+    "en": "A product with code \"^1\" already exists",
+    "pt": "Já existe um produto com o código \"^1\""
+  },
+  {
+    "en": "A service named \"^1\" already exists",
+    "pt": "Já existe um serviço chamado \"^1\""
+  },
+  {
+    "en": "A template named \"^1\" already exists",
+    "pt": "Já existe um modelo chamado \"^1\""
+  },
+  {
     "en": "A tutor must be informed to register a patient",
     "pt": "É necessário informar um tutor para cadastrar um paciente"
+  },
+  {
+    "en": "A tutor with this document already exists in this tenant",
+    "pt": "Já existe um tutor com este documento"
   },
   {
     "en": "A vaccine catalog item is required",
@@ -156,6 +184,10 @@
     "pt": "Todos os status"
   },
   {
+    "en": "Allergies",
+    "pt": "Alergias"
+  },
+  {
     "en": "Amount",
     "pt": "Valor"
   },
@@ -200,12 +232,20 @@
     "pt": "Aplicar desconto"
   },
   {
+    "en": "Apply template",
+    "pt": "Aplicar modelo"
+  },
+  {
     "en": "Apply vaccine",
     "pt": "Aplicar vacina"
   },
   {
     "en": "Appointment",
     "pt": "Agendamento"
+  },
+  {
+    "en": "Appointment ^1 cannot be rescheduled from status ^2",
+    "pt": "O agendamento ^1 não pode ser remarcado no status ^2"
   },
   {
     "en": "Appointment scheduled successfully",
@@ -218,6 +258,10 @@
   {
     "en": "Attachment",
     "pt": "Anexo"
+  },
+  {
+    "en": "Attachment not found",
+    "pt": "Anexo não encontrado"
   },
   {
     "en": "Attachments",
@@ -252,12 +296,44 @@
     "pt": "Voltar"
   },
   {
+    "en": "Balance",
+    "pt": "Saldo"
+  },
+  {
     "en": "Balance due",
     "pt": "Saldo devedor"
   },
   {
+    "en": "balance_cents must be an integer",
+    "pt": "O saldo deve ser um valor numérico"
+  },
+  {
+    "en": "Bank",
+    "pt": "Banco"
+  },
+  {
+    "en": "Bank account",
+    "pt": "Conta bancária"
+  },
+  {
+    "en": "Bank account not found",
+    "pt": "Conta bancária não encontrada"
+  },
+  {
+    "en": "Bank accounts",
+    "pt": "Contas bancárias"
+  },
+  {
+    "en": "Bank balance",
+    "pt": "Saldo bancário"
+  },
+  {
     "en": "Bank transfer",
     "pt": "Transferência bancária"
+  },
+  {
+    "en": "bank_name must have at most 120 characters",
+    "pt": "O nome do banco deve ter no máximo 120 caracteres"
   },
   {
     "en": "Batch",
@@ -340,12 +416,28 @@
     "pt": "Categoria"
   },
   {
+    "en": "category too long",
+    "pt": "categoria muito longa (máx. 60 caracteres)"
+  },
+  {
     "en": "Change Log",
     "pt": "Log de alterações"
   },
   {
+    "en": "Check in this appointment?",
+    "pt": "Fazer check-in deste agendamento?"
+  },
+  {
     "en": "Check the owner of the log file. He must be the same as the web user (usually www-data, www, etc)",
     "pt": "Verifique o proprietário do arquivo de log. Ele deve ser o mesmo do usuário web (geralmente www-data, www, etc)"
+  },
+  {
+    "en": "Check-in",
+    "pt": "Check-in"
+  },
+  {
+    "en": "Choose a CSV file to import",
+    "pt": "Escolha um arquivo CSV para importar"
   },
   {
     "en": "Choose a file to attach",
@@ -416,6 +508,10 @@
     "pt": "Saldo de fechamento"
   },
   {
+    "en": "Code",
+    "pt": "Código"
+  },
+  {
     "en": "Color",
     "pt": "Cor"
   },
@@ -456,6 +552,18 @@
     "pt": "Controlador"
   },
   {
+    "en": "copy",
+    "pt": "cópia"
+  },
+  {
+    "en": "Could not complete the operation. Please try again",
+    "pt": "Não foi possível concluir a operação. Tente novamente"
+  },
+  {
+    "en": "Could not import the file. No service was created",
+    "pt": "Não foi possível importar o arquivo. Nenhum serviço foi criado"
+  },
+  {
     "en": "Could not load the exam catalog",
     "pt": "Não foi possível carregar o catálogo de exames"
   },
@@ -466,6 +574,10 @@
   {
     "en": "Could not load the user context",
     "pt": "Não foi possível carregar o contexto do usuário"
+  },
+  {
+    "en": "Could not switch unit",
+    "pt": "Não foi possível trocar de unidade"
   },
   {
     "en": "Count",
@@ -498,6 +610,10 @@
   {
     "en": "CRM / Communication",
     "pt": "CRM / Comunicação"
+  },
+  {
+    "en": "CSV file",
+    "pt": "Arquivo CSV"
   },
   {
     "en": "Current Frequency",
@@ -538,6 +654,10 @@
   {
     "en": "Delete",
     "pt": "Excluir"
+  },
+  {
+    "en": "Delete the service \"^1\"?",
+    "pt": "Excluir o serviço \"^1\"?"
   },
   {
     "en": "Description",
@@ -644,6 +764,18 @@
     "pt": "Data de vencimento"
   },
   {
+    "en": "Duplicate",
+    "pt": "Duplicar"
+  },
+  {
+    "en": "Duplicate the service \"^1\"?",
+    "pt": "Duplicar o serviço \"^1\"?"
+  },
+  {
+    "en": "duplicated name",
+    "pt": "nome repetido"
+  },
+  {
     "en": "Duration",
     "pt": "Duração"
   },
@@ -656,12 +788,28 @@
     "pt": "Duração (minutos)"
   },
   {
+    "en": "e.g. 12,34",
+    "pt": "ex.: 12,34"
+  },
+  {
+    "en": "e.g. 4,5",
+    "pt": "ex.: 4,5"
+  },
+  {
     "en": "Each five minutes",
     "pt": "A cada cinco minutos"
   },
   {
     "en": "Edit",
     "pt": "Editar"
+  },
+  {
+    "en": "Edit appointment",
+    "pt": "Editar agendamento"
+  },
+  {
+    "en": "Edit patient",
+    "pt": "Editar paciente"
   },
   {
     "en": "Elapsed time",
@@ -678,6 +826,18 @@
   {
     "en": "Encounter",
     "pt": "Atendimento"
+  },
+  {
+    "en": "Encounter ^1 is already paused",
+    "pt": "O atendimento ^1 já está pausado"
+  },
+  {
+    "en": "Encounter ^1 is finished and cannot be paused",
+    "pt": "O atendimento ^1 está finalizado e não pode ser pausado"
+  },
+  {
+    "en": "Encounter ^1 is not paused",
+    "pt": "O atendimento ^1 não está pausado"
   },
   {
     "en": "Encounter account",
@@ -844,6 +1004,10 @@
     "pt": "Lançamentos financeiros"
   },
   {
+    "en": "Financial entries cannot be edited. Register a new entry to correct it",
+    "pt": "Lançamentos não podem ser editados. Registre um novo lançamento para corrigir"
+  },
+  {
     "en": "Financial entry",
     "pt": "Lançamento financeiro"
   },
@@ -908,6 +1072,10 @@
     "pt": "Nome completo"
   },
   {
+    "en": "full_name is required",
+    "pt": "Informe o nome completo"
+  },
+  {
     "en": "Function",
     "pt": "Função"
   },
@@ -918,6 +1086,10 @@
   {
     "en": "Generate PDF",
     "pt": "Gerar PDF"
+  },
+  {
+    "en": "Generate report",
+    "pt": "Gerar relatório"
   },
   {
     "en": "Global search",
@@ -972,12 +1144,24 @@
     "pt": "Personificação"
   },
   {
+    "en": "Import",
+    "pt": "Importar"
+  },
+  {
+    "en": "Import services",
+    "pt": "Importar serviços"
+  },
+  {
     "en": "Import SQL",
     "pt": "Importar SQL"
   },
   {
     "en": "In progress",
     "pt": "Em andamento"
+  },
+  {
+    "en": "In queue",
+    "pt": "Na fila"
   },
   {
     "en": "In service",
@@ -1048,6 +1232,14 @@
     "pt": "Conta inválida"
   },
   {
+    "en": "Invalid action",
+    "pt": "Ação inválida"
+  },
+  {
+    "en": "Invalid amount",
+    "pt": "Valor inválido"
+  },
+  {
     "en": "Invalid captcha",
     "pt": "Captcha inválido"
   },
@@ -1056,8 +1248,20 @@
     "pt": "Comando inválido"
   },
   {
+    "en": "Invalid date and time",
+    "pt": "Data e hora inválidas"
+  },
+  {
+    "en": "invalid duration_minutes",
+    "pt": "duração inválida"
+  },
+  {
     "en": "Invalid encounter id",
     "pt": "Id de atendimento inválido"
+  },
+  {
+    "en": "Invalid file",
+    "pt": "Arquivo inválido"
   },
   {
     "en": "Invalid exam request id",
@@ -1074,6 +1278,10 @@
   {
     "en": "Invalid prescription",
     "pt": "Prescrição inválida"
+  },
+  {
+    "en": "invalid price",
+    "pt": "preço inválido"
   },
   {
     "en": "Invalid queue entry id",
@@ -1098,6 +1306,10 @@
   {
     "en": "Items",
     "pt": "Itens"
+  },
+  {
+    "en": "items must be a non-empty list",
+    "pt": "Informe ao menos um item"
   },
   {
     "en": "Items sold",
@@ -1126,6 +1338,10 @@
   {
     "en": "Like",
     "pt": "Curtir"
+  },
+  {
+    "en": "Line ^1",
+    "pt": "Linha ^1"
   },
   {
     "en": "Links",
@@ -1256,6 +1472,18 @@
     "pt": "Nome"
   },
   {
+    "en": "name is required",
+    "pt": "nome obrigatório"
+  },
+  {
+    "en": "name must have at most 120 characters",
+    "pt": "O nome deve ter no máximo 120 caracteres"
+  },
+  {
+    "en": "name too long",
+    "pt": "nome muito longo (máx. 190 caracteres)"
+  },
+  {
     "en": "Network devices",
     "pt": "Dispositivos de rede"
   },
@@ -1336,6 +1564,10 @@
     "pt": "Nenhum anexo ainda"
   },
   {
+    "en": "No bank account",
+    "pt": "Nenhuma conta bancária"
+  },
+  {
     "en": "No entries in this period",
     "pt": "Nenhum lançamento no período"
   },
@@ -1362,6 +1594,10 @@
   {
     "en": "No price available for this encounter yet",
     "pt": "Nenhum preço disponível para este atendimento ainda"
+  },
+  {
+    "en": "No products found",
+    "pt": "Nenhum produto encontrado"
   },
   {
     "en": "No professionals found for the authenticated tenant",
@@ -1444,6 +1680,10 @@
     "pt": "Só contas em aberto podem ser editadas"
   },
   {
+    "en": "Only scheduled or confirmed appointments can be checked in",
+    "pt": "Só agendamentos marcados ou confirmados podem fazer check-in"
+  },
+  {
     "en": "Open",
     "pt": "Abrir"
   },
@@ -1470,6 +1710,10 @@
   {
     "en": "Open receivables",
     "pt": "Contas a receber em aberto"
+  },
+  {
+    "en": "Open the prescription from the encounter",
+    "pt": "Abra a prescrição pelo atendimento"
   },
   {
     "en": "Open ticket",
@@ -1548,8 +1792,28 @@
     "pt": "Paciente"
   },
   {
+    "en": "Patient checked in",
+    "pt": "Paciente incluído na fila"
+  },
+  {
+    "en": "Patient sex must be one of M, F, U",
+    "pt": "O sexo do paciente deve ser M, F ou U"
+  },
+  {
+    "en": "Patient weight_kg cannot be negative",
+    "pt": "O peso do paciente não pode ser negativo"
+  },
+  {
     "en": "Patients",
     "pt": "Pacientes"
+  },
+  {
+    "en": "Pause",
+    "pt": "Pausar"
+  },
+  {
+    "en": "Paused",
+    "pt": "Pausado"
   },
   {
     "en": "Pay",
@@ -1608,8 +1872,20 @@
     "pt": "Telefone"
   },
   {
+    "en": "phone is required",
+    "pt": "Informe o telefone"
+  },
+  {
     "en": "Photo",
     "pt": "Foto"
+  },
+  {
+    "en": "Photo must be a JPEG, PNG or WEBP image",
+    "pt": "A foto deve ser uma imagem JPEG, PNG ou WEBP"
+  },
+  {
+    "en": "Photo must be at most 2 MB",
+    "pt": "A foto deve ter no máximo 2 MB"
   },
   {
     "en": "PHP Log",
@@ -1948,6 +2224,10 @@
     "pt": "Solicitado em"
   },
   {
+    "en": "Requested slot conflicts with an existing appointment",
+    "pt": "O horário solicitado conflita com um agendamento existente"
+  },
+  {
     "en": "Requests by day",
     "pt": "Requisições por dia"
   },
@@ -1988,6 +2268,10 @@
     "pt": "Resultados"
   },
   {
+    "en": "Resume",
+    "pt": "Retomar"
+  },
+  {
     "en": "Revenue by category",
     "pt": "Receitas por categoria"
   },
@@ -2024,6 +2308,10 @@
     "pt": "Venda concluída com sucesso"
   },
   {
+    "en": "Sale price",
+    "pt": "Preço de venda"
+  },
+  {
     "en": "Sale receipt",
     "pt": "Recibo de venda"
   },
@@ -2054,6 +2342,10 @@
   {
     "en": "Save as PDF",
     "pt": "Salvar como PDF"
+  },
+  {
+    "en": "Save as template",
+    "pt": "Salvar como modelo"
   },
   {
     "en": "Save as XML",
@@ -2140,10 +2432,6 @@
     "pt": "Selecionar linha"
   },
   {
-    "en": "Selected tutor was not found for your account",
-    "pt": "O tutor selecionado não foi encontrado para sua conta"
-  },
-  {
     "en": "Send",
     "pt": "Enviar"
   },
@@ -2168,6 +2456,10 @@
     "pt": "Enviado para a lixeira"
   },
   {
+    "en": "Separator \";\", first line with the header:",
+    "pt": "Separador \";\", primeira linha com o cabeçalho:"
+  },
+  {
     "en": "Service",
     "pt": "Serviço"
   },
@@ -2176,8 +2468,16 @@
     "pt": "Id do serviço"
   },
   {
+    "en": "Service not found for this tenant",
+    "pt": "Serviço não encontrado"
+  },
+  {
     "en": "Services",
     "pt": "Serviços"
+  },
+  {
+    "en": "Services created: ^1",
+    "pt": "Serviços criados: ^1"
   },
   {
     "en": "Session",
@@ -2214,6 +2514,10 @@
   {
     "en": "Showing %1–%2 of %3",
     "pt": "Mostrando %1–%2 de %3"
+  },
+  {
+    "en": "Skipped lines",
+    "pt": "Linhas puladas"
   },
   {
     "en": "Slower methods",
@@ -2300,6 +2604,10 @@
     "pt": "Quantidade em estoque"
   },
   {
+    "en": "Stock report",
+    "pt": "Relatório de estoque"
+  },
+  {
     "en": "Structured result",
     "pt": "Resultado estruturado"
   },
@@ -2360,6 +2668,14 @@
     "pt": "Temperatura (C)"
   },
   {
+    "en": "Template",
+    "pt": "Modelo"
+  },
+  {
+    "en": "Template saved",
+    "pt": "Modelo salvo"
+  },
+  {
     "en": "Templates",
     "pt": "Modelos"
   },
@@ -2370,6 +2686,10 @@
   {
     "en": "Terms of use and privacy policy",
     "pt": "Termos de uso e política de privacidade"
+  },
+  {
+    "en": "The file must be a CSV of up to 1 MB",
+    "pt": "O arquivo deve ser um CSV de até 1 MB"
   },
   {
     "en": "The following files have been modified from the original framework",
@@ -2392,6 +2712,10 @@
     "pt": "Os programas selecionados aqui terão permissão de acesso concedida automaticamente a este grupo de usuários"
   },
   {
+    "en": "The selected record does not belong to this clinic",
+    "pt": "O registro selecionado não pertence a esta clínica"
+  },
+  {
     "en": "The user registration is disabled",
     "pt": "O cadastro de usuários está desativado"
   },
@@ -2404,8 +2728,20 @@
     "pt": "Não há sessão de caixa aberta para esta unidade. Abra uma sessão de caixa antes de registrar um pagamento."
   },
   {
+    "en": "This appointment is already in the queue",
+    "pt": "Este agendamento já está na fila"
+  },
+  {
     "en": "This configuration is usually recommended for production, not development purposes",
     "pt": "Esta configuração geralmente é recomendada para produção, não para fins de desenvolvimento"
+  },
+  {
+    "en": "This entry cannot advance right now: ^1",
+    "pt": "Esta entrada não pode avançar agora: ^1"
+  },
+  {
+    "en": "This exam request cannot move to this status",
+    "pt": "Este pedido de exame não pode mudar para este status"
   },
   {
     "en": "This folder already exists",
@@ -2418,6 +2754,10 @@
   {
     "en": "This receivable is already fully paid.",
     "pt": "Esta conta a receber já está totalmente paga."
+  },
+  {
+    "en": "This service has appointments; deactivate it instead",
+    "pt": "Este serviço tem agendamentos; inative-o em vez de excluir"
   },
   {
     "en": "This will remove all the contents of the folder",
@@ -2470,6 +2810,10 @@
   {
     "en": "Total",
     "pt": "Total"
+  },
+  {
+    "en": "Total of active accounts",
+    "pt": "Total das contas ativas"
   },
   {
     "en": "Trash",
@@ -2596,6 +2940,18 @@
     "pt": "Vacinas"
   },
   {
+    "en": "Valid until",
+    "pt": "Válida até"
+  },
+  {
+    "en": "valid_until cannot be in the past",
+    "pt": "A validade não pode estar no passado"
+  },
+  {
+    "en": "valid_until must be a Y-m-d date",
+    "pt": "Validade inválida"
+  },
+  {
     "en": "Vendor",
     "pt": "Fornecedor"
   },
@@ -2618,6 +2974,10 @@
   {
     "en": "vs. previous month",
     "pt": "vs. mês anterior"
+  },
+  {
+    "en": "vs. previous period",
+    "pt": "vs. período anterior"
   },
   {
     "en": "Waiting",
@@ -2646,6 +3006,10 @@
   {
     "en": "Weight (kg)",
     "pt": "Peso (kg)"
+  },
+  {
+    "en": "weight_kg must be a number between 0 and 9999.99, e.g. 4,5",
+    "pt": "Peso inválido: informe um número entre 0 e 9999,99, ex.: 4,5"
   },
   {
     "en": "Welcome",

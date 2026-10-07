@@ -39,7 +39,10 @@ class SystemDriveDocumentUploadForm extends TWindow
         $file  = new TFile('filename');
         $description = new TText('description');
         
-        $file->setService('SystemDocumentUploaderService');
+        // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload).
+        // As extensões espelham os tipos do SystemDocumentUploaderService.
+        $file->setService('CvUploaderService');
+        $file->setAllowedExtensions(['txt', 'html', 'csv', 'pdf', 'rtf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'jpeg', 'jpg', 'png', 'gif', 'svg', 'xml', 'zip', 'rar', 'bz', 'bz2', 'tar']);
         
         $this->form->addFields([$id]);
         $this->form->addFields([$folder_path]);
@@ -68,6 +71,24 @@ class SystemDriveDocumentUploadForm extends TWindow
         {
             TTransaction::open('communication');
             
+            // T-62/T-63: the uploaded name must be a regular file inside tmp/
+            // (no ../, separators or symlink out) uploaded by this session
+            // through CvUploaderService, checked before store()
+            $source_file = null;
+            $upload_name = null;
+            if (!empty($param['filename']))
+            {
+                $source_file = CvUpload::resolve((string) $param['filename']);
+                $upload_name = trim((string) $param['filename']);
+                // no disco (e no caminho): o nome saneado sem prefixo; o
+                // original UTF-8 vira o título quando o usuário não deu um
+                $param['filename'] = CvUpload::displayName($upload_name);
+                if (trim((string) ($param['title'] ?? '')) === '')
+                {
+                    $param['title'] = CvUpload::originalName($upload_name);
+                }
+            }
+            
             $object = new SystemDocument;
             $object->fromArray( $param );
             $object->submission_date = date('Y-m-d H:i:s');
@@ -75,11 +96,10 @@ class SystemDriveDocumentUploadForm extends TWindow
             $object->title = $object->title ? $object->title : $object->filename;
             $object->store();
             
-            $source_file   = 'tmp/' . $object->filename;
             $target_path   = 'files/system/documents/' . $object->id;
             $target_file   =  $target_path . '/' . $object->filename;
             
-            if (file_exists($source_file))
+            if ($source_file !== null)
             {
                 if (!file_exists($target_path))
                 {
@@ -102,6 +122,8 @@ class SystemDriveDocumentUploadForm extends TWindow
                     // move to the target directory
                     rename($source_file, $target_file);
                 }
+                
+                CvUpload::forget($upload_name);
             }
             
             TTransaction::close();
@@ -112,6 +134,11 @@ class SystemDriveDocumentUploadForm extends TWindow
                 'path' => TSession::getValue('SystemDriveListpath'),
                 'filter' => 'my'
             ]);
+        }
+        catch (InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e)
         {

@@ -265,6 +265,29 @@ a.cv-tab:hover {
     font-size: 1.5rem;
 }
 
+/* Foto do paciente (EncounterView e pré-visualização do PatientForm) */
+.cv-patient-photo {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    display: block;
+}
+
+/* Alerta de alergia do paciente */
+.cv-alert-allergy {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    margin-top: var(--cv-space-3);
+    padding: var(--cv-space-2) var(--cv-space-3);
+    border-radius: 6px;
+    background: var(--cv-color-danger-soft);
+    color: var(--cv-color-danger);
+    font-weight: 600;
+}
+
 /* ---------- Tabela ---------- */
 .cv-table {
     width: 100%;
@@ -505,4 +528,78 @@ a.cv-tab:hover {
     background: var(--cv-color-primary);
     border-color: var(--cv-color-primary);
     color: #ffffff;
+}
+
+/* PrescriptionForm (rodada 2, T-19): regras que eram style inline no controller */
+.cv-rx-page {
+    width: 100%;
+}
+.cv-rx-pdf-link {
+    margin-bottom: var(--cv-space-3);
+}
+.cv-card__title.cv-rx-section-title {
+    margin: var(--cv-space-2) 0 0;
+}
+.cv-form .tformrow.cv-rx-hidden,
+.cv-table.cv-rx-hidden {
+    display: none;
+}
+.cv-form .tformrow.cv-rx-dose-row {
+    --cv-form-columns: 5;
+}
+.cv-rx-apply-template {
+    margin-top: var(--cv-space-1);
+}
+.cv-rx-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-4);
+}
+.cv-rx-identity {
+    display: flex;
+    align-items: center;
+    gap: var(--cv-space-3);
+    margin-bottom: var(--cv-space-3);
+}
+.cv-rx-identity__name {
+    font-size: 1.05rem;
+}
+.cv-rx-empty {
+    margin: 0;
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-muted {
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-history {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-3);
+}
+.cv-rx-history__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--cv-space-2);
+}
+.cv-rx-history__title {
+    font-weight: 600;
+}
+.cv-rx-dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--cv-space-3);
+    row-gap: var(--cv-space-1);
+    margin: 0;
+}
+.cv-rx-dl > dt {
+    font-weight: 600;
+    color: var(--cv-color-text-muted);
+}
+.cv-rx-dl > dd {
+    margin: 0;
+    overflow-wrap: anywhere;
 }
