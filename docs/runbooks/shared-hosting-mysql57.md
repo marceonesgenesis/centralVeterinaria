@@ -290,6 +290,9 @@ específica.
   `local`.
 - Objetos antigos gravados no S3 continuam legíveis só se as `S3_*` forem
   mantidas; sem elas, esses anexos e fotos ficam indisponíveis.
+- O fallback das fotos só vale no sentido S3 → local. Fotos gravadas com o
+  driver `local` não são procuradas na pasta local se o driver voltar a `s3`;
+  antes de voltar, copie a pasta para o bucket ou mantenha `local`.
 
 ### Pasta de documentos e cron
 
