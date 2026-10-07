@@ -1,0 +1,223 @@
+{
+  "esquema": 1,
+  "plano": "/var/www/html/centralvet/.claude/tasks/mar-20261007-1405-rodada-4-divida-tecnica",
+  "projeto": "/var/www/html/centralvet",
+  "repositorios": [],
+  "versao_plugin": "2.7.0?",
+  "gerado_em": "2026-10-07T14:32:49-03:00",
+  "sessoes": [
+    {
+      "id": "c2da22ef-8644-4fa0-aa7c-cb2020291aaf",
+      "encontrada": true,
+      "transcript": "/home/marceonesdev/.claude/projects/-var-www-html-centralvet/c2da22ef-8644-4fa0-aa7c-cb2020291aaf.jsonl"
+    }
+  ],
+  "planejamento": {
+    "tasks": 8,
+    "ondas": 3,
+    "revisoes_do_plano": 1,
+    "perguntas_planejador": 2,
+    "precisao_arquivos": 100,
+    "tasks_com_fora_do_previsto": 0,
+    "complexidade_x_rodadas": {
+      "média": 0,
+      "simples": 0
+    }
+  },
+  "execucao": {
+    "tasks_registradas": 4,
+    "tasks_revisadas": 4,
+    "aprovadas_de_primeira": 4,
+    "rodadas_fix_loop": 0,
+    "breakers": 0,
+    "rulings": 2,
+    "perguntas_precisa_contexto": 0,
+    "red": {
+      "ok": 4
+    },
+    "ondas_de_correcao": [],
+    "tasks_de_correcao": 0
+  },
+  "sessao": {
+    "tokens_retidos_por_onda": [
+      22550,
+      18529,
+      6395
+    ],
+    "tokens_retidos_mediana": 18529,
+    "contexto_maximo": 161514,
+    "compactacoes": 0,
+    "turnos_validador": {
+      "max": 9,
+      "execucoes": 2,
+      "acima_da_meta": 0,
+      "meta": 30
+    },
+    "retornos": {
+      "total": 46,
+      "acima_do_limite": {
+        "planejador": 2,
+        "fechador": 1,
+        "validador": 1
+      }
+    },
+    "retrabalho": {
+      "implementadores": 7,
+      "correcoes": 0,
+      "por_implementador": 0.0,
+      "custo_medio_correcao": null
+    },
+    "adesao_prompt": {
+      "disparos": 7,
+      "canonicos": 7,
+      "longos": 0
+    },
+    "duracao_min": 61.6,
+    "custo_tokens": {
+      "principal": 8928844,
+      "sub_agentes": 20275291
+    },
+    "planejador": {
+      "retornos": 3,
+      "com_perguntas": 2,
+      "mensagens": 1
+    }
+  },
+  "ultima_onda_medida": 1,
+  "ondas_sem_registro": [
+    2,
+    3
+  ],
+  "causas": [
+    {
+      "id": "T-01",
+      "causa": "FallbackReadStorage memoiza tambem a falha ao resolver o secundario; detalhe de implementacao sem mudar o contrato"
+    },
+    {
+      "id": "T-02",
+      "causa": "Criterio de Failed: 0 inatingivel na SUITE compartilhada durante o RED de outras tasks da onda"
+    },
+    {
+      "id": "T-07",
+      "causa": "Failed: 0 global nao atingivel na SUITE compartilhada; teste tambem confere min-height"
+    }
+  ],
+  "tasks": [
+    {
+      "esquema": 1,
+      "id": "T-01",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "backend",
+      "persona": "Platão",
+      "complexidade": "média",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 5,
+      "arquivos_tocados": 5,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 4,
+      "rulings": 1,
+      "breaker": false,
+      "causa": "FallbackReadStorage memoiza tambem a falha ao resolver o secundario; detalhe de implementacao sem mudar o contrato"
+    },
+    {
+      "esquema": 1,
+      "id": "T-02",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "backend",
+      "persona": "Aang",
+      "complexidade": "média",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 1,
+      "arquivos_previstos": 2,
+      "arquivos_tocados": 2,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 2,
+      "rulings": 0,
+      "breaker": false,
+      "causa": "Criterio de Failed: 0 inatingivel na SUITE compartilhada durante o RED de outras tasks da onda"
+    },
+    {
+      "esquema": 1,
+      "id": "T-05",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "backend",
+      "persona": "Spock",
+      "complexidade": "simples",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 3,
+      "arquivos_tocados": 3,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 2,
+      "rulings": 0,
+      "breaker": false,
+      "causa": null
+    },
+    {
+      "esquema": 1,
+      "id": "T-07",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "frontend",
+      "persona": "Levi",
+      "complexidade": "simples",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 2,
+      "arquivos_previstos": 2,
+      "arquivos_tocados": 2,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 0,
+      "rulings": 1,
+      "breaker": false,
+      "causa": "Failed: 0 global nao atingivel na SUITE compartilhada; teste tambem confere min-height"
+    }
+  ]
+}
