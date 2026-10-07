@@ -240,6 +240,12 @@ class PatientForm extends TStandardForm
             }
 
             $actions = [$back];
+            if ($this->viewPatient !== null)
+            {
+                $patient_id = (int) $this->viewPatient->id;
+                $actions[] = ['label' => _t('Documents'), 'icon' => 'fa:file-pdf', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentList&patient_id=' . $patient_id];
+                $actions[] = ['label' => _t('Medical certificate'), 'icon' => 'fa:file-medical', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentRequestForm&kind=medical_certificate&source_id=' . $patient_id];
+            }
             if ($this->tutor_id !== null)
             {
                 $actions[] = ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction([__CLASS__, 'onEdit'], ['tutor_id' => $this->tutor_id])];

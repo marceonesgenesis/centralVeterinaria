@@ -14,6 +14,7 @@ use InvalidArgumentException;
  * only read the result of {@see self::classify()} and {@see self::rank()}.
  *
  * - `hospitalization_administration` is always `urgent`;
+ * - `document_failed` is always `high` (Fase 7B);
  * - otherwise `$now > $dueAt` is `high` (overdue);
  * - `$dueAt <= $now + 24 h` is `normal`;
  * - anything later is `low`.
@@ -42,6 +43,10 @@ final class PendingItemPriority
     {
         if ($type === PendingItem::TYPE_HOSPITALIZATION_ADMINISTRATION) {
             return self::URGENT;
+        }
+
+        if ($type === PendingItem::TYPE_DOCUMENT_FAILED) {
+            return self::HIGH;
         }
 
         if ($now > $dueAt) {

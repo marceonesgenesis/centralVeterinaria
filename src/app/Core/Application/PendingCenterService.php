@@ -81,7 +81,7 @@ final class PendingCenterService
     }
 
     /**
-     * Total per type over the unfiltered list, with all 8 types present.
+     * Total per type over the unfiltered list, with all 9 types present.
      *
      * @return array<string, int>
      * @throws \CentralVet\Authorization\Exception\AuthorizationDenied

@@ -36,6 +36,10 @@
     "pt": "Já existe um leito com o código \"^1\" nesta unidade"
   },
   {
+    "en": "A document template with this name already exists",
+    "pt": "Já existe um modelo de documento com este nome"
+  },
+  {
     "en": "A new seed is required in the application.ini for security reasons",
     "pt": "É necessária uma nova seed no application.ini por motivos de segurança"
   },
@@ -388,6 +392,10 @@
     "pt": "Agendamento realizado com sucesso"
   },
   {
+    "en": "Archive PDF",
+    "pt": "Arquivar PDF"
+  },
+  {
     "en": "Assistant",
     "pt": "Auxiliar"
   },
@@ -428,6 +436,10 @@
     "pt": "Código de autenticação"
   },
   {
+    "en": "authorized",
+    "pt": "autorizado"
+  },
+  {
     "en": "Authorized by",
     "pt": "Autorizado por"
   },
@@ -446,6 +458,10 @@
   {
     "en": "Available",
     "pt": "Disponível"
+  },
+  {
+    "en": "Available placeholders",
+    "pt": "Marcadores disponíveis"
   },
   {
     "en": "Available placeholders (subject and message text)",
@@ -554,6 +570,10 @@
   {
     "en": "body must be between 1 and 2000 characters",
     "pt": "O texto da mensagem deve ter entre 1 e 2000 caracteres"
+  },
+  {
+    "en": "body must be between 1 and 20000 characters",
+    "pt": "O texto deve ter entre 1 e 20000 caracteres"
   },
   {
     "en": "body must not be empty",
@@ -816,6 +836,10 @@
     "pt": "Comunicação"
   },
   {
+    "en": "Communication consent unavailable",
+    "pt": "Consentimento de comunicação indisponível"
+  },
+  {
     "en": "Communication preferences",
     "pt": "Preferências de comunicação"
   },
@@ -888,6 +912,10 @@
     "pt": "Consentimento confirmado"
   },
   {
+    "en": "Consent PDF",
+    "pt": "PDF do termo"
+  },
+  {
     "en": "Consent recorded",
     "pt": "Consentimento registrado"
   },
@@ -930,6 +958,10 @@
   {
     "en": "copy",
     "pt": "cópia"
+  },
+  {
+    "en": "Could not allocate document version",
+    "pt": "Não foi possível reservar a versão do documento. Tente novamente"
   },
   {
     "en": "Could not complete the operation. Please try again",
@@ -1060,6 +1092,10 @@
     "pt": "Cartão de débito"
   },
   {
+    "en": "Default text",
+    "pt": "Texto padrão"
+  },
+  {
     "en": "Delete",
     "pt": "Excluir"
   },
@@ -1160,12 +1196,56 @@
     "pt": "Documento (CPF/CNPJ)"
   },
   {
+    "en": "Document ^1 can no longer be retried",
+    "pt": "O documento ^1 não pode mais ser gerado novamente"
+  },
+  {
     "en": "Document attached successfully",
     "pt": "Documento anexado com sucesso"
   },
   {
+    "en": "Document body must be between 1 and 20000 characters",
+    "pt": "O texto do documento deve ter entre 1 e 20000 caracteres"
+  },
+  {
+    "en": "Document not found",
+    "pt": "Documento não encontrado"
+  },
+  {
     "en": "Document ready",
     "pt": "Documento pronto"
+  },
+  {
+    "en": "Document requested. It will be available in the list in a few moments.",
+    "pt": "Documento solicitado. Ele estará disponível na lista em instantes."
+  },
+  {
+    "en": "Document requeued",
+    "pt": "Documento reenfileirado"
+  },
+  {
+    "en": "Document source not found",
+    "pt": "Origem do documento não encontrada"
+  },
+  {
+    "en": "Document template is not available",
+    "pt": "O modelo de documento não está disponível"
+  },
+  {
+    "en": "Document templates",
+    "pt": "Modelos de documento"
+  },
+  {
+    "en": "Document text has unresolved placeholders",
+    "pt": "O texto do documento tem marcadores não preenchidos"
+  },
+  {
+    "en": "Document type",
+    "pt": "Tipo de documento"
+  },
+  {
+    "en": "Documents",
+    "pt": "Documentos"
   },
   {
     "en": "Does not accept",
@@ -1306,6 +1386,10 @@
   {
     "en": "Edit bed",
     "pt": "Editar leito"
+  },
+  {
+    "en": "Edit document template",
+    "pt": "Editar modelo de documento"
   },
   {
     "en": "Edit message template",
@@ -1548,6 +1632,10 @@
     "pt": "Falhou em"
   },
   {
+    "en": "Failed documents",
+    "pt": "Documentos com falha"
+  },
+  {
     "en": "Failed messages",
     "pt": "Mensagens com falha"
   },
@@ -1706,6 +1794,10 @@
   {
     "en": "Generate report",
     "pt": "Gerar relatório"
+  },
+  {
+    "en": "Generated document has no id yet",
+    "pt": "O documento ainda não foi salvo"
   },
   {
     "en": "Global search",
@@ -1976,6 +2068,14 @@
     "pt": "Parâmetro do link da pendência inválido"
   },
   {
+    "en": "Invalid document request",
+    "pt": "Pedido de documento inválido"
+  },
+  {
+    "en": "Invalid document template status",
+    "pt": "Status do modelo de documento inválido"
+  },
+  {
     "en": "invalid duration_minutes",
     "pt": "duração inválida"
   },
@@ -2090,6 +2190,10 @@
   {
     "en": "IV",
     "pt": "IV"
+  },
+  {
+    "en": "Kind",
+    "pt": "Tipo"
   },
   {
     "en": "Label",
@@ -2226,6 +2330,10 @@
   {
     "en": "Materials used",
     "pt": "Materiais utilizados"
+  },
+  {
+    "en": "Medical certificate",
+    "pt": "Atestado"
   },
   {
     "en": "Medication",
@@ -2396,6 +2504,14 @@
     "pt": "Novo leito"
   },
   {
+    "en": "New document",
+    "pt": "Novo documento"
+  },
+  {
+    "en": "New document template",
+    "pt": "Novo modelo de documento"
+  },
+  {
     "en": "New exam catalog entry",
     "pt": "Novo item do catálogo de exames"
   },
@@ -2502,6 +2618,14 @@
   {
     "en": "No consent recorded yet.",
     "pt": "Nenhum consentimento registrado ainda."
+  },
+  {
+    "en": "No document templates registered",
+    "pt": "Nenhum modelo de documento cadastrado"
+  },
+  {
+    "en": "No documents yet",
+    "pt": "Nenhum documento ainda"
   },
   {
     "en": "No entries in this period",
@@ -2620,6 +2744,10 @@
     "pt": "Normal"
   },
   {
+    "en": "not authorized",
+    "pt": "não autorizado"
+  },
+  {
     "en": "Not done",
     "pt": "Não feito"
   },
@@ -2650,6 +2778,10 @@
   {
     "en": "Notifications",
     "pt": "Notificações"
+  },
+  {
+    "en": "Notify the tutor when ready",
+    "pt": "Avisar o tutor quando estiver pronto"
   },
   {
     "en": "Occupied",
@@ -2888,6 +3020,10 @@
     "pt": "Alta registrada"
   },
   {
+    "en": "Patient has no vaccinations to print",
+    "pt": "O paciente não tem vacinas para imprimir"
+  },
+  {
     "en": "Patient identity confirmed",
     "pt": "Identidade do paciente confirmada"
   },
@@ -3080,6 +3216,10 @@
     "pt": "Dados da prescrição"
   },
   {
+    "en": "Prescription document",
+    "pt": "Receita"
+  },
+  {
     "en": "Prescription history",
     "pt": "Histórico de prescrições"
   },
@@ -3178,6 +3318,10 @@
   {
     "en": "Procedures",
     "pt": "Procedimentos"
+  },
+  {
+    "en": "Processing…",
+    "pt": "Processando…"
   },
   {
     "en": "Product",
@@ -3342,6 +3486,10 @@
   {
     "en": "RAM Memory",
     "pt": "Memória RAM"
+  },
+  {
+    "en": "Ready",
+    "pt": "Pronto"
   },
   {
     "en": "Reason",
@@ -4168,6 +4316,10 @@
     "pt": "Declaro que fui informado(a) pela equipe veterinária sobre o procedimento cirúrgico indicado ao animal sob minha responsabilidade, seus objetivos, a anestesia necessária, os riscos inerentes (inclusive complicações anestésicas, hemorragia, infecção e, em casos raros, óbito), os cuidados pós-operatórios e as alternativas de tratamento. Tive a oportunidade de esclarecer minhas dúvidas e autorizo a realização do procedimento e das condutas que a equipe julgar necessárias durante a cirurgia para preservar a vida e o bem-estar do animal, ciente de que os custos serão lançados na conta do atendimento."
   },
   {
+    "en": "Surgery consent has not been recorded",
+    "pt": "O termo de consentimento da cirurgia não foi registrado"
+  },
+  {
     "en": "Surgery duration cannot exceed 24 hours",
     "pt": "A cirurgia não pode durar mais de 24 horas"
   },
@@ -4206,6 +4358,10 @@
   {
     "en": "Surgical assistant",
     "pt": "Auxiliar"
+  },
+  {
+    "en": "Surgical consent form",
+    "pt": "Termo de consentimento cirúrgico"
   },
   {
     "en": "Surgical safety checklist",
@@ -4288,6 +4444,10 @@
     "pt": "Termos de uso e política de privacidade"
   },
   {
+    "en": "Text",
+    "pt": "Texto"
+  },
+  {
     "en": "The \"Before incision\" checklist phase is not confirmed",
     "pt": "A fase \"Antes da incisão\" do checklist não foi confirmada"
   },
@@ -4312,12 +4472,24 @@
     "pt": "O motivo do cancelamento é obrigatório"
   },
   {
+    "en": "The consent text recorded on the surgery will be used",
+    "pt": "Será usado o texto do termo registrado na cirurgia"
+  },
+  {
     "en": "The discharge summary is required",
     "pt": "O resumo da alta é obrigatório"
   },
   {
     "en": "The discount cannot be greater than the subtotal",
     "pt": "O desconto não pode ser maior que o subtotal"
+  },
+  {
+    "en": "The document could not be generated",
+    "pt": "Não foi possível gerar o documento"
+  },
+  {
+    "en": "The document source does not match the document type",
+    "pt": "A origem não corresponde ao tipo de documento"
   },
   {
     "en": "The encounter account is not open",
@@ -4438,6 +4610,10 @@
   {
     "en": "This configuration is usually recommended for production, not development purposes",
     "pt": "Esta configuração geralmente é recomendada para produção, não para fins de desenvolvimento"
+  },
+  {
+    "en": "This document type does not support this option",
+    "pt": "Este tipo de documento não aceita esta opção"
   },
   {
     "en": "This entry cannot advance right now: ^1",
@@ -4640,6 +4816,14 @@
     "pt": "Lixeira"
   },
   {
+    "en": "Try again",
+    "pt": "Tentar de novo"
+  },
+  {
+    "en": "Try to generate this document again?",
+    "pt": "Gerar este documento novamente?"
+  },
+  {
     "en": "Tuesday",
     "pt": "Terça-feira"
   },
@@ -4696,8 +4880,16 @@
     "pt": "Fase do checklist desconhecida"
   },
   {
+    "en": "Unknown document kind",
+    "pt": "Tipo de documento desconhecido"
+  },
+  {
     "en": "Unknown placeholder \"^1\" in template",
     "pt": "Marcador desconhecido no modelo: \"^1\""
+  },
+  {
+    "en": "Unknown placeholder: {{^1}}",
+    "pt": "Marcador desconhecido: {{^1}}"
   },
   {
     "en": "Unknown surgery event type",
@@ -4818,6 +5010,10 @@
   {
     "en": "Vendor",
     "pt": "Fornecedor"
+  },
+  {
+    "en": "Version",
+    "pt": "Versão"
   },
   {
     "en": "Veterinarian",
@@ -4948,6 +5144,10 @@
     "pt": "Você não tem permissão para alterar as preferências de comunicação deste tutor"
   },
   {
+    "en": "You are not allowed to change this document",
+    "pt": "Você não tem permissão para alterar este documento"
+  },
+  {
     "en": "You are not allowed to change this hospitalization",
     "pt": "Você não tem permissão para alterar esta internação"
   },
@@ -4978,6 +5178,10 @@
   {
     "en": "You are not allowed to manage beds",
     "pt": "Você não tem permissão para gerenciar leitos"
+  },
+  {
+    "en": "You are not allowed to manage document templates",
+    "pt": "Você não tem permissão para gerenciar modelos de documento"
   },
   {
     "en": "You are not allowed to manage message templates",
@@ -5028,6 +5232,10 @@
     "pt": "Você não tem permissão para solicitar um exame para esta unidade"
   },
   {
+    "en": "You are not allowed to request documents",
+    "pt": "Você não tem permissão para solicitar documentos"
+  },
+  {
     "en": "You are not allowed to schedule an appointment for this unit",
     "pt": "Você não tem permissão para agendar um compromisso para esta unidade"
   },
@@ -5042,6 +5250,10 @@
   {
     "en": "You are not allowed to start an encounter for this unit",
     "pt": "Você não tem permissão para iniciar um atendimento para esta unidade"
+  },
+  {
+    "en": "You are not allowed to view the documents",
+    "pt": "Você não tem permissão para ver os documentos"
   },
   {
     "en": "You are not allowed to view the message history",

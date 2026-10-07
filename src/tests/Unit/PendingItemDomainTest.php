@@ -56,6 +56,7 @@ final class PendingItemDomainTest
             'message_failed',
             'message_whatsapp_manual',
             'receivable_open',
+            'document_failed',
         ], PendingItem::TYPES);
         Assert::same('overdue', PendingItem::STATUS_OVERDUE);
         Assert::same('open', PendingItem::STATUS_OPEN);
@@ -184,6 +185,32 @@ final class PendingItemDomainTest
         );
     }
 
+    public function testDeepLinkDocumentList(): void
+    {
+        Assert::same(
+            'index.php?class=DocumentList&patient_id=12',
+            self::item(PendingItem::TYPE_DOCUMENT_FAILED, class: 'DocumentList', params: ['patient_id' => 12])->deepLinkUrl(),
+        );
+        // closed allow-list: only an integer patient_id, never the name or another key
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'DocumentList', params: ['patient_id' => 'Rex'])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'DocumentList', params: ['id' => 3])->deepLinkUrl());
+        Assert::throws(InvalidArgumentException::class, fn () => self::item(class: 'DocumentList', params: ['patient_id' => 12, 'name' => 'Rex'])->deepLinkUrl());
+    }
+
+    public function testClassifyHighForDocumentFailedEvenBeforeDueAt(): void
+    {
+        $now = self::at('2026-10-06 10:00:00');
+        Assert::same('document_failed', PendingItem::TYPE_DOCUMENT_FAILED);
+        Assert::same(
+            PendingItemPriority::HIGH,
+            PendingItemPriority::classify(PendingItem::TYPE_DOCUMENT_FAILED, self::at('2026-10-10 10:00:00'), $now),
+        );
+        Assert::same(
+            PendingItemPriority::HIGH,
+            PendingItemPriority::classify(PendingItem::TYPE_DOCUMENT_FAILED, self::at('2026-10-05 10:00:00'), $now),
+        );
+    }
+
     public function testDeepLinkRejectsFreeText(): void
     {
         Assert::throws(InvalidArgumentException::class, fn () => self::item(params: ['q' => 'joao@example.invalid'])->deepLinkUrl());
@@ -226,6 +253,7 @@ final class PendingItemDomainTest
             'HospitalizationView' => ['id', 'tab'],
             'CommunicationMessageView' => ['id'],
             'PaymentForm' => ['receivable_id'],
+            'DocumentList' => ['patient_id'],
         ], PendingItem::DEEP_LINK_KEYS);
     }
 

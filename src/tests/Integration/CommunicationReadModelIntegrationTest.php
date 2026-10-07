@@ -31,7 +31,9 @@ use DateTimeImmutable;
  *     re-applied by dose 2 (next 2032-10-02): neither Raiva row is due;
  *   - admitted hospitalization with an administration pending since 10:00;
  *   - failed e-mail, queued WhatsApp and queued e-mail (not pending);
- *   - receivable open, total 1.500,00 paid 265,44, created 2031-10-01.
+ *   - receivable open, total 1.500,00 paid 265,44, created 2031-10-01;
+ *   - generated document (prescription v1) failed at 2031-10-09 20:00
+ *     (document_failed, Fase 7B T-09).
  * Tenant A, unit B: admitted hospitalization with a late administration and
  * a requested exam. Tenant B (same unit A): one row of every source.
  */
@@ -86,12 +88,12 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
         );
     }
 
-    public function testEachOfTheEightTypesAppearsWithTheDeepLinkOfTheDomain(): void
+    public function testEachTypeAppearsWithTheDeepLinkOfTheDomain(): void
     {
         $items = $this->pendingFor($this->tenantA, $this->unitA);
         $now = new DateTimeImmutable(self::NOW);
 
-        Assert::same(PendingItem::TYPES, array_values(array_unique(array_map(static fn (PendingItem $i): string => $i->type(), $items))), 'all 8 types, in the order of PendingItem::TYPES');
+        Assert::same(PendingItem::TYPES, array_values(array_unique(array_map(static fn (PendingItem $i): string => $i->type(), $items))), 'all 9 types, in the order of PendingItem::TYPES');
 
         $examResult = $this->single($items, PendingItem::TYPE_EXAM_RESULT);
         Assert::same($this->a['exam_request'], $examResult->sourceId());
@@ -152,6 +154,12 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
         Assert::same($this->a['receivable'], $receivable->sourceId());
         Assert::same('2031-10-08 08:00:00', $receivable->dueAt()->format('Y-m-d H:i:s'), 'created_at + 7 days');
         Assert::same('index.php?class=PaymentForm&receivable_id=' . $this->a['receivable'], $receivable->deepLinkUrl());
+
+        $document = $this->single($items, PendingItem::TYPE_DOCUMENT_FAILED);
+        Assert::same($this->a['document_failed'], $document->sourceId());
+        Assert::same('Receita v1', $document->subjectLabel());
+        Assert::same('2031-10-09 20:00:00', $document->dueAt()->format('Y-m-d H:i:s'), 'failed_at');
+        Assert::same('index.php?class=DocumentList&patient_id=' . $this->a['patient'], $document->deepLinkUrl());
     }
 
     public function testWhatsAppCancelledByOptOutLeavesThePendingCenter(): void
@@ -188,8 +196,8 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
         $itemsA = $this->pendingFor($this->tenantA, $this->unitA);
         $itemsB = $this->pendingFor($this->tenantB, $this->unitA);
 
-        Assert::count(9, $itemsA, 'tenant A: 8 types, 2 returns');
-        Assert::count(9, $itemsB, 'tenant B has its own 9 items');
+        Assert::count(10, $itemsA, 'tenant A: 9 types, 2 returns');
+        Assert::count(10, $itemsB, 'tenant B has its own 10 items');
 
         $keysA = array_map(static fn (PendingItem $i): string => $i->type() . ':' . $i->sourceId(), $itemsA);
         $keysB = array_map(static fn (PendingItem $i): string => $i->type() . ':' . $i->sourceId(), $itemsB);
@@ -292,7 +300,7 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
     {
         $items = $this->pendingFor($this->tenantA, $this->unitA, 1);
 
-        Assert::count(8, $items, 'one item per type');
+        Assert::count(9, $items, 'one item per type');
         Assert::same($this->a['appointment_return'], $this->single($items, PendingItem::TYPE_RETURN_APPOINTMENT)->sourceId());
         Assert::same([], $this->pendingFor($this->tenantA, $this->unitA, 0));
     }
@@ -449,6 +457,23 @@ final class CommunicationReadModelIntegrationTest extends MysqlIntegrationTestCa
             'paid_cents' => 26544,
             'status' => 'partially_paid',
             'created_at' => '2031-10-01 08:00:00',
+        ]);
+
+        $ids['document_failed'] = $this->insert('generated_document', [
+            'tenant_id' => $tenantId,
+            'system_unit_id' => $this->unitA,
+            'patient_id' => $ids['patient'],
+            'tutor_id' => $ids['tutor'],
+            'kind' => 'prescription',
+            'source_type' => 'prescription',
+            'source_id' => $ids['patient'],
+            'version' => 1,
+            'title' => 'F7A teste documento',
+            'status' => 'failed',
+            'attempt_count' => 3,
+            'last_error_code' => 'render_failed',
+            'failed_at' => '2031-10-09 20:00:00',
+            'requested_by_system_user_id' => $this->userId,
         ]);
 
         return $ids;

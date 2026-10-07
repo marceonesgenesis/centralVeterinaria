@@ -466,7 +466,14 @@ class SurgeryView extends TPage
             _t('Surgeon') . ': ' . ($data['surgeon'] ?? '—'),
         ];
 
-        return CvPage::header($title, implode(' · ', $parts), [self::statusBadge($s->status()), $back]);
+        $consentPdf = [
+            'label' => _t('Consent PDF'),
+            'icon'  => 'fa:file-pdf',
+            'class' => 'btn btn-default cv-touch-target',
+            'href'  => 'index.php?class=DocumentRequestForm&kind=surgery_consent&source_id=' . (int) $s->id(),
+        ];
+
+        return CvPage::header($title, implode(' · ', $parts), [self::statusBadge($s->status()), $back, $consentPdf]);
     }
 
     /**

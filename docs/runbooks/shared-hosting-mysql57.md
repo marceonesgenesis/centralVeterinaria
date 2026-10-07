@@ -253,3 +253,57 @@ As saídas e os logs trazem só ids, códigos e contadores, sem dado pessoal.
 Defina no ambiente do cron as variáveis de banco (`DB_*`), de Redis
 (`REDIS_*`), `COMMUNICATION_*` e `SMTP_*` (nunca na linha do crontab com a
 senha à vista).
+
+## Migration 0013 (documentos)
+
+A `20261006_0013_phase7b_documents.sql` cria duas tabelas
+(`document_template` e `generated_document`), 9 CHECKs, 3 UNIQUEs e índices
+nas colunas de FK. Não altera tabelas existentes nem amplia CHECKs, então o
+preparador só emite os triggers `_bi`/`_bu` das tabelas novas. Os CHECKs não
+usam `BETWEEN`, `LIKE` nem funções.
+
+Preparo num diretório temporário privado, com o prefixo `17-` (depois do
+`16-` da 0012):
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261006_0013_phase7b_documents.sql \
+  "$d/17-20261006_0013_phase7b_documents.sql"
+cp src/app/database/migrations/20261006_0013_phase7b_documents.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "CREATE TRIGGER \`document_template\|CREATE TRIGGER \`generated_document" \
+  "$d/out/17-20261006_0013_phase7b_documents.sql"
+```
+
+Confira que o verify do 5.7 lista as 2 tabelas. Em seguida aplique a DML dos
+4 programas descrita em [`documentos.md`](./documentos.md), com autorização
+específica.
+
+### Pasta de documentos e cron
+
+- Crie a pasta dos PDFs **acima** do `public_html` (nunca dentro dele), com
+  permissão 0750 e dono do usuário que roda o PHP, e aponte
+  `DOCUMENT_STORAGE_LOCAL_ROOT` para ela (o driver `local` recusa root dentro
+  do webroot). Alternativa: `DOCUMENT_STORAGE_DRIVER=s3` com o bucket já criado.
+
+```bash
+mkdir -p /caminho/acima/do/public_html/documentos
+chmod 0750 /caminho/acima/do/public_html/documentos
+```
+
+- O cron do `worker.php --once` já existente (seção da 0012) processa a fila
+  `document.generate`. Acrescente o varredor, que republica documentos
+  `queued` presos (o tick do worker não existe sem processo contínuo):
+
+```cron
+# Varredor de documentos presos em queued (a cada 5 minutos)
+*/5 * * * * php <app>/src/bin/document-sweep.php >> /caminho/dos/logs/document-sweep.log 2>&1
+```
+
+Substitua `<app>` pelo caminho da aplicação. O ambiente do cron precisa das
+variáveis de banco (`DB_*`), de Redis (`REDIS_*`) e `DOCUMENT_*`
+(`DOCUMENT_STORAGE_DRIVER`, `DOCUMENT_STORAGE_LOCAL_ROOT`,
+`DOCUMENT_SYSTEM_USER_ID`), além de `S3_*` com o driver `s3`; nunca na linha do
+crontab com segredo à vista. A saída é um JSON de contadores, sem dado
+pessoal; sai com 1 se algum tenant falhou.
+

@@ -88,6 +88,12 @@ class VaccinationCardView extends TPage
                 'icon' => 'fa:arrow-left',
                 'href' => 'index.php?class=VaccinationCardView',
             ];
+            $headerActions[] = [
+                'label' => _t('Generate PDF'),
+                'icon'  => 'fa:file-pdf',
+                'class' => 'btn btn-default cv-touch-target',
+                'href'  => 'index.php?class=DocumentRequestForm&kind=vaccination_card&source_id=' . (int) $this->patient_id,
+            ];
         }
         $container->add(CvPage::header(_t('Vaccination card'), $patient_name, $headerActions));
 

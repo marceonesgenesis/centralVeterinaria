@@ -871,3 +871,17 @@ a.cv-tab:hover {
         padding: var(--cv-space-2);
     }
 }
+
+/* ---------- Cabeçalho global: alvos de toque (T-25 da 7B) ----------
+   Alternar menu, Notificações e Ajuda (layout.html) medem 2.5rem em
+   custom.css (protegido por framework_hashes.php); aqui sobem para
+   var(--cv-touch-target) (44 px). A topbar tem 4rem, então a altura cabe
+   sem mexer no layout. */
+.cv-topbar-toggle,
+.cv-topbar-icon {
+    width: var(--cv-touch-target);
+    height: var(--cv-touch-target);
+    min-width: var(--cv-touch-target);
+    min-height: var(--cv-touch-target);
+    flex: 0 0 auto;
+}

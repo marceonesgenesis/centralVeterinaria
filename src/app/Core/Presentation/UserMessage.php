@@ -80,6 +80,18 @@ final class UserMessage
         'Invalid deep-link class' => 'Invalid deep-link class',
         'Invalid deep-link parameter key' => 'Invalid deep-link parameter key',
         'Replace the template placeholders before sending the message' => 'Replace the template placeholders before sending the message',
+        // Fase 7B — documentos.
+        'Document not found' => 'Document not found',
+        'Document source not found' => 'Document source not found',
+        'Patient has no vaccinations to print' => 'Patient has no vaccinations to print',
+        'Surgery consent has not been recorded' => 'Surgery consent has not been recorded',
+        'Document text has unresolved placeholders' => 'Document text has unresolved placeholders',
+        'Document template is not available' => 'Document template is not available',
+        'A document template with this name already exists' => 'A document template with this name already exists',
+        'Could not allocate document version' => 'Could not allocate document version',
+        'Document body must be between 1 and 20000 characters' => 'Document body must be between 1 and 20000 characters',
+        'body must be between 1 and 20000 characters' => 'body must be between 1 and 20000 characters',
+        'Generated document has no id yet' => 'Generated document has no id yet',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -168,6 +180,14 @@ final class UserMessage
         '/^Template \d+ does not match the message purpose and channel$/D' => 'This template does not match the message purpose and channel',
         '/^patient_id \d+ was not found for tutor_id \d+$/D' => 'The patient does not belong to this tutor',
         '/^Invalid deep-link parameter \S+$/D' => 'Invalid deep-link parameter',
+        // Fase 7B — documentos (códigos de tipo, status e falha não aparecem na tela).
+        '/^Document (\d+) can no longer be retried$/D' => 'Document ^1 can no longer be retried',
+        '/^Unknown placeholder: \{\{(.+)\}\}$/D' => 'Unknown placeholder: {{^1}}',
+        '/^Document generation failed: [a-z_]+$/D' => 'The document could not be generated',
+        '/^Unknown document kind "[^"]*"$/D' => 'Unknown document kind',
+        '/^Document kind "[^"]*" (?:does not accept a body|does not use templates|has no default template)$/D' => 'This document type does not support this option',
+        '/^Unknown document template status "[^"]*"$/D' => 'Invalid document template status',
+        '/^Document source type "[^"]*" does not match kind "[^"]*"$/D' => 'The document source does not match the document type',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
         '/^([a-z_]+) is required$/D' => '^1 is required',
