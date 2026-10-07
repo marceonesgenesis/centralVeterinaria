@@ -10,8 +10,9 @@ use CentralVet\Tenancy\TenantContext;
 /**
  * Picks the storage driver for generated documents from
  * DOCUMENT_STORAGE_DRIVER: "local" (default, LocalFilesystemStorage under
- * DOCUMENT_STORAGE_LOCAL_ROOT) or "s3" (S3CompatibleStorage). Existing
- * attachments keep using STORAGE_DRIVER / S3CompatibleStorage directly.
+ * DOCUMENT_STORAGE_LOCAL_ROOT) or "s3" (S3CompatibleStorage). Attachments
+ * (patient photo, encounter attachment, exam result) do not use this class:
+ * they go through StorageFactory, driven by STORAGE_DRIVER.
  */
 final class DocumentStorageFactory
 {

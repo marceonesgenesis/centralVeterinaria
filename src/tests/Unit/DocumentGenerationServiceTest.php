@@ -336,6 +336,30 @@ final class DocumentGenerationServiceTest
         Assert::same("document_ready:document:{$id}:whatsapp", $messages[0]->dedupeKey());
     }
 
+    public function testNotifyingTheSameDocumentTwiceQueuesOneMessagePerChannel(): void
+    {
+        $id = $this->seedQueued(true);
+        $this->preferences->upsert(CommunicationPreference::record(
+            self::TENANT_ID,
+            self::TUTOR_ID,
+            CommunicationChannel::EMAIL,
+            CommunicationPreference::STATUS_OPTED_IN,
+            'in_person',
+            self::USER_ID,
+            new DateTimeImmutable('2026-10-01 09:00:00'),
+        ));
+        $notifier = $this->notifier();
+
+        $first = $notifier->notify($this->documents->findById($id));
+        $second = $notifier->notify($this->documents->findById($id));
+
+        $messages = $this->messages->all();
+        Assert::count(1, $messages);
+        Assert::same("document_ready:document:{$id}:email", $messages[0]->dedupeKey());
+        Assert::same([$messages[0]->id()], $first);
+        Assert::same([], $second);
+    }
+
     public function testOptOutOnEveryChannelCreatesNoMessage(): void
     {
         $id = $this->seedQueued(true);

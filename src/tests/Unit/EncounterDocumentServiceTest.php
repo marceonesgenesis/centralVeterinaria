@@ -241,6 +241,65 @@ final class EncounterDocumentServiceTest
         Assert::null($encounterOfUnit9->download(10, $byName['unit9.pdf']), 'encounter of unit 5 is refused in unit 9');
     }
 
+    /**
+     * Rodada 4 (T-02): with a reader closure, download() reads through the
+     * storage of the row's storage_provider, not through the write storage.
+     */
+    public function testDownloadReadsThroughTheStorageOfTheRowProvider(): void
+    {
+        $original = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $encounters = self::encounters(10);
+        $writer = new EncounterDocumentService($original, TenantContext::authenticated(7, 3, 5), $objects, $encounters);
+        $writer->attach(10, 'antigo.pdf', 'OLD-BYTES', 'application/pdf');
+        $publicId = $writer->list(10)[0]['public_id'];
+
+        $providers = [];
+        $reader = static function (string $storageProvider) use (&$providers, $original): StorageInterface {
+            $providers[] = $storageProvider;
+
+            return $original;
+        };
+        $service = new EncounterDocumentService(new FakeStorage(), TenantContext::authenticated(7, 3, 5), $objects, $encounters, $reader);
+
+        $contents = null;
+        try {
+            $contents = $service->download(10, $publicId)['contents'] ?? null;
+        } catch (RuntimeException) {
+            // the read went to the (empty) write storage
+        }
+
+        Assert::same('OLD-BYTES', $contents, 'download must read through the storage of the row provider');
+        Assert::same(['fake'], $providers);
+    }
+
+    /** T-02: a refused download (another unit, unknown public_id) never resolves a reader. */
+    public function testRefusedDownloadNeverResolvesAReader(): void
+    {
+        $storage = new FakeStorage();
+        $objects = new FakeStoredObjectRepository(7);
+        $encounters = self::encounters(10, 11);
+        $calls = 0;
+        $reader = static function (string $storageProvider) use (&$calls, $storage): StorageInterface {
+            $calls++;
+
+            return $storage;
+        };
+        $unit9 = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 9), $objects, $encounters, $reader);
+        $unit5 = new EncounterDocumentService($storage, TenantContext::authenticated(7, 3, 5), $objects, $encounters, $reader);
+
+        $unit9->attach(10, 'unit9.pdf', 'UNIT-9', 'application/pdf');
+        $publicId = $objects->allRows()[0]['public_id'];
+
+        Assert::null($unit5->download(10, $publicId), 'row of unit 9 is refused in unit 5');
+        Assert::null($unit5->download(10, '00000000-0000-4000-8000-999999999999'), 'unknown public_id');
+        Assert::null($unit9->download(10, $publicId), 'encounter of unit 5 is refused in unit 9');
+        $unit5->attach(10, 'unit5.pdf', 'UNIT-5', 'application/pdf');
+        $ownPublicId = $objects->allRows()[1]['public_id'];
+        Assert::null($unit5->download(11, $ownPublicId), 'attachment of encounter 10 is refused through encounter 11');
+        Assert::same(0, $calls, 'a refused download must not resolve a reader');
+    }
+
     /** Encounters of tenant 7, unit 5, with the given ids. */
     private static function encounters(int ...$ids): FakeEncounterRepository
     {
