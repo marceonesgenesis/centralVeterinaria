@@ -133,6 +133,56 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
+// MySQL: integration tests run on the dedicated test database
+// (TestDatabase::DEFAULT_NAME = centralvet_test, or TEST_DB_DATABASE), never
+// on the application's DB_DATABASE. Refuse up front when the name resolves
+// to the application database, or when MySQL is reachable but the resolved
+// database does not exist (it would otherwise skip or fail every MySQL test).
+// Unreachable MySQL is not an error here: MysqlIntegrationTestCase reports
+// those tests as SKIP.
+try {
+    $centralvetTestDbName = \CentralVet\Tests\Support\TestDatabase::resolveName(getenv());
+} catch (\RuntimeException $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
+
+if (extension_loaded('pdo_mysql')) {
+    try {
+        $centralvetPreflightPdo = new \PDO(
+            sprintf(
+                'mysql:host=%s;port=%s;charset=utf8mb4',
+                getenv('DB_HOST') ?: '127.0.0.1',
+                getenv('DB_PORT') ?: '3306',
+            ),
+            (string) (getenv('DB_USERNAME') ?: 'centralvet'),
+            (string) (getenv('DB_PASSWORD') ?: ''),
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION, \PDO::ATTR_TIMEOUT => 2],
+        );
+    } catch (\Throwable) {
+        $centralvetPreflightPdo = null;
+    }
+
+    if ($centralvetPreflightPdo !== null) {
+        $centralvetPreflightStatement = $centralvetPreflightPdo->prepare(
+            'SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?',
+        );
+        $centralvetPreflightStatement->execute([$centralvetTestDbName]);
+
+        if ($centralvetPreflightStatement->fetchColumn() === false) {
+            fwrite(STDERR, sprintf(
+                "Refusing to run: test MySQL database %s not found (see docs/runbooks/tests.md)\n",
+                $centralvetTestDbName,
+            ));
+            exit(1);
+        }
+    }
+
+    unset($centralvetPreflightPdo, $centralvetPreflightStatement);
+}
+
+unset($centralvetTestDbName);
+
 use CentralVet\Tests\Support\AssertionFailedException;
 use CentralVet\Tests\Support\SkippedTestException;
 

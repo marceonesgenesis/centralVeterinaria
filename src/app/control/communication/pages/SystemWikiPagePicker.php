@@ -21,7 +21,10 @@ class SystemWikiPagePicker extends TWindow
         $criteria = new TCriteria;
         $criteria->add(new TFilter('active', '=', 'Y'));
         
-        $page = new TDBCombo('page', 'communication', 'SystemWikiPage', 'id', 'title', 'title', $criteria);
+        $page = new TDBCombo(
+            'page', 'communication', 'SystemWikiPage', 'id',
+            SystemWikiPage::safeSearchMask('title_safe'), 'title', $criteria
+        ); // T-21: enableSearch passa pelo select2; título escapado, ordem pela coluna real
         $page->enableSearch();
         $page->{'class'} = 'form-control';
         $page->setSize('100%');

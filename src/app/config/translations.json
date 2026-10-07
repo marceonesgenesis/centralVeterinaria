@@ -4,6 +4,18 @@
     "pt": "%s dias"
   },
   {
+    "en": "^1 days",
+    "pt": "^1 dias"
+  },
+  {
+    "en": "^1 is required",
+    "pt": "Campo obrigatório: ^1"
+  },
+  {
+    "en": "^1 must have at most ^2 characters",
+    "pt": "O campo ^1 aceita no máximo ^2 caracteres"
+  },
+  {
     "en": "A bank account named \"^1\" already exists for this unit",
     "pt": "Já existe uma conta bancária chamada \"^1\" nesta unidade"
   },
@@ -314,6 +326,10 @@
   {
     "en": "Bank account",
     "pt": "Conta bancária"
+  },
+  {
+    "en": "Bank account must belong to the current unit",
+    "pt": "A conta bancária deve pertencer à unidade atual"
   },
   {
     "en": "Bank account not found",
@@ -828,6 +844,10 @@
     "pt": "Atendimento"
   },
   {
+    "en": "Encounter ^1 is already finished",
+    "pt": "O atendimento ^1 já foi finalizado"
+  },
+  {
     "en": "Encounter ^1 is already paused",
     "pt": "O atendimento ^1 já está pausado"
   },
@@ -978,6 +998,10 @@
   {
     "en": "Filesystem",
     "pt": "Sistema de arquivos"
+  },
+  {
+    "en": "Fill in ^1 on every item",
+    "pt": "Preencha o campo ^1 em todos os itens"
   },
   {
     "en": "Fill in all item fields before adding",
@@ -1216,6 +1240,10 @@
     "pt": "Estoque insuficiente para executar este procedimento"
   },
   {
+    "en": "Insufficient stock: ^1 unit(s) missing",
+    "pt": "Estoque insuficiente: faltam ^1 unidade(s)"
+  },
+  {
     "en": "Interval from previous dose",
     "pt": "Intervalo desde a dose anterior"
   },
@@ -1260,12 +1288,12 @@
     "pt": "Id de atendimento inválido"
   },
   {
-    "en": "Invalid file",
-    "pt": "Arquivo inválido"
-  },
-  {
     "en": "Invalid exam request id",
     "pt": "Id de solicitação de exame inválido"
+  },
+  {
+    "en": "Invalid file",
+    "pt": "Arquivo inválido"
   },
   {
     "en": "Invalid inline action",
@@ -1478,6 +1506,10 @@
   {
     "en": "name must have at most 120 characters",
     "pt": "O nome deve ter no máximo 120 caracteres"
+  },
+  {
+    "en": "Name must not contain < or >",
+    "pt": "O nome não pode conter < ou >"
   },
   {
     "en": "name too long",
@@ -2688,6 +2720,10 @@
     "pt": "Termos de uso e política de privacidade"
   },
   {
+    "en": "The discount cannot be greater than the subtotal",
+    "pt": "O desconto não pode ser maior que o subtotal"
+  },
+  {
     "en": "The file must be a CSV of up to 1 MB",
     "pt": "O arquivo deve ser um CSV de até 1 MB"
   },
@@ -2706,6 +2742,10 @@
   {
     "en": "The passwords do not match",
     "pt": "As senhas não coincidem"
+  },
+  {
+    "en": "The payment exceeds the open balance",
+    "pt": "O pagamento ultrapassa o valor em aberto"
   },
   {
     "en": "The programs selected here will automatically have access permission granted to this user group",
@@ -2862,10 +2902,6 @@
   {
     "en": "Updated at",
     "pt": "Atualizado em"
-  },
-  {
-    "en": "Uploaded file was not found",
-    "pt": "Arquivo enviado não foi encontrado"
   },
   {
     "en": "Use authencator app like Google Authenticator or Authy",

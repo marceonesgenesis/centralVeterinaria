@@ -157,7 +157,8 @@ class QueueEntryView extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             $this->renderCounters(0, 0, 0);
             $this->renderFooter(0, 0, 0, null);
             return;
@@ -382,7 +383,8 @@ class QueueEntryView extends TPage
         }
         catch (CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
-            new TMessage('error', _t('This entry cannot advance right now: ^1', $e->getMessage()));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', _t('This entry cannot advance right now: ^1', CvFormat::userError($e)));
         }
         catch (CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -395,7 +397,8 @@ class QueueEntryView extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
 
         // recarrega a fila no sucesso e na recusa: o construtor não carrega

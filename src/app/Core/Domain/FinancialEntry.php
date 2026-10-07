@@ -33,14 +33,8 @@ final class FinancialEntry
 
     private const TYPES = [self::TYPE_INCOME, self::TYPE_EXPENSE];
 
-    /** Same list as Payment::METHODS (T-14); null means "not informed". */
-    public const PAYMENT_METHODS = [
-        Payment::METHOD_CASH,
-        Payment::METHOD_DEBIT_CARD,
-        Payment::METHOD_CREDIT_CARD,
-        Payment::METHOD_PIX,
-        Payment::METHOD_BANK_TRANSFER,
-    ];
+    /** Derived from Payment::METHODS (single source); null means "not informed". */
+    public const PAYMENT_METHODS = Payment::METHODS;
 
     private function __construct(
         private ?int $id,

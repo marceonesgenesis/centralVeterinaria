@@ -181,7 +181,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -243,7 +244,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -303,7 +305,8 @@ class ProcedureInputForm extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a fatal error
         {
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }

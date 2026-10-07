@@ -94,6 +94,20 @@ final class StoredObjectRepositoryIntegrationTest extends MysqlIntegrationTestCa
         Assert::same(['b.pdf', 'a.pdf'], $names);
     }
 
+    public function testFindByPublicIdIgnoresDeletedObject(): void
+    {
+        $repository = $this->repositoryFor($this->tenantA);
+        $fragment = sprintf('tenant/%d/encounter/30/', $this->tenantA);
+        $deleted = $repository->record($this->metadata($fragment . 'a.pdf', 'application/pdf', 1), 'a.pdf', $this->unitId, $this->userId);
+        $softDeleted = $repository->record($this->metadata($fragment . 'b.pdf', 'application/pdf', 2), 'b.pdf', $this->unitId, $this->userId);
+
+        $this->pdo->prepare("UPDATE stored_object SET status = 'deleted' WHERE public_id = ?")->execute([$deleted['public_id']]);
+        $this->pdo->prepare('UPDATE stored_object SET deleted_at = CURRENT_TIMESTAMP(6) WHERE public_id = ?')->execute([$softDeleted['public_id']]);
+
+        Assert::null($repository->findByPublicId((string) $deleted['public_id']), "status 'deleted' is not found");
+        Assert::null($repository->findByPublicId((string) $softDeleted['public_id']), 'deleted_at set is not found');
+    }
+
     private function metadata(string $key, string $contentType, int $size): StoredObjectMetadata
     {
         return new StoredObjectMetadata('s3', 'r2-test-bucket', $key, null, $contentType, $size, hash('sha256', $key));

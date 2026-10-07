@@ -79,10 +79,48 @@ final class UserMessageTest
         Assert::null(UserMessage::resolve('Encounter 3408 is finished and cannot be paused!'));
     }
 
+    public function testPatternsRejectTrailingNewline(): void
+    {
+        // Rodada 3, T-01: sem /D, `$` aceita um "\n" final e a mensagem cairia no catálogo.
+        Assert::null(UserMessage::resolve("Encounter 5 is not paused\n"));
+    }
+
+    public function testDomainMessagesOutsideTheCatalogResolve(): void
+    {
+        Assert::same(['key' => 'Record not found', 'params' => []], UserMessage::resolve('Patient 12 not found for this tenant'));
+        Assert::same(['key' => '^1 is required', 'params' => ['scheduled_at']], UserMessage::resolve('scheduled_at is required'));
+        Assert::same(['key' => 'Encounter ^1 is already paused', 'params' => ['(new)']], UserMessage::resolve('Encounter (new) is already paused'));
+        Assert::same(['key' => 'Fill in ^1 on every item', 'params' => ['dosage']], UserMessage::resolve('items[].dosage is required'));
+        Assert::same(['key' => 'Bank account must belong to the current unit', 'params' => []], UserMessage::resolve('Bank account must belong to the current unit 3'));
+    }
+
+    public function testNameMarkupMessageIsCatalogued(): void
+    {
+        // Rodada 3, T-14: NameText::MARKUP_MESSAGE.
+        Assert::same(['key' => 'Name must not contain < or >', 'params' => []], UserMessage::resolve('Name must not contain < or >'));
+    }
+
+    public function testMoneyAndStockMessagesResolveWithoutCentsOrColumnNames(): void
+    {
+        // Rodada 3, T-18 correção 1: mensagens reais vistas no PaymentForm, EncounterAccountForm e SaleForm.
+        Assert::same(
+            ['key' => 'The payment exceeds the open balance', 'params' => []],
+            UserMessage::resolve('Payment of 9999900 cent(s) would raise paid_cents to 10000000, exceeding total_cents of 4500 cent(s)'),
+        );
+        Assert::same(
+            ['key' => 'The discount cannot be greater than the subtotal', 'params' => []],
+            UserMessage::resolve('Discount of 99900 cent(s) exceeds subtotal of 7000 cent(s)'),
+        );
+        Assert::same(
+            ['key' => 'Insufficient stock: ^1 unit(s) missing', 'params' => ['9999']],
+            UserMessage::resolve('Insufficient stock for product_id 8545: short by 9999 unit(s)'),
+        );
+    }
+
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(15, UserMessage::STATIC);
-        Assert::count(14, UserMessage::PATTERNS);
+        Assert::count(18, UserMessage::STATIC);
+        Assert::count(23, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);

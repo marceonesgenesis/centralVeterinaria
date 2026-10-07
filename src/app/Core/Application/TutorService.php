@@ -5,19 +5,25 @@ declare(strict_types=1);
 namespace CentralVet\Application;
 
 use CentralVet\Domain\Contract\TutorRepositoryInterface;
+use CentralVet\Domain\NameText;
 use CentralVet\Domain\Tutor;
+use CentralVet\Tenancy\TenantContext;
 use InvalidArgumentException;
 
 /**
  * Tutor use cases. Pure Core application service: no Adianti page/record
  * class, no framework coupling — depends only on
- * CentralVet\Domain\Contract\TutorRepositoryInterface (T-02), so it is
- * testable in isolation with a fake repository.
+ * CentralVet\Domain\Contract\TutorRepositoryInterface (T-02) and the
+ * TenantContext, so it is testable in isolation with a fake repository.
+ * The tenant of a new tutor always comes from the context, never from
+ * the input data.
  */
 final class TutorService
 {
-    public function __construct(private readonly TutorRepositoryInterface $repository)
-    {
+    public function __construct(
+        private readonly TutorRepositoryInterface $repository,
+        private readonly TenantContext $context,
+    ) {
     }
 
     /**
@@ -40,8 +46,10 @@ final class TutorService
     }
 
     /**
+     * Registers a tutor in the tenant of the TenantContext; any
+     * 'tenant_id' key in $data is ignored.
+     *
      * @param array{
-     *     tenant_id: int,
      *     full_name: string,
      *     phone: string,
      *     document?: string|null,
@@ -51,7 +59,6 @@ final class TutorService
      */
     public function create(array $data): Tutor
     {
-        $tenantId = $data['tenant_id'] ?? null;
         [
             'full_name' => $fullName,
             'phone' => $phone,
@@ -60,13 +67,11 @@ final class TutorService
             'address' => $address,
         ] = self::normalize($data);
 
-        if (!is_int($tenantId) || $tenantId <= 0) {
-            throw new InvalidArgumentException('tenant_id is required and must be a positive integer');
-        }
-
         if ($fullName === '') {
             throw new InvalidArgumentException('full_name is required');
         }
+
+        NameText::assertNoMarkup($fullName);
 
         if ($phone === '') {
             throw new InvalidArgumentException('phone is required');
@@ -77,7 +82,7 @@ final class TutorService
         }
 
         $tutor = Tutor::register(
-            tenantId: $tenantId,
+            tenantId: $this->context->tenantId(),
             fullName: $fullName,
             phone: $phone,
             document: $document,
@@ -117,6 +122,8 @@ final class TutorService
         if ($fullName === '') {
             throw new InvalidArgumentException('full_name is required');
         }
+
+        NameText::assertNoMarkup($fullName);
 
         if ($phone === '') {
             throw new InvalidArgumentException('phone is required');

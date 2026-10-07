@@ -252,7 +252,8 @@ class ServiceList extends TPage
         }
         catch (Exception $e)
         {
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }

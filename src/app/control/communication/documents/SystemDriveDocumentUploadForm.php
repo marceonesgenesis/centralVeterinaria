@@ -1,4 +1,7 @@
 <?php
+
+use CentralVet\Presentation\UploadedTmpFile;
+
 /**
  * SystemDriveDocumentUploadForm
  *
@@ -13,6 +16,40 @@ class SystemDriveDocumentUploadForm extends TWindow
 {
     protected $form;
     protected $folder_path;
+
+    /**
+     * T-20 (correção 1): extensão aceita no Drive → tipos reais (finfo) que
+     * ela pode ter. Base: SystemDocumentUploaderService::show
+     * ($content_type_list), que o CvUploaderService substituiu (T-63) sem a
+     * checagem de MIME, mais as variantes que o finfo devolve para a mesma
+     * extensão. O tipo tem de casar com a extensão: HTML com nome .pdf é recusado.
+     */
+    private const MIMES_BY_EXTENSION = [
+        'txt'  => ['text/plain'],
+        'html' => ['text/html'],
+        'csv'  => ['text/csv', 'text/plain', 'application/csv'],
+        'pdf'  => ['application/pdf'],
+        'rtf'  => ['application/rtf', 'text/rtf'],
+        'doc'  => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'xls'  => ['application/vnd.ms-excel'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'ppt'  => ['application/vnd.ms-powerpoint'],
+        'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        'odt'  => ['application/vnd.oasis.opendocument.text'],
+        'ods'  => ['application/vnd.oasis.opendocument.spreadsheet'],
+        'jpeg' => ['image/jpeg'],
+        'jpg'  => ['image/jpeg'],
+        'png'  => ['image/png'],
+        'gif'  => ['image/gif'],
+        'svg'  => ['image/svg+xml'],
+        'xml'  => ['application/xml', 'text/xml'],
+        'zip'  => ['application/zip'],
+        'rar'  => ['application/x-rar-compressed', 'application/x-rar', 'application/vnd.rar'],
+        'bz'   => ['application/x-bzip'],
+        'bz2'  => ['application/x-bzip2'],
+        'tar'  => ['application/x-tar'],
+    ];
     
     /**
      * Form constructor
@@ -80,6 +117,14 @@ class SystemDriveDocumentUploadForm extends TWindow
             {
                 $source_file = CvUpload::resolve((string) $param['filename']);
                 $upload_name = trim((string) $param['filename']);
+                // T-20: o tipo real (finfo) precisa casar com a extensão do
+                // arquivo; recusado, ele sai de tmp/ e do registro da sessão
+                if (!UploadedTmpFile::mimeMatchesExtension($source_file, $upload_name, self::MIMES_BY_EXTENSION))
+                {
+                    @unlink($source_file);
+                    CvUpload::forget($upload_name);
+                    throw new InvalidArgumentException('Invalid file');
+                }
                 // no disco (e no caminho): o nome saneado sem prefixo; o
                 // original UTF-8 vira o título quando o usuário não deu um
                 $param['filename'] = CvUpload::displayName($upload_name);

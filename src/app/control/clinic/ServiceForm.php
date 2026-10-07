@@ -152,7 +152,8 @@ class ServiceForm extends TPage
         {
             TTransaction::rollback();
             $this->form->clear(true);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

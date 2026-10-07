@@ -208,7 +208,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
@@ -219,7 +219,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
 
         return null;
@@ -404,14 +404,14 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
             return null;
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
             return null;
         }
     }
@@ -1481,19 +1481,19 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1561,7 +1561,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1587,25 +1587,6 @@ class EncounterView extends TPage
         }
 
         return is_array($param) && isset($param['id']) ? (int) $param['id'] : 0;
-    }
-
-    /**
-     * Error text for the screen: database/driver failures (PDOException or
-     * any message carrying an SQLSTATE) become a generic translated text, so
-     * no SQL detail leaks; everything else follows CvFormat::userError().
-     * The caller logs the original message with error_log() first.
-     */
-    private static function screenError(\Throwable $e): string
-    {
-        for ($current = $e; $current !== null; $current = $current->getPrevious())
-        {
-            if ($current instanceof \PDOException || str_contains($current->getMessage(), 'SQLSTATE['))
-            {
-                return CvFormat::e(_t('Could not complete the operation. Please try again'));
-            }
-        }
-
-        return CvFormat::userError($e);
     }
 
     /**
@@ -1657,7 +1638,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1768,7 +1749,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1830,13 +1811,13 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Domain\Exception\CrossTenantReferenceException $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
@@ -1847,7 +1828,7 @@ class EncounterView extends TPage
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -1908,7 +1889,7 @@ class EncounterView extends TPage
                 $documents->discard($metadata);
             }
             error_log(__METHOD__ . ': ' . $e->getMessage());
-            new TMessage('error', self::screenError($e));
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -2054,8 +2035,9 @@ class EncounterView extends TPage
      * Wires EncounterDocumentService (T-05) against the real S3-compatible
      * storage adapter (Fase 0), same CentralVet\Storage\S3CompatibleStorage::fromEnvironment()
      * factory the storage layer already exposes for this purpose, plus the
-     * `stored_object` index (T-52) on the open TTransaction connection — so
-     * callers must have TTransaction::open('permission') first.
+     * `stored_object` index (T-52) and the encounter repository (download
+     * checks the encounter's unit, rodada 3 T-03) on the open TTransaction
+     * connection — so callers must have TTransaction::open('permission') first.
      */
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
@@ -2063,6 +2045,7 @@ class EncounterView extends TPage
             \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
             $context,
             new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
+            new \CentralVet\Persistence\EncounterRepository($context, TTransaction::get()),
         );
     }
 

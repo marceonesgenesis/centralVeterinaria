@@ -177,6 +177,11 @@ class SystemProfileForm extends TPage
                     // move to the target directory
                     rename($source_file, $target_file);
                 }
+                else
+                {
+                    // T-20: not a JPEG, the upload does not stay in tmp/
+                    @unlink($source_file);
+                }
                 
                 CvUpload::forget((string) $object->photo);
             }

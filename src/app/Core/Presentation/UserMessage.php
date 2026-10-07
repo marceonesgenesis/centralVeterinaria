@@ -30,24 +30,37 @@ final class UserMessage
         'Invalid amount' => 'Invalid amount',
         'Invalid date and time' => 'Invalid date and time',
         'Invalid file' => 'Invalid file',
+        'Photo must be a JPEG, PNG or WEBP image' => 'Photo must be a JPEG, PNG or WEBP image',
+        'Photo must be at most 2 MB' => 'Photo must be at most 2 MB',
+        'Name must not contain < or >' => 'Name must not contain < or >',
     ];
 
-    /** Regex ancorada → chave de tradução; cada grupo capturado vira ^1, ^2. */
+    /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
     public const PATTERNS = [
-        '/^Encounter (\d+) is finished and cannot be paused$/' => 'Encounter ^1 is finished and cannot be paused',
-        '/^Encounter (\d+) is already paused$/' => 'Encounter ^1 is already paused',
-        '/^Encounter (\d+) is not paused$/' => 'Encounter ^1 is not paused',
-        '/^A bank account named "(.+)" already exists for this unit$/' => 'A bank account named "^1" already exists for this unit',
-        '/^Bank account \d+ not found for this tenant$/' => 'Bank account not found',
-        '/^Service \d+ has appointments; deactivate it instead$/' => 'This service has appointments; deactivate it instead',
-        '/^A service named "(.+)" already exists for this tenant$/' => 'A service named "^1" already exists',
-        '/^A product named "(.+)" already exists for this tenant$/' => 'A product named "^1" already exists',
-        '/^A product with code "(.+)" already exists for this tenant$/' => 'A product with code "^1" already exists',
-        '/^A template named "(.+)" already exists for this tenant$/' => 'A template named "^1" already exists',
-        '/^Appointment (\d+) cannot be rescheduled from status (\S+)$/' => 'Appointment ^1 cannot be rescheduled from status ^2',
-        '/^Appointment (\d+) is already in the queue$/' => 'This appointment is already in the queue',
-        '/^Requested slot .+ conflicts with an existing appointment for professional_system_user_id \d+$/' => 'Requested slot conflicts with an existing appointment',
-        '/^Exam request (?:\d+|\(new\)) cannot move to "[^"]+" from status "[^"]*"$/' => 'This exam request cannot move to this status',
+        '/^Encounter (\d+|\(new\)) is finished and cannot be paused$/D' => 'Encounter ^1 is finished and cannot be paused',
+        '/^Encounter (\d+|\(new\)) is already paused$/D' => 'Encounter ^1 is already paused',
+        '/^Encounter (\d+|\(new\)) is not paused$/D' => 'Encounter ^1 is not paused',
+        '/^A bank account named "(.+)" already exists for this unit$/D' => 'A bank account named "^1" already exists for this unit',
+        '/^Bank account \d+ not found for this tenant$/D' => 'Bank account not found',
+        '/^Service \d+ has appointments; deactivate it instead$/D' => 'This service has appointments; deactivate it instead',
+        '/^A service named "(.+)" already exists for this tenant$/D' => 'A service named "^1" already exists',
+        '/^A product named "(.+)" already exists for this tenant$/D' => 'A product named "^1" already exists',
+        '/^A product with code "(.+)" already exists for this tenant$/D' => 'A product with code "^1" already exists',
+        '/^A template named "(.+)" already exists for this tenant$/D' => 'A template named "^1" already exists',
+        '/^Appointment (\d+) cannot be rescheduled from status (\S+)$/D' => 'Appointment ^1 cannot be rescheduled from status ^2',
+        '/^Appointment (\d+) is already in the queue$/D' => 'This appointment is already in the queue',
+        '/^Requested slot .+ conflicts with an existing appointment for professional_system_user_id \d+$/D' => 'Requested slot conflicts with an existing appointment',
+        '/^Exam request (?:\d+|\(new\)) cannot move to "[^"]+" from status "[^"]*"$/D' => 'This exam request cannot move to this status',
+        '/^Encounter (\d+|\(new\)) is already finished$/D' => 'Encounter ^1 is already finished',
+        '/^Bank account must belong to the current unit \d+$/D' => 'Bank account must belong to the current unit',
+        '/^(?:Appointment|Patient|Tutor|Product|Payable) \d+ not found for this tenant$/D' => 'Record not found',
+        '/^items\[\]\.([a-z_]+) is required$/D' => 'Fill in ^1 on every item',
+        '/^Payment of \d+ cent\(s\) would raise paid_cents to \d+, exceeding total_cents of \d+ cent\(s\)$/D' => 'The payment exceeds the open balance',
+        '/^Discount of \d+ cent\(s\) exceeds subtotal of \d+ cent\(s\)$/D' => 'The discount cannot be greater than the subtotal',
+        '/^Insufficient stock for product_id \d+: short by (\d+) unit\(s\)$/D' => 'Insufficient stock: ^1 unit(s) missing',
+        // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
+        '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
+        '/^([a-z_]+) is required$/D' => '^1 is required',
     ];
 
     private function __construct()

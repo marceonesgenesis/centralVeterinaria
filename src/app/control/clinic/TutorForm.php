@@ -117,7 +117,8 @@ class TutorForm extends TStandardForm
             TTransaction::open('permission');
 
             $service = new \CentralVet\Application\TutorService(
-                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
+                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get()),
+                $tenant_context
             );
 
             $tutor = $service->findById($this->viewId);
@@ -147,7 +148,8 @@ class TutorForm extends TStandardForm
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -171,7 +173,8 @@ class TutorForm extends TStandardForm
             TTransaction::open('permission');
 
             $service = new \CentralVet\Application\TutorService(
-                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get())
+                new \CentralVet\Persistence\TutorRepository($tenant_context, TTransaction::get()),
+                $tenant_context
             );
 
             $values = [
@@ -186,7 +189,7 @@ class TutorForm extends TStandardForm
 
             $tutor = $tutor_id !== null
                 ? $service->update($tutor_id, $values)
-                : $service->create(['tenant_id' => $tenant_context->tenantId()] + $values);
+                : $service->create($values);
 
             TTransaction::close();
 
@@ -214,12 +217,14 @@ class TutorForm extends TStandardForm
         {
             TTransaction::rollback();
             $this->form->setData($data);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e) // in case of exception
         {
             $this->form->setData($data);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }

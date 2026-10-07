@@ -88,11 +88,14 @@ final class StoredObjectRepository implements StoredObjectRepositoryInterface
         ], $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    /** Only an available, not soft-deleted row of the tenant (rodada 3, T-03). */
     public function findByPublicId(string $publicId): ?array
     {
-        $query = TenantQuery::forTenant($this->context->tenantId())->andEquals('public_id', $publicId);
+        $query = TenantQuery::forTenant($this->context->tenantId())
+            ->andEquals('public_id', $publicId)
+            ->andEquals('status', self::STATUS_AVAILABLE);
 
-        $statement = $this->connection->prepare("SELECT * FROM stored_object WHERE {$query->whereSql()} LIMIT 1");
+        $statement = $this->connection->prepare("SELECT * FROM stored_object WHERE {$query->whereSql()} AND deleted_at IS NULL LIMIT 1");
         $statement->execute($query->parameters());
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 

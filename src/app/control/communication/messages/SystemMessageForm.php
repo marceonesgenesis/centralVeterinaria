@@ -11,6 +11,13 @@
  */
 class SystemMessageForm extends TPage
 {
+    /**
+     * T-20 (correção 2): anexos aceitos no uploader (`extensions` na URL).
+     * UploadedTmpFile::DEFAULT_EXTENSIONS + documentos de escritório; sem
+     * html/xhtml/svg/php/js.
+     */
+    private const ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'odt', 'ods', 'gif', 'zip'];
+
     protected $form; // form
     
     use Adianti\Base\AdiantiFileSaveTrait;
@@ -39,6 +46,7 @@ class SystemMessageForm extends TPage
         $attachments->enableFileHandling();
         // T-63: nome imprevisível em tmp/, vinculado à sessão (CvUpload)
         $attachments->setService('CvUploaderService');
+        $attachments->setAllowedExtensions(self::ATTACHMENT_EXTENSIONS);
         $system_user_to_id->setMinLength(2);
         
         // add the fields
@@ -208,6 +216,8 @@ class SystemMessageForm extends TPage
         catch (InvalidArgumentException $e)
         {
             TTransaction::rollback();
+            // keep what was typed, like the Exception catch below
+            $this->form->setData($this->form->getData());
             new TMessage('error', $e->getMessage() === 'Invalid file' ? _t('Invalid file') : $e->getMessage());
         }
         catch (Exception $e) // in case of exception

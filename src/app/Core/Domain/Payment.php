@@ -40,7 +40,8 @@ final class Payment
     public const METHOD_PIX = 'pix';
     public const METHOD_BANK_TRANSFER = 'bank_transfer';
 
-    private const METHODS = [
+    /** Single source of the accepted payment methods (FinancialEntry::PAYMENT_METHODS derives from it). */
+    public const METHODS = [
         self::METHOD_CASH,
         self::METHOD_DEBIT_CARD,
         self::METHOD_CREDIT_CARD,

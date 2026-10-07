@@ -81,12 +81,22 @@ final class FakeStoredObjectRepository implements StoredObjectRepositoryInterfac
     public function findByPublicId(string $publicId): ?array
     {
         foreach ($this->rowsByTenant[$this->tenantId] ?? [] as $row) {
-            if ($row['public_id'] === $publicId) {
+            if ($row['public_id'] === $publicId && $row['status'] === 'available' && $row['deleted_at'] === null) {
                 return $row;
             }
         }
 
         return null;
+    }
+
+    /** Test helper: overwrites columns (e.g. status, deleted_at) of this tenant's row. */
+    public function updateRow(string $publicId, array $fields): void
+    {
+        foreach ($this->rowsByTenant[$this->tenantId] ?? [] as $id => $row) {
+            if ($row['public_id'] === $publicId) {
+                $this->rowsByTenant[$this->tenantId][$id] = [...$row, ...$fields];
+            }
+        }
     }
 
     /** Test helper: the rows of every tenant, unscoped. */

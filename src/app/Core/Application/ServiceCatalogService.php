@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Application;
 
 use CentralVet\Domain\Contract\ServiceRepositoryInterface;
+use CentralVet\Domain\NameText;
 use CentralVet\Domain\Service;
 use CentralVet\Tenancy\TenantContext;
 use DomainException;
@@ -54,6 +55,7 @@ final class ServiceCatalogService
         }
 
         $name = (string) $data['name'];
+        NameText::assertNoMarkup($name);
         $category = isset($data['category']) && $data['category'] !== '' ? (string) $data['category'] : null;
         $durationMinutes = (int) $data['duration_minutes'];
         $priceCents = (int) $data['price_cents'];
@@ -218,6 +220,7 @@ final class ServiceCatalogService
         }
 
         $name = (string) $data['name'];
+        NameText::assertNoMarkup($name);
         $category = isset($data['category']) && $data['category'] !== '' ? (string) $data['category'] : null;
 
         $sameName = $this->repository->findByName(trim($name));

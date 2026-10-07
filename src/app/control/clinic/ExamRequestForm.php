@@ -146,7 +146,8 @@ class ExamRequestForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('warning', _t('Could not load the exam catalog') . ': ' . $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('warning', _t('Could not load the exam catalog') . ': ' . CvFormat::userError($e));
 
             return [];
         }
@@ -209,12 +210,14 @@ class ExamRequestForm extends TPage
         catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 

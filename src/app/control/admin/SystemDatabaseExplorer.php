@@ -495,9 +495,11 @@ class SystemDatabaseExplorer extends TPage
         }
         catch (InvalidArgumentException $e)
         {
+            TTransaction::rollback();
             if ($e->getMessage() !== 'Invalid file')
             {
-                new TMessage('error', $e->getMessage() . ' in <b>' . $table . '</b>');
+                // $table is only set once the zip loop has started
+                new TMessage('error', $e->getMessage() . (isset($table) ? ' in <b>' . $table . '</b>' : ''));
                 return;
             }
             new TMessage('error', _t('Invalid file'));

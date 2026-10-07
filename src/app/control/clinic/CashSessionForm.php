@@ -91,7 +91,8 @@ class CashSessionForm extends TPage
         catch (Exception $e)
         {
             TTransaction::rollback();
-            $container->add(new TAlert('danger', $e->getMessage()));
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $container->add(new TAlert('danger', CvFormat::userError($e)));
         }
 
         // onOpen()/onClose() redesenham depois do construtor: troca o corpo
@@ -260,7 +261,8 @@ class CashSessionForm extends TPage
         catch (\CentralVet\Domain\Exception\CashSessionAlreadyOpenException $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {

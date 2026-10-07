@@ -177,7 +177,7 @@ class VaccineProtocolForm extends TPage
                 $row->id             = $entry->id();
                 $row->dose_number    = $entry->doseNumber();
                 $row->interval_label = $entry->intervalDaysFromPrevious() !== null
-                    ? _t('%s days', $entry->intervalDaysFromPrevious())
+                    ? _t('^1 days', $entry->intervalDaysFromPrevious())
                     : _t('Not scheduled');
 
                 $this->datagrid->addItem($row);
@@ -196,7 +196,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
@@ -255,7 +256,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // in case of exception, never let it escape as a fatal error
         {
             $this->form->setData($data ?? null);
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
             TTransaction::rollback();
         }
     }
@@ -292,7 +294,8 @@ class VaccineProtocolForm extends TPage
         catch (Exception $e) // never let it escape as a fatal error
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            new TMessage('error', CvFormat::userError($e));
         }
     }
 
