@@ -281,9 +281,32 @@ final class DocumentTemplateServiceTest
 
     public function testDeniedFindByIdThrows(): void
     {
-        [$service] = $this->build(false, self::template(1, 'F7B teste busca', 'Texto {{patient_name}}'));
+        [$service, , $policy] = $this->build(false, self::template(1, 'F7B teste busca', 'Texto {{patient_name}}'));
 
         Assert::throws(AuthorizationDenied::class, fn () => $service->findById(1, self::ACTION));
+        Assert::count(1, $policy->requests);
+        Assert::same(1, $policy->requests[0]->entityId());
+    }
+
+    /** Revisão final: a template of another tenant is not found, with the same message as an unknown id. */
+    public function testFindByIdRejectsTemplateOfAnotherTenant(): void
+    {
+        $foreign = DocumentTemplate::reconstitute([
+            'id' => 2,
+            'tenant_id' => self::TENANT_ID + 1,
+            'kind' => DocumentKind::MEDICAL_CERTIFICATE,
+            'name' => 'F7B teste outro tenant',
+            'body_text' => 'Texto',
+            'status' => DocumentTemplate::STATUS_ACTIVE,
+            'created_by_system_user_id' => self::USER_ID,
+        ]);
+        [$service] = $this->build(true, $foreign);
+
+        self::expectMessage(
+            CrossTenantReferenceException::class,
+            'template_id 2 was not found for the authenticated tenant',
+            fn () => $service->findById(2, self::ACTION),
+        );
     }
 
     public function testDuplicateKeyFromTheDatabaseBecomesTheDuplicateNameMessage(): void

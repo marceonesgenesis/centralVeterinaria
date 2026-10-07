@@ -202,6 +202,34 @@ final class StorageFactoryTest
         Assert::true($secondary->exists('photos/new.png'));
     }
 
+    /** Revisão final: local driver with a missing root must still serve legacy photos from S3. */
+    public function testFallbackReadsSecondaryWhenPrimaryCannotBeQueried(): void
+    {
+        $missing = sys_get_temp_dir() . '/cv-storage-factory-missing-' . bin2hex(random_bytes(6));
+        $this->withEnv(['STORAGE_DRIVER' => 'local', 'STORAGE_LOCAL_ROOT' => $missing], function (): void {
+            $secondary = new FakeStorage();
+            $secondary->put('photos/old.png', 'legacy');
+            $storage = new FallbackReadStorage(StorageFactory::forWrites($this->tenant(101)), static fn (): StorageInterface => $secondary);
+
+            Assert::true($storage->exists('photos/old.png'));
+            Assert::same('legacy', $storage->get('photos/old.png'));
+
+            $storage->delete('photos/old.png');
+            Assert::false($secondary->exists('photos/old.png'));
+        });
+    }
+
+    /** Revisão final: the S3 provider recorded on stored_object is normalized like the driver. */
+    public function testS3ProviderFromEnvironmentIsTrimmedAndLowercased(): void
+    {
+        $this->withEnv(['STORAGE_DRIVER' => ' S3 ', 'S3_ENDPOINT' => 'http://minio:9000', 'S3_BUCKET' => 'centralvet-local'], function (): void {
+            $storage = S3CompatibleStorage::fromEnvironment($this->tenant(101));
+            $provider = (new \ReflectionProperty(S3CompatibleStorage::class, 'provider'))->getValue($storage);
+
+            Assert::same('s3', $provider);
+        });
+    }
+
     public function testFallbackTreatsSecondaryFailureAsMissingAndResolvesItOnce(): void
     {
         $calls = 0;

@@ -278,7 +278,7 @@ final class EncounterDocumentServiceTest
     {
         $storage = new FakeStorage();
         $objects = new FakeStoredObjectRepository(7);
-        $encounters = self::encounters(10);
+        $encounters = self::encounters(10, 11);
         $calls = 0;
         $reader = static function (string $storageProvider) use (&$calls, $storage): StorageInterface {
             $calls++;
@@ -294,6 +294,9 @@ final class EncounterDocumentServiceTest
         Assert::null($unit5->download(10, $publicId), 'row of unit 9 is refused in unit 5');
         Assert::null($unit5->download(10, '00000000-0000-4000-8000-999999999999'), 'unknown public_id');
         Assert::null($unit9->download(10, $publicId), 'encounter of unit 5 is refused in unit 9');
+        $unit5->attach(10, 'unit5.pdf', 'UNIT-5', 'application/pdf');
+        $ownPublicId = $objects->allRows()[1]['public_id'];
+        Assert::null($unit5->download(11, $ownPublicId), 'attachment of encounter 10 is refused through encounter 11');
         Assert::same(0, $calls, 'a refused download must not resolve a reader');
     }
 
