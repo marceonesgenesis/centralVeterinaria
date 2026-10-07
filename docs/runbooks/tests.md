@@ -186,7 +186,7 @@ do dev (`scripts/backup.sh`), a partir de `/var/www/html/centralvet`:
    `var/sql-bootstrap/01-permission.mysql.sql`, `02-communication.mysql.sql`,
    `03-log.mysql.sql` (base Adianti, que também semeia `system_users` e
    `system_unit`), `20260919_add_missing_adianti_foreign_keys.sql` e as
-   migrations `0001`…`0008` de `src/app/database/migrations/`, sem os
+   migrations `0001`…`0009` de `src/app/database/migrations/`, sem os
    `.verify.sql`.
 
 O script recusa (exit 1) quando `centralvet_test` já existe. Antes de pedir
@@ -222,8 +222,8 @@ Os `GRANT` em `centralvet_test.*` sobrevivem ao `DROP DATABASE` (ficam em
 `mysql.db`), e o passo 1 os reaplica sem erro.
 
 Esperado: nenhuma tabela de `centralvet` ausente em `centralvet_test`,
-`system_users`/`system_unit` maiores que zero e as 8 linhas de
-`schema_migrations` (0001…0008).
+`system_users`/`system_unit` maiores que zero e as 9 linhas de
+`schema_migrations` (0001…0009).
 
 **Checksum de zeros.** Algumas migrations (ex.: a 0006) trazem no arquivo o
 placeholder de checksum (`000…0`), que só no dev foi trocado pelo SHA-256

@@ -20,7 +20,7 @@ use CentralVet\Redis\RedisConnectionFactory;
 final class LoginRateLimiter
 {
     public function __construct(
-        private readonly \Redis $redis,
+        private readonly \Redis|FileRateLimitBackend $redis,
         private readonly int $maxAttempts,
         private readonly int $decaySeconds,
         private readonly string $prefix = 'centralvet:login-throttle:',
@@ -29,10 +29,21 @@ final class LoginRateLimiter
 
     public static function fromEnvironment(): self
     {
+        $driver = getenv('RATE_LIMIT_DRIVER') ?: 'redis';
+        $decay = (int) (getenv('LOGIN_RATE_LIMIT_DECAY_SECONDS') ?: 900);
+        if (!in_array($driver, ['redis', 'files'], true)) {
+            throw new \RuntimeException('Unsupported rate limit driver');
+        }
+        $backend = $driver === 'files'
+            ? new FileRateLimitBackend(
+                getenv('RATE_LIMIT_DIRECTORY') ?: sys_get_temp_dir() . '/centralvet-rate-limit-' . hash('sha256', dirname(__DIR__, 3)),
+                $decay,
+            )
+            : RedisConnectionFactory::fromEnvironment();
         return new self(
-            RedisConnectionFactory::fromEnvironment(),
+            $backend,
             (int) (getenv('LOGIN_RATE_LIMIT_MAX_ATTEMPTS') ?: 5),
-            (int) (getenv('LOGIN_RATE_LIMIT_DECAY_SECONDS') ?: 900),
+            $decay,
         );
     }
 

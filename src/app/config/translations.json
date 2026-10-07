@@ -192,6 +192,10 @@
     "pt": "Todos os arquivos do framework estão no estado original"
   },
   {
+    "en": "All plans",
+    "pt": "Todos os planos"
+  },
+  {
     "en": "All statuses",
     "pt": "Todos os status"
   },
@@ -460,6 +464,10 @@
     "pt": "Escolha um arquivo para anexar"
   },
   {
+    "en": "City/State",
+    "pt": "Cidade/UF"
+  },
+  {
     "en": "Class",
     "pt": "Classe"
   },
@@ -478,6 +486,10 @@
   {
     "en": "Click here for more information",
     "pt": "Clique aqui para mais informações"
+  },
+  {
+    "en": "Clinic",
+    "pt": "Clínica"
   },
   {
     "en": "Clinical catalogs",
@@ -574,6 +586,10 @@
   {
     "en": "Could not complete the operation. Please try again",
     "pt": "Não foi possível concluir a operação. Tente novamente"
+  },
+  {
+    "en": "Could not export the leads. Close this tab and try again.",
+    "pt": "Não foi possível exportar os leads. Feche esta aba e tente de novo."
   },
   {
     "en": "Could not import the file. No service was created",
@@ -988,6 +1004,10 @@
     "pt": "Exportar"
   },
   {
+    "en": "Export CSV",
+    "pt": "Exportar CSV"
+  },
+  {
     "en": "Female",
     "pt": "Fêmea"
   },
@@ -1348,6 +1368,10 @@
     "pt": "Rótulo"
   },
   {
+    "en": "Landing leads",
+    "pt": "Leads da landing"
+  },
+  {
     "en": "Language",
     "pt": "Idioma"
   },
@@ -1362,6 +1386,10 @@
   {
     "en": "Late",
     "pt": "Atrasado"
+  },
+  {
+    "en": "leads",
+    "pt": "leads"
   },
   {
     "en": "Like",
@@ -1470,6 +1498,10 @@
   {
     "en": "Month day",
     "pt": "Dia do mês"
+  },
+  {
+    "en": "Monthly price",
+    "pt": "Preço mensal"
   },
   {
     "en": "More",
@@ -1930,6 +1962,10 @@
   {
     "en": "Pix",
     "pt": "Pix"
+  },
+  {
+    "en": "Plan",
+    "pt": "Plano"
   },
   {
     "en": "Port speed",
@@ -2996,6 +3032,10 @@
     "pt": "Veterinário"
   },
   {
+    "en": "Veterinarians",
+    "pt": "Veterinários"
+  },
+  {
     "en": "View all",
     "pt": "Ver tudo"
   },
@@ -3050,6 +3090,10 @@
   {
     "en": "Welcome",
     "pt": "Bem-vindo"
+  },
+  {
+    "en": "WhatsApp",
+    "pt": "WhatsApp"
   },
   {
     "en": "When defining a restricted method, only users with the selected role will be able to execute that method",

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Central Vet Pro</title>
+<meta name="description" content="Sistema de gestão veterinária: da agenda ao retorno, o caso inteiro num lugar só.">
+<meta name="cv-lead-token" content="{{LEAD_TOKEN}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="landing/landing.css?v=20261005-a11y">
+<script src="landing/translations.js?v=20261005-a11y" defer></script>
+<script src="landing/i18n.js?v=20261002-i18n" defer></script>
+<script src="landing/landing.js?v=20261005-a11y" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio" aria-label="Central Vet Pro, início">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      Central Vet Pro
+    </a>
+    <nav class="nav" aria-label="Seções">
+      <a href="#recursos">Recursos</a>
+      <a href="#planos">Planos</a>
+      <a href="#comparativo">Comparar</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <label class="language-picker" for="landing-language">
+      <span>Idioma</span>
+      <select id="landing-language" data-language-picker aria-label="Escolher idioma" autocomplete="off">
+        <option value="pt" lang="pt-BR" data-no-i18n>Português</option>
+        <option value="en" lang="en" data-no-i18n>English</option>
+        <option value="es" lang="es" data-no-i18n>Español</option>
+      </select>
+    </label>
+    <span class="login-link"><a href="index.php?class=LoginForm">Entrar</a></span>
+    <button class="btn btn-ghost cart-btn" id="open-cart" type="button" aria-haspopup="dialog" aria-controls="cart">
+      Carrinho <span class="cart-count" id="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">Sistema de gestão veterinária</p>
+        <h1>Da agenda ao retorno, <em>o caso inteiro num lugar só.</em></h1>
+        <p class="lead">O veterinário abre o atendimento e não precisa sair dele até terminar o caso. Prescrição, exames, vacinas, estoque e cobrança se atualizam sozinhos, sem recadastro.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#planos">Escolher meu plano</a>
+          <a class="btn btn-ghost" href="#recursos">Ver os recursos</a>
+        </div>
+        <div class="hero-proof">
+          <span><i class="dot"></i> Dados separados por clínica e unidade</span>
+          <span><i class="dot"></i> Funciona no navegador, sem instalar</span>
+          <span><i class="dot"></i> Assinatura mensal</span>
+        </div>
+      </div>
+
+      <figure class="chart" aria-label="Exemplo de ficha de atendimento no Central Vet Pro">
+        <div class="chart-head">
+          <div class="avatar" aria-hidden="true">T</div>
+          <div class="chart-id">
+            <strong>Thor</strong>
+            <small>Canino · SRD · macho · 6 anos · tutora Ana Ribeiro</small>
+          </div>
+          <div class="timer">Em atendimento<b class="mono">00:14:32</b></div>
+        </div>
+        <div class="alert-row" role="note">⚠ Alergia registrada: Dipirona</div>
+        <div class="steps" aria-label="Etapas do atendimento">
+          <span class="step done">Anamnese</span>
+          <span class="step done">Exame físico</span>
+          <span class="step now">Diagnóstico</span>
+          <span class="step">Plano clínico</span>
+          <span class="step">Finalização</span>
+        </div>
+        <div class="chart-body">
+          <div class="vital"><small>Peso</small><b>12,4 kg</b></div>
+          <div class="vital"><small>Temp.</small><b>38,6 °C</b></div>
+          <div class="vital"><small>FC</small><b>96 bpm</b></div>
+        </div>
+        <div class="rx">
+          <div class="rx-line"><b>Prescrição</b><span>válida até 30/10</span></div>
+          <div class="rx-line"><span>Meloxicam 0,1 mg/kg</span><span>VO · 1×/dia · 5 dias</span></div>
+          <div class="rx-line"><span>Hemograma completo</span><span>pedido de exame</span></div>
+        </div>
+        <div class="chart-foot">
+          <span>Conta do atendimento <b class="mono" data-money-cents="28500">R$ 285,00</b></span>
+          <span>Retorno agendado <b>14/10, 10:30</b></span>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <div class="flow" aria-label="Fluxo do atendimento">
+    <div class="wrap">
+      <span class="flow-label">O fluxo da clínica</span>
+      <span class="flow-item">Agenda</span>
+      <span class="flow-item">Check-in e fila</span>
+      <span class="flow-item">Atendimento</span>
+      <span class="flow-item">Diagnóstico e plano</span>
+      <span class="flow-item">Prescrição e exames</span>
+      <span class="flow-item">Procedimentos</span>
+      <span class="flow-item">Estoque e cobrança</span>
+      <span class="flow-item">Retorno</span>
+    </div>
+  </div>
+
+  <section class="block" id="recursos">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Recursos</p>
+        <h2>Tudo o que a rotina da clínica pede</h2>
+        <p>Os recursos marcados como <span class="tag tag-ok">Disponível</span> já funcionam hoje. Os marcados como <span class="tag tag-soon">Em breve</span> estão no roteiro de desenvolvimento.</p>
+      </div>
+
+      <div class="modules">
+        <article class="module">
+          <div class="module-title">
+            <h3>Recepção</h3>
+            <p>Cadastro, agenda e fila de quem chega.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Tutores e pacientes <span class="tag tag-ok">Disponível</span></b><span>Ficha completa, foto do paciente, alerta de alergia e peso.</span></li>
+            <li class="feature"><b>Agenda <span class="tag tag-ok">Disponível</span></b><span>Grade por horário, novo agendamento, remarcação e check-in.</span></li>
+            <li class="feature"><b>Fila de atendimento <span class="tag tag-ok">Disponível</span></b><span>Status de cada paciente, encaixes e início do atendimento pela fila.</span></li>
+            <li class="feature"><b>Busca global <span class="tag tag-ok">Disponível</span></b><span>Encontre tutor ou paciente por nome, documento, telefone ou espécie.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Clínico</h3>
+            <p>O atendimento como centro de tudo.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Central de Atendimento <span class="tag tag-ok">Disponível</span></b><span>Anamnese, exame físico, diagnóstico, plano clínico e finalização numa tela. Salva sozinho, aceita ditado por voz, pausa e anexos.</span></li>
+            <li class="feature"><b>Histórico e retorno <span class="tag tag-ok">Disponível</span></b><span>Linha do tempo do paciente, atendimento anterior à vista e retorno agendado sem sair do caso.</span></li>
+            <li class="feature"><b>Prescrição <span class="tag tag-ok">Disponível</span></b><span>Modelos reutilizáveis, validade da receita e PDF para entregar ao tutor.</span></li>
+            <li class="feature"><b>Exames <span class="tag tag-ok">Disponível</span></b><span>Catálogo, pedido, resultado com anexo e lista de resultados pendentes.</span></li>
+            <li class="feature"><b>Vacinação <span class="tag tag-ok">Disponível</span></b><span>Protocolos, aplicação e carteira de vacinação, com baixa no estoque.</span></li>
+            <li class="feature"><b>Procedimentos <span class="tag tag-ok">Disponível</span></b><span>Catálogo com insumos; cada procedimento consome o estoque sozinho.</span></li>
+            <li class="feature"><b>Cirurgia e internação <span class="tag tag-soon">Em breve</span></b><span>Checklists cirúrgicos, leitos, evoluções e quadro de internados.</span></li>
+            <li class="feature"><b>Prontuário dedicado <span class="tag tag-soon">Em breve</span></b><span>Tela própria do prontuário, além do histórico dentro do atendimento.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Operação e financeiro</h3>
+            <p>A consulta que vira cobrança e baixa de estoque.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Estoque <span class="tag tag-ok">Disponível</span></b><span>Produtos com código e preço, lotes com validade e baixa pelo lote que vence primeiro.</span></li>
+            <li class="feature"><b>PDV <span class="tag tag-ok">Disponível</span></b><span>Venda de produtos e procedimentos no carrinho, com recibo em PDF.</span></li>
+            <li class="feature"><b>Conta do atendimento e caixa <span class="tag tag-ok">Disponível</span></b><span>Desconto autorizado, fechamento da conta e abertura e fechamento do caixa.</span></li>
+            <li class="feature"><b>Contas a pagar e a receber <span class="tag tag-ok">Disponível</span></b><span>Recebimentos, pagamentos e lançamentos com forma de pagamento, inclusive Pix.</span></li>
+            <li class="feature"><b>Visão financeira <span class="tag tag-ok">Disponível</span></b><span>Painel com filtros, contas bancárias com saldo e exportação em CSV.</span></li>
+            <li class="feature"><b>Dashboard e relatórios <span class="tag tag-soon">Em breve</span></b><span>Indicadores da clínica e relatórios gerenciais.</span></li>
+            <li class="feature"><b>Conciliação bancária <span class="tag tag-soon">Em breve</span></b><span>Extrato e vínculo dos lançamentos às contas.</span></li>
+            <li class="feature"><b>Compras e fornecedores <span class="tag tag-soon">Em breve</span></b><span>Movimentos de estoque, fornecedores e transferência entre unidades.</span></li>
+          </ul>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Comunicação e IA</h3>
+            <p>O pós-atendimento e o copiloto clínico.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>WhatsApp e e-mail <span class="tag tag-soon">Em breve</span></b><span>Lembretes de vacina e retorno, confirmação de consulta e mensagens para o tutor.</span></li>
+            <li class="feature"><b>Automações <span class="tag tag-soon">Em breve</span></b><span>Fluxos que disparam sozinhos a partir dos eventos do atendimento.</span></li>
+            <li class="feature"><b>IA contextual <span class="tag tag-soon">Em breve</span></b><span>Resumo do caso e busca em linguagem natural, sempre com as permissões do usuário.</span></li>
+            <li class="feature"><b>Agentes com confirmação <span class="tag tag-soon">Em breve</span></b><span>Ações sugeridas pela IA que só acontecem depois da confirmação humana.</span></li>
+          </ul>
+        </article>
+
+        <article class="module" id="ei-vet">
+          <div class="module-title">
+            <h3>Ei, Vet!</h3>
+            <p><span class="tag tag-soon">Em breve</span></p>
+            <p>Sua clínica conectada a veterinários disponíveis.</p>
+          </div>
+          <div class="feature">
+            <p>Ainda não consegue manter um plantonista? Encontre veterinários por região, serviço e disponibilidade para atender demandas avulsas. Converse dentro da plataforma e combine escopo, horário e valor com o profissional.</p>
+            <p>A Central Vet Pro está evoluindo para um ecossistema veterinário integrado, conectando clínicas, veterinários e especialistas. Cada clínica mantém seu ambiente e suas informações privadas.</p>
+            <span>Módulo em planejamento. Disponibilidade e condições comerciais serão divulgadas no lançamento.</span>
+          </div>
+        </article>
+
+        <article class="module" id="central-intelligence">
+          <div class="module-title">
+            <h3>Central Intelligence</h3>
+            <p><span class="tag tag-soon">Em breve</span></p>
+            <p>Inteligência de mercado para o seu negócio pet.</p>
+          </div>
+          <div class="feature">
+            <p>Visualize clínicas, pet shops e banho e tosa no mapa e compare regiões com dados de população, renda e oferta de serviços. Identifique oportunidades para expandir, direcionar campanhas e ajustar os serviços do seu negócio.</p>
+            <span>Módulo em planejamento. Disponibilidade e condições comerciais serão divulgadas no lançamento.</span>
+          </div>
+        </article>
+
+        <article class="module">
+          <div class="module-title">
+            <h3>Plataforma e segurança</h3>
+            <p>A base para a clínica crescer com tranquilidade.</p>
+          </div>
+          <ul class="features">
+            <li class="feature"><b>Várias unidades <span class="tag tag-ok">Disponível</span></b><span>Cada unidade com sua agenda, caixa e contas, com troca de unidade no topo da tela.</span></li>
+            <li class="feature"><b>Perfis de acesso <span class="tag tag-ok">Disponível</span></b><span>Recepção, veterinário, auxiliar, gestor e administrador, cada um com suas permissões.</span></li>
+            <li class="feature"><b>Isolamento de dados <span class="tag tag-ok">Disponível</span></b><span>Os dados de uma clínica nunca aparecem para outra.</span></li>
+            <li class="feature"><b>Auditoria e backup <span class="tag tag-ok">Disponível</span></b><span>Registro das operações, com dados sensíveis mascarados, e rotina de backup.</span></li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block plans-band" id="planos">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Planos</p>
+        <h2>Escolha o plano do tamanho da sua clínica</h2>
+        <p>Adicione um plano ao carrinho, revise e envie seus dados. Nossa equipe entra em contato para ativar a sua conta.</p>
+      </div>
+      <div class="plans" id="plans"></div>
+      <p class="plans-note">Valores mensais por clínica. Os recursos marcados como Em breve entram no plano quando forem lançados.</p>
+
+      <div class="compare-wrap" id="comparativo">
+        <table class="compare">
+          <caption class="eyebrow compare-caption">Comparativo dos planos</caption>
+          <thead>
+            <tr><th scope="col">Recurso</th><th scope="col">Starter</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr>
+          </thead>
+          <tbody id="compare-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="duvidas">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Dúvidas</p>
+        <h2>Perguntas frequentes</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Preciso instalar alguma coisa?</summary>
+          <p>Não. O Central Vet Pro funciona no navegador. Basta entrar com seu usuário e senha.</p>
+        </details>
+        <details>
+          <summary>Os dados da minha clínica ficam separados das outras?</summary>
+          <p>Sim. Cada clínica tem seus dados isolados, e dentro dela cada unidade tem sua agenda, caixa e contas. Os perfis de acesso definem o que cada pessoa da equipe pode ver e fazer.</p>
+        </details>
+        <details>
+          <summary>Posso trocar de plano depois?</summary>
+          <p>Sim. Você pode subir ou descer de plano conforme a clínica cresce. A diferença é ajustada na próxima mensalidade.</p>
+        </details>
+        <details>
+          <summary>Consigo trazer meus cadastros de outro sistema?</summary>
+          <p>Hoje o catálogo de serviços pode ser importado por planilha CSV. A importação de outros cadastros está no roteiro. Na ativação, nossa equipe ajuda a planejar a migração.</p>
+        </details>
+        <details>
+          <summary>Os recursos marcados como Em breve têm custo extra?</summary>
+          <p>Não. Quando forem lançados, entram nos planos indicados no comparativo sem mudar a mensalidade contratada.</p>
+        </details>
+        <details>
+          <summary>O que acontece depois que eu envio o carrinho?</summary>
+          <p>Recebemos seus dados e o plano escolhido. Nossa equipe entra em contato pelo WhatsApp ou e-mail informado para confirmar a assinatura e liberar o acesso. Nenhum pagamento é cobrado nesta página.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="block block-flush">
+    <div class="wrap">
+      <div class="cta-final">
+        <div>
+          <h2>Comece pelo plano que cabe na sua rotina.</h2>
+          <p>Escolha um plano, envie seus dados e nossa equipe ativa a sua conta.</p>
+        </div>
+        <a class="btn btn-primary" href="#planos">Ver planos</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Central Vet Pro · Tecnologia que cuida de vidas</span>
+    <span>Clínica. Gestão. Resultado.</span>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="cart" role="dialog" aria-modal="true" aria-labelledby="cart-title" inert>
+  <div class="drawer-head">
+    <h2 id="cart-title">Seu carrinho</h2>
+    <label class="language-picker" for="cart-language">
+      <span>Idioma</span>
+      <select id="cart-language" data-language-picker aria-label="Escolher idioma" autocomplete="off">
+        <option value="pt" lang="pt-BR" data-no-i18n>Português</option>
+        <option value="en" lang="en" data-no-i18n>English</option>
+        <option value="es" lang="es" data-no-i18n>Español</option>
+      </select>
+    </label>
+    <button class="icon-btn" id="close-cart" type="button" aria-label="Fechar carrinho">×</button>
+  </div>
+  <div class="drawer-body" id="cart-body"></div>
+  <div class="drawer-foot" id="cart-foot"></div>
+</aside>
+
+<script type="application/json" id="cv-landing-data">{{LANDING_DATA}}</script>
+</body>
+</html>

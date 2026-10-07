@@ -11,4 +11,7 @@ return [
     'type' => 'mysql',
     'prep' => '1',
     'char' => 'utf8mb4',
+    'init' => getenv('DB_STRICT_MODE') === 'true'
+        ? "SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE,NO_ENGINE_SUBSTITUTION'"
+        : '',
 ];
