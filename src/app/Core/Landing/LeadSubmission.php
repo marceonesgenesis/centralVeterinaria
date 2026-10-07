@@ -57,10 +57,9 @@ final class LeadSubmission
         $phoneRaw = self::text($payload, 'phone');
         $phone = $phoneRaw === null ? '' : (string) preg_replace('/\D/', '', $phoneRaw);
         if (
-            $phoneRaw === null
-            || mb_strlen($phoneRaw) > self::PHONE_RAW_MAX
-            || strlen($phone) < 10
+            strlen($phone) < 10
             || strlen($phone) > 13
+            || mb_strlen($phoneRaw) > self::PHONE_RAW_MAX
         ) {
             $errors['phone'] = 'Informe o WhatsApp com DDD.';
         }

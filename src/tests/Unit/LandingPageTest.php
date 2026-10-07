@@ -64,8 +64,8 @@ final class LandingPageTest
         foreach ([
             '<meta name="cv-lead-token" content="{{LEAD_TOKEN}}">',
             '<script type="application/json" id="cv-landing-data">{{LANDING_DATA}}</script>',
-            '<link rel="stylesheet" href="landing/landing.css?v=20261005-a11y">',
-            '<script src="landing/landing.js?v=20261005-a11y" defer></script>',
+            '<link rel="stylesheet" href="landing/landing.css?v=20261005-a11y2">',
+            '<script src="landing/landing.js?v=20261005-a11y2" defer></script>',
             '<a href="index.php?class=LoginForm">Entrar</a>',
         ] as $marker) {
             Assert::stringContains($marker, $template);
