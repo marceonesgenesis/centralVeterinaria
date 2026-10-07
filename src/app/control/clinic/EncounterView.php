@@ -2055,9 +2055,10 @@ class EncounterView extends TPage
     }
 
     /**
-     * Wires EncounterDocumentService (T-05) against the real S3-compatible
-     * storage adapter (Fase 0), same CentralVet\Storage\S3CompatibleStorage::fromEnvironment()
-     * factory the storage layer already exposes for this purpose, plus the
+     * Wires EncounterDocumentService (T-05) against the configured storage
+     * driver (CentralVet\Storage\StorageFactory::forWrites(), rodada 4) for
+     * new attachments, a per-row reader (StorageFactory::forProvider() on the
+     * stored_object.storage_provider) for downloads, plus the
      * `stored_object` index (T-52) and the encounter repository (download
      * checks the encounter's unit, rodada 3 T-03) on the open TTransaction
      * connection — so callers must have TTransaction::open('permission') first.
@@ -2065,10 +2066,11 @@ class EncounterView extends TPage
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
-            \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
+            \CentralVet\Storage\StorageFactory::forWrites($context),
             $context,
             new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
             new \CentralVet\Persistence\EncounterRepository($context, TTransaction::get()),
+            static fn (string $storageProvider): \CentralVet\Storage\StorageInterface => \CentralVet\Storage\StorageFactory::forProvider($storageProvider, $context),
         );
     }
 

@@ -8,6 +8,7 @@ use CentralVet\Domain\Contract\EncounterRepositoryInterface;
 use CentralVet\Domain\Contract\StoredObjectRepositoryInterface;
 use CentralVet\Storage\StorageInterface;
 use CentralVet\Tenancy\TenantContext;
+use Closure;
 use Throwable;
 
 /**
@@ -49,6 +50,15 @@ use Throwable;
  * (4th argument) and a selected unit: the encounter must exist in that unit
  * and the row's system_unit_id, when set, must be that unit. ExamResultForm
  * only attaches, so it does not pass the encounter repository.
+ *
+ * Reader per provider (rodada 4, T-02): the optional 5th argument,
+ * fn (string $storageProvider): StorageInterface, resolves the storage that
+ * holds an indexed object from the row's storage_provider, so attachments
+ * written by an earlier driver (e.g. S3) stay readable after the configured
+ * driver changes. It is only called once every unit, encounter and
+ * public_id check has passed. attach(), discard() and list() keep using
+ * $storage (the write storage); without the closure download() reads from
+ * $storage too.
  */
 final class EncounterDocumentService
 {
@@ -57,6 +67,7 @@ final class EncounterDocumentService
         private readonly TenantContext $tenant,
         private readonly ?StoredObjectRepositoryInterface $objects = null,
         private readonly ?EncounterRepositoryInterface $encounters = null,
+        private readonly ?Closure $readerForProvider = null,
     ) {
     }
 
@@ -157,8 +168,12 @@ final class EncounterDocumentService
 
         // object_key is the key the storage returned (it may wrap the logical
         // key in its own namespace); get() expects the logical key again.
+        $reader = $this->readerForProvider === null
+            ? $this->storage
+            : ($this->readerForProvider)((string) $row['storage_provider']);
+
         return [
-            'contents' => $this->storage->get(substr($objectKey, $position)),
+            'contents' => $reader->get(substr($objectKey, $position)),
             'content_type' => (string) $row['content_type'],
             'original_name' => (string) $row['original_name'],
         ];

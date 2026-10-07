@@ -292,10 +292,10 @@ class ExamResultForm extends TPage
     }
 
     /**
-     * Wires EncounterDocumentService (T-05) against the real S3-compatible
-     * storage adapter (Fase 0), same
-     * CentralVet\Storage\S3CompatibleStorage::fromEnvironment() factory
-     * EncounterView::makeEncounterDocumentService() already uses, plus the
+     * Wires EncounterDocumentService (T-05) against the configured storage
+     * driver, CentralVet\Storage\StorageFactory::forWrites() (rodada 4), the
+     * same one EncounterView::makeEncounterDocumentService() writes with (no
+     * reader: this screen only attaches), plus the
      * `stored_object` index (T-56) on the open TTransaction connection, so
      * the result shows up in the origin encounter's attachment list.
      * Callers must have TTransaction::open('permission') first.
@@ -303,7 +303,7 @@ class ExamResultForm extends TPage
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
-            \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
+            \CentralVet\Storage\StorageFactory::forWrites($context),
             $context,
             new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
         );
