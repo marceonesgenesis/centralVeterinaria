@@ -279,6 +279,18 @@ Confira que o verify do 5.7 lista as 2 tabelas. Em seguida aplique a DML dos
 4 programas descrita em [`documentos.md`](./documentos.md), com autorização
 específica.
 
+### Anexos e fotos (driver local)
+
+- Sem S3, use `STORAGE_DRIVER=local` para anexos de atendimento, resultados de
+  exame e fotos de pacientes. A raiz vem de `STORAGE_LOCAL_ROOT`; ausente, cai
+  em `DOCUMENT_STORAGE_LOCAL_ROOT`. Aponte-a para uma pasta **acima** do
+  `public_html` (0750, dono do usuário do PHP); a `StorageFactory` recusa raiz
+  dentro do webroot.
+- Com `STORAGE_DRIVER` vazio e sem `S3_ENDPOINT`/`S3_BUCKET`, o padrão já é
+  `local`.
+- Objetos antigos gravados no S3 continuam legíveis só se as `S3_*` forem
+  mantidas; sem elas, esses anexos e fotos ficam indisponíveis.
+
 ### Pasta de documentos e cron
 
 - Crie a pasta dos PDFs **acima** do `public_html` (nunca dentro dele), com
