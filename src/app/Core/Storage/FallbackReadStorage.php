@@ -13,7 +13,9 @@ use Throwable;
  * patient photos still on S3 after switching to the local driver).
  *
  * The secondary is resolved once, on first use. A failure resolving or
- * querying it counts as "not found" for exists().
+ * querying it counts as "not found" for exists(). A primary that cannot be
+ * queried (e.g. local root missing) counts as not holding the key, so legacy
+ * objects stay readable on the secondary.
  */
 final class FallbackReadStorage implements StorageInterface
 {
@@ -35,7 +37,7 @@ final class FallbackReadStorage implements StorageInterface
 
     public function get(string $key): string
     {
-        if ($this->primary->exists($key)) {
+        if ($this->primaryHas($key)) {
             return $this->primary->get($key);
         }
 
@@ -44,7 +46,7 @@ final class FallbackReadStorage implements StorageInterface
 
     public function exists(string $key): bool
     {
-        if ($this->primary->exists($key)) {
+        if ($this->primaryHas($key)) {
             return true;
         }
 
@@ -57,7 +59,7 @@ final class FallbackReadStorage implements StorageInterface
 
     public function delete(string $key): void
     {
-        if ($this->primary->exists($key)) {
+        if ($this->primaryHas($key)) {
             $this->primary->delete($key);
 
             return;
@@ -69,6 +71,15 @@ final class FallbackReadStorage implements StorageInterface
     public function presignedUrl(string $key, int $ttlSeconds = 300): string
     {
         return $this->primary->presignedUrl($key, $ttlSeconds);
+    }
+
+    private function primaryHas(string $key): bool
+    {
+        try {
+            return $this->primary->exists($key);
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function secondary(): StorageInterface
