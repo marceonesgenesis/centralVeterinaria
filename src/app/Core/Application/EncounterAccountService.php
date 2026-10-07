@@ -304,6 +304,61 @@ final class EncounterAccountService
     }
 
     /**
+     * Adds one item tied to a hospitalization source (stay or a performed
+     * administration). Idempotent by (source_type, source_id) — the same
+     * UNIQUE key the schema declares: when the pair is already on the
+     * account nothing is written and null is returned.
+     *
+     * @throws InvalidArgumentException when $sourceType is not a
+     *         hospitalization source type.
+     * @throws CrossTenantReferenceException when the account does not
+     *         resolve within the authenticated tenant.
+     * @throws InvalidStatusTransitionException when the account is not
+     *         currently 'open'.
+     */
+    public function addSourcedItem(
+        int $accountId,
+        string $sourceType,
+        int $sourceId,
+        string $descriptionText,
+        int $amountCents,
+        string $action,
+    ): ?EncounterAccountItem {
+        if (!in_array($sourceType, [
+            EncounterAccountItem::TYPE_HOSPITALIZATION_STAY,
+            EncounterAccountItem::TYPE_HOSPITALIZATION_ADMINISTRATION,
+        ], true)) {
+            throw new InvalidArgumentException("source_type \"{$sourceType}\" is not accepted for sourced items");
+        }
+
+        $account = $this->requireAccount($accountId, $action);
+        $this->assertAccountOpen($account);
+
+        foreach ($this->items->listByAccount($accountId) as $existing) {
+            /** @var EncounterAccountItem $existing */
+            if ($existing->sourceType() === $sourceType && $existing->sourceId() === $sourceId) {
+                return null;
+            }
+        }
+
+        $item = EncounterAccountItem::create(
+            tenantId: $this->context->tenantId(),
+            accountId: $accountId,
+            sourceType: $sourceType,
+            sourceId: $sourceId,
+            descriptionText: $descriptionText,
+            amountCents: $amountCents,
+        );
+
+        /** @var EncounterAccountItem $savedItem */
+        $savedItem = $this->items->save($item);
+
+        $this->refreshAccountTotals($account);
+
+        return $savedItem;
+    }
+
+    /**
      * Applies (or replaces) the account's authorized discount. Uses its own
      * distinct `$action` (see class docblock). Recomputes subtotal_cents
      * from the live item sum before validating, so "exceeds the account's

@@ -68,8 +68,13 @@ def adapt_statement(statement):
         clauses = split_sql(statement[start + 1:end], ',', True)
     else:
         clauses = split_sql(statement[alter.end():], ',', True)
-    kept, checks = [], []
+    kept, checks, drops = [], [], []
     for clause in clauses:
+        dropped = re.fullmatch(r'DROP\s+CHECK\s+`?(\w+)`?', clause, re.I)
+        if dropped and alter:
+            # MySQL 5.7 enforces CHECKs through triggers; drop them before any re-creation.
+            drops.extend(f'DROP TRIGGER IF EXISTS `{dropped.group(1)}_{suffix}`' for suffix in ('bi', 'bu'))
+            continue
         check = re.fullmatch(r'(?:ADD\s+)?CONSTRAINT\s+(\w+)\s+CHECK\s*\((.*)\)', clause, re.I | re.S)
         if check:
             checks.append(check.groups())
@@ -83,9 +88,26 @@ def adapt_statement(statement):
             adapted += ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     else:
         adapted = statement[:alter.end()] + ',\n    '.join(kept)
-    result = [adapted] if kept else []
+    result = drops + ([adapted] if kept else [])
     result.extend(trigger_statements(table, checks))
     return result, [{'table': table, 'name': name, 'expression': expression} for name, expression in checks]
+
+
+def verification_query(query):
+    """Rewrite a MySQL 8 CHECK lookup as the MySQL 5.7 trigger lookup for the same tables."""
+    if 'information_schema.check_constraints' not in query.lower():
+        return query
+    single = re.search(r"\btable_name\s*=\s*('[A-Za-z_0-9]+')", query, re.I)
+    many = re.search(r"\btable_name\s+IN\s*\(\s*('[A-Za-z_0-9]+'(?:\s*,\s*'[A-Za-z_0-9]+')*)\s*\)", query, re.I)
+    if single:
+        condition = 'EVENT_OBJECT_TABLE=' + single.group(1)
+    elif many:
+        condition = 'EVENT_OBJECT_TABLE IN (' + ', '.join(re.findall(r"'[A-Za-z_0-9]+'", many.group(1))) + ')'
+    else:
+        raise ValueError('CHECK verification needs a table_name literal: ' + query)
+    # MySQL 5.7 exposes the equivalent validation in TRIGGERS.
+    return ('SELECT TRIGGER_NAME, ACTION_STATEMENT FROM information_schema.TRIGGERS '
+            'WHERE TRIGGER_SCHEMA=DATABASE() AND ' + condition + ' ORDER BY TRIGGER_NAME')
 
 
 def prepare(source, output):
@@ -125,10 +147,7 @@ def prepare(source, output):
         for query in split_sql(path.read_text()):
             if not query.startswith('SELECT'):
                 raise ValueError('Verification must be read-only: ' + path.name)
-            if 'information_schema.check_constraints' in query.lower():
-                # MySQL 5.7 exposes the equivalent validation in TRIGGERS.
-                query = "SELECT TRIGGER_NAME, ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='landing_lead' ORDER BY TRIGGER_NAME"
-            queries.append(query)
+            queries.append(verification_query(query))
         verification[path.name] = queries
     manifest = output / 'manifest.json'
     manifest.write_text(json.dumps({'mysql': '5.7', 'collation': 'utf8mb4_unicode_ci', 'stages': stages, 'checks': all_checks, 'verification': verification}, indent=2))

@@ -131,3 +131,32 @@ privados ficam em `var/sql-bootstrap/mysql57/`.
 Em novas instalações, aplicar esse seed depois das migrations 0001–0009,
 com autorização específica para as permissões. A aplicação não o executa
 automaticamente.
+
+## Migration 0010 (internação)
+
+A `20261005_0010_phase6a_hospitalization.sql` cria as cinco tabelas da
+internação e amplia dois CHECKs existentes
+(`encounter_account_item_source_type_ck` e `stock_movement_reason_ck`) em
+duas instruções: `DROP CHECK` e depois `ADD CONSTRAINT`. No 5.7 esses CHECKs
+são triggers `<nome>_bi`/`<nome>_bu`, então o preparador converte cada
+`DROP CHECK` em `DROP TRIGGER IF EXISTS` dos dois triggers e só depois emite
+os `CREATE TRIGGER` de mesmo nome com a lista nova. A ordem no `.sql` gerado
+deve ser drop → create; conferir antes de executar.
+
+Preparo, sempre num diretório temporário privado (nunca em
+`var/sql-bootstrap/`):
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261005_0010_phase6a_hospitalization.sql \
+  "$d/14-20261005_0010_phase6a_hospitalization.sql"
+cp src/app/database/migrations/20261005_0010_phase6a_hospitalization.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "TRIGGER IF EXISTS\|CREATE TRIGGER \`encounter_account_item\|CREATE TRIGGER \`stock_movement" \
+  "$d/out/14-20261005_0010_phase6a_hospitalization.sql"
+```
+
+A verificação do 5.7 troca a consulta a `information_schema.check_constraints`
+pela de `information_schema.TRIGGERS`, filtrando `EVENT_OBJECT_TABLE` pelo
+literal `table_name = '<tabela>'` ou `table_name IN (...)` da própria consulta;
+consulta de CHECK sem esse literal faz o preparador falhar.

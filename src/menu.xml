@@ -47,6 +47,11 @@
         <action>PendingExamResultList</action>
     </menuitem>
 
+    <menuitem label='_t{Hospitalization}'>
+        <icon>fas:bed fa-fw</icon>
+        <action>HospitalizationBoard</action>
+    </menuitem>
+
     <menuitem label='_t{Surgeries}'>
         <icon>fas:kit-medical fa-fw</icon>
         <action>CvShellController#method=onComingSoon#item=surgeries</action>
@@ -107,6 +112,11 @@
                         <action>ProcedureCatalogList</action>
                     </menuitem>
                 </menu>
+            </menuitem>
+
+            <menuitem label='_t{Beds}'>
+                <icon>fas:bed fa-fw</icon>
+                <action>BedList</action>
             </menuitem>
 
             <menuitem label='_t{Administration}'>
