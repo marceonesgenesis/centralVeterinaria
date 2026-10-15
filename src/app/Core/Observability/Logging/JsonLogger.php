@@ -22,6 +22,7 @@ final class JsonLogger implements LoggerInterface
     private const SENSITIVE_KEYS = [
         'password', 'repassword', 'confirm_password', 'password1', 'password2',
         'token', 'auth_token', 'authorization', 'secret', 'api_key',
+        'x-api-key', 'anthropic_api_key',
     ];
 
     private const LEVEL_ORDER = ['debug' => 0, 'info' => 1, 'warning' => 2, 'error' => 3, 'critical' => 4];

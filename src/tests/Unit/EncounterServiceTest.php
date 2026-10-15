@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Unit;
 
 use CentralVet\Application\EncounterService;
-use CentralVet\Assistant\NullAiClinicalAssistant;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Encounter;
@@ -21,12 +20,6 @@ use DateTimeImmutable;
  * no database involved, since the `encounter` table does not exist yet
  * (migration T-01 not applied) — and the same FakeAuthorizationPolicy double
  * Phase 1's AppointmentServiceTest/QueueEntryServiceTest already use.
- *
- * NullAiClinicalAssistant (T-04's own acceptance criterion — "the two
- * methods never throw with any id") is also covered here rather than in a
- * third file: T-08 names only EncounterServiceTest.php and
- * EncounterDocumentServiceTest.php, and the assistant is part of the same
- * clinical-encounter workflow.
  *
  * timeline() is intentionally NOT covered, documented instead of faked or
  * skipped silently: it is the one EncounterService method that bypasses
@@ -135,20 +128,6 @@ final class EncounterServiceTest
         Assert::null($updated->physicalExamText());
         Assert::null($updated->clinicalPlanText());
         Assert::null($updated->mucousMembranes());
-    }
-
-    public function testNullAiClinicalAssistantSummarizePatientHistoryNeverThrowsAndReturnsNull(): void
-    {
-        $assistant = new NullAiClinicalAssistant();
-
-        Assert::null($assistant->summarizePatientHistory(999999));
-    }
-
-    public function testNullAiClinicalAssistantSuggestNextStepsNeverThrowsAndReturnsEmptyArray(): void
-    {
-        $assistant = new NullAiClinicalAssistant();
-
-        Assert::count(0, $assistant->suggestNextSteps(999999));
     }
 
     public function testPauseMarksEncounterAsPaused(): void

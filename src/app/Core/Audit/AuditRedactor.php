@@ -19,6 +19,7 @@ final class AuditRedactor
         'password', 'senha', 'repassword', 'confirm_password', 'password1', 'password2',
         'token', 'auth_token', 'authorization', 'secret', 'api_key', 'cookie', 'session_id',
         'cpf', 'rg', 'cartao', 'credit_card', 'card_number', 'cvv',
+        'x-api-key', 'anthropic_api_key',
     ];
 
     private function __construct()
