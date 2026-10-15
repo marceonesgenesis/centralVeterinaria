@@ -16,6 +16,7 @@ runbooks indicam o que muda nesses ambientes.
 - [`cirurgia.md`](./cirurgia.md) — fluxos, regras, banco, permissões e aplicação da cirurgia (Fase 6B).
 - [`comunicacao.md`](./comunicacao.md) — consentimento, templates, e-mail/WhatsApp, agendador, LGPD e Central de Pendências (Fase 7A).
 - [`documentos.md`](./documentos.md) — PDFs assíncronos, storage privado, versionamento, download com RBAC, aviso `document_ready` e operação (Fase 7B).
+- [`ia-assistente.md`](./ia-assistente.md) — assistente de IA: casos de uso, ativação por tenant, variáveis `AI_*`, custo, falhas, LGPD e incidente (Fase 8A).
 
 Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
 banco (migration, rollback, restore) exigem autorização explícita antes de

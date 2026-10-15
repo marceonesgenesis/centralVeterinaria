@@ -307,3 +307,41 @@ variáveis de banco (`DB_*`), de Redis (`REDIS_*`) e `DOCUMENT_*`
 crontab com segredo à vista. A saída é um JSON de contadores, sem dado
 pessoal; sai com 1 se algum tenant falhou.
 
+
+## Migration 0014 (IA)
+
+A `20261007_0014_phase8a_ai_gateway.sql` cria três tabelas (`feature_flag`,
+`ai_tenant_setting` e `ai_interaction`), 8 CHECKs, 2 chaves de unicidade
+(`feature_flag_tenant_key_uq` e a PK de `ai_tenant_setting`) e 9 FKs. Não
+altera tabelas existentes nem semeia dados: a IA fica desligada em todo tenant.
+São 9 FKs (o cabeçalho da 0014 diz 8).
+
+O preparador só lê arquivos `NN-*.sql`; apontá-lo direto para
+`src/app/database/migrations` falha (`No numbered SQL files found`). Copie a
+0014 com o prefixo `18-` (depois do `17-` da 0013) para um diretório temporário
+privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261007_0014_phase8a_ai_gateway.sql \
+  "$d/18-20261007_0014_phase8a_ai_gateway.sql"
+cp src/app/database/migrations/20261007_0014_phase8a_ai_gateway.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "CREATE TRIGGER \`feature_flag\|CREATE TRIGGER \`ai_" \
+  "$d/out/18-20261007_0014_phase8a_ai_gateway.sql"
+```
+
+Confira que o verify do 5.7 lista as 3 tabelas. Aplique só com backup e
+autorização SQL específica; depois, a DML dos programas `AiSettingsForm` e
+`AiInteractionList` (grupo 1), descrita em [`ia-assistente.md`](./ia-assistente.md).
+
+### Ambiente da IA
+
+- Defina no ambiente da hospedagem (nunca em código nem no crontab) as variáveis
+  `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` (a chave real só aqui),
+  `ANTHROPIC_BASE_URL`, `AI_MODEL`, `AI_EFFORT`, `AI_MAX_OUTPUT_TOKENS`,
+  `AI_TIMEOUT_SECONDS`, `AI_CONNECT_TIMEOUT_SECONDS` e `AI_FALLBACKS`; todas têm
+  padrão, só a chave é obrigatória. Não use `AI_PROVIDER=stub` em produção.
+- Exige a extensão PHP `ext-curl` e HTTPS de saída (TCP 443) para
+  `api.anthropic.com`; hospedagem que bloqueia saída resulta em `ai_timeout`.
+- Variáveis, custo e falhas: [`ia-assistente.md`](./ia-assistente.md).
