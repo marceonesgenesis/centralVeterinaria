@@ -16,7 +16,8 @@ use InvalidArgumentException;
  * only see the tenant given to the constructor. saveDecision() mirrors the
  * conditional UPDATE: false when the stored row is gone, foreign or no
  * longer `pending_review`. monthlyTokenUsage() = sum of the tenant's rows
- * created since the month start + setMonthlyTokenUsage().
+ * created in [month start, next month start) + setMonthlyTokenUsage().
+ * latestDecidedFor() orders by created_at DESC, id DESC, like the PDO query.
  */
 final class FakeAiInteractionRepository implements AiInteractionRepositoryInterface
 {
@@ -126,7 +127,7 @@ final class FakeAiInteractionRepository implements AiInteractionRepositoryInterf
                 && $row['subject_id'] === $subjectId
                 && in_array($row['status'], self::DECIDED, true),
         );
-        usort($rows, static fn (array $a, array $b): int => [$b['decided_at'], $b['id']] <=> [$a['decided_at'], $a['id']]);
+        usort($rows, static fn (array $a, array $b): int => [$b['created_at'], $b['id']] <=> [$a['created_at'], $a['id']]);
 
         return $rows === [] ? null : AiInteraction::reconstitute($rows[0]);
     }
@@ -163,9 +164,15 @@ final class FakeAiInteractionRepository implements AiInteractionRepositoryInterf
     /** @return list<array<string, mixed>> */
     private function monthRows(DateTimeImmutable $monthStart): array
     {
-        $since = self::date($monthStart);
+        // Same range as AiInteractionRepository::monthRange(): [first day 00:00, first day of next month).
+        $start = $monthStart->setTime(0, 0)->modify('first day of this month');
+        $since = self::date($start);
+        $until = self::date($start->modify('first day of next month'));
 
-        return array_values(array_filter($this->ownRows(), static fn (array $row): bool => $row['created_at'] >= $since));
+        return array_values(array_filter(
+            $this->ownRows(),
+            static fn (array $row): bool => $row['created_at'] >= $since && $row['created_at'] < $until,
+        ));
     }
 
     /** @param array<string, mixed> $row */

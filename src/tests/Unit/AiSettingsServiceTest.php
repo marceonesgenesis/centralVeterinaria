@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Unit;
 
+use CentralVet\Application\AiAssistService;
 use CentralVet\Application\AiSettingsService;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\AiInteraction;
 use CentralVet\Domain\AiPurpose;
 use CentralVet\Domain\AiTenantSetting;
 use CentralVet\Domain\AiTerms;
+use CentralVet\Domain\Contract\AiInteractionRepositoryInterface;
+use CentralVet\Domain\Contract\AiTenantSettingRepositoryInterface;
 use CentralVet\Domain\Contract\FeatureFlagRepositoryInterface;
 use CentralVet\Domain\Exception\AiUnavailableException;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\FakeAiClinicalContextQuery;
+use CentralVet\Tests\Support\FakeAiGateway;
 use CentralVet\Tests\Support\FakeAiInteractionRepository;
 use CentralVet\Tests\Support\FakeAiTenantSettingRepository;
 use CentralVet\Tests\Support\FakeAuthorizationPolicy;
@@ -35,6 +40,18 @@ final class AiSettingsServiceTest
     private const USER_ID = 7;
     private const UNIT_ID = 3;
     private const NOW = '2026-10-15 12:00:00';
+
+    private string $timezone;
+
+    public function setUp(): void
+    {
+        $this->timezone = date_default_timezone_get();
+    }
+
+    public function tearDown(): void
+    {
+        date_default_timezone_set($this->timezone);
+    }
 
     /**
      * @return array{0: AiSettingsService, 1: FakeAiTenantSettingRepository, 2: FakeFeatureFlagRepository, 3: FakeAiInteractionRepository, 4: FakeAuthorizationPolicy, 5: SpyAuditLogWriter}
@@ -128,6 +145,69 @@ final class AiSettingsServiceTest
         Assert::false($flags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT));
     }
 
+    /**
+     * T-04 (8A pendências): tenant que aceitou o termo 2026-10-v1 precisa
+     * reaceitar a v2 — overview aponta o termo como não vigente, enable sem
+     * aceite lança ai_terms_pending e a geração falha sem chamar o provedor.
+     */
+    public function testTermsV1AcceptedRequiresReacceptanceWithoutCallingTheProvider(): void
+    {
+        Assert::same('2026-10-v2', AiTerms::VERSION);
+
+        $v1 = self::acceptedSetting('2026-10-v1');
+        Assert::false($v1->hasAcceptedTerms(AiTerms::VERSION));
+
+        [$service, $settings, $flags, , , $audit] = $this->build($v1, [FeatureFlagRepositoryInterface::AI_ASSISTANT]);
+
+        $overview = $service->overview();
+        Assert::false($overview['terms_current']);
+        Assert::same('2026-10-v1', $overview['terms_version']);
+
+        [$disabledService, , $disabledFlags] = $this->build(self::acceptedSetting('2026-10-v1'));
+
+        try {
+            $disabledService->enable(false);
+            Assert::true(false, 'Expected AiUnavailableException');
+        } catch (AiUnavailableException $e) {
+            Assert::same('ai_terms_pending', $e->reason());
+        }
+
+        Assert::false($disabledFlags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT));
+
+        $gateway = new FakeAiGateway();
+        $interactions = new FakeAiInteractionRepository(self::TENANT_ID);
+        $assist = new AiAssistService(
+            $gateway,
+            $interactions,
+            $settings,
+            $flags,
+            new FakeAiClinicalContextQuery([10 => [
+                'encounter_id' => 10,
+                'system_unit_id' => self::UNIT_ID,
+                'patient_id' => 20,
+                'status' => 'in_progress',
+                'anamnesis_text' => 'Retorno',
+                'species' => 'Canina',
+            ]]),
+            new FakeAuthorizationPolicy(),
+            $audit,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+            'pt',
+            static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW),
+        );
+
+        try {
+            $assist->organizeAnamnesis(10, 'Tosse seca há três dias');
+            Assert::true(false, 'Expected AiUnavailableException');
+        } catch (AiUnavailableException $e) {
+            Assert::same('ai_terms_pending', $e->reason());
+        }
+
+        Assert::same([], $gateway->calls());
+        Assert::same([], $interactions->all());
+        Assert::same([], $audit->events);
+    }
+
     public function testEnableAcceptingTermsRecordsTermAndTurnsFlagOn(): void
     {
         [$service, $settings, $flags, , , $audit] = $this->build();
@@ -136,13 +216,13 @@ final class AiSettingsServiceTest
 
         $saved = $settings->saved();
         Assert::notNull($saved);
-        Assert::same('2026-10-v1', $saved->termsVersion());
+        Assert::same(AiTerms::VERSION, $saved->termsVersion());
         Assert::same(self::USER_ID, $saved->termsAcceptedBySystemUserId());
         Assert::same(self::USER_ID, $settings->savedBySystemUserId());
         Assert::same('2026-10-15 12:00:00', $saved->termsAcceptedAt()?->format('Y-m-d H:i:s'));
         Assert::true($flags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT));
         Assert::same(['ai.terms.accepted', 'ai.settings.enabled'], self::actions($audit));
-        Assert::same(['terms_version' => '2026-10-v1'], $audit->events[0]->afterData);
+        Assert::same(['terms_version' => AiTerms::VERSION], $audit->events[0]->afterData);
         Assert::same(self::TENANT_ID, $audit->events[0]->tenantId);
         Assert::same(self::USER_ID, $audit->events[0]->userId);
     }
@@ -205,6 +285,160 @@ final class AiSettingsServiceTest
 
         $service->changeMonthlyQuota(0);
         Assert::same(0, $settings->saved()?->monthlyTokenQuota());
+    }
+
+    /**
+     * T-10 (8A pendências): a cota igual à atual, com o registro existente,
+     * lê o repositório uma única vez e não grava nem audita; a cota diferente
+     * grava e audita uma vez, também com uma única leitura.
+     */
+    public function testChangeMonthlyQuotaReadsTheSettingOnceAndSkipsUnchangedQuota(): void
+    {
+        $settings = self::countingSettings(new FakeAiTenantSettingRepository(self::acceptedSetting()));
+        $audit = new SpyAuditLogWriter();
+        $service = new AiSettingsService(
+            $settings,
+            new FakeFeatureFlagRepository(),
+            new FakeAiInteractionRepository(self::TENANT_ID),
+            new FakeAuthorizationPolicy(),
+            $audit,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+        );
+
+        $service->changeMonthlyQuota(AiTenantSetting::DEFAULT_MONTHLY_TOKEN_QUOTA);
+
+        Assert::same(1, $settings->finds);
+        Assert::same(0, $settings->saves);
+        Assert::same([], $audit->events);
+
+        $service->changeMonthlyQuota(5000);
+
+        Assert::same(2, $settings->finds);
+        Assert::same(1, $settings->saves);
+        Assert::same(['ai.settings.quota_changed'], self::actions($audit));
+        Assert::same(5000, $settings->find()?->monthlyTokenQuota());
+    }
+
+    /** Sem registro, a cota padrão é gravada (e auditada) mesmo sem mudar o valor. */
+    public function testChangeMonthlyQuotaWithoutStoredSettingPersistsTheDefaultOnce(): void
+    {
+        $settings = self::countingSettings(new FakeAiTenantSettingRepository());
+        $audit = new SpyAuditLogWriter();
+        $service = new AiSettingsService(
+            $settings,
+            new FakeFeatureFlagRepository(),
+            new FakeAiInteractionRepository(self::TENANT_ID),
+            new FakeAuthorizationPolicy(),
+            $audit,
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+        );
+
+        $service->changeMonthlyQuota(AiTenantSetting::DEFAULT_MONTHLY_TOKEN_QUOTA);
+
+        Assert::same(1, $settings->finds);
+        Assert::same(1, $settings->saves);
+        Assert::same(['ai.settings.quota_changed'], self::actions($audit));
+    }
+
+    /** T-10: às 22:00 de 31/10 em America/Fortaleza o mês do overview ainda é outubro. */
+    public function testOverviewMonthStartsInTheLocalTimezoneLateOnTheLastDay(): void
+    {
+        date_default_timezone_set('America/Fortaleza');
+        $interactions = self::monthSpy(new FakeAiInteractionRepository(self::TENANT_ID));
+        $service = new AiSettingsService(
+            new FakeAiTenantSettingRepository(self::acceptedSetting()),
+            new FakeFeatureFlagRepository(),
+            $interactions,
+            new FakeAuthorizationPolicy(),
+            new SpyAuditLogWriter(),
+            TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID),
+            static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-31 22:00:00', new DateTimeZone('America/Fortaleza')),
+        );
+
+        $service->overview();
+
+        Assert::same(['monthlySummary', 'monthlyTokenUsage'], array_keys($interactions->monthStarts));
+
+        foreach ($interactions->monthStarts as $monthStart) {
+            Assert::same('2026-10-01 00:00:00', $monthStart->format('Y-m-d H:i:s'));
+            Assert::same('America/Fortaleza', $monthStart->getTimezone()->getName());
+        }
+    }
+
+    private static function countingSettings(FakeAiTenantSettingRepository $inner): AiTenantSettingRepositoryInterface
+    {
+        return new class ($inner) implements AiTenantSettingRepositoryInterface {
+            public int $finds = 0;
+            public int $saves = 0;
+
+            public function __construct(private readonly FakeAiTenantSettingRepository $inner)
+            {
+            }
+
+            public function find(): ?AiTenantSetting
+            {
+                ++$this->finds;
+
+                return $this->inner->find();
+            }
+
+            public function save(AiTenantSetting $setting, int $systemUserId): void
+            {
+                ++$this->saves;
+                $this->inner->save($setting, $systemUserId);
+            }
+        };
+    }
+
+    private static function monthSpy(FakeAiInteractionRepository $inner): AiInteractionRepositoryInterface
+    {
+        return new class ($inner) implements AiInteractionRepositoryInterface {
+            /** @var array<string, DateTimeImmutable> */
+            public array $monthStarts = [];
+
+            public function __construct(private readonly FakeAiInteractionRepository $inner)
+            {
+            }
+
+            public function insert(AiInteraction $interaction): AiInteraction
+            {
+                return $this->inner->insert($interaction);
+            }
+
+            public function saveDecision(AiInteraction $interaction): bool
+            {
+                return $this->inner->saveDecision($interaction);
+            }
+
+            public function find(int $id): ?AiInteraction
+            {
+                return $this->inner->find($id);
+            }
+
+            public function monthlyTokenUsage(DateTimeImmutable $monthStart): int
+            {
+                $this->monthStarts['monthlyTokenUsage'] = $monthStart;
+
+                return $this->inner->monthlyTokenUsage($monthStart);
+            }
+
+            public function monthlySummary(DateTimeImmutable $monthStart): array
+            {
+                $this->monthStarts['monthlySummary'] = $monthStart;
+
+                return $this->inner->monthlySummary($monthStart);
+            }
+
+            public function latestDecidedFor(string $purpose, int $subjectId): ?AiInteraction
+            {
+                return $this->inner->latestDecidedFor($purpose, $subjectId);
+            }
+
+            public function listRecent(int $limit): array
+            {
+                return $this->inner->listRecent($limit);
+            }
+        };
     }
 
     public function testOverviewUsesDefaultsAndSumsMonthCost(): void

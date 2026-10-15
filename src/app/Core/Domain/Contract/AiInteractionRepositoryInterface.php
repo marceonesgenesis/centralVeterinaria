@@ -12,7 +12,15 @@ use DateTimeImmutable;
  */
 interface AiInteractionRepositoryInterface
 {
-    /** Inserts the interaction and returns it with the assigned id. */
+    /**
+     * Inserts the interaction and returns it with the assigned id.
+     *
+     * Only an interaction with an outcome can be inserted: call
+     * `AiInteraction::recordSuggestion()` or `recordFailure()` first. A
+     * `pending_review` row without `suggestion_text` violates
+     * `ai_interaction_failed_ck` (migration 0014), as does a `failed` row
+     * without `error_code`.
+     */
     public function insert(AiInteraction $interaction): AiInteraction;
 
     /**

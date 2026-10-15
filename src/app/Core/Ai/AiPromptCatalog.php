@@ -16,14 +16,18 @@ use InvalidArgumentException;
  * every text passed through PiiMinimizer with the patient and tutor names.
  * Ids, clinic, contacts and the birth date are never sent (the age is).
  *
- * Any change to a prompt text must bump its version (`.v1` → `.v2`).
+ * Draft prescriptions and exam results pending review are sent marked as
+ * provisional / not validated, and the system prompt says so.
+ *
+ * Any change to a prompt text must bump its version (`.v1` → `.v2`);
+ * AiPromptCatalogTest::testPromptTextIsPinnedToItsVersion pins the hashes.
  */
 final class AiPromptCatalog
 {
     public const VERSIONS = [
-        AiPurpose::PATIENT_SUMMARY => 'patient_summary.v1',
-        AiPurpose::ANAMNESIS_ORGANIZE => 'anamnesis_organize.v1',
-        AiPurpose::EXAM_SUMMARY => 'exam_summary.v1',
+        AiPurpose::PATIENT_SUMMARY => 'patient_summary.v2',
+        AiPurpose::ANAMNESIS_ORGANIZE => 'anamnesis_organize.v2',
+        AiPurpose::EXAM_SUMMARY => 'exam_summary.v2',
     ];
 
     private const BASE = [
@@ -33,14 +37,16 @@ final class AiPromptCatalog
             . "- Use só os fatos presentes no texto recebido; não invente nem complete informações.\n"
             . "- Quando uma seção não tiver informação, escreva \"não informado\".\n"
             . "- Responda em português do Brasil, em texto simples, com seções curtas e sem markdown.\n"
-            . "- Não inclua dados pessoais (nomes, contatos ou documentos); mantenha marcadores como [NOME] como estão.\n",
+            . "- Não inclua dados pessoais (nomes, contatos ou documentos); mantenha marcadores como [NOME] como estão.\n"
+            . "- Itens marcados como provisórios ou não validados podem mudar: cite-os como tal e não os trate como confirmados.\n",
         'en' => "You are a clinical documentation assistant for a veterinarian.\n"
             . "Rules:\n"
             . "- Do not diagnose, do not prescribe and do not suggest treatment.\n"
             . "- Use only the facts present in the text you receive; do not invent or complete information.\n"
             . "- When a section has no information, write \"not informed\".\n"
             . "- Answer in English, as plain text with short sections and no markdown.\n"
-            . "- Do not include personal data (names, contacts or documents); keep markers such as [NOME] as they are.\n",
+            . "- Do not include personal data (names, contacts or documents); keep markers such as [NOME] as they are.\n"
+            . "- Items marked as provisional or not validated may change: mention them as such and do not treat them as confirmed.\n",
     ];
 
     private const TASKS = [
@@ -94,6 +100,8 @@ final class AiPromptCatalog
             'received_at' => 'Recebido em',
             'report' => 'Laudo',
             'none' => 'nenhum registro',
+            'provisional_prescription' => '(rascunho, não emitida — provisória)',
+            'unvalidated_exam' => '(pendente de revisão — não validado)',
         ],
         'en' => [
             'patient' => 'Patient clinical data',
@@ -124,6 +132,8 @@ final class AiPromptCatalog
             'received_at' => 'Received on',
             'report' => 'Report',
             'none' => 'no records',
+            'provisional_prescription' => '(draft, not issued — provisional)',
+            'unvalidated_exam' => '(pending review — not validated)',
         ],
     ];
 
@@ -146,7 +156,7 @@ final class AiPromptCatalog
     public static function build(string $purpose, array $context, string $locale, ?DateTimeImmutable $today = null): AiCompletionRequest
     {
         $version = self::version($purpose);
-        $lang = str_starts_with(strtolower($locale), 'en') ? 'en' : 'pt';
+        $lang = AiLocale::fromLanguage($locale);
         $today ??= new DateTimeImmutable('today', new DateTimeZone('UTC'));
 
         $userContent = match ($purpose) {
@@ -193,7 +203,8 @@ final class AiPromptCatalog
             $lines[] = $l['none'];
         }
         foreach ($prescriptions as $prescription) {
-            $lines[] = '- ' . $l['prescription_on'] . ' ' . self::date($prescription['created_at'] ?? null, $lang);
+            $lines[] = '- ' . $l['prescription_on'] . ' ' . self::date($prescription['created_at'] ?? null, $lang)
+                . (($prescription['status'] ?? null) === 'draft' ? ' ' . $l['provisional_prescription'] : '');
             foreach ((array) ($prescription['items'] ?? []) as $item) {
                 $lines[] = '  * ' . self::text(is_scalar($item) ? (string) $item : null, $names, $lang);
             }
@@ -206,7 +217,8 @@ final class AiPromptCatalog
             $lines[] = $l['none'];
         }
         foreach ($exams as $exam) {
-            $lines[] = '- ' . self::text($exam['exam_name'] ?? null, $names, $lang) . ' (' . self::date($exam['received_at'] ?? null, $lang) . '): '
+            $lines[] = '- ' . self::text($exam['exam_name'] ?? null, $names, $lang) . ' (' . self::date($exam['received_at'] ?? null, $lang) . ')'
+                . self::unvalidatedMark($exam, $lang) . ': '
                 . self::text($exam['result_text'] ?? null, $names, $lang);
         }
 
@@ -238,7 +250,7 @@ final class AiPromptCatalog
 
         $lines = self::patientBlock($exam, $lang, $today, false);
         $lines[] = '';
-        $lines[] = $l['exam'] . ': ' . self::text($exam['exam_name'] ?? null, $names, $lang);
+        $lines[] = $l['exam'] . ': ' . self::text($exam['exam_name'] ?? null, $names, $lang) . self::unvalidatedMark($exam, $lang);
         $lines[] = $l['received_at'] . ': ' . self::date($exam['received_at'] ?? null, $lang);
         $lines[] = $l['report'] . ':';
         $lines[] = self::text($exam['result_text'] ?? null, $names, $lang);
@@ -296,6 +308,12 @@ final class AiPromptCatalog
         }
 
         return $diff->m === 0 ? $years : $years . ' ' . $l['and'] . ' ' . $months;
+    }
+
+    /** @param array<string, mixed> $exam */
+    private static function unvalidatedMark(array $exam, string $lang): string
+    {
+        return ($exam['pending_review'] ?? false) === true ? ' ' . self::LABELS[$lang]['unvalidated_exam'] : '';
     }
 
     private static function number(string $value): string

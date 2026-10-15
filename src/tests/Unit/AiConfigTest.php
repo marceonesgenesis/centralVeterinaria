@@ -105,9 +105,70 @@ final class AiConfigTest
 
         $message = $this->exceptionMessage(static fn () => AiConfig::fromArray(['AI_MAX_OUTPUT_TOKENS' => '32001']));
         Assert::stringContains('AI_MAX_OUTPUT_TOKENS', $message);
+        Assert::false(str_contains($message, '32001'), 'Message must not leak the value 32001');
 
         $message = $this->exceptionMessage(static fn () => AiConfig::fromArray(['AI_TIMEOUT_SECONDS' => 'abc']));
         Assert::stringContains('AI_TIMEOUT_SECONDS', $message);
+        Assert::false(str_contains($message, 'abc'), 'Message must not leak the value abc');
+    }
+
+    public function testBaseUrlMustBeHttps(): void
+    {
+        foreach (['http://api.anthropic.com', 'ftp://x', 'api.anthropic.com', 'https://', 'https:///path'] as $value) {
+            $message = $this->exceptionMessage(static fn () => AiConfig::fromArray(['ANTHROPIC_BASE_URL' => $value]));
+
+            Assert::same('ANTHROPIC_BASE_URL must be an https URL', $message, "Rejects {$value}");
+            Assert::false(str_contains($message, $value), "Message must not leak {$value}");
+        }
+
+        Assert::same('https://example.invalid', AiConfig::fromArray(['ANTHROPIC_BASE_URL' => 'https://example.invalid/'])->baseUrl());
+        Assert::same('HTTPS://example.invalid', AiConfig::fromArray(['ANTHROPIC_BASE_URL' => 'HTTPS://example.invalid'])->baseUrl());
+    }
+
+    public function testHttpsIsRequiredOnlyForTheAnthropicProvider(): void
+    {
+        $stub = AiConfig::fromArray([
+            'AI_PROVIDER' => 'stub',
+            'APP_ENV' => 'testing',
+            'ANTHROPIC_BASE_URL' => 'http://localhost:8080/',
+        ]);
+
+        Assert::same('stub', $stub->provider());
+        Assert::same('http://localhost:8080', $stub->baseUrl());
+
+        $message = $this->exceptionMessage(static fn () => AiConfig::fromArray([
+            'AI_PROVIDER' => 'anthropic',
+            'APP_ENV' => 'testing',
+            'ANTHROPIC_BASE_URL' => 'http://api.anthropic.com',
+        ]));
+
+        Assert::same('ANTHROPIC_BASE_URL must be an https URL', $message);
+        Assert::false(str_contains($message, 'http://api.anthropic.com'), 'Message must not leak the URL');
+    }
+
+    public function testSecretParametersAreMarkedSensitive(): void
+    {
+        $class = new \ReflectionClass(AiConfig::class);
+        $targets = [
+            ['__construct', 'apiKey'],
+            ['fromArray', 'env'],
+            ['string', 'env'],
+            ['choice', 'env'],
+            ['integer', 'env'],
+        ];
+
+        foreach ($targets as [$method, $parameter]) {
+            $found = null;
+
+            foreach ($class->getMethod($method)->getParameters() as $candidate) {
+                if ($candidate->getName() === $parameter) {
+                    $found = $candidate;
+                }
+            }
+
+            Assert::true($found !== null, "{$method}() must have \${$parameter}");
+            Assert::same(1, count($found->getAttributes(\SensitiveParameter::class)), "{$method}(\${$parameter}) must be #[\\SensitiveParameter]");
+        }
     }
 
     public function testBoundaryValuesAreAccepted(): void

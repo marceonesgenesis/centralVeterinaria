@@ -108,6 +108,8 @@ final class AiSettingsScreensIntegrationTest
         Assert::stringContains('claude-sonnet-5-5', $html, 'the configured model is shown');
         Assert::false(str_contains($html, self::API_KEY), 'the API key must never reach the page');
         Assert::true(preg_match('/navegador|browser/i', $html) === 1, 'the term must declare that dictation audio goes to the browser speech service');
+        Assert::same(1, substr_count($html, 'Google, Apple, Microsoft'), 'the dictation declaration is shown once, inside the versioned term');
+        Assert::true(preg_match('/o áudio é enviado a esse serviço|the audio is sent to that service/', (string) $result['term']) === 1, 'the versioned term carries the dictation declaration');
     }
 
     public function testSettingsWithoutTheProgramShowsPermissionDenied(): void
@@ -151,7 +153,7 @@ final class AiSettingsScreensIntegrationTest
 
         Assert::same(true, $result['enabled'] ?? null, 'flag is turned on');
         Assert::same(250000, $result['quota'] ?? null, 'quota is saved');
-        Assert::same('2026-10-v1', $result['terms'] ?? null, 'current term is accepted');
+        Assert::same(\CentralVet\Domain\AiTerms::VERSION, $result['terms'] ?? null, 'current term is accepted');
     }
 
     public function testSaveAndViewInteractionsAreTouchTargets(): void

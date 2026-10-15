@@ -21,7 +21,7 @@ final class AiConfig
 
     private function __construct(
         private readonly string $provider,
-        private readonly ?string $apiKey,
+        #[\SensitiveParameter] private readonly ?string $apiKey,
         private readonly string $baseUrl,
         private readonly string $model,
         private readonly string $effort,
@@ -57,7 +57,7 @@ final class AiConfig
     /**
      * @param array<string, mixed> $env
      */
-    public static function fromArray(array $env): self
+    public static function fromArray(#[\SensitiveParameter] array $env): self
     {
         $provider = self::choice($env, 'AI_PROVIDER', 'anthropic', self::PROVIDERS);
         $appEnv = strtolower(self::string($env, 'APP_ENV', 'development'));
@@ -67,11 +67,12 @@ final class AiConfig
         }
 
         $apiKey = self::string($env, 'ANTHROPIC_API_KEY', '');
+        $baseUrl = self::string($env, 'ANTHROPIC_BASE_URL', 'https://api.anthropic.com');
 
         return new self(
             $provider,
             $apiKey === '' ? null : $apiKey,
-            rtrim(self::string($env, 'ANTHROPIC_BASE_URL', 'https://api.anthropic.com'), '/'),
+            $provider === 'anthropic' ? self::httpsUrl($baseUrl, 'ANTHROPIC_BASE_URL') : rtrim($baseUrl, '/'),
             self::string($env, 'AI_MODEL', 'claude-sonnet-5-5'),
             self::choice($env, 'AI_EFFORT', 'low', self::EFFORTS),
             self::integer($env, 'AI_MAX_OUTPUT_TOKENS', 8000, 256, 32000),
@@ -171,7 +172,7 @@ final class AiConfig
     /**
      * @param array<string, mixed> $env
      */
-    private static function string(array $env, string $name, string $default): string
+    private static function string(#[\SensitiveParameter] array $env, string $name, string $default): string
     {
         $value = $env[$name] ?? null;
 
@@ -185,10 +186,30 @@ final class AiConfig
     }
 
     /**
+     * The API key travels to this URL, so only https with a host is
+     * accepted when the provider uses it (anthropic); the stub ignores it.
+     */
+    private static function httpsUrl(string $value, string $name): string
+    {
+        $value = rtrim($value, '/');
+        $parts = parse_url($value);
+
+        if (
+            !is_array($parts)
+            || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
+            || (string) ($parts['host'] ?? '') === ''
+        ) {
+            throw new \InvalidArgumentException(sprintf('%s must be an https URL', $name));
+        }
+
+        return $value;
+    }
+
+    /**
      * @param array<string, mixed> $env
      * @param list<string> $allowed
      */
-    private static function choice(array $env, string $name, string $default, array $allowed): string
+    private static function choice(#[\SensitiveParameter] array $env, string $name, string $default, array $allowed): string
     {
         $value = strtolower(self::string($env, $name, $default));
 
@@ -202,7 +223,7 @@ final class AiConfig
     /**
      * @param array<string, mixed> $env
      */
-    private static function integer(array $env, string $name, int $default, int $min, int $max): int
+    private static function integer(#[\SensitiveParameter] array $env, string $name, int $default, int $min, int $max): int
     {
         $raw = self::string($env, $name, (string) $default);
 

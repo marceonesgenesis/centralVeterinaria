@@ -20,14 +20,16 @@ use CentralVet\Tests\Support\MysqlIntegrationTestCase;
  * (the last one, in unit B, is the "current" one), one prescription per
  * encounter, one exam request + result per encounter (6 results in older
  * encounters, plus one in the current encounter with a stored object).
+ * Odd encounters carry a draft prescription and an exam result pending
+ * review; even ones an issued prescription and a reviewed result (T-06).
  * Tenant B: tutor, patient and one encounter with one exam result.
  */
 final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCase
 {
     private const ENCOUNTER_KEYS = ['encounter_id', 'system_unit_id', 'patient_id', 'status', 'anamnesis_text', 'patient_name', 'tutor_name', 'species', 'breed', 'sex', 'birth_date', 'weight_kg'];
     private const HISTORY_ENCOUNTER_KEYS = ['started_at', 'anamnesis_text', 'physical_exam_text', 'diagnosis_text', 'clinical_plan_text'];
-    private const HISTORY_EXAM_KEYS = ['received_at', 'exam_name', 'result_text'];
-    private const EXAM_KEYS = ['exam_result_id', 'encounter_id', 'system_unit_id', 'patient_id', 'exam_name', 'result_text', 'received_at', 'patient_name', 'tutor_name', 'species', 'breed', 'sex', 'birth_date'];
+    private const HISTORY_EXAM_KEYS = ['received_at', 'exam_name', 'result_text', 'pending_review'];
+    private const EXAM_KEYS = ['exam_result_id', 'encounter_id', 'system_unit_id', 'patient_id', 'exam_name', 'result_text', 'received_at', 'pending_review', 'patient_name', 'tutor_name', 'species', 'breed', 'sex', 'birth_date'];
 
     private int $userId;
     private int $unitA;
@@ -129,8 +131,9 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
         }
 
         Assert::count(5, $history['prescriptions']);
-        Assert::same(['created_at', 'items'], array_keys($history['prescriptions'][0]));
+        Assert::same(['created_at', 'status', 'items'], array_keys($history['prescriptions'][0]));
         Assert::same('2031-09-06 10:00:00', $history['prescriptions'][0]['created_at']);
+        Assert::same(['issued', 'draft', 'issued', 'draft', 'issued'], array_column($history['prescriptions'], 'status'));
         Assert::same(
             ['F8A teste Amoxicilina 250 mg, oral, 12/12 h, 7 dias', 'F8A teste Dipirona 1 ml, oral, 8/8 h, 3 dias'],
             $history['prescriptions'][0]['items'],
@@ -141,7 +144,9 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
             'received_at' => '2031-09-06 15:00:00',
             'exam_name' => 'F8A teste Hemograma A',
             'result_text' => 'F8A teste resultado A 6',
+            'pending_review' => false,
         ], $history['exam_results'][0]);
+        Assert::same([false, true, false, true, false], array_column($history['exam_results'], 'pending_review'));
         foreach ($history['exam_results'] as $row) {
             Assert::same(self::HISTORY_EXAM_KEYS, array_keys($row));
         }
@@ -177,6 +182,7 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
             'exam_name' => 'F8A teste Hemograma A',
             'result_text' => 'F8A teste resultado A 7',
             'received_at' => '2031-09-07 15:00:00',
+            'pending_review' => true,
             'patient_name' => 'F8A teste Rex A',
             'tutor_name' => 'F8A teste Tutor A',
             'species' => 'canino',
@@ -185,6 +191,30 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
             'birth_date' => '2024-03-15',
         ], $context);
         Assert::same(self::EXAM_KEYS, array_keys($context));
+    }
+
+    public function testDraftPrescriptionsAndExamsPendingReviewStayInTheHistory(): void
+    {
+        $tenant = $this->createTenant('f8a-ctx-c');
+        $seeded = $this->seedTenant($tenant, 'C', 2);
+        $patient = $seeded['patient'];
+
+        $prescriptions = $this->countRows('SELECT COUNT(*) FROM prescription WHERE tenant_id = ? AND patient_id = ?', $tenant, $patient);
+        $exams = $this->countRows(
+            'SELECT COUNT(*) FROM exam_result r JOIN exam_request er ON er.id = r.exam_request_id AND er.tenant_id = r.tenant_id WHERE r.tenant_id = ? AND er.patient_id = ?',
+            $tenant,
+            $patient,
+        );
+        Assert::same(2, $prescriptions);
+        Assert::same(2, $exams);
+        Assert::same(1, $this->countRows("SELECT COUNT(*) FROM prescription WHERE tenant_id = ? AND patient_id = ? AND status = 'draft'", $tenant, $patient));
+
+        $history = $this->query($tenant)->patientHistory($patient, null);
+
+        Assert::count($prescriptions, $history['prescriptions'], 'draft prescriptions are not dropped from the history');
+        Assert::count($exams, $history['exam_results'], 'exam results pending review are not dropped from the history');
+        Assert::same(['issued', 'draft'], array_column($history['prescriptions'], 'status'));
+        Assert::same([false, true], array_column($history['exam_results'], 'pending_review'));
     }
 
     public function testExamResultOfAnotherTenantIsNull(): void
@@ -288,7 +318,7 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
                 'encounter_id' => $encounter,
                 'patient_id' => $ids['patient'],
                 'professional_system_user_id' => $this->userId,
-                'status' => 'issued',
+                'status' => $n % 2 === 1 ? 'draft' : 'issued',
                 'created_at' => sprintf('2031-09-%02d 10:00:00', $n),
             ]);
             foreach ([
@@ -321,6 +351,7 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
                 'exam_request_id' => $request,
                 'structured_result_text' => "F8A teste resultado {$suffix} {$n}",
                 'stored_object_key' => $isCurrent ? 'f8a/teste/laudo-' . $suffix . '.pdf' : null,
+                'pending_review' => $n % 2 === 1 ? 1 : 0,
                 'received_at' => sprintf('2031-09-%02d 15:00:00', $n),
             ]);
 
@@ -331,6 +362,14 @@ final class AiClinicalContextQueryIntegrationTest extends MysqlIntegrationTestCa
         }
 
         return $ids;
+    }
+
+    private function countRows(string $sql, int $tenantId, int $patientId): int
+    {
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute([$tenantId, $patientId]);
+
+        return (int) $statement->fetchColumn();
     }
 
     private function query(int $tenantId): AiClinicalContextQuery

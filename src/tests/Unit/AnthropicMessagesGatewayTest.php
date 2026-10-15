@@ -198,6 +198,38 @@ final class AnthropicMessagesGatewayTest
         Assert::same(600, $exception->usage()?->inputTokens);
     }
 
+    public function testRefusalAfterFallbackCarriesTheCostPricedPerModel(): void
+    {
+        // Requested model (opus-5-5) priced differently from the fallback
+        // (sonnet-5), as in testEachIterationUsesThePriceOfItsOwnModel.
+        $body = json_encode([
+            'model' => 'claude-sonnet-5',
+            'stop_reason' => 'refusal',
+            'content' => [],
+            'usage' => [
+                'input_tokens' => 1000,
+                'output_tokens' => 0,
+                'iterations' => [
+                    ['type' => 'message', 'input_tokens' => 1000, 'output_tokens' => 100],
+                    ['type' => 'fallback_message', 'input_tokens' => 1000, 'output_tokens' => 0],
+                ],
+            ],
+        ]);
+
+        $exception = $this->failure($this->gateway(['status' => 200, 'body' => $body, 'request_id' => null, 'error' => null], ['AI_MODEL' => 'claude-opus-5-5']));
+
+        Assert::same('ai_refused', $exception->reason());
+        // opus-5-5: 1000*4 + 100*20 = 6000; sonnet-5: 1000*2 = 2000
+        Assert::same(8000, $exception->costMicroUsd());
+    }
+
+    public function testFailureWithoutUsageCarriesNoCost(): void
+    {
+        $exception = $this->failure($this->gateway(['status' => 529, 'body' => '{"type":"error"}', 'request_id' => null, 'error' => null]));
+
+        Assert::null($exception->costMicroUsd());
+    }
+
     public function testHttpAndTransportFailuresMapToReasons(): void
     {
         $cases = [

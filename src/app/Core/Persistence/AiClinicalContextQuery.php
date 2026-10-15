@@ -73,7 +73,7 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
         $query = $this->tenantQuery('r')->andEquals('id', $examResultId, 'r');
 
         $row = $this->fetchOne(
-            "SELECT r.id, r.structured_result_text, r.received_at,
+            "SELECT r.id, r.structured_result_text, r.received_at, r.pending_review,
                     er.encounter_id, e.system_unit_id, er.patient_id, c.name AS exam_name,
                     p.name AS patient_name, t.full_name AS tutor_name, p.species, p.breed, p.sex, p.birth_date
                FROM exam_result r
@@ -99,6 +99,7 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
             'exam_name' => (string) $row['exam_name'],
             'result_text' => self::nullableString($row['structured_result_text']),
             'received_at' => self::dateTime($row['received_at']),
+            'pending_review' => (int) $row['pending_review'] === 1,
             ...self::patientFields($row),
         ];
     }
@@ -127,14 +128,18 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
         ], $rows);
     }
 
-    /** @return list<array{created_at: string, items: list<string>}> */
+    /**
+     * Drafts are kept (the prompt marks them as provisional).
+     *
+     * @return list<array{created_at: string, status: string, items: list<string>}>
+     */
     private function historyPrescriptions(int $patientId, ?int $excludeEncounterId): array
     {
         $query = $this->tenantQuery('pr')->andEquals('patient_id', $patientId, 'pr');
         [$exclude, $parameters] = $this->excludeEncounter('pr.encounter_id', $excludeEncounterId, $query->parameters());
 
         $prescriptions = $this->fetchAll(
-            "SELECT pr.id, pr.created_at
+            "SELECT pr.id, pr.created_at, pr.status
                FROM prescription pr
               WHERE {$query->whereSql()}{$exclude}
               ORDER BY pr.created_at DESC, pr.id DESC
@@ -155,6 +160,7 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
 
             $history[] = [
                 'created_at' => self::dateTime($prescription['created_at']),
+                'status' => (string) $prescription['status'],
                 'items' => array_map(static fn (array $item): string => sprintf(
                     '%s %s %s, %s, %s, %s',
                     $item['medication_name'],
@@ -170,14 +176,18 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
         return $history;
     }
 
-    /** @return list<array{received_at: string, exam_name: string, result_text: ?string}> */
+    /**
+     * Results pending review are kept (the prompt marks them as not validated).
+     *
+     * @return list<array{received_at: string, exam_name: string, result_text: ?string, pending_review: bool}>
+     */
     private function historyExamResults(int $patientId, ?int $excludeEncounterId): array
     {
         $query = $this->tenantQuery('er')->andEquals('patient_id', $patientId, 'er');
         [$exclude, $parameters] = $this->excludeEncounter('er.encounter_id', $excludeEncounterId, $query->parameters());
 
         $rows = $this->fetchAll(
-            "SELECT r.received_at, c.name AS exam_name, r.structured_result_text
+            "SELECT r.received_at, c.name AS exam_name, r.structured_result_text, r.pending_review
                FROM exam_request er
                JOIN exam_result r ON r.exam_request_id = er.id AND r.tenant_id = er.tenant_id
                JOIN exam_catalog_item c ON c.id = er.exam_catalog_item_id AND c.tenant_id = er.tenant_id
@@ -191,6 +201,7 @@ final class AiClinicalContextQuery implements AiClinicalContextQueryInterface
             'received_at' => self::dateTime($row['received_at']),
             'exam_name' => (string) $row['exam_name'],
             'result_text' => self::nullableString($row['structured_result_text']),
+            'pending_review' => (int) $row['pending_review'] === 1,
         ], $rows);
     }
 

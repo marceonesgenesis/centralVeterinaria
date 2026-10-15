@@ -13,8 +13,11 @@ use CentralVet\Domain\AiTerms;
 use CentralVet\Domain\AiUsage;
 use CentralVet\Domain\Exception\AiInteractionNotFoundException;
 use CentralVet\Domain\Exception\AiProviderException;
+use CentralVet\Domain\Exception\AiSubjectNotFoundException;
 use CentralVet\Domain\Exception\AiUnavailableException;
+use CentralVet\Presentation\UserMessage;
 use CentralVet\Tests\Support\Assert;
+use DomainException;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -190,9 +193,9 @@ final class AiDomainTest
 
         $setting->acceptTerms(AiTerms::VERSION, 5, new DateTimeImmutable('2026-10-07 09:00:00'));
 
-        Assert::true($setting->hasAcceptedTerms('2026-10-v1'));
-        Assert::false($setting->hasAcceptedTerms('2027-01-v2'));
-        Assert::same('2026-10-v1', $setting->termsVersion());
+        Assert::true($setting->hasAcceptedTerms(AiTerms::VERSION));
+        Assert::false($setting->hasAcceptedTerms('2027-01-v3'));
+        Assert::same(AiTerms::VERSION, $setting->termsVersion());
 
         $setting->changeQuota(50000);
         Assert::same(50000, $setting->monthlyTokenQuota());
@@ -209,6 +212,25 @@ final class AiDomainTest
         Assert::same($en, AiTerms::text('es'));
     }
 
+    /** T-04 (8A pendências): a declaração do ditado entra no termo versionado. */
+    public function testTermsV2CarriesTheDictationDeclaration(): void
+    {
+        Assert::same('2026-10-v2', AiTerms::VERSION);
+        Assert::true(str_ends_with(AiTerms::text('pt'), ' O ditado por voz usa o reconhecimento de voz do navegador (ex.: Google, Apple, Microsoft): o áudio é enviado a esse serviço, não ao Central Vet; quem preferir pode digitar o texto.'));
+        Assert::true(str_ends_with(AiTerms::text('en'), ' Voice dictation uses the speech recognition of the browser (e.g. Google, Apple, Microsoft): the audio is sent to that service, not to Central Vet; anyone who prefers can type the text.'));
+        Assert::stringContains('o áudio é enviado a esse serviço', AiTerms::text('pt'));
+        Assert::stringContains('the audio is sent to that service', AiTerms::text('en'));
+    }
+
+    /** T-04: quem aceitou a v1 precisa reaceitar a versão atual. */
+    public function testTenantWithTermsV1AcceptedHasNotAcceptedTheCurrentVersion(): void
+    {
+        $setting = AiTenantSetting::defaults(1);
+        $setting->acceptTerms('2026-10-v1', 5, new DateTimeImmutable('2026-10-07 09:00:00'));
+
+        Assert::false($setting->hasAcceptedTerms(AiTerms::VERSION));
+    }
+
     public function testExceptionsCarryOnlyReasonCodes(): void
     {
         $unavailable = new AiUnavailableException('ai_quota_exceeded');
@@ -223,6 +245,22 @@ final class AiDomainTest
         Assert::same('claude-sonnet-5-5', $provider->model());
 
         Assert::same('AI suggestion not found', (new AiInteractionNotFoundException())->getMessage());
+    }
+
+    /** T-12 (8A pendências): o provedor aceita exatamente os mesmos códigos que o serviço expõe. */
+    public function testProviderReasonsEqualUnavailableReasons(): void
+    {
+        Assert::same(AiUnavailableException::REASONS, AiProviderException::REASONS);
+    }
+
+    /** T-12: sujeito ausente ou fora do tenant/unidade tem uma única mensagem, traduzível e sem id. */
+    public function testSubjectNotFoundCarriesOneTranslatableMessage(): void
+    {
+        $exception = new AiSubjectNotFoundException();
+
+        Assert::true($exception instanceof DomainException);
+        Assert::same('AI subject not found', $exception->getMessage());
+        Assert::same(['key' => 'AI subject not found', 'params' => []], UserMessage::resolve($exception->getMessage()));
     }
 
     private static function start(string $purpose): AiInteraction

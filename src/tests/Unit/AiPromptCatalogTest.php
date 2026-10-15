@@ -30,7 +30,7 @@ final class AiPromptCatalogTest
 
         Assert::instanceOf(AiCompletionRequest::class, $request);
         Assert::same('anamnesis_organize', $request->purpose);
-        Assert::same('anamnesis_organize.v1', $request->promptVersion);
+        Assert::same('anamnesis_organize.v2', $request->promptVersion);
 
         foreach (['F8A teste', 'Tutor', 'Paciente', 'f8a.teste@example.invalid', '98765-4321', '123.456.789-09'] as $leak) {
             Assert::false(str_contains($request->userContent, $leak), "userContent leaks '{$leak}'");
@@ -88,7 +88,7 @@ final class AiPromptCatalogTest
             new DateTimeImmutable(self::TODAY),
         );
 
-        Assert::same('patient_summary.v1', $request->promptVersion);
+        Assert::same('patient_summary.v2', $request->promptVersion);
         foreach (['F8A', 'teste', 'TESTE', 'Tutor', 'Paciente', 'Paciénte', '11987654321', 'tutor@example.invalid'] as $leak) {
             Assert::false(str_contains($request->userContent, $leak), "userContent leaks '{$leak}'");
         }
@@ -123,7 +123,7 @@ final class AiPromptCatalogTest
         );
 
         Assert::same('exam_summary', $request->purpose);
-        Assert::same('exam_summary.v1', $request->promptVersion);
+        Assert::same('exam_summary.v2', $request->promptVersion);
         Assert::stringContains('Creatinina 2.8 mg/dL (ref 0.5-1.5)', $request->userContent);
         Assert::stringContains('Bioquímica', $request->userContent);
         Assert::stringContains('10 anos e 8 meses', $request->userContent);
@@ -137,9 +137,9 @@ final class AiPromptCatalogTest
 
     public function testVersionsOfTheThreePurposes(): void
     {
-        Assert::same('patient_summary.v1', AiPromptCatalog::version('patient_summary'));
-        Assert::same('anamnesis_organize.v1', AiPromptCatalog::version('anamnesis_organize'));
-        Assert::same('exam_summary.v1', AiPromptCatalog::version('exam_summary'));
+        Assert::same('patient_summary.v2', AiPromptCatalog::version('patient_summary'));
+        Assert::same('anamnesis_organize.v2', AiPromptCatalog::version('anamnesis_organize'));
+        Assert::same('exam_summary.v2', AiPromptCatalog::version('exam_summary'));
     }
 
     public function testEnglishLocaleUsesEnglishSystemPrompt(): void
@@ -153,7 +153,98 @@ final class AiPromptCatalogTest
         Assert::stringContains('in English', $en->system);
         Assert::false(str_contains($en->system, 'Queixa principal'), 'en system prompt must be in English');
         Assert::stringContains('Species', $en->userContent);
-        Assert::same('anamnesis_organize.v1', $en->promptVersion);
+        Assert::same('anamnesis_organize.v2', $en->promptVersion);
+    }
+
+    public function testPatientSummaryMarksDraftPrescriptionsAndUnreviewedExams(): void
+    {
+        $history = [
+            'encounters' => [],
+            'prescriptions' => [
+                ['created_at' => '2026-09-03 10:00:00', 'status' => 'draft', 'items' => ['Meloxicam 0.1 mg/kg, oral, 24/24 h, 3 dias']],
+                ['created_at' => '2026-09-01 10:00:00', 'status' => 'issued', 'items' => ['Prednisolona 5 mg, oral, 24/24 h, 5 dias']],
+            ],
+            'exam_results' => [
+                ['received_at' => '2026-09-04 08:00:00', 'exam_name' => 'Bioquímica', 'result_text' => 'Creatinina 2.8 mg/dL.', 'pending_review' => true],
+                ['received_at' => '2026-09-02 08:00:00', 'exam_name' => 'Hemograma', 'result_text' => 'Hematócrito 45%.', 'pending_review' => false],
+            ],
+        ];
+
+        $pt = AiPromptCatalog::build('patient_summary', ['encounter' => $this->encounter(), 'history' => $history], 'pt', new DateTimeImmutable(self::TODAY));
+        $lines = explode("\n", $pt->userContent);
+
+        Assert::true(in_array('- Prescrição de 2026-09-03 (rascunho, não emitida — provisória)', $lines, true), 'draft prescription is marked as provisional');
+        Assert::true(in_array('- Prescrição de 2026-09-01', $lines, true), 'issued prescription has no mark');
+        Assert::true(in_array('- Bioquímica (2026-09-04) (pendente de revisão — não validado): Creatinina 2.8 mg/dL.', $lines, true), 'exam pending review is marked as not validated');
+        Assert::true(in_array('- Hemograma (2026-09-02): Hematócrito 45%.', $lines, true), 'reviewed exam has no mark');
+        Assert::same(1, substr_count($pt->userContent, '(rascunho, não emitida — provisória)'));
+        Assert::same(1, substr_count($pt->userContent, '(pendente de revisão — não validado)'));
+        Assert::stringContains('- Itens marcados como provisórios ou não validados podem mudar: cite-os como tal e não os trate como confirmados.', $pt->system);
+
+        $en = AiPromptCatalog::build('patient_summary', ['encounter' => $this->encounter(), 'history' => $history], 'en', new DateTimeImmutable(self::TODAY));
+        Assert::stringContains('(draft, not issued — provisional)', $en->userContent);
+        Assert::stringContains('(pending review — not validated)', $en->userContent);
+        Assert::stringContains('- Items marked as provisional or not validated may change: mention them as such and do not treat them as confirmed.', $en->system);
+        Assert::false(str_contains($en->userContent, 'rascunho'), 'en prompt uses the en labels');
+    }
+
+    public function testExamSummaryMarksAReportPendingReview(): void
+    {
+        $exam = [
+            'exam_name' => 'Bioquímica',
+            'result_text' => 'Creatinina 2.8 mg/dL.',
+            'received_at' => '2026-10-06 09:00:00',
+            'pending_review' => true,
+            'patient_name' => 'F8A teste Paciente',
+            'tutor_name' => 'F8A teste Tutor',
+            'species' => 'Felina',
+            'breed' => null,
+            'sex' => 'F',
+            'birth_date' => '2016-01-15',
+        ];
+
+        $pending = AiPromptCatalog::build('exam_summary', ['exam' => $exam], 'pt', new DateTimeImmutable(self::TODAY));
+        Assert::true(in_array('Exame: Bioquímica (pendente de revisão — não validado)', explode("\n", $pending->userContent), true), 'report pending review is marked');
+
+        $reviewed = AiPromptCatalog::build('exam_summary', ['exam' => ['pending_review' => false] + $exam], 'pt', new DateTimeImmutable(self::TODAY));
+        Assert::true(in_array('Exame: Bioquímica', explode("\n", $reviewed->userContent), true), 'reviewed report has no mark');
+        Assert::false(str_contains($reviewed->userContent, 'não validado'), 'reviewed report has no mark');
+    }
+
+    /**
+     * Locks text and version together: changing a system prompt without
+     * bumping its version (and this map) fails here.
+     */
+    public function testPromptTextIsPinnedToItsVersion(): void
+    {
+        $pinned = [
+            'patient_summary.v2' => [
+                'pt' => 'df86a8bafc258533823e56f29ebe85c13c8941cdb890628384e6f66671fbdd97',
+                'en' => '0996bddb362e1ceca5466fa977c905d1f3079e5994fc3905adfdf67fd9222c79',
+            ],
+            'anamnesis_organize.v2' => [
+                'pt' => '48f304c2288b6d00501dfa2850c6c79b9eec39f2e085ba3e748063e7e0d58d0f',
+                'en' => 'a21cffc4a39f879db1a6ec9c9963cfbfc2703f8fefd6c7277f52669d7b563ed7',
+            ],
+            'exam_summary.v2' => [
+                'pt' => 'da623781e0e18d4ae14dc14cbf87542a6612141639f92e286cdba8f0b54582c4',
+                'en' => 'be799f09c82f0cd22b3bf62a4b8d40a519ecf0ee4de80b602b744979aea94c63',
+            ],
+        ];
+        $contexts = [
+            'patient_summary' => ['encounter' => $this->encounter(), 'history' => []],
+            'anamnesis_organize' => ['encounter' => $this->encounter(), 'free_text' => 'Tosse.'],
+            'exam_summary' => ['exam' => ['exam_name' => 'Hemograma'] + $this->encounter()],
+        ];
+
+        Assert::same(array_keys($pinned), array_values(AiPromptCatalog::VERSIONS));
+        foreach (AiPromptCatalog::VERSIONS as $purpose => $version) {
+            foreach (['pt', 'en'] as $lang) {
+                $request = AiPromptCatalog::build($purpose, $contexts[$purpose], $lang, new DateTimeImmutable(self::TODAY));
+                Assert::same($version, $request->promptVersion);
+                Assert::same($pinned[$version][$lang], hash('sha256', $request->system), "{$version}/{$lang}: prompt text changed; bump the version and this map");
+            }
+        }
     }
 
     public function testUnknownPurposeThrows(): void

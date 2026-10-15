@@ -190,8 +190,12 @@ final class AiInteraction
         $this->latencyMs = max(0, $latencyMs);
     }
 
-    /** Cost is computed from the partial usage when the provider answered with a known model. */
-    public function recordFailure(string $errorCode, int $latencyMs, ?AiUsage $usage, ?string $model, string $provider): void
+    /**
+     * A cost already priced by the gateway (per attempt/model after a fallback)
+     * wins; otherwise it is computed from the partial usage when the provider
+     * answered with a known model.
+     */
+    public function recordFailure(string $errorCode, int $latencyMs, ?AiUsage $usage, ?string $model, string $provider, ?int $costMicroUsd = null): void
     {
         $this->assertAwaitingProvider();
 
@@ -204,7 +208,7 @@ final class AiInteraction
         $this->provider = $provider;
         $this->model = $model;
         $this->usage = $usage ?? AiUsage::none();
-        $this->costMicroUsd = ($usage !== null && $model !== null) ? AiModelPricing::costMicroUsd($model, $usage) : null;
+        $this->costMicroUsd = $costMicroUsd ?? (($usage !== null && $model !== null) ? AiModelPricing::costMicroUsd($model, $usage) : null);
         $this->latencyMs = max(0, $latencyMs);
     }
 

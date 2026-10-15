@@ -225,8 +225,8 @@ class AiSettingsForm extends TPage
     }
 
     /**
-     * Termo do idioma da sessão (rolável) + declaração do ditado e a
-     * situação do aceite.
+     * Termo do idioma da sessão (rolável; a declaração do ditado faz parte
+     * do texto versionado) e a situação do aceite.
      *
      * @param array<string, mixed> $overview
      */
@@ -242,7 +242,6 @@ class AiSettingsForm extends TPage
         $scroll->{'aria-label'} = _t('AI terms of use');
         $scroll->style = 'max-height: 12rem; overflow-y: auto';
         $scroll->add(TElement::tag('p', CvFormat::e(\CentralVet\Domain\AiTerms::text(self::locale()))));
-        $scroll->add(TElement::tag('p', CvFormat::e(_t('Voice dictation uses the speech recognition of your browser (e.g. Google, Apple, Microsoft): the audio is sent to that service, not to Central Vet. If you prefer, type the text.'))));
         $body->add($scroll);
 
         $version = $overview['terms_version'];
@@ -337,7 +336,7 @@ class AiSettingsForm extends TPage
 
     private static function locale(): string
     {
-        return str_starts_with((string) ApplicationTranslator::getLanguage(), 'pt') ? 'pt' : 'en';
+        return \CentralVet\Ai\AiLocale::fromLanguage(ApplicationTranslator::getLanguage());
     }
 
     /** cv-card com cabeçalho; get(1) é o corpo. */

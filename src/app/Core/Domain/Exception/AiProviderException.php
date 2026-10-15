@@ -10,8 +10,9 @@ use RuntimeException;
 
 /**
  * Failure reported by an AI gateway. Carries only the reason code, the
- * HTTP status and, when the provider answered, the usage and model so the
- * cost of a failed call is still recorded. Never the request or response
+ * HTTP status and, when the provider answered, the usage, the model and the
+ * cost (priced per attempt/model by the gateway) so the cost of a failed call
+ * is still recorded. Never the request or response
  * body, nor any header.
  */
 final class AiProviderException extends RuntimeException
@@ -26,6 +27,7 @@ final class AiProviderException extends RuntimeException
         private readonly ?int $httpStatus = null,
         private readonly ?AiUsage $usage = null,
         private readonly ?string $model = null,
+        private readonly ?int $costMicroUsd = null,
     ) {
         if (!in_array($reason, self::REASONS, true)) {
             throw new InvalidArgumentException('Unknown AI provider failure reason');
@@ -53,5 +55,11 @@ final class AiProviderException extends RuntimeException
     public function model(): ?string
     {
         return $this->model;
+    }
+
+    /** Cost already priced per iteration/model by the gateway; null when unknown. */
+    public function costMicroUsd(): ?int
+    {
+        return $this->costMicroUsd;
     }
 }

@@ -16,7 +16,7 @@ use CentralVet\Domain\Exception\AiProviderException;
  * Adapter for the Anthropic Messages API (POST /v1/messages, no streaming)
  * over curl. One call per request, short timeouts and no retry: every
  * failure becomes an AiProviderException carrying only a reason code, the
- * HTTP status and, after a 200, the usage and model.
+ * HTTP status and, after a 200, the usage, model and per-model cost.
  *
  * Nothing here is logged: neither headers, request/response bodies nor the
  * API key.
@@ -123,17 +123,17 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
         $stopReason = is_string($data['stop_reason'] ?? null) ? $data['stop_reason'] : '';
 
         if ($stopReason === 'refusal') {
-            throw new AiProviderException('ai_refused', $status, $usage, $model);
+            throw new AiProviderException('ai_refused', $status, $usage, $model, $cost);
         }
 
         if ($stopReason === 'max_tokens') {
-            throw new AiProviderException('ai_truncated', $status, $usage, $model);
+            throw new AiProviderException('ai_truncated', $status, $usage, $model, $cost);
         }
 
         $text = self::text($data['content'] ?? null);
 
         if (!in_array($stopReason, ['end_turn', 'stop_sequence'], true) || trim($text) === '') {
-            throw new AiProviderException('ai_provider_error', $status, $usage, $model);
+            throw new AiProviderException('ai_provider_error', $status, $usage, $model, $cost);
         }
 
         $requestId = $response['request_id'] ?? null;

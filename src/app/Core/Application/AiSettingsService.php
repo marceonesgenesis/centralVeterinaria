@@ -170,10 +170,11 @@ final class AiSettingsService
             throw new InvalidArgumentException('Invalid monthly token quota');
         }
 
-        $setting = $this->setting();
+        $stored = $this->settings->find();
+        $setting = $stored ?? AiTenantSetting::defaults($this->context->tenantId());
         $before = $setting->monthlyTokenQuota();
 
-        if ($before === $tokens && $this->settings->find() !== null) {
+        if ($before === $tokens && $stored !== null) {
             return;
         }
 
@@ -201,11 +202,17 @@ final class AiSettingsService
         return $this->settings->find() ?? AiTenantSetting::defaults($this->context->tenantId());
     }
 
+    /**
+     * First day of the current month at 00:00 in the application timezone
+     * (`date_default_timezone_get()`, i.e. APP_TIMEZONE), the same cut used by
+     * AiAssistService for the quota; assumes the MySQL session runs in it.
+     */
     private function monthStart(): DateTimeImmutable
     {
-        $now = ($this->clock)()->setTimezone(new DateTimeZone('UTC'));
-
-        return $now->setDate((int) $now->format('Y'), (int) $now->format('n'), 1)->setTime(0, 0);
+        return ($this->clock)()
+            ->setTimezone(new DateTimeZone(date_default_timezone_get()))
+            ->modify('first day of this month')
+            ->setTime(0, 0);
     }
 
     private function authorize(string $action): void
