@@ -38,6 +38,17 @@ class ExamResultForm extends TPage
     protected $form;
 
     /**
+     * T-15 (Fase 8A): saved result shown read-only with the AI exam summary
+     * panel. Null when the screen is recording a new result (legacy form).
+     *
+     * @var array{result_id: int, text: string, available: bool, latest: ?\CentralVet\Domain\AiInteraction}|null
+     */
+    private ?array $aiState = null;
+
+    /** Container re-rendered by onAiExamSummary()/onAiDecide(). */
+    private ?TElement $aiBox = null;
+
+    /**
      * Page constructor.
      */
     public function __construct($param = null)
@@ -45,6 +56,7 @@ class ExamResultForm extends TPage
         parent::__construct();
 
         $requestId = self::paramInt('exam_request_id', $param);
+        $resultId = self::paramInt('exam_result_id', $param);
         $encounterId = self::paramInt('encounter_id', $param);
 
         $container = new TVBox;
@@ -53,6 +65,25 @@ class ExamResultForm extends TPage
             'icon' => 'fa:arrow-left',
             'href' => self::returnUrl($encounterId),
         ]]));
+
+        // T-15: an already recorded result (exam_result_id, or the request of
+        // a pending-review item) is shown read-only with the AI panel; the
+        // record form below is only for a request still without a result.
+        if ($requestId !== null || $resultId !== null)
+        {
+            $this->aiState = self::loadSavedResult($requestId, $resultId);
+        }
+
+        if ($this->aiState !== null)
+        {
+            $container->add($this->savedResultPanel());
+            $this->aiBox = new TElement('div');
+            $this->aiBox->{'id'} = 'exam_result_ai_' . $this->aiState['result_id'];
+            $this->renderAiPanel(null);
+            $container->add($this->aiBox);
+            parent::add($container);
+            return;
+        }
 
         if ($requestId === null)
         {
@@ -240,6 +271,333 @@ class ExamResultForm extends TPage
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
+    }
+
+    /**
+     * T-15: asks the AI for a summary of the saved exam result and shows it
+     * for review (accept, save edit or discard). Nothing is written to
+     * exam_result or exam_request: the suggestion lives only in
+     * ai_interaction. Any failure becomes a warning and the screen goes on.
+     * AiUnavailableException (disabled, quota, timeout, refusal...) commits,
+     * like EncounterView: the failed interaction, its audit and its tokens
+     * stay recorded; only unexpected exceptions roll back.
+     */
+    public function onAiExamSummary($param)
+    {
+        $opened = false;
+
+        try
+        {
+            $examResultId = self::requiredInt($param, 'exam_result_id');
+            $this->assertSameResult($examResultId);
+
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $opened = true;
+            $assistant = self::makeAiAssistant($context);
+            $suggestion = $assistant->summarizeExamResult($examResultId);
+            TTransaction::close();
+            $opened = false;
+
+            $this->renderAiPanel($suggestion);
+        }
+        catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
+        {
+            if ($opened)
+            {
+                TTransaction::close();
+            }
+
+            error_log(__METHOD__ . ': ' . get_class($e) . ' ' . $e->reason());
+            new TMessage('warning', CvFormat::userError($e));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+            new TMessage('warning', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * T-15: records the professional decision on an exam summary
+     * (accepted, edited or discarded). The accepted/edited text is kept only
+     * in ai_interaction.final_text; the original result is never changed.
+     * An interaction of another exam (or another purpose) is reported as
+     * "AI suggestion not found", same as a missing one.
+     */
+    public function onAiDecide($param)
+    {
+        try
+        {
+            $examResultId = self::requiredInt($param, 'exam_result_id');
+            $interactionId = self::requiredInt($param, 'interaction_id');
+            $decision = isset($param['decision']) ? (string) $param['decision'] : '';
+            $finalText = isset($param['ai_final_text']) ? (string) $param['ai_final_text'] : null;
+            $this->assertSameResult($examResultId);
+
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $connection = TTransaction::get();
+
+            $interaction = (new \CentralVet\Persistence\AiInteractionRepository($context, $connection))->find($interactionId);
+
+            if ($interaction === null
+                || $interaction->purpose() !== \CentralVet\Domain\AiPurpose::EXAM_SUMMARY
+                || $interaction->subjectId() !== $examResultId)
+            {
+                throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
+            }
+
+            $decided = self::makeAiAssistant($context)->decide($interactionId, $decision, $finalText);
+            TTransaction::close();
+
+            if ($this->aiState !== null)
+            {
+                $this->aiState['latest'] = $decided->finalText() !== null ? $decided : $this->aiState['latest'];
+                $this->renderAiPanel(null);
+            }
+
+            TToast::show('success', $decided->status() === \CentralVet\Domain\AiInteraction::STATUS_DISCARDED
+                ? _t('AI suggestion discarded')
+                : _t('AI summary saved'));
+        }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            // decision on an interaction of another unit: same answer as a missing one
+            TTransaction::rollback();
+            new TMessage('warning', CvFormat::userError(new \CentralVet\Domain\Exception\AiInteractionNotFoundException()));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+            new TMessage('warning', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Loads the saved result (by id, or by its exam request) plus the AI
+     * availability and the latest reviewed summary. Null when there is no
+     * saved result or it cannot be read (the legacy form is shown instead).
+     *
+     * @return array{result_id: int, text: string, available: bool, latest: ?\CentralVet\Domain\AiInteraction}|null
+     */
+    private static function loadSavedResult(?int $requestId, ?int $resultId): ?array
+    {
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $connection = TTransaction::get();
+            $results = new \CentralVet\Persistence\ExamResultRepository($context, $connection);
+            $result = $resultId !== null ? $results->findById($resultId) : $results->findByExamRequest((int) $requestId);
+
+            if (!$result instanceof \CentralVet\Domain\ExamResult || $result->id() === null)
+            {
+                TTransaction::close();
+                return null;
+            }
+
+            $state = [
+                'result_id' => (int) $result->id(),
+                'text' => (string) $result->structuredResultText(),
+                'available' => false,
+                'latest' => null,
+            ];
+
+            if (trim($state['text']) !== '')
+            {
+                try
+                {
+                    $assistant = self::makeAiAssistant($context);
+                    $state['available'] = $assistant->isAvailable();
+                    $state['latest'] = $state['available']
+                        ? $assistant->latestDecided(\CentralVet\Domain\AiPurpose::EXAM_SUMMARY, $state['result_id'])
+                        : null;
+                }
+                catch (Exception $e)
+                {
+                    // AI unavailable (not configured, no active unit): hide the panel
+                    error_log(__METHOD__ . ': ' . get_class($e));
+                    $state['available'] = false;
+                    $state['latest'] = null;
+                }
+            }
+
+            TTransaction::close();
+
+            return $state;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+
+            return null;
+        }
+    }
+
+    /** Original result, read-only (the AI flow never changes it). */
+    private function savedResultPanel(): TPanelGroup
+    {
+        $panel = new TPanelGroup(_t('Exam result') . ' #' . $this->aiState['result_id']);
+        $panel->class = 'cv-section';
+
+        $label = new TLabel(_t('Structured result'));
+        $panel->add($label);
+
+        $text = $this->aiState['text'];
+        $panel->add(trim($text) !== ''
+            ? '<p class="cv-exam-result-text" style="text-align:left">' . nl2br(CvFormat::e($text)) . '</p>'
+            : '<p class="text-muted" style="text-align:left">' . CvFormat::e(_t('No structured result (attachment only)')) . '</p>');
+
+        return $panel;
+    }
+
+    /**
+     * (Re)builds the AI panel: the pending suggestion under review, or the
+     * latest reviewed summary with its origin seal, plus the "Summarize
+     * exam" action. Hidden when the AI is off/unavailable or the result has
+     * no structured text. Every text is escaped.
+     */
+    private function renderAiPanel(?\CentralVet\Domain\AiSuggestion $pending): void
+    {
+        if ($this->aiBox === null || $this->aiState === null)
+        {
+            return;
+        }
+
+        $this->aiBox->clearChildren();
+
+        if (!$this->aiState['available'] || trim($this->aiState['text']) === '')
+        {
+            return;
+        }
+
+        $resultId = $this->aiState['result_id'];
+
+        $panel = new TElement('section');
+        $panel->{'class'} = 'cv-ai-panel';
+        $panel->{'aria-label'} = _t('AI exam summary');
+        $panel->add(TElement::tag('h4', CvFormat::e(_t('AI exam summary')), ['style' => 'text-align:left;margin:0']));
+
+        if ($pending !== null)
+        {
+            $panel->add($this->suggestionForm($resultId, $pending));
+        }
+        else
+        {
+            $latest = $this->aiState['latest'];
+
+            if ($latest !== null && $latest->finalText() !== null)
+            {
+                $reviewedAt = $latest->decidedAt();
+                $panel->add('<span class="cv-ai-origin"><i class="fa fa-robot" aria-hidden="true"></i> '
+                    . CvFormat::e(_t('AI-generated summary, reviewed on ^1', $reviewedAt !== null ? $reviewedAt->format('d/m/Y H:i') : '—'))
+                    . '</span>');
+                $panel->add('<div class="cv-ai-summary" style="text-align:left">' . nl2br(CvFormat::e($latest->finalText())) . '</div>');
+                $panel->add('<p class="text-muted" style="text-align:left;margin:0">' . CvFormat::e(_t('The original result was not changed')) . '</p>');
+            }
+
+            $panel->add('<div class="cv-ai-actions">'
+                . '<a class="btn btn-default cv-touch-target" generator="adianti" href="index.php?class=ExamResultForm&amp;method=onAiExamSummary&amp;exam_result_id=' . $resultId . '">'
+                . '<i class="fa fa-wand-magic-sparkles" aria-hidden="true"></i> ' . CvFormat::e(_t('Summarize exam')) . '</a>'
+                . '<span class="cv-ai-status" role="status" aria-live="polite"></span>'
+                . '</div>');
+        }
+
+        $this->aiBox->add($panel);
+    }
+
+    /** Editable suggestion with Accept, Save edit and Discard (POST to onAiDecide). */
+    private function suggestionForm(int $resultId, \CentralVet\Domain\AiSuggestion $suggestion): TForm
+    {
+        $form = new TForm('form_ExamResultAi_' . $resultId);
+
+        $examResultField = new THidden('exam_result_id');
+        $examResultField->setValue($resultId);
+        $interactionField = new THidden('interaction_id');
+        $interactionField->setValue($suggestion->interactionId);
+
+        $finalText = new TText('ai_final_text');
+        $finalText->setId('ai_final_text_' . $resultId);
+        $finalText->setSize('100%', 160);
+        $finalText->setValue($suggestion->text);
+
+        $label = new TLabel(_t('Suggested summary (review before saving)'));
+        $label->{'for'} = 'ai_final_text_' . $resultId;
+
+        $buttons = [];
+        foreach ([
+            ['accepted', _t('Accept'), 'fa:check', 'btn btn-primary cv-touch-target'],
+            ['edited', _t('Save edit'), 'fa:save', 'btn btn-default cv-touch-target'],
+            ['discarded', _t('Discard'), 'fa:times', 'btn btn-default cv-touch-target'],
+        ] as [$decision, $text, $icon, $class])
+        {
+            $action = new TAction([$this, 'onAiDecide']);
+            $action->setParameter('decision', $decision);
+
+            $button = new TButton('ai_decide_' . $decision);
+            $button->setAction($action, $text);
+            $button->setImage($icon);
+            $button->{'class'} = $class;
+            $buttons[] = $button;
+        }
+
+        $actions = new TElement('div');
+        $actions->{'class'} = 'cv-ai-actions';
+        foreach ($buttons as $button)
+        {
+            $actions->add($button);
+        }
+        $actions->add('<span class="cv-ai-status" role="status" aria-live="polite"></span>');
+
+        $body = new TElement('div');
+        $body->{'style'} = 'display:flex;flex-direction:column;gap:8px;text-align:left';
+        $body->add('<span class="cv-ai-origin"><i class="fa fa-robot" aria-hidden="true"></i> ' . CvFormat::e(_t('AI suggestion')) . '</span>');
+        $body->add($examResultField);
+        $body->add($interactionField);
+        $body->add($label);
+        $body->add($finalText);
+        $body->add($actions);
+
+        $form->add($body);
+        $form->setFields(array_merge([$examResultField, $interactionField, $finalText], $buttons));
+
+        return $form;
+    }
+
+    /** The AI routes act only on the result this page was opened for. */
+    private function assertSameResult(int $examResultId): void
+    {
+        if ($this->aiState === null || $this->aiState['result_id'] !== $examResultId)
+        {
+            throw new \CentralVet\Domain\Exception\AiSubjectNotFoundException();
+        }
+    }
+
+    private static function requiredInt($param, string $name): int
+    {
+        $value = is_array($param) && isset($param[$name]) ? (int) $param[$name] : 0;
+
+        if ($value <= 0)
+        {
+            throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
+        }
+
+        return $value;
+    }
+
+    /** AiAssistService (T-11) on the open TTransaction('permission') connection. */
+    private static function makeAiAssistant(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\AiAssistService
+    {
+        $locale = str_starts_with((string) ApplicationTranslator::getLanguage(), 'pt') ? 'pt' : 'en';
+
+        return \CentralVet\Application\AiAssistService::forContext($context, TTransaction::get(), $locale);
     }
 
     /**

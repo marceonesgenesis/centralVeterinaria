@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(73, UserMessage::STATIC);
-        Assert::count(93, UserMessage::PATTERNS);
+        Assert::count(78, UserMessage::STATIC);
+        Assert::count(106, UserMessage::PATTERNS);
 
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($message, $key);
@@ -441,6 +441,65 @@ final class UserMessageTest
             'Medical certificate', 'Vaccination card', 'Prescription', 'Surgery consent',
         ];
         self::assertScreenKeysTranslated($keys, ['Document*.php', 'PrescriptionForm.php', 'PatientForm.php', 'VaccinationCardView.php', 'SurgeryView.php'], 8);
+    }
+
+    public function testAiUnavailableReasonsResolveToTranslatedMessagesWithoutCodes(): void
+    {
+        // Fase 8A, T-17: os 13 motivos de AiUnavailableException viram aviso traduzido, sem o código cru.
+        $translations = self::translations();
+        $keys = [];
+
+        foreach (\CentralVet\Domain\Exception\AiUnavailableException::REASONS as $reason) {
+            $message = (new \CentralVet\Domain\Exception\AiUnavailableException($reason))->getMessage();
+            $resolved = UserMessage::resolve($message);
+            Assert::true($resolved !== null, "AI reason not catalogued: {$reason}");
+            Assert::same([], $resolved['params'], "AI reason must not carry params: {$reason}");
+            Assert::true(!str_contains($resolved['key'], 'ai_'), "AI key must not show the reason code: {$reason}");
+            $pt = $translations[$resolved['key']] ?? '';
+            Assert::true($pt !== '' && $pt !== $resolved['key'] && !str_contains($pt, '_'), "Missing Portuguese translation for AI reason: {$reason}");
+            $keys[] = $resolved['key'];
+        }
+
+        Assert::count(13, array_unique($keys));
+        Assert::same(
+            'O assistente de IA está desligado para esta clínica.',
+            $translations[UserMessage::resolve('AI assistant is unavailable: ai_disabled')['key'] ?? ''] ?? null,
+        );
+        Assert::same(
+            'A IA não respondeu a tempo. Continue manualmente e tente de novo mais tarde.',
+            $translations[UserMessage::resolve('AI assistant is unavailable: ai_timeout')['key'] ?? ''] ?? null,
+        );
+        Assert::same(null, UserMessage::resolve('AI assistant is unavailable: ai_disabled' . "\n"));
+    }
+
+    public function testAiDomainMessagesAreCatalogued(): void
+    {
+        $translations = self::translations();
+
+        foreach ([
+            'AI suggestion not found',
+            'AI subject not found',
+            'Invalid monthly token quota',
+            'Unknown AI decision',
+            'Edited AI text must not be empty',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && $pt !== $message && !str_contains($pt, '_'), "Missing Portuguese translation for: {$message}");
+        }
+
+        Assert::same('Sugestão de IA não encontrada.', $translations['AI suggestion not found'] ?? null);
+    }
+
+    public function testEveryAiScreenKeyHasATranslation(): void
+    {
+        // Fase 8A, T-17: _t('...') de AiSettingsForm, AiInteractionList, EncounterView e ExamResultForm
+        // e os _t{...} do submenu de IA (T-16).
+        self::assertScreenKeysTranslated(
+            ['AI assistant', 'AI settings', 'AI interactions'],
+            ['AiSettingsForm.php', 'AiInteractionList.php', 'EncounterView.php', 'ExamResultForm.php'],
+            4,
+        );
     }
 
     /**

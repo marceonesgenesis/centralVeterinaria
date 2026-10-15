@@ -92,6 +92,12 @@ final class UserMessage
         'Document body must be between 1 and 20000 characters' => 'Document body must be between 1 and 20000 characters',
         'body must be between 1 and 20000 characters' => 'body must be between 1 and 20000 characters',
         'Generated document has no id yet' => 'Generated document has no id yet',
+        // Fase 8A — assistente de IA.
+        'AI suggestion not found' => 'AI suggestion not found',
+        'AI subject not found' => 'AI subject not found',
+        'Invalid monthly token quota' => 'Invalid monthly token quota',
+        'Unknown AI decision' => 'Unknown AI decision',
+        'Edited AI text must not be empty' => 'Edited AI text must not be empty',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -188,6 +194,20 @@ final class UserMessage
         '/^Document kind "[^"]*" (?:does not accept a body|does not use templates|has no default template)$/D' => 'This document type does not support this option',
         '/^Unknown document template status "[^"]*"$/D' => 'Invalid document template status',
         '/^Document source type "[^"]*" does not match kind "[^"]*"$/D' => 'The document source does not match the document type',
+        // Fase 8A — assistente de IA (o código do motivo não aparece na tela).
+        '/^AI assistant is unavailable: ai_disabled$/D' => 'The AI assistant is turned off for this clinic.',
+        '/^AI assistant is unavailable: ai_terms_pending$/D' => 'The AI terms of use have not been accepted for this clinic.',
+        '/^AI assistant is unavailable: ai_quota_exceeded$/D' => 'This clinic has reached its monthly AI token quota.',
+        '/^AI assistant is unavailable: ai_not_configured$/D' => 'The AI provider is not configured. Contact the administrator.',
+        '/^AI assistant is unavailable: ai_auth_failed$/D' => 'The AI provider rejected the credentials. Contact the administrator.',
+        '/^AI assistant is unavailable: ai_timeout$/D' => 'The AI did not answer in time. Continue manually and try again later.',
+        '/^AI assistant is unavailable: ai_rate_limited$/D' => 'Too many AI requests right now. Wait a moment and try again.',
+        '/^AI assistant is unavailable: ai_overloaded$/D' => 'The AI service is overloaded. Continue manually and try again later.',
+        '/^AI assistant is unavailable: ai_refused$/D' => 'The AI declined to answer this request. Continue manually.',
+        '/^AI assistant is unavailable: ai_truncated$/D' => 'The AI answer was cut short. Try again with a shorter text.',
+        '/^AI assistant is unavailable: ai_provider_error$/D' => 'The AI service returned an error. Continue manually and try again later.',
+        '/^AI assistant is unavailable: ai_empty_input$/D' => 'There is no text for the AI to work on. Type or dictate it first.',
+        '/^AI assistant is unavailable: ai_input_too_long$/D' => 'The text is too long for the AI. Shorten it and try again.',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
         '/^([a-z_]+) is required$/D' => '^1 is required',

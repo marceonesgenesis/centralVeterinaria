@@ -151,6 +151,20 @@
                 <action>SurgeryRoomList</action>
             </menuitem>
 
+            <menuitem label='_t{AI assistant}'>
+                <icon>fas:comments fa-fw</icon>
+                <menu>
+                    <menuitem label='_t{AI settings}'>
+                        <icon>fas:sliders fa-fw</icon>
+                        <action>AiSettingsForm</action>
+                    </menuitem>
+                    <menuitem label='_t{AI interactions}'>
+                        <icon>fas:list-check fa-fw</icon>
+                        <action>AiInteractionList</action>
+                    </menuitem>
+                </menu>
+            </menuitem>
+
             <menuitem label='_t{Administration}'>
                 <icon>fas:sliders fa-fw</icon>
                 <menu>

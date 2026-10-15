@@ -885,3 +885,71 @@ a.cv-tab:hover {
     min-height: var(--cv-touch-target);
     flex: 0 0 auto;
 }
+
+/* ---------- Painel de IA (Fase 8A, T-10) ----------
+   Sugestão gerada por IA aguardando revisão humana: borda e fundo distintos,
+   selo de origem, ações com alvo de toque de 44 px e status anunciado.
+   Rótulos sempre à esquerda (CLAUDE.md). */
+.cv-ai-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cv-space-3);
+    margin: var(--cv-space-3) 0;
+    padding: var(--cv-space-4);
+    background: var(--cv-color-info-soft);
+    border: 1px dashed var(--cv-color-info);
+    border-left: 4px solid var(--cv-color-info);
+    border-radius: var(--cv-radius-md);
+    color: var(--cv-color-text);
+    text-align: left;
+}
+.cv-ai-origin {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--cv-space-1);
+    padding: var(--cv-space-1) var(--cv-space-2);
+    background: var(--cv-color-surface);
+    border: 1px solid var(--cv-color-info);
+    border-radius: var(--cv-radius-sm);
+    color: var(--cv-color-info);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: left;
+}
+.cv-ai-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cv-space-2);
+    text-align: left;
+}
+.cv-ai-actions .btn,
+.cv-ai-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cv-space-2);
+    min-height: var(--cv-touch-target, 44px);
+    min-width: var(--cv-touch-target, 44px);
+}
+.cv-ai-status {
+    display: inline-block;
+    margin-left: var(--cv-space-2);
+    color: var(--cv-color-text-muted);
+    font-size: 0.875rem;
+    text-align: left;
+}
+.cv-ai-status:empty {
+    display: none;
+}
+/* Aviso do ditado (Correção 1 da T-10): o áudio vai ao serviço de voz do
+   navegador; texto curto, visível, em linha própria abaixo do botão. */
+.cv-ai-dictation-notice {
+    display: block;
+    flex-basis: 100%;
+    margin-top: var(--cv-space-1);
+    color: var(--cv-color-text-muted);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    text-align: left;
+}
