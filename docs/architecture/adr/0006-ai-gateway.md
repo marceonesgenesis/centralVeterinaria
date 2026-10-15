@@ -20,18 +20,24 @@ a chave não pode vazar e dados clínicos são pessoais (LGPD).
 - Chamada síncrona: uma por requisição, timeout total de 30 s e de conexão de
   5 s, sem retentativa; falha vira aviso traduzido (13 motivos `ai_*`).
 - Modelo padrão `claude-sonnet-5-5` com effort `low`, ambos configuráveis por
-  env (`AI_MODEL`, `AI_EFFORT`); o modelo não recebe `thinking`, `temperature`,
+  env (`AI_MODEL`, `AI_EFFORT`); `ANTHROPIC_BASE_URL` aceita só `https` e
+  `APP_ENV` vale `development` por padrão; o modelo não recebe `thinking`, `temperature`,
   `top_p` nem `top_k`. Fallback server-side (`AI_FALLBACKS=default`) ligado.
 - IA desligada por padrão por tenant: feature flag `ai_assistant`, termo
-  `2026-10-v1` e cota mensal de tokens; uso e custo (micro-USD) em
+  `2026-10-v2` (a `2026-10-v1` foi substituída; quem a aceitou reaceita, e o
+  aviso `ai_terms_pending` fica até o administrador aceitar) e cota mensal de
+  tokens, contada no mês do fuso `APP_TIMEZONE` (a sessão MySQL deve estar no
+  mesmo fuso); uso e custo (micro-USD) em
   `ai_interaction`, da entrada só o SHA-256.
 - Revisão humana obrigatória: a sugestão só persiste após aceite ou edição do
   profissional; autorização pelas permissões das telas hospedeiras, com tenant
   e unidade.
-- PII minimizada antes do envio; a chave só em env e mascarada em log e
+- PII minimizada antes do envio (`PiiMinimizer` com allowlist clínica que só
+  isenta partes de nome); o contexto inclui prescrições em rascunho e exames
+  pendentes de revisão, marcados como provisórios; a chave só em env e mascarada em log e
   auditoria.
 - Ditado pela Web Speech API do navegador: o áudio vai ao serviço de voz do
-  fabricante do navegador, declarado ao usuário (aviso e termo).
+  fabricante do navegador, declarado ao usuário (aviso e, desde a `2026-10-v2`, o próprio termo).
 
 ## Alternativas
 

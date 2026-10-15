@@ -333,7 +333,9 @@ grep -n "CREATE TRIGGER \`feature_flag\|CREATE TRIGGER \`ai_" \
 
 Confira que o verify do 5.7 lista as 3 tabelas. Aplique só com backup e
 autorização SQL específica; depois, a DML dos programas `AiSettingsForm` e
-`AiInteractionList` (grupo 1), descrita em [`ia-assistente.md`](./ia-assistente.md).
+`AiInteractionList` (grupo 1), que está em
+`src/app/database/seeds/initial-application-programs.sql` (bloco "Fase 8A — AI
+Gateway", linhas 1011-1034; idempotente, com `NOT EXISTS`).
 
 ### Ambiente da IA
 
