@@ -112,12 +112,7 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
             <<<SQL
             UPDATE encounter SET
                 status = :status, finished_at = :finished_at,
-                anamnesis_text = :anamnesis_text, temperature_c = :temperature_c,
-                heart_rate_bpm = :heart_rate_bpm, respiratory_rate_mpm = :respiratory_rate_mpm,
-                weight_kg = :weight_kg, mucous_membranes = :mucous_membranes,
-                capillary_refill_seconds = :capillary_refill_seconds,
-                physical_exam_text = :physical_exam_text, diagnosis_text = :diagnosis_text,
-                clinical_plan_text = :clinical_plan_text, ai_summary_text = :ai_summary_text,
+                ai_summary_text = :ai_summary_text,
                 ai_summary_accepted_at = :ai_summary_accepted_at,
                 paused_at = :paused_at, paused_seconds = :paused_seconds
             WHERE {$query->whereSql()}
@@ -125,10 +120,88 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
         );
         $statement->execute([
             ...$query->parameters(),
-            ...$this->bindingsFor($entity, includeInsertOnly: false),
+            ...array_diff_key($this->bindingsFor($entity, includeInsertOnly: false), self::draftBindings($entity)),
         ]);
 
         return $entity;
+    }
+
+    /**
+     * Row-locking read for the draft (Fase 8A, T-28): `SELECT ... FOR
+     * UPDATE`, so the autosave sees the latest committed row (not the
+     * transaction snapshot) and holds it until its UPDATE commits.
+     */
+    public function lockForDraft(int $id): ?Encounter
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('lockForDraft() requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $id);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM encounter WHERE {$query->whereSql()} LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $this->hydrate($row);
+    }
+
+    /** UPDATE of the draft columns only (the ones save() of an existing encounter leaves alone). */
+    public function updateDraft(Encounter $encounter): void
+    {
+        $this->assertEntityTenant($encounter->tenantId());
+
+        if ($encounter->id() === null) {
+            throw new InvalidArgumentException('Encounter must be persisted before its draft is updated');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $encounter->id());
+
+        $statement = $this->connection->prepare(
+            <<<SQL
+            UPDATE encounter SET
+                anamnesis_text = :anamnesis_text, temperature_c = :temperature_c,
+                heart_rate_bpm = :heart_rate_bpm, respiratory_rate_mpm = :respiratory_rate_mpm,
+                weight_kg = :weight_kg, mucous_membranes = :mucous_membranes,
+                capillary_refill_seconds = :capillary_refill_seconds,
+                physical_exam_text = :physical_exam_text, diagnosis_text = :diagnosis_text,
+                clinical_plan_text = :clinical_plan_text
+            WHERE {$query->whereSql()}
+            SQL
+        );
+        $statement->execute([
+            ...$query->parameters(),
+            ...self::draftBindings($encounter),
+        ]);
+    }
+
+    /** UPDATE of the accepted AI summary columns only (T-32, correção 1). */
+    public function updateAiSummary(Encounter $encounter): void
+    {
+        $this->assertEntityTenant($encounter->tenantId());
+
+        if ($encounter->id() === null) {
+            throw new InvalidArgumentException('Encounter must be persisted before its summary is updated');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $encounter->id());
+
+        $statement = $this->connection->prepare(
+            <<<SQL
+            UPDATE encounter SET
+                ai_summary_text = :ai_summary_text,
+                ai_summary_accepted_at = :ai_summary_accepted_at
+            WHERE {$query->whereSql()}
+            SQL
+        );
+        $statement->execute([
+            ...$query->parameters(),
+            ':ai_summary_text' => $encounter->aiSummaryText(),
+            ':ai_summary_accepted_at' => self::formatDateTime($encounter->aiSummaryAcceptedAt()),
+        ]);
     }
 
     public function remove(object $entity): void
@@ -165,16 +238,7 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
         $mutable = [
             ':status' => $entity->status(),
             ':finished_at' => self::formatDateTime($entity->finishedAt()),
-            ':anamnesis_text' => $entity->anamnesisText(),
-            ':temperature_c' => $entity->temperatureC(),
-            ':heart_rate_bpm' => $entity->heartRateBpm(),
-            ':respiratory_rate_mpm' => $entity->respiratoryRateMpm(),
-            ':weight_kg' => $entity->weightKg(),
-            ':mucous_membranes' => $entity->mucousMembranes(),
-            ':capillary_refill_seconds' => $entity->capillaryRefillSeconds(),
-            ':physical_exam_text' => $entity->physicalExamText(),
-            ':diagnosis_text' => $entity->diagnosisText(),
-            ':clinical_plan_text' => $entity->clinicalPlanText(),
+            ...self::draftBindings($entity),
             ':ai_summary_text' => $entity->aiSummaryText(),
             ':ai_summary_accepted_at' => self::formatDateTime($entity->aiSummaryAcceptedAt()),
             ':paused_at' => self::formatDateTime($entity->pausedAt()),
@@ -193,6 +257,28 @@ final class EncounterRepository extends AbstractTenantRepository implements Enco
             ':professional_system_user_id' => $entity->professionalSystemUserId(),
             ':started_at' => self::formatDateTime($entity->startedAt()),
             ...$mutable,
+        ];
+    }
+
+    /**
+     * Bindings of the draft columns (Encounter::DRAFT_FIELDS): INSERT and
+     * updateDraft() write them; the UPDATE of save() leaves them out.
+     *
+     * @return array<string, mixed>
+     */
+    private static function draftBindings(Encounter $entity): array
+    {
+        return [
+            ':anamnesis_text' => $entity->anamnesisText(),
+            ':temperature_c' => $entity->temperatureC(),
+            ':heart_rate_bpm' => $entity->heartRateBpm(),
+            ':respiratory_rate_mpm' => $entity->respiratoryRateMpm(),
+            ':weight_kg' => $entity->weightKg(),
+            ':mucous_membranes' => $entity->mucousMembranes(),
+            ':capillary_refill_seconds' => $entity->capillaryRefillSeconds(),
+            ':physical_exam_text' => $entity->physicalExamText(),
+            ':diagnosis_text' => $entity->diagnosisText(),
+            ':clinical_plan_text' => $entity->clinicalPlanText(),
         ];
     }
 
