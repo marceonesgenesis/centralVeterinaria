@@ -34,6 +34,9 @@ final class ExamResultAiIntegrationTest
     /** @var array<string, int> */
     private array $ids = [];
 
+    /** @var array<string, int> exam_request.id of each fixture */
+    private array $requests = [];
+
     public function setUp(): void
     {
         $this->dbName = TestDatabase::resolveName(getenv());
@@ -94,7 +97,7 @@ final class ExamResultAiIntegrationTest
     {
         foreach ([
             'audit_log', 'ai_interaction', 'ai_tenant_setting', 'feature_flag', 'exam_result', 'exam_request',
-            'exam_catalog_item', 'encounter', 'patient', 'tutor',
+            'exam_catalog_item', 'encounter', 'patient', 'tutor', 'system_unit',
         ] as $table) {
             $this->pdo->prepare("DELETE FROM {$table} WHERE tenant_id = ?")->execute([$tenantId]);
         }
@@ -179,7 +182,7 @@ final class ExamResultAiIntegrationTest
         $interactionId = $this->latestInteractionId();
 
         $html = $this->runAdianti(sprintf(
-            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_final_text" => ""];'
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_final_text" => "F8A teste outro exame"];'
             . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
             $this->ids['other_result'],
             $interactionId,
@@ -234,10 +237,300 @@ final class ExamResultAiIntegrationTest
     }
 
     /**
+     * T-08: "Aceitar" com o texto alterado no textarea grava `edited` com o
+     * texto postado (normalizado), nunca `accepted` com a sugestão original.
+     */
+    public function testAcceptWithEditedTextIsRecordedAsEdited(): void
+    {
+        $before = $this->resultTextHex($this->ids['result']);
+        $summary = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param); $page->show();',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        Assert::true($interactionId > 0, 'summary records an ai_interaction');
+
+        $sha = $this->postedSha($summary);
+        Assert::same(hash('sha256', trim(str_replace(["\r\n", "\r"], "\n", $this->suggestionText($interactionId)))), $sha, 'hidden SHA is the normalized suggestion hash');
+
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_suggestion_sha256" => %s,'
+            . ' "ai_final_text" => "F8A teste resumo do profissional\r\nlinha 2  \r\n"];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+            var_export($sha, true),
+        ));
+
+        Assert::same('edited', $this->interactionStatus($interactionId), 'accept with changed text becomes edited');
+        Assert::same("F8A teste resumo do profissional\nlinha 2", $this->interactionFinalText($interactionId), 'final_text is the posted text, normalized');
+        Assert::same($before, $this->resultTextHex($this->ids['result']), 'exam_result unchanged');
+    }
+
+    /** T-08: "Aceitar" sem mexer no texto (só CRLF/espaços) continua `accepted`. */
+    public function testAcceptWithUntouchedTextStaysAccepted(): void
+    {
+        $summary = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param); $page->show();',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        $suggestion = $this->suggestionText($interactionId);
+
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_suggestion_sha256" => %s, "ai_final_text" => %s];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+            var_export($this->postedSha($summary), true),
+            var_export(str_replace("\n", "\r\n", $suggestion) . "\r\n", true),
+        ));
+
+        Assert::same('accepted', $this->interactionStatus($interactionId));
+    }
+
+    /**
+     * T-20: "Aceitar" sem ai_suggestion_sha256 e com o texto igual à sugestão
+     * fica `accepted`, como na EncounterView (revoga o ruling T-08 · onda 2).
+     */
+    public function testAcceptWithoutShaStaysAccepted(): void
+    {
+        $before = $this->resultTextHex($this->ids['result']);
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_final_text" => %s];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+            var_export($this->suggestionText($interactionId), true),
+        ));
+
+        Assert::same('accepted', $this->interactionStatus($interactionId), 'accept without SHA stays accepted');
+        Assert::same($before, $this->resultTextHex($this->ids['result']), 'exam_result unchanged');
+    }
+
+    /**
+     * T-25: "Aceitar" sem ai_suggestion_sha256 compara o texto postado com a
+     * sugestão gravada: igual (só CRLF/espaços nas pontas) fica `accepted`.
+     */
+    public function testAcceptWithoutShaAndSameTextAsStoredSuggestionStaysAccepted(): void
+    {
+        $before = $this->resultTextHex($this->ids['result']);
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_final_text" => %s];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+            var_export(str_replace("\n", "\r\n", $this->suggestionText($interactionId)) . "\r\n", true),
+        ));
+
+        Assert::same('accepted', $this->interactionStatus($interactionId), 'accept without SHA and the stored suggestion stays accepted');
+        Assert::same($before, $this->resultTextHex($this->ids['result']), 'exam_result unchanged');
+    }
+
+    /**
+     * T-25: "Aceitar" sem ai_suggestion_sha256 com texto diferente da sugestão
+     * gravada vira `edited` com o texto postado; a edição nunca se perde.
+     */
+    public function testAcceptWithoutShaAndEditedTextIsRecordedAsEdited(): void
+    {
+        $before = $this->resultTextHex($this->ids['result']);
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted",'
+            . ' "ai_final_text" => "F8A teste resumo editado sem hash\r\nlinha 2  \r\n"];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+        ));
+
+        Assert::same('edited', $this->interactionStatus($interactionId), 'accept without SHA and changed text becomes edited');
+        Assert::same("F8A teste resumo editado sem hash\nlinha 2", $this->interactionFinalText($interactionId), 'final_text is the posted text, normalized');
+        Assert::same($before, $this->resultTextHex($this->ids['result']), 'exam_result unchanged');
+    }
+
+    /** T-20: "Aceitar" com o texto apagado é recusado sem decidir nem auditar. */
+    public function testAcceptWithEmptyTextIsRefused(): void
+    {
+        $before = $this->resultTextHex($this->ids['result']);
+        $summary = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param); $page->show();',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        $auditBefore = $this->auditCount($interactionId);
+
+        $html = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "accepted", "ai_suggestion_sha256" => %s, "ai_final_text" => " \r\n "];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+            var_export($this->postedSha($summary), true),
+        ));
+
+        Assert::stringContains('O texto editado não pode ficar vazio.', $html);
+        Assert::same('pending_review', $this->interactionStatus($interactionId), 'empty text does not decide');
+        Assert::same(null, $this->interactionFinalText($interactionId), 'final_text stays null');
+        Assert::same($auditBefore, $this->auditCount($interactionId), 'empty text writes no audit event');
+        Assert::same($before, $this->resultTextHex($this->ids['result']), 'exam_result unchanged');
+    }
+
+    /** T-29 correção 1: recusa (texto vazio, decisão inválida) mantém a sugestão pendente na tela com o texto. */
+    public function testRefusedDecisionKeepsThePendingSuggestionOnScreen(): void
+    {
+        $summary = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param); $page->show();',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        $sha = $this->postedSha($summary);
+
+        foreach ([
+            ['accepted', " \r\n ", trim(str_replace(["\r\n", "\r"], "\n", $this->suggestionText($interactionId)))],
+            ['hacked', 'F8A texto editado antes do erro', 'F8A texto editado antes do erro'],
+        ] as [$decision, $posted, $shown])
+        {
+            $html = $this->runAdianti(sprintf(
+                '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => %s, "ai_suggestion_sha256" => %s, "ai_final_text" => %s];'
+                . '$page = new ExamResultForm($param); $page->onAiDecide($param); $page->show();',
+                $this->ids['result'],
+                $interactionId,
+                var_export($decision, true),
+                var_export($sha, true),
+                var_export($posted, true),
+            ));
+
+            Assert::same('pending_review', $this->interactionStatus($interactionId), $decision . ': nothing is decided');
+            Assert::true(str_contains($html, '__adianti_warning'), $decision . ': refusal shows a warning');
+            Assert::true(
+                (bool) preg_match('/name="interaction_id"[^>]*value="' . $interactionId . '"/', $html),
+                $decision . ': pending suggestion stays under review',
+            );
+            Assert::same($sha, $this->postedSha($html), $decision . ': SHA of the shown suggestion is kept');
+            Assert::stringContains(htmlspecialchars($shown, ENT_QUOTES), $html);
+        }
+    }
+
+    /** T-08: decisão fora de accepted/edited/discarded não decide nem audita. */
+    public function testInvalidDecisionChangesNothing(): void
+    {
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        $auditBefore = $this->auditCount($interactionId);
+
+        $html = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "hacked", "ai_final_text" => "F8A teste x"];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+        ));
+
+        Assert::stringContains('Ação inválida', $html);
+        Assert::same('pending_review', $this->interactionStatus($interactionId), 'invalid decision does not change the row');
+        Assert::same($auditBefore, $this->auditCount($interactionId), 'invalid decision writes no audit event');
+    }
+
+    /** T-08: o resumo só é gerado por POST; um GET (link, prefetch) não chama o provedor. */
+    public function testSummaryOverGetCreatesNoInteraction(): void
+    {
+        $html = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ), 'ok', 'GET');
+
+        Assert::stringContains('Ação inválida', $html);
+        Assert::same(0, $this->latestInteractionId(), 'GET creates no ai_interaction');
+    }
+
+    /** T-08: o botão "Resumir exame" é um TButton num TForm (POST), não um link GET. */
+    public function testSummaryButtonPostsAForm(): void
+    {
+        $html = $this->runAdianti(sprintf(
+            '(new ExamResultForm(["exam_result_id" => %d]))->show();',
+            $this->ids['result'],
+        ));
+
+        Assert::stringContains('name="ai_summarize"', $html);
+        Assert::stringContains('form_ExamResultAiSummary_' . $this->ids['result'], $html);
+        Assert::false((bool) preg_match('/href="[^"]*method=onAiExamSummary/', $html), 'no GET link to onAiExamSummary');
+    }
+
+    /** T-08: interação de outra unidade do mesmo tenant responde como inexistente. */
+    public function testInteractionOfAnotherUnitIsNotFound(): void
+    {
+        $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d]; $page = new ExamResultForm($param); $page->onAiExamSummary($param);',
+            $this->ids['result'],
+        ));
+        $interactionId = $this->latestInteractionId();
+        $this->pdo->prepare('UPDATE ai_interaction SET system_unit_id = ? WHERE id = ? AND tenant_id = ?')
+            ->execute([$this->otherUnitId(), $interactionId, $this->tenantId]);
+
+        $html = $this->runAdianti(sprintf(
+            '$param = ["exam_result_id" => %d, "interaction_id" => %d, "decision" => "edited", "ai_final_text" => "F8A teste outra unidade"];'
+            . '$page = new ExamResultForm($param); $page->onAiDecide($param);',
+            $this->ids['result'],
+            $interactionId,
+        ));
+
+        Assert::stringContains('Sugestão de IA não encontrada.', $html);
+        Assert::same('pending_review', $this->interactionStatus($interactionId), 'interaction of another unit is not decided');
+    }
+
+    /** T-08: caminhos legados por exam_request_id (sem resultado → lançamento; com resultado → só leitura). */
+    public function testLegacyExamRequestPaths(): void
+    {
+        $record = $this->runAdianti(sprintf(
+            '(new ExamResultForm(["exam_request_id" => %d]))->show();',
+            $this->requests['without_result'],
+        ));
+        Assert::stringContains('Registrar resultado', $record, 'request without result opens the record form');
+        Assert::false(str_contains($record, 'cv-exam-result-text'), 'record form has no read-only result');
+
+        $readOnly = $this->runAdianti(sprintf(
+            '(new ExamResultForm(["exam_request_id" => %d]))->show();',
+            $this->requests['result'],
+        ));
+        Assert::stringContains('cv-exam-result-text', $readOnly, 'request with result opens the read-only view');
+        Assert::false(str_contains($readOnly, 'Registrar resultado'), 'read-only view has no record action');
+    }
+
+    /** T-08: controle positivo de testDisabledAiHidesThePanel. */
+    public function testEnabledAiShowsThePanel(): void
+    {
+        $html = $this->runAdianti(sprintf(
+            '(new ExamResultForm(["exam_result_id" => %d]))->show();',
+            $this->ids['result'],
+        ));
+
+        Assert::stringContains('cv-ai-panel', $html, 'AI panel shown when AI is on');
+        Assert::stringContains('onAiExamSummary', $html, 'summary button shown when AI is on');
+    }
+
+    /**
      * Runs $body after init.php with an authenticated session of the fixture
      * tenant/unit; returns everything $body printed.
      */
-    private function runAdianti(string $body, string $stubBehavior = 'ok'): string
+    private function runAdianti(string $body, string $stubBehavior = 'ok', string $requestMethod = 'POST'): string
     {
         $src = dirname(__DIR__, 2);
         $session = [
@@ -252,6 +545,7 @@ final class ExamResultAiIntegrationTest
         $code = 'putenv(' . var_export('DB_DATABASE=' . $this->dbName, true) . ');'
             . 'putenv("AI_PROVIDER=stub"); putenv(' . var_export('AI_STUB_BEHAVIOR=' . $stubBehavior, true) . ');'
             . 'chdir(' . var_export($src, true) . '); require "init.php";'
+            . '$_SERVER["REQUEST_METHOD"] = ' . var_export($requestMethod, true) . ';'
             . 'foreach (' . var_export($session, true) . ' as $k => $v) { TSession::setValue($k, $v); }'
             . 'ob_start();'
             . 'try {' . $body . '} catch (Throwable $e) { echo "EXCEPTION ", get_class($e), ": ", $e->getMessage(); }'
@@ -321,12 +615,23 @@ final class ExamResultAiIntegrationTest
                 'status' => 'result_available',
                 'requested_at' => '2031-09-07 11:00:00',
             ]);
+            $this->requests[$key] = $request;
             $this->ids[$key] = $this->insert('exam_result', [
                 'tenant_id' => $this->tenantId,
                 'exam_request_id' => $request,
                 'received_at' => '2031-09-07 15:00:00',
             ] + $columns);
         }
+
+        $this->requests['without_result'] = $this->insert('exam_request', [
+            'tenant_id' => $this->tenantId,
+            'encounter_id' => $encounter,
+            'patient_id' => $patient,
+            'exam_catalog_item_id' => $catalog,
+            'professional_system_user_id' => $this->userId,
+            'status' => 'requested',
+            'requested_at' => '2031-09-07 11:00:00',
+        ]);
 
         $this->insert('feature_flag', [
             'tenant_id' => $this->tenantId,
@@ -368,6 +673,60 @@ final class ExamResultAiIntegrationTest
         $statement->execute([$interactionId, $this->tenantId]);
 
         return (string) $statement->fetchColumn();
+    }
+
+    private function postedSha(string $html): string
+    {
+        Assert::true((bool) preg_match('/name="ai_suggestion_sha256"[^>]*value="([0-9a-f]{64})"/', $html, $m), 'suggestion form carries ai_suggestion_sha256');
+
+        return $m[1];
+    }
+
+    private function suggestionText(int $interactionId): string
+    {
+        $statement = $this->pdo->prepare('SELECT suggestion_text FROM ai_interaction WHERE id = ? AND tenant_id = ?');
+        $statement->execute([$interactionId, $this->tenantId]);
+
+        return (string) $statement->fetchColumn();
+    }
+
+    private function interactionFinalText(int $interactionId): ?string
+    {
+        $statement = $this->pdo->prepare('SELECT final_text FROM ai_interaction WHERE id = ? AND tenant_id = ?');
+        $statement->execute([$interactionId, $this->tenantId]);
+        $text = $statement->fetchColumn();
+
+        return $text === false || $text === null ? null : (string) $text;
+    }
+
+    private function auditCount(int $interactionId): int
+    {
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE tenant_id = ? AND entity_id = ?');
+        $statement->execute([$this->tenantId, (string) $interactionId]);
+
+        return (int) $statement->fetchColumn();
+    }
+
+    /**
+     * Second system_unit (any other than the session unit); when the test
+     * database has only one, creates one in the fixture tenant (removed by
+     * deleteTenant()). system_unit.id is not AUTO_INCREMENT (Adianti).
+     */
+    private function otherUnitId(): int
+    {
+        $statement = $this->pdo->prepare('SELECT id FROM system_unit WHERE id <> ? ORDER BY id LIMIT 1');
+        $statement->execute([$this->unitId]);
+        $id = (int) $statement->fetchColumn();
+
+        if ($id > 0) {
+            return $id;
+        }
+
+        $id = (int) $this->pdo->query('SELECT COALESCE(MAX(id), 0) + 1 FROM system_unit')->fetchColumn();
+        $this->pdo->prepare('INSERT INTO system_unit (id, tenant_id, name) VALUES (:id, :tenant_id, :name)')
+            ->execute(['id' => $id, 'tenant_id' => $this->tenantId, 'name' => 'F8A teste outra unidade']);
+
+        return $id;
     }
 
     /** @param array<string, int|string|null> $row */

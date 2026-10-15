@@ -95,6 +95,34 @@ final class AiDictationAssetTest
         );
     }
 
+    public function testDictationScriptAnnouncesListeningAndEveryRecognitionError(): void
+    {
+        $js = self::read('js/cv-ai-dictation.js');
+
+        foreach (["'no-speech'", "'audio-capture'", "'network'", "'aborted'", "'not-allowed'", "'service-not-allowed'"] as $code) {
+            Assert::stringContains($code, $js, "cv-ai-dictation.js must handle the {$code} recognition error");
+        }
+
+        foreach (['data-label-listening', 'data-label-no-speech', 'data-label-audio-capture', 'data-label-network', 'data-label-error'] as $attribute) {
+            Assert::stringContains($attribute, $js, "cv-ai-dictation.js must read {$attribute}");
+        }
+    }
+
+    public function testEmptyStatusStaysInTheAccessibilityTree(): void
+    {
+        $css = self::read('cv-components.css');
+
+        Assert::true(
+            preg_match('/\.cv-ai-status:empty\s*\{([^}]*)\}/', $css, $match) === 1,
+            '.cv-ai-status:empty must exist'
+        );
+        Assert::false(
+            preg_match('/display:\s*none/', $match[1]) === 1,
+            '.cv-ai-status:empty must not use display: none (it is a live region)'
+        );
+        Assert::stringContains('clip', $match[1], '.cv-ai-status:empty must hide the region visually with clip');
+    }
+
     public function testNoAssetClaimsTheAudioStaysInTheBrowser(): void
     {
         $sources = [

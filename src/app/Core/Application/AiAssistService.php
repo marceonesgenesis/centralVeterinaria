@@ -41,6 +41,7 @@ use CentralVet\Tenancy\TenantContext;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
+use InvalidArgumentException;
 use PDO;
 use Throwable;
 
@@ -171,11 +172,64 @@ final class AiAssistService implements AiAssistantInterface
     }
 
     /**
+     * The one rule for a posted decision (T-29), shared by ExamResultForm and
+     * EncounterView. The posted text is normalized (CRLF/CR → LF, trim).
+     * `discarded` keeps no text; accepted/edited with an empty text is
+     * refused; `edited` keeps the posted text. "Accept" stays `accepted` only
+     * when the posted text is the shown suggestion — by the posted SHA-256
+     * when there is one, otherwise by the stored suggestion text — and
+     * becomes `edited` with the posted text otherwise, so an edit is never
+     * lost.
+     *
+     * @return array{decision: string, final_text: ?string}
+     * @throws InvalidArgumentException `Unknown AI decision` or `Edited AI text must not be empty`.
+     */
+    public static function resolveDecision(string $decision, string $postedText, string $postedSha, string $suggestionText): array
+    {
+        if (!in_array($decision, AiInteraction::DECISIONS, true)) {
+            throw new InvalidArgumentException('Unknown AI decision');
+        }
+
+        if ($decision === AiInteraction::STATUS_DISCARDED) {
+            return ['decision' => $decision, 'final_text' => null];
+        }
+
+        $text = self::normalizeText($postedText);
+
+        if ($text === '') {
+            throw new InvalidArgumentException('Edited AI text must not be empty');
+        }
+
+        if ($decision === AiInteraction::STATUS_ACCEPTED) {
+            $unchanged = $postedSha !== ''
+                ? hash_equals($postedSha, hash('sha256', $text))
+                : $text === self::normalizeText($suggestionText);
+
+            if ($unchanged) {
+                return ['decision' => AiInteraction::STATUS_ACCEPTED, 'final_text' => null];
+            }
+        }
+
+        return ['decision' => AiInteraction::STATUS_EDITED, 'final_text' => $text];
+    }
+
+    /** CRLF/CR → LF and trim, as a textarea posts it; the screens use it for the posted text and the rendered SHA. */
+    public static function normalizeText(string $text): string
+    {
+        return trim(str_replace(["\r\n", "\r"], "\n", $text));
+    }
+
+    /**
+     * @throws InvalidArgumentException `Unknown AI decision` for a decision outside AiInteraction::DECISIONS, before any lookup, authorization or audit.
      * @throws AiInteractionNotFoundException for a missing, foreign or already decided interaction (one single message).
      * @throws \CentralVet\Authorization\Exception\AuthorizationDenied for an interaction of another unit or without permission.
      */
     public function decide(int $interactionId, string $decision, ?string $finalText): AiInteraction
     {
+        if (!in_array($decision, AiInteraction::DECISIONS, true)) {
+            throw new InvalidArgumentException('Unknown AI decision');
+        }
+
         $interaction = $this->interactions->find($interactionId) ?? throw new AiInteractionNotFoundException();
 
         $this->authorization->decide(new AuthorizationRequest(
@@ -293,7 +347,7 @@ final class AiAssistService implements AiAssistantInterface
         try {
             $result = $this->gateway->complete($request);
         } catch (AiProviderException $e) {
-            $this->fail($interaction, $e->reason(), self::elapsedMs($startedAt), $e->usage(), $e->model());
+            $this->fail($interaction, $e->reason(), self::elapsedMs($startedAt), $e->usage(), $e->model(), $e->costMicroUsd());
 
             throw new AiUnavailableException($e->reason());
         }
@@ -320,9 +374,9 @@ final class AiAssistService implements AiAssistantInterface
         );
     }
 
-    private function fail(AiInteraction $interaction, string $reason, int $latencyMs, ?AiUsage $usage, ?string $model): void
+    private function fail(AiInteraction $interaction, string $reason, int $latencyMs, ?AiUsage $usage, ?string $model, ?int $costMicroUsd = null): void
     {
-        $interaction->recordFailure($reason, $latencyMs, $usage, $model, $this->gateway->providerName());
+        $interaction->recordFailure($reason, $latencyMs, $usage, $model, $this->gateway->providerName(), $costMicroUsd);
         $interaction = $this->interactions->insert($interaction);
         $this->record(self::AUDIT_FAILED, $interaction, $this->usageMetadata($interaction));
     }
@@ -370,11 +424,15 @@ final class AiAssistService implements AiAssistantInterface
         ));
     }
 
-    /** First instant of the current month in UTC. */
+    /**
+     * First instant of the current month in the application timezone
+     * (`date_default_timezone_get()`, i.e. APP_TIMEZONE), the same zone the
+     * MySQL session uses to write `created_at`.
+     */
     private function monthStart(): DateTimeImmutable
     {
         return ($this->clock)()
-            ->setTimezone(new DateTimeZone('UTC'))
+            ->setTimezone(new DateTimeZone(date_default_timezone_get()))
             ->modify('first day of this month')
             ->setTime(0, 0);
     }

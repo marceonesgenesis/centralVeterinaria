@@ -284,6 +284,14 @@ class ExamResultForm extends TPage
      */
     public function onAiExamSummary($param)
     {
+        // T-08: generation spends tokens and writes ai_interaction/audit, so
+        // it only runs on the form POST (never on a link, prefetch or reload).
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST')
+        {
+            new TMessage('warning', _t('Invalid action'));
+            return;
+        }
+
         $opened = false;
 
         try
@@ -312,7 +320,7 @@ class ExamResultForm extends TPage
             error_log(__METHOD__ . ': ' . get_class($e) . ' ' . $e->reason());
             new TMessage('warning', CvFormat::userError($e));
         }
-        catch (Exception $e)
+        catch (\Throwable $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . get_class($e));
@@ -326,15 +334,40 @@ class ExamResultForm extends TPage
      * in ai_interaction.final_text; the original result is never changed.
      * An interaction of another exam (or another purpose) is reported as
      * "AI suggestion not found", same as a missing one.
+     *
+     * T-08: the decision must be accepted/edited/discarded (anything else is
+     * refused before any transaction).
+     *
+     * T-29: the rule (SHA, stored suggestion without SHA, empty text
+     * refused) lives only in AiAssistService::resolveDecision; its
+     * InvalidArgumentException is shown as a translated warning and the
+     * transaction is rolled back.
      */
     public function onAiDecide($param)
     {
+        $decision = is_array($param) && isset($param['decision']) && is_string($param['decision']) ? $param['decision'] : '';
+
+        if (!in_array($decision, [
+            \CentralVet\Domain\AiInteraction::STATUS_ACCEPTED,
+            \CentralVet\Domain\AiInteraction::STATUS_EDITED,
+            \CentralVet\Domain\AiInteraction::STATUS_DISCARDED,
+        ], true))
+        {
+            $this->refuseDecision($param, _t('Invalid action'));
+            return;
+        }
+
         try
         {
             $examResultId = self::requiredInt($param, 'exam_result_id');
             $interactionId = self::requiredInt($param, 'interaction_id');
-            $decision = isset($param['decision']) ? (string) $param['decision'] : '';
-            $finalText = isset($param['ai_final_text']) ? (string) $param['ai_final_text'] : null;
+            $postedText = is_array($param) && isset($param['ai_final_text']) && is_string($param['ai_final_text'])
+                ? $param['ai_final_text']
+                : '';
+            $postedSha = is_array($param) && isset($param['ai_suggestion_sha256']) && is_string($param['ai_suggestion_sha256'])
+                ? $param['ai_suggestion_sha256']
+                : '';
+
             $this->assertSameResult($examResultId);
 
             $context = self::resolveTenantContext();
@@ -351,7 +384,9 @@ class ExamResultForm extends TPage
                 throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
             }
 
-            $decided = self::makeAiAssistant($context)->decide($interactionId, $decision, $finalText);
+            // T-29: one rule for "Accept" (SHA, or the stored suggestion without it)
+            $resolved = \CentralVet\Application\AiAssistService::resolveDecision($decision, $postedText, $postedSha, (string) $interaction->suggestionText());
+            $decided = self::makeAiAssistant($context)->decide($interactionId, $resolved['decision'], $resolved['final_text']);
             TTransaction::close();
 
             if ($this->aiState !== null)
@@ -368,14 +403,80 @@ class ExamResultForm extends TPage
         {
             // decision on an interaction of another unit: same answer as a missing one
             TTransaction::rollback();
-            new TMessage('warning', CvFormat::userError(new \CentralVet\Domain\Exception\AiInteractionNotFoundException()));
+            $this->refuseDecision($param, CvFormat::userError(new \CentralVet\Domain\Exception\AiInteractionNotFoundException()));
         }
-        catch (Exception $e)
+        catch (\Throwable $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . get_class($e));
-            new TMessage('warning', CvFormat::userError($e));
+            $this->refuseDecision($param, CvFormat::userError($e));
         }
+    }
+
+    /**
+     * Refused or failed decision (T-29, correção 1): nothing was recorded.
+     * The suggestion still under review stays on screen with the posted
+     * text (or the suggestion itself when the text was cleared) and the
+     * warning is shown.
+     */
+    private function refuseDecision($param, string $message): void
+    {
+        $this->keepPendingSuggestion($param);
+        new TMessage('warning', $message);
+    }
+
+    /**
+     * Re-shows the posted suggestion, read again from the database, only when
+     * it is an exam summary of this result, of the active unit and still
+     * `pending_review` (a foreign one is never shown).
+     */
+    private function keepPendingSuggestion($param): void
+    {
+        $interactionId = is_array($param) && isset($param['interaction_id']) && is_scalar($param['interaction_id']) ? (int) $param['interaction_id'] : 0;
+
+        if ($this->aiState === null || $interactionId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            $context = self::resolveTenantContext();
+            TTransaction::open('permission');
+            $interaction = (new \CentralVet\Persistence\AiInteractionRepository($context, TTransaction::get()))->find($interactionId);
+            TTransaction::close();
+            $unitId = $context->requireUnitId();
+        }
+        catch (\Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+            return;
+        }
+
+        if ($interaction === null
+            || $interaction->id() === null
+            || $interaction->status() !== \CentralVet\Domain\AiInteraction::STATUS_PENDING_REVIEW
+            || $interaction->suggestionText() === null
+            || $interaction->purpose() !== \CentralVet\Domain\AiPurpose::EXAM_SUMMARY
+            || $interaction->subjectId() !== $this->aiState['result_id']
+            || $interaction->systemUnitId() !== $unitId)
+        {
+            return;
+        }
+
+        $posted = is_array($param) && isset($param['ai_final_text']) && is_string($param['ai_final_text'])
+            ? \CentralVet\Application\AiAssistService::normalizeText($param['ai_final_text'])
+            : '';
+
+        $this->renderAiPanel(new \CentralVet\Domain\AiSuggestion(
+            interactionId: (int) $interaction->id(),
+            purpose: $interaction->purpose(),
+            text: (string) $interaction->suggestionText(),
+            provider: $interaction->provider(),
+            model: (string) $interaction->model(),
+            promptVersion: $interaction->promptVersion(),
+        ), $posted !== '' ? $posted : null);
     }
 
     /**
@@ -419,7 +520,7 @@ class ExamResultForm extends TPage
                         ? $assistant->latestDecided(\CentralVet\Domain\AiPurpose::EXAM_SUMMARY, $state['result_id'])
                         : null;
                 }
-                catch (Exception $e)
+                catch (\Throwable $e)
                 {
                     // AI unavailable (not configured, no active unit): hide the panel
                     error_log(__METHOD__ . ': ' . get_class($e));
@@ -432,7 +533,7 @@ class ExamResultForm extends TPage
 
             return $state;
         }
-        catch (Exception $e)
+        catch (\Throwable $e)
         {
             TTransaction::rollback();
             error_log(__METHOD__ . ': ' . get_class($e));
@@ -464,7 +565,7 @@ class ExamResultForm extends TPage
      * exam" action. Hidden when the AI is off/unavailable or the result has
      * no structured text. Every text is escaped.
      */
-    private function renderAiPanel(?\CentralVet\Domain\AiSuggestion $pending): void
+    private function renderAiPanel(?\CentralVet\Domain\AiSuggestion $pending, ?string $shownText = null): void
     {
         if ($this->aiBox === null || $this->aiState === null)
         {
@@ -487,7 +588,7 @@ class ExamResultForm extends TPage
 
         if ($pending !== null)
         {
-            $panel->add($this->suggestionForm($resultId, $pending));
+            $panel->add($this->suggestionForm($resultId, $pending, $shownText));
         }
         else
         {
@@ -503,18 +604,42 @@ class ExamResultForm extends TPage
                 $panel->add('<p class="text-muted" style="text-align:left;margin:0">' . CvFormat::e(_t('The original result was not changed')) . '</p>');
             }
 
-            $panel->add('<div class="cv-ai-actions">'
-                . '<a class="btn btn-default cv-touch-target" generator="adianti" href="index.php?class=ExamResultForm&amp;method=onAiExamSummary&amp;exam_result_id=' . $resultId . '">'
-                . '<i class="fa fa-wand-magic-sparkles" aria-hidden="true"></i> ' . CvFormat::e(_t('Summarize exam')) . '</a>'
-                . '<span class="cv-ai-status" role="status" aria-live="polite"></span>'
-                . '</div>');
+            $panel->add($this->summaryForm($resultId));
         }
 
         $this->aiBox->add($panel);
     }
 
+    /**
+     * T-08: "Summarize exam" posts a form to onAiExamSummary (a GET link
+     * would let a prefetch or a reload spend tokens).
+     */
+    private function summaryForm(int $resultId): TForm
+    {
+        $form = new TForm('form_ExamResultAiSummary_' . $resultId);
+
+        $examResultField = new THidden('exam_result_id');
+        $examResultField->setValue($resultId);
+
+        $button = new TButton('ai_summarize');
+        $button->setAction(new TAction([$this, 'onAiExamSummary']), _t('Summarize exam'));
+        $button->setImage('fa:wand-magic-sparkles');
+        $button->{'class'} = 'btn btn-default cv-touch-target';
+
+        $actions = new TElement('div');
+        $actions->{'class'} = 'cv-ai-actions';
+        $actions->add($examResultField);
+        $actions->add($button);
+        $actions->add('<span class="cv-ai-status" role="status" aria-live="polite"></span>');
+
+        $form->add($actions);
+        $form->setFields([$examResultField, $button]);
+
+        return $form;
+    }
+
     /** Editable suggestion with Accept, Save edit and Discard (POST to onAiDecide). */
-    private function suggestionForm(int $resultId, \CentralVet\Domain\AiSuggestion $suggestion): TForm
+    private function suggestionForm(int $resultId, \CentralVet\Domain\AiSuggestion $suggestion, ?string $shownText = null): TForm
     {
         $form = new TForm('form_ExamResultAi_' . $resultId);
 
@@ -526,7 +651,7 @@ class ExamResultForm extends TPage
         $finalText = new TText('ai_final_text');
         $finalText->setId('ai_final_text_' . $resultId);
         $finalText->setSize('100%', 160);
-        $finalText->setValue($suggestion->text);
+        $finalText->setValue($shownText ?? $suggestion->text);
 
         $label = new TLabel(_t('Suggested summary (review before saving)'));
         $label->{'for'} = 'ai_final_text_' . $resultId;
@@ -561,6 +686,11 @@ class ExamResultForm extends TPage
         $body->add('<span class="cv-ai-origin"><i class="fa fa-robot" aria-hidden="true"></i> ' . CvFormat::e(_t('AI suggestion')) . '</span>');
         $body->add($examResultField);
         $body->add($interactionField);
+        $body->add(TElement::tag('input', '', [
+            'type' => 'hidden',
+            'name' => 'ai_suggestion_sha256',
+            'value' => hash('sha256', \CentralVet\Application\AiAssistService::normalizeText((string) $suggestion->text)),
+        ]));
         $body->add($label);
         $body->add($finalText);
         $body->add($actions);
@@ -595,7 +725,7 @@ class ExamResultForm extends TPage
     /** AiAssistService (T-11) on the open TTransaction('permission') connection. */
     private static function makeAiAssistant(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\AiAssistService
     {
-        $locale = str_starts_with((string) ApplicationTranslator::getLanguage(), 'pt') ? 'pt' : 'en';
+        $locale = \CentralVet\Ai\AiLocale::fromLanguage(ApplicationTranslator::getLanguage());
 
         return \CentralVet\Application\AiAssistService::forContext($context, TTransaction::get(), $locale);
     }

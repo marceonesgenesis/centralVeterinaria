@@ -535,8 +535,10 @@ final class UserMessageTest
             }
         }
 
+        $translations = self::translations();
         foreach (array_unique($keys) as $key) {
             Assert::true(isset($english[$key]), "Missing translation for screen key: {$key}");
+            Assert::true(trim((string) ($translations[$key] ?? '')) !== '', "Empty pt translation for screen key: {$key}");
         }
     }
 

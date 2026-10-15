@@ -35,6 +35,8 @@ use CentralVet\Tests\Support\FakeAuthorizationPolicy;
 use CentralVet\Tests\Support\FakeFeatureFlagRepository;
 use CentralVet\Tests\Support\SpyAuditLogWriter;
 use DateTimeImmutable;
+use DateTimeZone;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -62,9 +64,11 @@ final class AiAssistServiceTest
     private AuthorizationPolicyInterface $authorization;
     private SpyAuditLogWriter $audit;
     private TenantContext $context;
+    private string $timezone;
 
     public function setUp(): void
     {
+        $this->timezone = date_default_timezone_get();
         $this->gateway = new FakeAiGateway();
         $this->interactions = new FakeAiInteractionRepository(self::TENANT_ID);
         $this->settings = new FakeAiTenantSettingRepository(self::acceptedSetting(AiTerms::VERSION));
@@ -77,6 +81,11 @@ final class AiAssistServiceTest
         $this->authorization = new FakeAuthorizationPolicy();
         $this->audit = new SpyAuditLogWriter();
         $this->context = TenantContext::authenticated(self::TENANT_ID, self::USER_ID, self::UNIT_ID);
+    }
+
+    public function tearDown(): void
+    {
+        date_default_timezone_set($this->timezone);
     }
 
     public function testImplementsTheAssistantContract(): void
@@ -292,6 +301,30 @@ final class AiAssistServiceTest
         Assert::same(10, $event->metadata['input_tokens']);
     }
 
+    public function testRefusalAfterFallbackRecordsTheCostPricedPerModel(): void
+    {
+        // 8000 = per-model sum computed by the gateway; one model over the
+        // summed usage (sonnet-5: 2000*2 + 100*10) would give 5000.
+        $this->gateway = new FakeAiGateway(failure: new AiProviderException('ai_refused', 200, new AiUsage(2000, 100), 'claude-sonnet-5', 8000));
+
+        $exception = self::caught(fn () => $this->service()->organizeAnamnesis(self::ENCOUNTER_ID, self::FREE_TEXT));
+
+        Assert::instanceOf(AiUnavailableException::class, $exception);
+        Assert::same('ai_refused', $exception->reason());
+        $stored = $this->interactions->all();
+        Assert::same(AiInteraction::STATUS_FAILED, $stored[0]->status());
+        Assert::same(8000, $stored[0]->costMicroUsd());
+    }
+
+    public function testFailureWithoutUsageRecordsNoCost(): void
+    {
+        $this->gateway = new FakeAiGateway(failure: new AiProviderException('ai_overloaded', 529));
+
+        self::caught(fn () => $this->service()->organizeAnamnesis(self::ENCOUNTER_ID, self::FREE_TEXT));
+
+        Assert::null($this->interactions->all()[0]->costMicroUsd());
+    }
+
     public function testBlankProviderTextIsRecordedAsAProviderError(): void
     {
         $this->gateway = new FakeAiGateway(new AiCompletionResult("  \n", 'fake', 'claude-sonnet-5-5', new AiUsage(30, 2), 80, 'end_turn', 'req_blank'));
@@ -495,7 +528,155 @@ final class AiAssistServiceTest
         Assert::same($suggestion->interactionId, $service->latestDecided(AiPurpose::PATIENT_SUMMARY, self::ENCOUNTER_ID)?->id());
     }
 
-    private function service(): AiAssistService
+    public function testDecideUnknownDecisionFailsBeforeAuthorizationAndAudit(): void
+    {
+        $service = $this->service();
+        $suggestion = $service->summarizePatient(self::ENCOUNTER_ID);
+        $this->authorization = new FakeAuthorizationPolicy();
+        $this->audit = new SpyAuditLogWriter();
+        $before = self::rows($this->interactions->all());
+
+        $exception = self::caught(fn () => $this->service()->decide($suggestion->interactionId, 'hacked', null));
+
+        Assert::instanceOf(InvalidArgumentException::class, $exception);
+        Assert::same('Unknown AI decision', $exception->getMessage());
+        /** @var FakeAuthorizationPolicy $policy */
+        $policy = $this->authorization;
+        Assert::same([], $policy->requests);
+        Assert::same([], $this->audit->events);
+        Assert::same($before, self::rows($this->interactions->all()));
+    }
+
+    /** T-29: one rule for "Accept", shared by ExamResultForm and EncounterView. */
+    public function testResolveDecisionAcceptedWithMatchingShaStaysAccepted(): void
+    {
+        $text = "Resumo\nlinha 2";
+
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_ACCEPTED, 'final_text' => null],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_ACCEPTED, "  Resumo\r\nlinha 2 ", hash('sha256', $text), 'outro texto'),
+        );
+    }
+
+    public function testResolveDecisionAcceptedWithDifferentShaBecomesEdited(): void
+    {
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_EDITED, 'final_text' => "Resumo\neditado"],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_ACCEPTED, "Resumo\r\neditado", hash('sha256', 'Resumo'), 'Resumo'),
+        );
+    }
+
+    public function testResolveDecisionAcceptedWithoutShaAndSameTextStaysAccepted(): void
+    {
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_ACCEPTED, 'final_text' => null],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_ACCEPTED, "Resumo\r\nlinha 2\r\n", '', " Resumo\rlinha 2 "),
+        );
+    }
+
+    public function testResolveDecisionAcceptedWithoutShaAndEditedTextBecomesEdited(): void
+    {
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_EDITED, 'final_text' => 'Resumo ajustado'],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_ACCEPTED, '  Resumo ajustado ', '', 'Resumo'),
+        );
+    }
+
+    public function testResolveDecisionEditedKeepsThePostedText(): void
+    {
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_EDITED, 'final_text' => "Texto\nrevisado"],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_EDITED, " Texto\r\nrevisado ", hash('sha256', "Texto\nrevisado"), "Texto\nrevisado"),
+        );
+    }
+
+    public function testNormalizeTextIsPublicAndNormalizesLineBreaksAndTrims(): void
+    {
+        $method = new \ReflectionMethod(AiAssistService::class, 'normalizeText');
+        Assert::true($method->isPublic() && $method->isStatic(), 'AiAssistService::normalizeText must be public static');
+        Assert::same("a\nb", AiAssistService::normalizeText(" a\r\nb\r "));
+    }
+
+    public function testScreensDoNotKeepTheirOwnNormalizeText(): void
+    {
+        $control = dirname(__DIR__, 2) . '/app/control/clinic';
+        foreach (['EncounterView.php', 'ExamResultForm.php'] as $file) {
+            $source = (string) file_get_contents($control . '/' . $file);
+            Assert::false(str_contains($source, 'function normalizeText'), $file . ' must use AiAssistService::normalizeText');
+            Assert::stringContains('AiAssistService::normalizeText', $source, $file . ' must call AiAssistService::normalizeText');
+        }
+    }
+
+    public function testResolveDecisionDiscardedHasNoFinalText(): void
+    {
+        Assert::same(
+            ['decision' => AiInteraction::STATUS_DISCARDED, 'final_text' => null],
+            AiAssistService::resolveDecision(AiInteraction::STATUS_DISCARDED, '', '', 'Resumo'),
+        );
+    }
+
+    public function testResolveDecisionRefusesAnEmptyText(): void
+    {
+        foreach ([AiInteraction::STATUS_ACCEPTED, AiInteraction::STATUS_EDITED] as $decision) {
+            foreach (['', " \r\n "] as $posted) {
+                foreach (['', hash('sha256', '')] as $sha) {
+                    $exception = self::caught(fn () => AiAssistService::resolveDecision($decision, $posted, $sha, ''));
+
+                    Assert::instanceOf(InvalidArgumentException::class, $exception);
+                    Assert::same('Edited AI text must not be empty', $exception->getMessage());
+                }
+            }
+        }
+    }
+
+    public function testResolveDecisionRefusesAnUnknownDecision(): void
+    {
+        $exception = self::caught(fn () => AiAssistService::resolveDecision('hacked', 'Resumo', '', 'Resumo'));
+
+        Assert::instanceOf(InvalidArgumentException::class, $exception);
+        Assert::same('Unknown AI decision', $exception->getMessage());
+    }
+
+    public function testQuotaExhaustedLateOnTheLastDayOfTheMonthInTheLocalTimezone(): void
+    {
+        date_default_timezone_set('America/Fortaleza');
+        $clock = static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-31 22:00:00', new DateTimeZone('America/Fortaleza'));
+        $october = AiInteraction::reconstitute(array_merge(self::suggested(self::TENANT_ID, self::UNIT_ID)->toRow(), [
+            'id' => 1,
+            'input_tokens' => AiTenantSetting::DEFAULT_MONTHLY_TOKEN_QUOTA,
+            'output_tokens' => 0,
+            'created_at' => '2026-10-31 21:30:00',
+        ]));
+        $this->interactions->seed($october);
+        $this->audit = new SpyAuditLogWriter();
+
+        $exception = self::caught(fn () => $this->service($clock)->summarizePatient(self::ENCOUNTER_ID));
+
+        Assert::instanceOf(AiUnavailableException::class, $exception);
+        Assert::same('ai_quota_exceeded', $exception->reason());
+        Assert::same([], $this->gateway->calls());
+        Assert::count(1, $this->interactions->all());
+    }
+
+    public function testLatestDecidedIgnoresAnotherUnitsInteraction(): void
+    {
+        $other = self::suggested(self::TENANT_ID, self::OTHER_UNIT_ID);
+        $other->decide(AiInteraction::STATUS_ACCEPTED, null, self::USER_ID, new DateTimeImmutable('2026-10-07 12:00:00'));
+        $this->interactions->seed($other);
+
+        Assert::null($this->service()->latestDecided(AiPurpose::PATIENT_SUMMARY, self::ENCOUNTER_ID));
+    }
+
+    public function testDeniedAuthorizationOnExamSummaryFailsWithoutCallingTheGateway(): void
+    {
+        $this->authorization = new FakeAuthorizationPolicy(false, 'denied');
+
+        Assert::throws(AuthorizationDenied::class, fn () => $this->service()->summarizeExamResult(self::EXAM_RESULT_ID));
+
+        $this->assertNothingHappened();
+    }
+
+    private function service(?\Closure $clock = null): AiAssistService
     {
         return new AiAssistService(
             $this->gateway,
@@ -507,7 +688,7 @@ final class AiAssistServiceTest
             $this->audit,
             $this->context,
             'pt',
-            static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-07 12:00:00'),
+            $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-07 12:00:00'),
         );
     }
 

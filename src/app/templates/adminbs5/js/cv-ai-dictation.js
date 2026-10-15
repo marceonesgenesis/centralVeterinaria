@@ -7,13 +7,24 @@
  *   acrescentados ao fim do textarea. Devolve true com suporte e false sem.
  *
  * Atributos do botão (textos traduzidos vêm do servidor; nada fixo aqui):
- *   data-label-start   rótulo para iniciar o ditado
- *   data-label-stop    rótulo para parar (também anunciado no status)
- *   data-label-denied  mensagem quando o navegador nega o microfone
- *   data-label-notice  aviso de privacidade exibido junto ao botão
+ *   data-label-start         rótulo para iniciar o ditado
+ *   data-label-stop          rótulo para parar o ditado
+ *   data-label-listening     estado anunciado ao iniciar (cai para
+ *                            data-label-stop se vazio)
+ *   data-label-denied        erro not-allowed/service-not-allowed (o
+ *                            navegador negou o microfone ou o serviço)
+ *   data-label-no-speech     erro no-speech (nenhuma fala detectada)
+ *   data-label-audio-capture erro audio-capture (microfone indisponível)
+ *   data-label-network       erro network (serviço de voz inacessível)
+ *   data-label-error         qualquer outro erro; aborted não anuncia nada
+ *   data-label-notice        aviso de privacidade exibido junto ao botão
  *
  * O estado é anunciado num elemento role="status" ao lado do botão (o
- * existente com .cv-ai-status logo depois dele, ou um criado aqui).
+ * existente com .cv-ai-status logo depois dele, ou um criado aqui). Vazio,
+ * ele só fica oculto visualmente (CSS), sem sair da árvore de
+ * acessibilidade, para a live region anunciar a próxima mudança. Depois de
+ * um erro o botão volta a data-label-start e a mensagem permanece até o
+ * próximo início.
  *
  * Privacidade (ruling do usuário, Correção 1): a Web Speech API envia o
  * áudio ao serviço de reconhecimento de voz do fabricante do navegador
@@ -105,10 +116,18 @@
 
         var labelStart = button.getAttribute('data-label-start') || '';
         var labelStop = button.getAttribute('data-label-stop') || '';
-        var labelDenied = button.getAttribute('data-label-denied') || '';
+        var labelListening = button.getAttribute('data-label-listening') || labelStop;
+        var errorLabels = {
+            'not-allowed': button.getAttribute('data-label-denied') || '',
+            'service-not-allowed': button.getAttribute('data-label-denied') || '',
+            'no-speech': button.getAttribute('data-label-no-speech') || '',
+            'audio-capture': button.getAttribute('data-label-audio-capture') || '',
+            'network': button.getAttribute('data-label-network') || ''
+        };
+        var labelError = button.getAttribute('data-label-error') || '';
         showNotice(button, status, button.getAttribute('data-label-notice') || '');
         var listening = false;
-        var denied = false;
+        var failed = false;
 
         var recognition = new Recognition();
         recognition.continuous = true;
@@ -119,17 +138,17 @@
             listening = false;
             button.setAttribute('aria-pressed', 'false');
             setLabel(button, labelStart);
-            if (!denied) {
+            if (!failed) {
                 status.textContent = '';
             }
         }
 
         recognition.onstart = function () {
             listening = true;
-            denied = false;
+            failed = false;
             button.setAttribute('aria-pressed', 'true');
             setLabel(button, labelStop);
-            status.textContent = labelStop;
+            status.textContent = labelListening;
         };
 
         recognition.onresult = function (event) {
@@ -141,10 +160,16 @@
         };
 
         recognition.onerror = function (event) {
-            if (event && (event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
-                denied = true;
-                status.textContent = labelDenied;
+            var code = event && event.error ? String(event.error) : '';
+            if (code === 'aborted') {
+                return;
             }
+            var message = Object.prototype.hasOwnProperty.call(errorLabels, code) ? errorLabels[code] : '';
+            failed = true;
+            status.textContent = message || labelError;
+            listening = false;
+            button.setAttribute('aria-pressed', 'false');
+            setLabel(button, labelStart);
         };
 
         recognition.onend = showIdle;

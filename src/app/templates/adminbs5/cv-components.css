@@ -939,8 +939,16 @@ a.cv-tab:hover {
     font-size: 0.875rem;
     text-align: left;
 }
+/* Live region do ditado: vazia, some só da tela (sem display:none), para
+   continuar na árvore de acessibilidade e anunciar a próxima mudança. */
 .cv-ai-status:empty {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 /* Aviso do ditado (Correção 1 da T-10): o áudio vai ao serviço de voz do
    navegador; texto curto, visível, em linha própria abaixo do botão. */

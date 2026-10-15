@@ -12,6 +12,10 @@
     "pt": "Campo obrigatório: ^1"
   },
   {
+    "en": "^1: invalid number, not saved",
+    "pt": "^1: número inválido, não foi salvo"
+  },
+  {
     "en": "^1 must be a number",
     "pt": "O campo ^1 deve ser um número"
   },
@@ -1204,6 +1208,10 @@
     "pt": "Ditar"
   },
   {
+    "en": "Dictation failed. Type the text instead.",
+    "pt": "O ditado falhou. Digite o texto."
+  },
+  {
     "en": "Dictation uses your browser speech recognition (e.g. Google, Apple, Microsoft); the audio is sent to that service. If you prefer, type.",
     "pt": "O ditado usa o reconhecimento de voz do seu navegador (ex.: Google, Apple, Microsoft); o áudio é enviado a esse serviço. Se preferir, digite."
   },
@@ -2364,6 +2372,10 @@
     "pt": "Vinculações"
   },
   {
+    "en": "Listening... speak now",
+    "pt": "Ouvindo... pode falar"
+  },
+  {
     "en": "Log in",
     "pt": "Entrar"
   },
@@ -2804,6 +2816,10 @@
     "pt": "Nenhuma mensagem encontrada"
   },
   {
+    "en": "No microphone was found. Check the device.",
+    "pt": "Nenhum microfone foi encontrado. Verifique o dispositivo."
+  },
+  {
     "en": "No open cash register",
     "pt": "Nenhum caixa aberto"
   },
@@ -2846,6 +2862,10 @@
   {
     "en": "No services found",
     "pt": "Nenhum serviço encontrado"
+  },
+  {
+    "en": "No speech was detected. Try again.",
+    "pt": "Nenhuma fala foi detectada. Tente novamente."
   },
   {
     "en": "No structured result (attachment only)",
@@ -4036,6 +4056,22 @@
     "pt": "Salvo em"
   },
   {
+    "en": "The anamnesis was changed in another window. Reload the page to keep editing it.",
+    "pt": "A anamnese foi alterada em outra janela. Recarregue a página para continuar editando."
+  },
+  {
+    "en": "Could not save the draft; your text is still on the screen.",
+    "pt": "Não foi possível salvar o rascunho; seu texto continua na tela."
+  },
+  {
+    "en": "Keep my text",
+    "pt": "Manter meu texto"
+  },
+  {
+    "en": "Reload the page",
+    "pt": "Recarregar a página"
+  },
+  {
     "en": "SC",
     "pt": "SC"
   },
@@ -4810,6 +4846,10 @@
   {
     "en": "The user registration is disabled",
     "pt": "O cadastro de usuários está desativado"
+  },
+  {
+    "en": "The voice service is unavailable. Type the text instead.",
+    "pt": "O serviço de voz está indisponível. Digite o texto."
   },
   {
     "en": "There is no active surgery room in this unit.",
