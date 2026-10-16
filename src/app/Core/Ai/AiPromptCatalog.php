@@ -19,6 +19,10 @@ use InvalidArgumentException;
  * Draft prescriptions and exam results pending review are sent marked as
  * provisional / not validated, and the system prompt says so.
  *
+ * The read-only copilot (Fase 8B) has only a system prompt per purpose
+ * (`copilotSystem`); its user content is the question and the tool results,
+ * so `build` rejects the copilot purposes.
+ *
  * Any change to a prompt text must bump its version (`.v1` → `.v2`);
  * AiPromptCatalogTest::testPromptTextIsPinnedToItsVersion pins the hashes.
  */
@@ -28,6 +32,8 @@ final class AiPromptCatalog
         AiPurpose::PATIENT_SUMMARY => 'patient_summary.v2',
         AiPurpose::ANAMNESIS_ORGANIZE => 'anamnesis_organize.v2',
         AiPurpose::EXAM_SUMMARY => 'exam_summary.v2',
+        AiPurpose::COPILOT_CLINICAL => 'copilot_clinical.v1',
+        AiPurpose::COPILOT_MANAGEMENT => 'copilot_management.v1',
     ];
 
     private const BASE = [
@@ -47,6 +53,38 @@ final class AiPromptCatalog
             . "- Answer in English, as plain text with short sections and no markdown.\n"
             . "- Do not include personal data (names, contacts or documents); keep markers such as [NOME] as they are.\n"
             . "- Items marked as provisional or not validated may change: mention them as such and do not treat them as confirmed.\n",
+    ];
+
+    private const COPILOT_BASE = [
+        'pt' => "Você é o copiloto do Central Vet Pro para a equipe de uma clínica veterinária.\n"
+            . "Regras:\n"
+            . "- Seu acesso é somente leitura: você consulta dados por ferramentas e não cria, altera nem exclui registros.\n"
+            . "- Responda só com os dados devolvidos pelas ferramentas; não invente nem complete informações.\n"
+            . "- Quando as ferramentas não encontrarem o que foi pedido, diga que não encontrou.\n"
+            . "- Não faça diagnóstico, não prescreva e não sugira conduta.\n"
+            . "- Itens provisórios (prescrição em rascunho, exame pendente de revisão) podem mudar: cite-os como tal e não os trate como confirmados.\n"
+            . "- Não inclua dados pessoais (nomes, contatos ou documentos); mantenha marcadores como [NOME] como estão.\n"
+            . "- Responda no idioma do usuário (aqui, português do Brasil), em texto simples, curto e sem markdown.\n",
+        'en' => "You are the Central Vet Pro copilot for the staff of a veterinary clinic.\n"
+            . "Rules:\n"
+            . "- Your access is read-only: you look up data through tools and never create, change or delete records.\n"
+            . "- Answer only with the data returned by the tools; do not invent or complete information.\n"
+            . "- When the tools do not find what was asked, say that you did not find it.\n"
+            . "- Do not diagnose, do not prescribe and do not suggest treatment.\n"
+            . "- Provisional items (draft prescription, exam pending review) may change: mention them as such and do not treat them as confirmed.\n"
+            . "- Do not include personal data (names, contacts or documents); keep markers such as [NOME] as they are.\n"
+            . "- Answer in the user's language (here, English), as short plain text with no markdown.\n",
+    ];
+
+    private const COPILOT_TASKS = [
+        AiPurpose::COPILOT_CLINICAL => [
+            'pt' => "Contexto: apoio clínico sobre os pacientes da unidade — cadastro clínico, histórico de atendimentos, prontuário, prescrições, exames e vacinação.",
+            'en' => "Context: clinical support about the unit's patients — clinical record, encounter history, medical record, prescriptions, exams and vaccination.",
+        ],
+        AiPurpose::COPILOT_MANAGEMENT => [
+            'pt' => "Contexto: apoio à gestão da unidade — agenda e horários livres, estoque, débitos em aberto e indicadores da clínica.",
+            'en' => "Context: management support for the unit — schedule and free slots, stock, open debts and clinic indicators.",
+        ],
     ];
 
     private const TASKS = [
@@ -155,6 +193,10 @@ final class AiPromptCatalog
      */
     public static function build(string $purpose, array $context, string $locale, ?DateTimeImmutable $today = null): AiCompletionRequest
     {
+        if (AiPurpose::isCopilot($purpose)) {
+            throw new InvalidArgumentException('Copilot purposes use copilotSystem');
+        }
+
         $version = self::version($purpose);
         $lang = AiLocale::fromLanguage($locale);
         $today ??= new DateTimeImmutable('today', new DateTimeZone('UTC'));
@@ -168,6 +210,22 @@ final class AiPromptCatalog
         $system = self::BASE[$lang] . "\n" . self::TASKS[$purpose][$lang];
 
         return new AiCompletionRequest($purpose, $version, $system, $userContent);
+    }
+
+    /**
+     * System prompt of the read-only copilot (version in `VERSIONS`).
+     *
+     * @throws InvalidArgumentException when the purpose is not a copilot purpose.
+     */
+    public static function copilotSystem(string $purpose, string $locale): string
+    {
+        if (!AiPurpose::isCopilot($purpose)) {
+            throw new InvalidArgumentException('Unknown AI copilot purpose');
+        }
+
+        $lang = AiLocale::fromLanguage($locale);
+
+        return self::COPILOT_BASE[$lang] . "\n" . self::COPILOT_TASKS[$purpose][$lang];
     }
 
     /** @param array<string, mixed> $context */

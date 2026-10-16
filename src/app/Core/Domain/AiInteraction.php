@@ -15,7 +15,9 @@ use InvalidArgumentException;
  * `recordSuggestion()` (stays `pending_review` until the professional
  * decides) or `recordFailure()` (`failed`, final). `decide()` moves a
  * suggestion to `accepted` (final text = suggestion), `edited` (final text
- * = the professional's text) or `discarded` (no final text). Only the
+ * = the professional's text) or `discarded` (no final text). A copilot
+ * question (Fase 8B) ends with `recordAnswer()` in `answered`, final and
+ * without any text (usage and cost only). Only the
  * SHA-256 of the input is kept; suggestion and final texts are clinical
  * data and never go into exception messages or logs.
  */
@@ -26,6 +28,7 @@ final class AiInteraction
     public const STATUS_EDITED = 'edited';
     public const STATUS_DISCARDED = 'discarded';
     public const STATUS_FAILED = 'failed';
+    public const STATUS_ANSWERED = 'answered';
 
     public const DECISIONS = [self::STATUS_ACCEPTED, self::STATUS_EDITED, self::STATUS_DISCARDED];
 
@@ -35,6 +38,7 @@ final class AiInteraction
         self::STATUS_EDITED,
         self::STATUS_DISCARDED,
         self::STATUS_FAILED,
+        self::STATUS_ANSWERED,
     ];
 
     private function __construct(
@@ -191,6 +195,32 @@ final class AiInteraction
     }
 
     /**
+     * Closes a copilot question: usage and cost summed over the provider
+     * rounds; the answer text is never stored here (`suggestion_text` and
+     * `final_text` stay null).
+     */
+    public function recordAnswer(
+        AiUsage $usage,
+        ?int $costMicroUsd,
+        string $provider,
+        string $model,
+        string $stopReason,
+        ?string $providerRequestId,
+        int $latencyMs,
+    ): void {
+        $this->assertAwaitingProvider();
+
+        $this->status = self::STATUS_ANSWERED;
+        $this->provider = $provider;
+        $this->model = $model;
+        $this->usage = $usage;
+        $this->costMicroUsd = $costMicroUsd;
+        $this->stopReason = $stopReason;
+        $this->providerRequestId = $providerRequestId;
+        $this->latencyMs = max(0, $latencyMs);
+    }
+
+    /**
      * A cost already priced by the gateway (per attempt/model after a fallback)
      * wins; otherwise it is computed from the partial usage when the provider
      * answered with a known model.
@@ -214,12 +244,16 @@ final class AiInteraction
 
     /**
      * @throws AiInteractionNotFoundException when the interaction is not awaiting a decision.
-     * @throws InvalidArgumentException on an unknown decision or a blank edited text.
+     * @throws InvalidArgumentException on an unknown decision, a blank edited text or a copilot answer.
      */
     public function decide(string $decision, ?string $finalText, int $systemUserId, DateTimeImmutable $now): void
     {
         if (!in_array($decision, self::DECISIONS, true)) {
             throw new InvalidArgumentException('Unknown AI decision');
+        }
+
+        if ($this->status === self::STATUS_ANSWERED) {
+            throw new InvalidArgumentException('AI answer has no decision');
         }
 
         if ($this->status !== self::STATUS_PENDING_REVIEW || $this->suggestionText === null) {
