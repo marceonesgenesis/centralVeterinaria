@@ -102,7 +102,7 @@ final class AiCopilotListsIntegrationTest
             return;
         }
 
-        foreach (['mcp_tool_call', 'ai_conversation_message', 'ai_interaction', 'ai_conversation', 'audit_log'] as $table) {
+        foreach (['mcp_tool_call', 'ai_conversation_message', 'ai_interaction', 'ai_conversation', 'audit_log', 'feature_flag', 'ai_tenant_setting'] as $table) {
             $this->pdo->prepare("DELETE FROM {$table} WHERE tenant_id = :tenant_id")->execute(['tenant_id' => $this->tenantId]);
         }
 
@@ -209,6 +209,41 @@ final class AiCopilotListsIntegrationTest
 
         Assert::stringContains('Permissão negada', (string) $result['html'], 'denial is translated');
         Assert::false(str_contains((string) $result['html'], 'F8B teste conversa do U'), 'denied user sees no conversation');
+    }
+
+    /** Review Focus: conversa da unidade anterior aberta depois da troca de unidade → "Conversa não encontrada". */
+    public function testOpeningConversationOfThePreviousUnitFromTheListShowsNotFound(): void
+    {
+        $this->assertOpenShowsNotFound($this->conversationB, 'F8B teste conversa da unidade B', 'F8B teste mensagem sigilosa da unidade B');
+    }
+
+    public function testOpeningConversationOfAnotherUserShowsNotFound(): void
+    {
+        $this->assertOpenShowsNotFound($this->conversationV, 'F8B teste conversa do V', 'F8B teste mensagem sigilosa do V');
+    }
+
+    private function assertOpenShowsNotFound(int $conversationId, string $title, string $content): void
+    {
+        $this->pdo->prepare(
+            'INSERT INTO ai_conversation_message (tenant_id, conversation_id, role, content) VALUES (:tenant_id, :conversation_id, :role, :content)',
+        )->execute(['tenant_id' => $this->tenantId, 'conversation_id' => $conversationId, 'role' => 'user', 'content' => $content]);
+
+        // IA disponível: sem isso o painel para em "indisponível" antes de buscar a conversa
+        $this->pdo->prepare('INSERT INTO feature_flag (tenant_id, flag_key, enabled, updated_by_system_user_id) VALUES (:tenant_id, :key, 1, :user_id)')
+            ->execute(['tenant_id' => $this->tenantId, 'key' => 'ai_assistant', 'user_id' => $this->userU]);
+        $this->pdo->prepare(
+            'INSERT INTO ai_tenant_setting (tenant_id, terms_version, terms_accepted_at, terms_accepted_by_system_user_id, monthly_token_quota, updated_by_system_user_id)
+             VALUES (:tenant_id, :version, NOW(6), :user_id, 300000, :user_id2)',
+        )->execute(['tenant_id' => $this->tenantId, 'version' => \CentralVet\Domain\AiTerms::VERSION, 'user_id' => $this->userU, 'user_id2' => $this->userU]);
+
+        // sessão já trocada para a unidade A (a conversa B foi criada antes da troca)
+        $result = $this->run('AiCopilotPanel', ['method' => 'onOpen', 'family' => 'clinical', 'conversation_id' => (string) $conversationId, 'register_state' => 'false']);
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'open threw: ' . (string) ($result['error'] ?? ''));
+        Assert::stringContains('Conversa não encontrada', $html, 'foreign conversation is "not found"');
+        Assert::false(str_contains($html, $content), 'no message of the foreign conversation is rendered');
+        Assert::false(str_contains($html, $title), 'the foreign conversation title is not rendered');
     }
 
     public function testToolCallListFiltersDeniedAndNeverShowsInputNorConversationText(): void
