@@ -382,3 +382,55 @@ em log ou relatório.
    `AiInteractionList`; a conversa aparece em "Minhas conversas".
 4. Com um usuário sem a permissão da tela de vacinas, repita: a ferramenta não
    é oferecida (`not_offered`) e a resposta não traz o dado.
+
+### Copiloto de gestão (8B.2)
+
+O painel de gestão é o mesmo `AiCopilotPanel`, com a família de ferramentas de
+gestão (`ManagementToolset`). Continua somente leitura e sem endpoint MCP externo.
+
+**Ativação.** Flag `ai_copilot_management`, independente de `ai_enabled`. Ligue
+no interruptor "copiloto de gestão" de `AiSettingsForm`, gravado no mesmo
+`onSave` (`AiSettingsService::setCopilotManagement(bool $enabled): void`, com
+RBAC de `AiSettingsForm::onSave` e auditoria
+`ai.settings.copilot_management_enabled|_disabled`). Sem linha em
+`feature_flag`, fica desligada. Flag desligada ou IA indisponível: o painel
+mostra o motivo `ai_disabled`. Termo aceito e `ai_assistant` seguem valendo.
+
+**Ferramentas.**
+
+| Ferramenta | `requiredPermission` |
+|---|---|
+| `consultar_agenda` | `AgendaView::onReload` |
+| `verificar_horarios` | `AgendaView::onReload` |
+| `consultar_estoque` | `ProductList::onReload` |
+| `listar_debitos` | `PendingReceivableList::onReload` |
+| `indicadores_clinica` | `FinancialOverview::onFilter` |
+
+**Regras.**
+
+- Vencimento de débito = `receivable.created_at` + 7 dias (o schema não tem
+  vencimento; mesma regra de `PendingItemQuery::openReceivables`). Débitos por
+  unidade via `encounter_account.system_unit_id`.
+- Estoque: saldo só da unidade ativa; `minimum` nulo quando o mínimo é 0.
+- Horários livres: grade 07:00-19:00 em passos de 30 min (a da `AgendaView`),
+  calculada por `FreeSlotFinder`; só horários futuros. A ocupação do profissional
+  vale no tenant inteiro (inclui outra unidade, sem dados do paciente), como
+  `AppointmentService::assertNoConflict`.
+- `consultar_agenda` sem data usa hoje; `data` e intervalo juntos, ou intervalo
+  acima de 7 dias, é entrada inválida (`invalid_input`). Débito mostra só o
+  primeiro nome do tutor.
+- Limites, auditoria e motivos de recusa são os do copiloto clínico.
+
+**Menu.** Item "Copiloto de gestão" no submenu de IA (abre o painel de gestão;
+não há dashboard clínico). Precisa da permissão de `AiCopilotPanel::onAsk` e do
+vínculo de menu aplicado pelo seed 8B.
+
+**Smoke de gestão (chave real).** Só em ambiente de teste, com a IA e a flag
+`ai_copilot_management` ligadas, sem dado de cliente real em log ou relatório.
+
+1. Abra "Copiloto de gestão" no menu de IA.
+2. Pergunte: "Quais débitos estão vencidos?".
+3. Confira: a resposta cita "Consultei: ..." com `listar_debitos`; surge linha
+   `allowed` em `AiToolCallList` e linha `answered` em `AiInteractionList`.
+4. Com usuário sem a permissão de `PendingReceivableList::onReload`, repita: a
+   ferramenta não é oferecida (`not_offered`).
