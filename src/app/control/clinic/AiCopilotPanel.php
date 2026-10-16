@@ -98,45 +98,57 @@ class AiCopilotPanel extends TPage
         $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $locale) use ($family, $anchor, $conversationId, $question, $repeated): array
         {
             $unavailable = null;
+            $service = null;
 
             try
             {
                 $service = static::makeService($context, $locale, $connection);
-
-                if ($anchor !== null)
-                {
-                    $service->assertAnchor($anchor);
-                }
-
-                if (!$repeated)
-                {
-                    $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
-                }
-                elseif ($conversationId === null)
-                {
-                    // envio repetido da primeira pergunta: a conversa mais recente
-                    $latest = $service->conversations($family, $anchor, 1);
-                    $conversationId = $latest !== [] ? $latest[0]->id() : null;
-                }
             }
             catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
             {
                 $unavailable = $e->reason();
             }
-            catch (PDOException $e)
+            catch (\CentralVet\Authorization\Exception\AuthorizationDenied | \CentralVet\Tenancy\Exception\MissingTenantContext | \CentralVet\Tenancy\Exception\TenantBoundaryViolation | PDOException $e)
             {
                 throw $e;
             }
             catch (RuntimeException $e)
             {
-                // rate limiter sem backend (Redis fora do ar): copiloto indisponível
+                // só a montagem: rate limiter sem backend (Redis fora do ar) = copiloto indisponível
                 error_log(__METHOD__ . ': ' . get_class($e));
                 $unavailable = 'ai_provider_error';
             }
 
+            if ($service !== null)
+            {
+                try
+                {
+                    if ($anchor !== null)
+                    {
+                        $service->assertAnchor($anchor);
+                    }
+
+                    if (!$repeated)
+                    {
+                        $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
+                    }
+                    elseif ($conversationId === null)
+                    {
+                        // envio repetido da primeira pergunta: a conversa mais recente
+                        $latest = $service->conversations($family, $anchor, 1);
+                        $conversationId = $latest !== [] ? $latest[0]->id() : null;
+                    }
+                }
+                catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
+                {
+                    // negação, contexto e demais falhas sobem ao tratamento padrão de perform
+                    $unavailable = $e->reason();
+                }
+            }
+
             // a conversa é renderizada pelo id devolvido, qualquer que seja a disponibilidade
             return self::load($connection, $context, $family, $anchor, $conversationId, $unavailable);
-        }, $family, $anchor, true);
+        }, $family, $anchor, true, $question);
     }
 
     /**
@@ -185,7 +197,7 @@ class AiCopilotPanel extends TPage
      * com `$autocommit`, na conexão de connection()) e renderiza o estado
      * devolvido; trata as negações e falhas sem abrir dados.
      */
-    private function perform(Closure $work, string $family, ?int $anchor, bool $autocommit = false): void
+    private function perform(Closure $work, string $family, ?int $anchor, bool $autocommit = false, ?string $draft = null): void
     {
         try
         {
@@ -220,12 +232,12 @@ class AiCopilotPanel extends TPage
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
         {
-            $this->renderMessageOnly($family, _t('Permission denied'));
+            $this->renderMessageOnly($family, _t('Permission denied'), $draft);
             return;
         }
         catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
         {
-            $this->renderMessageOnly($family, _t('An authenticated session with an active unit is required'));
+            $this->renderMessageOnly($family, _t('An authenticated session with an active unit is required'), $draft);
             return;
         }
         catch (PDOException $e)
@@ -330,13 +342,26 @@ class AiCopilotPanel extends TPage
         parent::add($panel);
     }
 
-    private function renderMessageOnly(string $family, ?string $message): void
+    /**
+     * Só a mensagem; com `$draft` (pergunta de onAsk que não foi enviada), o
+     * texto digitado fica num campo somente leitura para o usuário copiar.
+     */
+    private function renderMessageOnly(string $family, ?string $message, ?string $draft = null): void
     {
         $panel = $this->shell($family);
 
         if ($message !== null)
         {
             $panel->add(TElement::tag('p', CvFormat::e($message), ['class' => 'cv-ai-copilot__notice', 'role' => 'alert']));
+        }
+
+        if ($draft !== null && $draft !== '')
+        {
+            $field = new TElement('div');
+            $field->{'class'} = 'cv-ai-copilot__field';
+            $field->add(TElement::tag('label', CvFormat::e(_t('Your question')), ['for' => 'cv_ai_copilot_draft', 'class' => 'cv-ai-copilot__label']));
+            $field->add(TElement::tag('textarea', CvFormat::e($draft), ['id' => 'cv_ai_copilot_draft', 'class' => 'form-control', 'readonly' => 'readonly', 'rows' => '4']));
+            $panel->add($field);
         }
 
         parent::add($panel);
