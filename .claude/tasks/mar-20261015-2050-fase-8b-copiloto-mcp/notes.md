@@ -53,6 +53,9 @@
 - 2026-10-16 · T-28 · onda 9 — a minimização da resposta quebrava 2 testes do painel pela fixture (tutor "F8B teste tutor"); a T-28 ajustou a própria fixture ANSWER em vez de deixar a SUITE vermelha para a T-29 — escopo autorizado.
 - 2026-10-16 · T-28 · onda 9 (gate) — interação gravada em finally após a mensagem: uso sempre contado na cota (monthlyTokenUsage soma todas as linhas); sem bloqueante.
 - 2026-10-16 · T-28 · onda 9 — conversations() do histórico com filtros opcionais family/anchor; exceção no laço continua virando resposta falha.
+- 2026-10-16 · T-29 · onda 10 — window.confirm no lugar de TQuestion na exclusão: TQuestion confirma por GET e o servidor exige POST e recusa GET.
+- 2026-10-16 · T-29 · onda 10 — makeService com ?PDO opcional; teste de autocommit assere "2 mensagens gravadas" (conexão-sonda não vê fixture não confirmada).
+- 2026-10-16 · T-29 · onda 10 (rodada 1) — onAsk relança AuthorizationDenied/MissingTenantContext/TenantBoundaryViolation/PDO; só falha de montagem do serviço vira ai_provider_error (limiter lança RuntimeException genérica). Pergunta preservada em campo somente leitura na negação.
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -69,6 +72,7 @@
 - Onda 4 (board): T-14 `AiCopilotPanel::linkFor($family, ?$anchor)`; `transaction(callable $fn)` passa a conexão; link abre a cortina via generator; RuntimeException do limiter = painel indisponível (relay da onda 3 cumprido). T-15 `AiConversationList` usa `AiCopilotPanel::linkFor(...).'&conversation_id=<id>'`; histórico via `AiConversationHistoryService::forContext(TenantContext, PDO)` sem gateway/limiter/flag/termo/cota.
 - Onda 5 (board): T-16 link `data-cv-copilot="clinical"` em PatientForm (só edição) e EncounterView, some sem IA disponível; T-17 submenu de IA com 4 filhos e bloco 8B do seed (id = MAX(id)+posição; T-23 atualiza `Assert::same` de 4 filhos e usa o mesmo marcador).
 - Onda 6 (board): T-19 `busy()` em todo o tenant, `FreeSlotFinder` exige início > agora; T-20 `ConsultarEstoqueTool::FILTER_*`; T-21 `CopilotFinanceQueryInterface::OVERDUE|UPCOMING`; T-22 `AiSettingsService::setCopilotManagement(bool)` e `overview()['copilot_management']`. T-23 monta `new XTool(new CopilotXQuery($ctx,$pdo))`.
+- Onda 9-10 (board): T-28 `AiConversationHistoryService::conversation(id)`/`conversations(limit, family, anchor)`; resposta minimizada por `PiiMinimizer` antes de gravar; `ask` sem transação, `ai_interaction` em `finally`. T-29 `AiCopilotPanel::connection()` (autocommit, só onAsk), `makeService($ctx,$locale,?PDO)`; abrir/apagar não montam `AiCopilotService`; exclusão só por POST (lista: `form_AiConversationList_<id>`); resposta roteirizada de teste não pode conter nome do tutor/paciente da fixture.
 
 ## Pendências
 - 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
@@ -109,6 +113,9 @@
 - T-28: teste RED do cenário 3 (conversation() com flag desligada) já passa no RED (regressão); AiConversationHistoryServiceTest não monta flag desligada/cota estourada (sem ação obrigatória).
 - Onda 9: AiCopilotPanel.php:168 ainda envolve o ask em transação — escopo da T-29 (onda 10).
 - Onda 9: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
+- T-29: RBAC real de abrir/apagar pelo histórico no painel não é exercido (testes trocam makeHistory por FakeAuthorizationPolicy(true)); texto digitado se perde quando onAsk termina com motivo antes de gravar a pergunta (AiUnavailableException do pré-check, limiter sem Redis); onDelete do painel apaga antes de checar a âncora (patientInUnit só em load).
+- Onda 10: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
+- Fechamento: todas as 29 tasks estão [x]; as ondas de correção 8-10 fecharam os bloqueantes da revisão final.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -132,5 +139,6 @@
   - Onda 7: BASE ec862a2 → HEAD 185bbdd (f2005cf, 93a1031, 89038e4, 185bbdd)
   - Onda 8: BASE b2464f4 → HEAD 5acfbb1 (ea33281, 21c4587, 189c6a1, 8ea9e28, 9ccfe8c, 13b24af, 5acfbb1)
   - Onda 9: BASE b277a80 → HEAD 68f006d (6eadd59, 9ba1885, 68f006d)
-- Último status conhecido: onda 9 concluída; T-25..T-28 [x]; SUITE 1698/1698; T-29 pendente
-- Próxima onda recomendada: 10 — T-29
+  - Onda 10: BASE d891618 → HEAD 38b459f (b44d6a7, cbba9c8, 62a5be9, 38b459f)
+- Último status conhecido: onda 10 concluída; T-29 [x]; todas as 29 tasks [x]; SUITE 1704/1704; aceite 8B.1 e 8B.2
+- Próxima onda recomendada: nenhuma
