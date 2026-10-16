@@ -69,6 +69,15 @@ final class ClinicalToolsRecordsTest
         return $tool->execute($context, $input);
     }
 
+    /** @return array{method: string, args: list<mixed>} */
+    private function lastCall(FakeCopilotClinicalQuery $query, string $method): array
+    {
+        $calls = array_values(array_filter($query->calls(), static fn (array $c): bool => $c['method'] === $method));
+        Assert::true($calls !== [], 'no call to ' . $method);
+
+        return $calls[count($calls) - 1];
+    }
+
     private function prescription(string $status, int $id = 1): array
     {
         return [
@@ -179,8 +188,7 @@ final class ClinicalToolsRecordsTest
         Assert::same('2026-11-10', $result->data[0]['validade']);
         Assert::same('draft', $result->data[0]['status']);
 
-        $call = $query->calls()[array_key_last($query->calls())];
-        Assert::same('prescriptions', $call['method']);
+        $call = $this->lastCall($query, 'prescriptions');
         Assert::same([self::PATIENT, true, '2026-10-15'], array_slice($call['args'], 0, 3));
     }
 
@@ -189,7 +197,7 @@ final class ClinicalToolsRecordsTest
         $query = $this->query();
         $this->run(new ObterPrescricoesTool($query, $this->clock()), ['situacao' => 'todas']);
 
-        $call = $query->calls()[array_key_last($query->calls())];
+        $call = $this->lastCall($query, 'prescriptions');
         Assert::same(false, $call['args'][1]);
     }
 
@@ -211,8 +219,7 @@ final class ClinicalToolsRecordsTest
         Assert::same('received', $result->data[1]['status']);
         Assert::same(['resultado'], $result->freeTextFields);
 
-        $call = $query->calls()[array_key_last($query->calls())];
-        Assert::same('exams', $call['method']);
+        $call = $this->lastCall($query, 'exams');
         Assert::same([self::PATIENT, 'pendentes'], array_slice($call['args'], 0, 2));
     }
 
@@ -221,7 +228,7 @@ final class ClinicalToolsRecordsTest
         $query = $this->query();
         $this->run(new ObterExamesTool($query, $this->clock()), []);
 
-        $call = $query->calls()[array_key_last($query->calls())];
+        $call = $this->lastCall($query, 'exams');
         Assert::same('todos', $call['args'][1]);
     }
 
@@ -249,8 +256,7 @@ final class ClinicalToolsRecordsTest
         $query->setInUnit('patient', 77, true);
         $this->run(new ConsultarVacinacaoTool($query, $this->clock()), ['patient_id' => 77]);
 
-        $call = $query->calls()[array_key_last($query->calls())];
-        Assert::same('vaccinations', $call['method']);
+        $call = $this->lastCall($query, 'vaccinations');
         Assert::same(77, $call['args'][0]);
     }
 
