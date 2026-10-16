@@ -223,7 +223,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . '  $flags = new CentralVet\Persistence\FeatureFlagRepository($c, self::$pdo);'
             . '  $auth = new CentralVet\Tests\Support\FakeAuthorizationPolicy(true);'
             . '  $registry = new CentralVet\Ai\Tools\ToolRegistry(CentralVet\Ai\Tools\Clinical\ClinicalToolset::create($clinical), $flags, $auth, $c);'
-            . '  $policy = new CentralVet\Ai\Tools\ToolPolicy($registry, new CentralVet\Ai\Tools\JsonSchemaValidator(), $auth,'
+            . '  $policy = new CentralVet\Ai\Tools\ToolPolicy($registry, new CentralVet\Ai\Tools\JsonSchemaValidator(),'
             . '   new CentralVet\Persistence\McpToolCallRepository($c, self::$pdo),'
             . '   new CentralVet\Ai\Tools\ToolRateLimiter(new CentralVet\Security\LoginRateLimiter(new CentralVet\Tests\Support\FakeRedis(), 30, 600, "t14:")), null);'
             . '  return new CentralVet\Application\AiCopilotService(self::$gateway,'

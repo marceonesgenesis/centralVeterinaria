@@ -6,22 +6,21 @@ namespace CentralVet\Ai\Tools;
 
 use CentralVet\Ai\PiiMinimizer;
 use CentralVet\Audit\AuditRedactor;
-use CentralVet\Authorization\AuthorizationRequest;
-use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
 use CentralVet\Domain\Contract\McpToolCallRepositoryInterface;
 use CentralVet\Domain\McpToolCall;
-use CentralVet\Tenancy\TenantContext;
 use Closure;
 
 /**
  * Fail-closed gate in front of every copilot tool (Fase 8B spec § 3.1).
  * Checks, in order: offered + registered (`not_offered`), input schema
- * (`invalid_input`), RBAC of the tool's screen permission in the context's
- * tenant and unit (`forbidden`), entity scope (`not_found`) and the per-user
+ * (`invalid_input`), RBAC of the tool's screen permission (`forbidden`, read
+ * from the ToolRegistry cache: the policy never asks the RBAC policy again,
+ * so each tool gets one decision per request), entity scope (`not_found`) and the per-user
  * rate limit (`rate_limited`). Then runs the tool: ToolInputException →
  * `invalid_input`, any other throwable → `error`, slower than TIMEOUT_MS →
  * `timeout` (result discarded). Output is cut to ToolResult::MAX_ROWS and
- * MAX_BYTES, free-text fields go through PiiMinimizer, and every call writes
+ * MAX_BYTES, free-text fields go through PiiMinimizer over the full text and
+ * only then are cut to ToolResult::$excerptLengths, and every call writes
  * one `mcp_tool_call` row with the input redacted and minimized.
  */
 final class ToolPolicy
@@ -52,7 +51,6 @@ final class ToolPolicy
     public function __construct(
         private readonly ToolRegistry $registry,
         private readonly JsonSchemaValidator $validator,
-        private readonly AuthorizationPolicyInterface $authorization,
         private readonly McpToolCallRepositoryInterface $calls,
         private readonly ToolRateLimiter $rateLimiter,
         ?PiiMinimizer $minimizer = null,
@@ -77,7 +75,9 @@ final class ToolPolicy
         try {
             $inputMinimized = $this->minimizeInput($input);
 
-            $tool = in_array($toolName, $offeredNames, true) ? $this->registry->find($family, $toolName) : null;
+            $offered = in_array($toolName, $offeredNames, true);
+            $denial = $offered ? $this->registry->denialReason($family, $toolName) : ToolRegistry::NOT_OFFERED;
+            $tool = $denial === ToolRegistry::NOT_OFFERED ? null : $this->registry->registered($family, $toolName);
             if ($tool === null) {
                 return $this->deny($context, $toolName, $inputMinimized, 'not_offered', $started);
             }
@@ -86,7 +86,7 @@ final class ToolPolicy
                 return $this->deny($context, $toolName, $inputMinimized, 'invalid_input', $started);
             }
 
-            if (!$this->authorized($context, $tool)) {
+            if ($denial !== null) {
                 return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started);
             }
 
@@ -152,36 +152,23 @@ final class ToolPolicy
         ));
     }
 
-    private function authorized(ToolContext $context, AiTool $tool): bool
-    {
-        try {
-            return $this->authorization->decide(new AuthorizationRequest(
-                context: TenantContext::authenticated($context->tenantId, $context->userId, $context->unitId),
-                action: $tool->requiredPermission(),
-                requiresUnitScope: true,
-                resourceTenantId: $context->tenantId,
-                resourceUnitId: $context->unitId,
-                entityType: 'mcp_tool',
-                entityId: null,
-                metadata: ['tool' => $tool->name()],
-            ))->allowed();
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
     /** @return array{0: string, 1: int, 2: bool} */
     private function content(ToolResult $result): array
     {
         $rows = array_slice($result->data, 0, ToolResult::MAX_ROWS);
         $truncated = $result->truncated || $result->rowCount > ToolResult::MAX_ROWS;
 
-        if ($result->freeTextFields !== []) {
-            foreach ($rows as $index => $row) {
-                foreach ($result->freeTextFields as $field) {
-                    if (isset($row[$field]) && is_string($row[$field])) {
-                        $rows[$index][$field] = PiiMinimizer::minimize($row[$field], $result->knownNames);
-                    }
+        foreach ($rows as $index => $row) {
+            foreach ($result->freeTextFields as $field) {
+                if (isset($row[$field]) && is_string($row[$field])) {
+                    $rows[$index][$field] = PiiMinimizer::minimize($row[$field], $result->knownNames);
+                }
+            }
+            // Cut only after minimizing: a cut inside a phone, CPF or name
+            // would leave a fragment the minimizer no longer recognizes.
+            foreach ($result->excerptLengths as $field => $max) {
+                if (isset($rows[$index][$field]) && is_string($rows[$index][$field])) {
+                    $rows[$index][$field] = ToolFormat::excerpt($rows[$index][$field], $max);
                 }
             }
         }

@@ -8,7 +8,6 @@ use CentralVet\Ai\Tools\AiTool;
 use CentralVet\Ai\Tools\ToolContext;
 use CentralVet\Ai\Tools\ToolEntityNotFoundException;
 use CentralVet\Ai\Tools\ToolFamily;
-use CentralVet\Ai\Tools\ToolFormat;
 use CentralVet\Ai\Tools\ToolInputException;
 use CentralVet\Ai\Tools\ToolResult;
 use CentralVet\Domain\Contract\CopilotClinicalQueryInterface;
@@ -100,11 +99,11 @@ final class ObterExamesTool implements AiTool
                 'data' => $requestedAt === null ? null : substr(trim((string) $requestedAt), 0, 10),
                 'status' => (string) $row['status'],
                 'provisorio' => ($row['pending_review'] ?? null) === true,
-                'resultado' => ToolFormat::excerpt($row['structured_result_text'] ?? null, self::RESULT_EXCERPT),
+                'resultado' => $row['structured_result_text'] ?? null,
             ];
         }
 
-        return new ToolResult($data, $truncated, ['resultado'], $this->query->tutorNames($patientId));
+        return new ToolResult($data, $truncated, ['resultado'], $this->query->tutorNames($patientId), ['resultado' => self::RESULT_EXCERPT]);
     }
 
     /** @param array<string, mixed> $input */

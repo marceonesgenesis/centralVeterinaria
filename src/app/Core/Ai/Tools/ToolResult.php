@@ -8,7 +8,10 @@ namespace CentralVet\Ai\Tools;
  * Rows returned by a tool: a list of flat records with scalar values.
  * $freeTextFields names the columns holding clinical free text (minimized
  * before going to the provider); $knownNames lists names already shown to
- * the user that PII minimization may keep.
+ * the user that PII minimization may keep. $excerptLengths maps a column to
+ * its maximum length in characters: tools return the full text and
+ * ToolPolicy cuts it only after minimizing, so a cut never leaves a
+ * fragment of a phone, CPF or name that the minimizer cannot recognize.
  */
 final class ToolResult
 {
@@ -23,13 +26,21 @@ final class ToolResult
      * @param list<array<string, scalar|null>> $data
      * @param list<string> $freeTextFields
      * @param list<string> $knownNames
+     * @param array<string, int> $excerptLengths
      */
     public function __construct(
         array $data,
         public readonly bool $truncated = false,
         public readonly array $freeTextFields = [],
         public readonly array $knownNames = [],
+        public readonly array $excerptLengths = [],
     ) {
+        foreach ($excerptLengths as $field => $max) {
+            if (!is_string($field) || !is_int($max) || $max <= 0) {
+                throw new \InvalidArgumentException('Excerpt lengths must map field names to positive lengths');
+            }
+        }
+
         if (!array_is_list($data)) {
             throw new \InvalidArgumentException('Tool result data must be a list of rows');
         }

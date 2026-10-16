@@ -8,7 +8,6 @@ use CentralVet\Ai\Tools\AiTool;
 use CentralVet\Ai\Tools\ToolContext;
 use CentralVet\Ai\Tools\ToolEntityNotFoundException;
 use CentralVet\Ai\Tools\ToolFamily;
-use CentralVet\Ai\Tools\ToolFormat;
 use CentralVet\Ai\Tools\ToolInputException;
 use CentralVet\Ai\Tools\ToolResult;
 use CentralVet\Domain\Contract\CopilotClinicalQueryInterface;
@@ -97,7 +96,7 @@ final class ObterHistoricoAtendimentosTool implements AiTool
             $data[] = [
                 'encounter_id' => (int) $row['id'],
                 'data' => (string) $row['started_at'],
-                'motivo' => ToolFormat::excerpt($row['anamnesis_text'] ?? null, self::MOTIVE_LENGTH),
+                'motivo' => $row['anamnesis_text'] ?? null,
                 'diagnostico' => $row['diagnosis_text'] ?? null,
                 'conduta' => $row['clinical_plan_text'] ?? null,
             ];
@@ -108,6 +107,7 @@ final class ObterHistoricoAtendimentosTool implements AiTool
             false,
             ['motivo', 'diagnostico', 'conduta'],
             array_values(array_unique($this->query->tutorNames($patientId))),
+            ['motivo' => self::MOTIVE_LENGTH],
         );
     }
 

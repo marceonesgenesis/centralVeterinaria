@@ -163,7 +163,6 @@ final class AiCopilotService
         $policy = new ToolPolicy(
             $registry,
             new JsonSchemaValidator(),
-            $authorization,
             new McpToolCallRepository($context, $connection),
             ToolRateLimiter::fromEnvironment(),
             null,
