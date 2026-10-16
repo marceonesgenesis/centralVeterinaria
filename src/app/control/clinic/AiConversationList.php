@@ -4,7 +4,8 @@
  *
  * Conversas do próprio usuário na unidade ativa (família, data, título),
  * mais recentes primeiro, com abrir (AiCopilotPanel com `conversation_id`)
- * e apagar (confirmação e `onDelete` com `delete=1`). Nunca mostra o texto
+ * e apagar (TForm por linha enviado por POST a `onDelete`, com
+ * confirmação no navegador; GET não apaga). Nunca mostra o texto
  * das mensagens. Tudo passa por CentralVet\Application\AiConversationHistoryService
  * (RBAC `AiCopilotPanel::onOpen|onDelete` na unidade ativa, sem depender de
  * gateway, limiter, flag, termo ou cota); conversa de
@@ -66,20 +67,20 @@ class AiConversationList extends TPage
     }
 
     /**
-     * Apaga a conversa `conversation_id` do usuário; sem `delete=1`, só
-     * pergunta.
+     * POST de form_AiConversationList_<id>: apaga a conversa
+     * `conversation_id` do usuário. Outro método HTTP (link, prefetch,
+     * recarga) só avisa e não apaga.
      */
     public function onDelete($param = null)
     {
-        $id = (int) ($param['conversation_id'] ?? 0);
-
-        if (($param['delete'] ?? '') !== '1' && ($param['delete'] ?? null) !== 1)
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST')
         {
-            $yes = new TAction([__CLASS__, 'onDelete'], ['conversation_id' => $id, 'delete' => 1, 'register_state' => 'false']);
-            new TQuestion(CvFormat::e(_t('Delete conversation')) . '?', $yes);
+            new TMessage('warning', CvFormat::e(_t('Invalid action')));
             $this->onReload($param);
             return;
         }
+
+        $id = (int) ($param['conversation_id'] ?? 0);
 
         try
         {
@@ -206,14 +207,7 @@ class AiConversationList extends TPage
             $open->add(new TImage('fa:folder-open'));
             $open->add(' ' . CvFormat::e(_t('Open')));
 
-            $delete = new TElement('a');
-            $delete->{'class'} = 'btn btn-default btn-sm cv-touch-target';
-            $delete->{'href'} = CvFormat::e((new TAction([__CLASS__, 'onDelete'], ['conversation_id' => $id, 'register_state' => 'false']))->serialize(TRUE, TRUE));
-            $delete->{'generator'} = 'adianti';
-            $delete->{'title'} = CvFormat::e(_t('Delete conversation'));
-            $delete->{'aria-label'} = CvFormat::e(_t('Delete conversation'));
-            $delete->add(new TImage('fa:trash'));
-            $delete->add(' ' . CvFormat::e(_t('Delete')));
+            $delete = self::deleteForm($id);
 
             $actions = new TElement('td');
             $actions->add($open);
@@ -232,6 +226,38 @@ class AiConversationList extends TPage
         $body->add($table);
 
         return $card;
+    }
+
+    /**
+     * "Apagar" da linha: TForm form_AiConversationList_<id> com o
+     * `conversation_id` oculto, enviado por POST a onDelete (padrão de
+     * ExamResultForm::onAiExamSummary), com confirmação no navegador.
+     */
+    private static function deleteForm(int $id): TForm
+    {
+        $formName = 'form_AiConversationList_' . $id;
+        $form = new TForm($formName);
+        $form->{'class'} = 'cv-ai-conversation-delete';
+        $form->style = 'display:inline';
+
+        $field = new THidden('conversation_id');
+        $field->setValue((string) $id);
+
+        $button = new TButton('delete_conversation_' . $id);
+        $button->setAction(new TAction([__CLASS__, 'onDelete'], ['register_state' => 'false']), _t('Delete'));
+        $button->setFormName($formName);
+        $button->setImage('fa:trash');
+        $button->{'class'} = 'btn btn-default btn-sm cv-touch-target';
+        $button->setProperty('title', _t('Delete conversation'));
+        $button->setProperty('aria-label', _t('Delete conversation'));
+        $question = json_encode(_t('Delete conversation') . '?', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+        $button->addFunction('if (!window.confirm(' . $question . ')) { return false; }');
+
+        $form->add($field);
+        $form->add($button);
+        $form->setFields([$field, $button]);
+
+        return $form;
     }
 
     /** Serviço leve de histórico: sem gateway, limiter, flag, termo ou cota. */

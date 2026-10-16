@@ -7,7 +7,7 @@
  * atual (com "Consultei: …" abaixo de cada resposta, a partir do
  * tool_summary), o formulário de pergunta e as conversas anteriores do
  * autor (no clínico, só as do paciente âncora), com "Nova conversa" e
- * "Apagar conversa". Copiloto indisponível → o motivo da 8A, sem
+ * "Apagar conversa". Copiloto indisponível → o motivo da 8A no lugar do
  * formulário. Âncora fora da unidade → "Paciente não encontrado" e a
  * cortina não abre.
  *
@@ -17,9 +17,12 @@
  * botão, marca o formulário com aria-busy e anuncia "Pensando…" na live
  * region.
  *
- * Toda leitura e escrita passa por CentralVet\Application\AiCopilotService
- * (RBAC AiCopilotPanel::onAsk|onOpen|onDelete com unidade ativa). Logs só
- * com nomes de classe; nunca pergunta, resposta ou nomes.
+ * Abrir, listar e apagar passam por CentralVet\Application\AiConversationHistoryService
+ * (sem IA: com o copiloto indisponível a conversa aparece e o motivo fica
+ * no lugar do formulário); perguntar passa por AiCopilotService numa
+ * conexão em autocommit. RBAC AiCopilotPanel::onAsk|onOpen|onDelete com
+ * unidade ativa. Apagar só por POST. Logs só com nomes de classe; nunca
+ * pergunta, resposta ou nomes.
  *
  * @version    1.0
  * @package    control
@@ -62,25 +65,23 @@ class AiCopilotPanel extends TPage
 
     /**
      * Abre a cortina: params `family`, `anchor_patient_id`, `conversation_id`.
+     * Ler não depende da IA: a conversa vem do histórico e só o formulário
+     * de pergunta depende da disponibilidade.
      */
     public function onOpen($param)
     {
         [$family, $anchor, $conversationId] = self::readParams($param);
 
-        $this->perform(function (\CentralVet\Application\AiCopilotService $service) use ($family, $anchor, $conversationId): array
+        $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context) use ($family, $anchor, $conversationId): array
         {
-            if ($anchor !== null)
-            {
-                $service->assertAnchor($anchor);
-            }
-
-            return self::load($service, $family, $anchor, $conversationId);
+            return self::load($connection, $context, $family, $anchor, $conversationId);
         }, $family, $anchor);
     }
 
     /**
      * POST de form_AiCopilotPanel: `question`, `family`, `anchor_patient_id`,
-     * `conversation_id`, `submit_token`.
+     * `conversation_id`, `submit_token`. Roda numa conexão em autocommit
+     * (connection()): o laço de ferramentas não fica dentro de uma transação.
      */
     public function onAsk($param)
     {
@@ -94,49 +95,74 @@ class AiCopilotPanel extends TPage
             TSession::setValue(self::TOKEN_KEY, $token);
         }
 
-        $this->perform(function (\CentralVet\Application\AiCopilotService $service) use ($family, $anchor, $conversationId, $question, $repeated): array
+        $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $locale) use ($family, $anchor, $conversationId, $question, $repeated): array
         {
-            if ($anchor !== null)
+            $unavailable = null;
+
+            try
             {
-                $service->assertAnchor($anchor);
+                $service = static::makeService($context, $locale, $connection);
+
+                if ($anchor !== null)
+                {
+                    $service->assertAnchor($anchor);
+                }
+
+                if (!$repeated)
+                {
+                    $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
+                }
+                elseif ($conversationId === null)
+                {
+                    // envio repetido da primeira pergunta: a conversa mais recente
+                    $latest = $service->conversations($family, $anchor, 1);
+                    $conversationId = $latest !== [] ? $latest[0]->id() : null;
+                }
+            }
+            catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
+            {
+                $unavailable = $e->reason();
+            }
+            catch (PDOException $e)
+            {
+                throw $e;
+            }
+            catch (RuntimeException $e)
+            {
+                // rate limiter sem backend (Redis fora do ar): copiloto indisponível
+                error_log(__METHOD__ . ': ' . get_class($e));
+                $unavailable = 'ai_provider_error';
             }
 
-            if (!$repeated)
-            {
-                $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
-            }
-            elseif ($conversationId === null)
-            {
-                // envio repetido da primeira pergunta: a conversa mais recente
-                $latest = $service->conversations($family, $anchor, 1);
-                $conversationId = $latest !== [] ? $latest[0]->id() : null;
-            }
-
-            return self::load($service, $family, $anchor, $conversationId);
-        }, $family, $anchor);
+            // a conversa é renderizada pelo id devolvido, qualquer que seja a disponibilidade
+            return self::load($connection, $context, $family, $anchor, $conversationId, $unavailable);
+        }, $family, $anchor, true);
     }
 
     /**
-     * Apaga a conversa `conversation_id` do autor e volta à conversa nova.
+     * POST de form_AiCopilotPanel_actions: apaga a conversa `conversation_id`
+     * do autor e volta à conversa nova. Outro método HTTP só avisa.
      */
     public function onDelete($param)
     {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST')
+        {
+            new TMessage('warning', CvFormat::e(_t('Invalid action')));
+            $this->onOpen($param);
+            return;
+        }
+
         [$family, $anchor, $conversationId] = self::readParams($param);
 
         $deleted = false;
-        $this->perform(function (\CentralVet\Application\AiCopilotService $service) use ($family, $anchor, $conversationId, &$deleted): array
+        $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context) use ($family, $anchor, $conversationId, &$deleted): array
         {
-            if ($anchor !== null)
-            {
-                $service->assertAnchor($anchor);
-            }
-
             if ($conversationId !== null)
             {
-                $deleted = $service->deleteConversation($conversationId);
+                $deleted = static::makeHistory($context, $connection)->deleteConversation($conversationId);
             }
 
-            return self::load($service, $family, $anchor, null);
+            return self::load($connection, $context, $family, $anchor, null);
         }, $family, $anchor);
 
         if ($deleted)
@@ -155,20 +181,23 @@ class AiCopilotPanel extends TPage
     }
 
     /**
-     * Executa `$work` com o serviço numa transação e renderiza o estado
+     * Executa `$work(PDO, TenantContext, locale)` numa transação curta (ou,
+     * com `$autocommit`, na conexão de connection()) e renderiza o estado
      * devolvido; trata as negações e falhas sem abrir dados.
      */
-    private function perform(Closure $work, string $family, ?int $anchor): void
+    private function perform(Closure $work, string $family, ?int $anchor, bool $autocommit = false): void
     {
         try
         {
             $context = static::resolveTenantContext();
             $locale = \CentralVet\Ai\AiLocale::fromLanguage(ApplicationTranslator::getLanguage());
 
-            $state = static::transaction(static function () use ($work, $context, $locale): array
-            {
-                return $work(static::makeService($context, $locale));
-            });
+            $state = $autocommit
+                ? $work(static::connection(), $context, $locale)
+                : static::transaction(static function (PDO $connection) use ($work, $context, $locale): array
+                {
+                    return $work($connection, $context, $locale);
+                });
         }
         catch (\CentralVet\Domain\Exception\AiSubjectNotFoundException $e)
         {
@@ -208,7 +237,6 @@ class AiCopilotPanel extends TPage
         }
         catch (RuntimeException $e)
         {
-            // rate limiter sem backend (Redis fora do ar): copiloto indisponível
             error_log(__METHOD__ . ': ' . get_class($e));
             $this->renderPanel(['family' => $family, 'anchor' => $anchor, 'reason' => 'ai_provider_error', 'current' => null, 'messages' => [], 'conversations' => []]);
             return;
@@ -225,23 +253,30 @@ class AiCopilotPanel extends TPage
     }
 
     /**
-     * Estado da cortina: motivo de indisponibilidade ou conversa atual e
-     * lista das anteriores.
+     * Estado da cortina pelo histórico (sem IA): conversa atual, lista das
+     * anteriores e o motivo de indisponibilidade, que só tira o formulário.
+     * `$fallbackReason` vale quando a disponibilidade não aponta motivo
+     * (ex.: falha ao montar o serviço em onAsk).
      *
      * @return array{family: string, anchor: ?int, reason: ?string, current: ?\CentralVet\Domain\AiConversation, messages: list<\CentralVet\Domain\AiConversationMessage>, conversations: list<\CentralVet\Domain\AiConversation>}
      */
-    private static function load(\CentralVet\Application\AiCopilotService $service, string $family, ?int $anchor, ?int $conversationId): array
+    private static function load(PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $family, ?int $anchor, ?int $conversationId, ?string $fallbackReason = null): array
     {
-        $state = ['family' => $family, 'anchor' => $anchor, 'reason' => $service->availability($family), 'current' => null, 'messages' => [], 'conversations' => []];
+        $history = static::makeHistory($context, $connection);
 
-        if ($state['reason'] !== null)
+        // RBAC AiCopilotPanel::onOpen antes de olhar o paciente âncora
+        $conversations = $history->conversations(self::LIST_LIMIT, $family, $anchor);
+
+        if ($anchor !== null && !(new \CentralVet\Persistence\CopilotClinicalQuery($context, $connection))->patientInUnit($anchor))
         {
-            return $state;
+            throw new \CentralVet\Domain\Exception\AiSubjectNotFoundException();
         }
+
+        $state = ['family' => $family, 'anchor' => $anchor, 'reason' => null, 'current' => null, 'messages' => [], 'conversations' => $conversations];
 
         if ($conversationId !== null)
         {
-            $found = $service->conversation($conversationId);
+            $found = $history->conversation($conversationId);
 
             if ($found === null || $found['conversation']->family() !== $family
                 || ($anchor !== null && $found['conversation']->anchorPatientId() !== $anchor))
@@ -253,7 +288,7 @@ class AiCopilotPanel extends TPage
             $state['messages'] = $found['messages'];
         }
 
-        $state['conversations'] = $service->conversations($family, $family === \CentralVet\Ai\Tools\ToolFamily::CLINICAL ? $anchor : null, self::LIST_LIMIT);
+        $state['reason'] = \CentralVet\Application\AiCopilotAvailability::forContext($context, $connection)->reason($family) ?? $fallbackReason;
 
         return $state;
     }
@@ -269,19 +304,25 @@ class AiCopilotPanel extends TPage
 
         $panel->add(TElement::tag('p', CvFormat::e(_t('Answer generated by AI from system data. Check before using.')), ['class' => 'cv-ai-origin cv-ai-copilot__notice']));
 
+        if ($state['reason'] === null || $state['messages'] !== [])
+        {
+            $panel->add(self::conversationView($state['messages']));
+        }
+
         if ($state['reason'] !== null)
         {
+            // indisponível: o motivo fica no lugar do formulário de pergunta
             $notice = new TElement('div');
             $notice->{'class'} = 'cv-state cv-state--empty cv-ai-copilot__unavailable';
             $notice->{'role'} = 'status';
             $notice->add(TElement::tag('p', CvFormat::userMessage('AI assistant is unavailable: ' . $state['reason']), ['class' => 'cv-state__title']));
             $panel->add($notice);
-            parent::add($panel);
-            return;
+        }
+        else
+        {
+            $panel->add($this->questionForm($family, $anchor, $current?->id()));
         }
 
-        $panel->add(self::conversationView($state['messages']));
-        $panel->add($this->questionForm($family, $anchor, $current?->id()));
         $panel->add($this->conversationActions($family, $anchor, $current?->id()));
         $panel->add(self::previousConversations($family, $anchor, $state['conversations'], $current?->id()));
         $panel->add(TElement::tag('script', '', ['src' => self::SCRIPT]));
@@ -563,9 +604,25 @@ class AiCopilotPanel extends TPage
         return null;
     }
 
-    protected static function makeService(\CentralVet\Tenancy\TenantContext $context, string $locale): \CentralVet\Application\AiCopilotService
+    protected static function makeService(\CentralVet\Tenancy\TenantContext $context, string $locale, ?PDO $connection = null): \CentralVet\Application\AiCopilotService
     {
-        return \CentralVet\Application\AiCopilotService::forContext($context, TTransaction::get(), $locale);
+        return \CentralVet\Application\AiCopilotService::forContext($context, $connection ?? static::connection(), $locale);
+    }
+
+    /** Histórico do autor (abrir, listar, apagar): sem gateway, limiter, flag, termo ou cota. */
+    protected static function makeHistory(\CentralVet\Tenancy\TenantContext $context, PDO $connection): \CentralVet\Application\AiConversationHistoryService
+    {
+        return \CentralVet\Application\AiConversationHistoryService::forContext($context, $connection);
+    }
+
+    /**
+     * Conexão 'permission' em autocommit, usada só por onAsk: cada gravação
+     * do serviço (mensagens, auditoria, ai_interaction em finally) vale
+     * sozinha, sem transação longa em volta das chamadas ao provedor.
+     */
+    protected static function connection(): PDO
+    {
+        return TConnection::open('permission');
     }
 
     /**

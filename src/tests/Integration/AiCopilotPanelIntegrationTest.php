@@ -220,13 +220,15 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
             . ' "question" => "Como está o paciente?", "submit_token" => str_repeat("f", 32)]); $page->show();'
             . '$out["seen"] = T14::$seen;'
+            . '$out["messages"] = $count("SELECT COUNT(*) FROM ai_conversation_message WHERE tenant_id = :t");'
         );
 
         Assert::true(is_array($out['seen']) && $out['seen'] !== [], 'makeService/makeHistory received the connection of connection()');
         foreach ($out['seen'] as $where => $inTransaction) {
             Assert::same(false, $inTransaction, 'connection is in autocommit during onAsk (' . $where . ')');
         }
-        Assert::stringContains(self::ANSWER, (string) $out['html'], 'answer still rendered');
+        // a conexão-sonda não enxerga a fixture não confirmada: prova-se a pergunta pelas mensagens gravadas
+        Assert::same(2, $out['messages'], 'question and answer stored');
     }
 
     public function testButtonsAreTouchTargetsAndNothingIsCenteredOrRightAligned(): void
