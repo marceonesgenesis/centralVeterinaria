@@ -37,7 +37,8 @@ use PDO;
  * purpose. Settings belong to the tenant, so authorization never requires a
  * unit scope. Each effective change is audited (`ai.terms.accepted`,
  * `ai.settings.enabled`, `ai.settings.disabled`,
- * `ai.settings.quota_changed`) with ids and numbers only; a call that
+ * `ai.settings.quota_changed`, `ai.settings.copilot_management_enabled`,
+ * `ai.settings.copilot_management_disabled`) with ids and numbers only; a call that
  * changes nothing (e.g. disable() on a flag already off) writes nothing.
  * No transaction is opened: the controller owns it.
  */
@@ -84,7 +85,7 @@ final class AiSettingsService
     }
 
     /**
-     * @return array{enabled: bool, terms_version: ?string, terms_accepted_at: ?DateTimeImmutable, terms_current: bool, monthly_token_quota: int, month_tokens: int, month_cost_micro_usd: int, by_purpose: list<array{purpose: string, requests: int, tokens: int, cost_micro_usd: int}>}
+     * @return array{enabled: bool, copilot_management: bool, terms_version: ?string, terms_accepted_at: ?DateTimeImmutable, terms_current: bool, monthly_token_quota: int, month_tokens: int, month_cost_micro_usd: int, by_purpose: list<array{purpose: string, requests: int, tokens: int, cost_micro_usd: int}>}
      *
      * @throws \CentralVet\Authorization\Exception\AuthorizationDenied
      */
@@ -103,6 +104,7 @@ final class AiSettingsService
 
         return [
             'enabled' => $this->flags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT),
+            'copilot_management' => $this->flags->isEnabled(FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT),
             'terms_version' => $setting->termsVersion(),
             'terms_accepted_at' => $setting->termsAcceptedAt(),
             'terms_current' => $setting->hasAcceptedTerms(AiTerms::VERSION),
@@ -156,6 +158,30 @@ final class AiSettingsService
             $this->flags->set(FeatureFlagRepositoryInterface::AI_ASSISTANT, false, $this->context->userId());
             $this->record('ai.settings.disabled', ['enabled' => true], ['enabled' => false]);
         }
+    }
+
+    /**
+     * Turns the management copilot (Fase 8B.2, flag `ai_copilot_management`)
+     * on or off. Only the flag is written; it does not touch `ai_assistant`
+     * nor the term, and the panel still requires the assistant to be
+     * available. Writes nothing when the flag already has that value.
+     *
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied (nothing is written)
+     */
+    public function setCopilotManagement(bool $enabled): void
+    {
+        $this->authorize(self::ACTION_SAVE);
+
+        if ($this->flags->isEnabled(FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT) === $enabled) {
+            return;
+        }
+
+        $this->flags->set(FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT, $enabled, $this->context->userId());
+        $this->record(
+            $enabled ? 'ai.settings.copilot_management_enabled' : 'ai.settings.copilot_management_disabled',
+            ['copilot_management' => !$enabled],
+            ['copilot_management' => $enabled],
+        );
     }
 
     /**

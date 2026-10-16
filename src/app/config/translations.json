@@ -1580,6 +1580,10 @@
     "pt": "Ativar 2FA"
   },
   {
+    "en": "Enable the management copilot (schedule, stock, debts and indicators)",
+    "pt": "Ligar o copiloto de gestão (agenda, estoque, débitos e indicadores)"
+  },
+  {
     "en": "Encounter",
     "pt": "Atendimento"
   },

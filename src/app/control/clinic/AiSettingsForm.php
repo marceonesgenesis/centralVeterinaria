@@ -7,7 +7,8 @@
  * (AiTerms::text do idioma da sessão, num bloco rolável, com a declaração
  * do ditado por voz do navegador), caixa "Li e aceito o termo"
  * (`accept_terms`, obrigatória para ligar enquanto o termo atual não foi
- * aceito), versão e data do aceite, cota mensal de tokens
+ * aceito), interruptor do copiloto de gestão (`ai_copilot_management`,
+ * Fase 8B.2), versão e data do aceite, cota mensal de tokens
  * (`monthly_token_quota`), cartão do mês (tokens usados / cota, custo em
  * US$ e pedidos por finalidade) e links para AiInteractionList e
  * AiToolCallList (auditoria de ferramentas do copiloto). Mostra o
@@ -39,6 +40,11 @@ class AiSettingsForm extends TPage
         $enabled->setIndexValue('1');
         $enabled->setUseSwitch(true, 'blue');
 
+        // rótulo do switch leva cv-touch-target (alvo de toque de 44 px)
+        $management = new TCheckButton('ai_copilot_management');
+        $management->setIndexValue('1');
+        $management->setUseSwitch(true, 'blue cv-touch-target');
+
         $accept = new TCheckButton('accept_terms');
         $accept->setIndexValue('1');
 
@@ -50,6 +56,7 @@ class AiSettingsForm extends TPage
 
         $this->form->addFields([new TLabel(_t('Turn on the AI assistant'))], [$enabled]);
         $this->form->addFields([new TLabel(_t('I have read and accept the term'))], [$accept]);
+        $this->form->addFields([new TLabel(_t('Enable the management copilot (schedule, stock, debts and indicators)'))], [$management]);
         $this->form->addFields([new TLabel(_t('Monthly token quota'))], [$quota]);
 
         $btn = $this->form->addAction(_t('Save'), new TAction([$this, 'onSave']), 'fa:check');
@@ -74,7 +81,8 @@ class AiSettingsForm extends TPage
     }
 
     /**
-     * Grava cota e liga/desliga numa transação. Ligar sem o termo atual
+     * Grava cota, liga/desliga o assistente e o copiloto de gestão numa
+     * transação. Ligar sem o termo atual
      * aceito mostra o aviso de termo pendente e nada é gravado.
      */
     public function onSave($param = null)
@@ -83,6 +91,7 @@ class AiSettingsForm extends TPage
 
         $enable = (string) ($_POST['ai_enabled'] ?? '') === '1';
         $accept = (string) ($_POST['accept_terms'] ?? '') === '1';
+        $management = (string) ($_POST['ai_copilot_management'] ?? '') === '1';
         $quotaRaw = trim((string) ($_POST['monthly_token_quota'] ?? ''));
 
         try
@@ -94,7 +103,7 @@ class AiSettingsForm extends TPage
 
             $context = static::resolveTenantContext();
 
-            static::transaction(static function (PDO $connection) use ($context, $enable, $accept, $quotaRaw): void
+            static::transaction(static function (PDO $connection) use ($context, $enable, $accept, $management, $quotaRaw): void
             {
                 $service = static::makeService($context, $connection);
                 $service->changeMonthlyQuota((int) $quotaRaw);
@@ -107,6 +116,8 @@ class AiSettingsForm extends TPage
                 {
                     $service->disable();
                 }
+
+                $service->setCopilotManagement($management);
             });
 
             TToast::show('success', _t('Record saved'));
@@ -178,6 +189,7 @@ class AiSettingsForm extends TPage
         $data = new stdClass;
         $data->ai_enabled = $overview['enabled'] ? '1' : '';
         $data->accept_terms = '';
+        $data->ai_copilot_management = $overview['copilot_management'] ? '1' : '';
         $data->monthly_token_quota = (string) $overview['monthly_token_quota'];
         $this->form->setData($data);
 
