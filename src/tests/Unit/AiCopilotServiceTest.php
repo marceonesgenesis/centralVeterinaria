@@ -446,7 +446,7 @@ final class AiCopilotServiceTest
         $gateway = StubAiGateway::scripted([]);
 
         Assert::throws(AuthorizationDenied::class, fn () => $this->service($gateway)->ask('clinical', null, null, 'Oi'));
-        Assert::same('AiCopilotPanel::onAsk', $this->authorization->requests[0]->action);
+        Assert::same('AiCopilotPanel::onAsk', $this->authorization->requests[0]->action());
         Assert::same([], $gateway->requests());
     }
 
