@@ -173,6 +173,44 @@ final class AiCopilotListsIntegrationTest
         Assert::same(1, $this->count('ai_conversation', $this->conversationV), 'conversation of another user stays');
     }
 
+    public function testHistoryWorksWithoutAiConfiguration(): void
+    {
+        $this->assertHistoryWorksWith(['AI_PROVIDER' => 'f8b-not-configured']);
+    }
+
+    public function testHistoryWorksWhenTheToolLimiterFails(): void
+    {
+        $this->assertHistoryWorksWith(['RATE_LIMIT_DRIVER' => 'f8b-broken']);
+    }
+
+    /** @param array<string, string> $env */
+    private function assertHistoryWorksWith(array $env): void
+    {
+        $list = $this->run('AiConversationList', [], [], null, '', $env);
+        Assert::true(!isset($list['error']), 'render threw: ' . (string) ($list['error'] ?? ''));
+        Assert::stringContains('F8B teste conversa do U', (string) $list['html'], 'own conversation is listed without gateway/limiter');
+        Assert::false(str_contains((string) $list['html'], 'ai_not_configured'), 'no raw error code on screen');
+
+        $deleted = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationU, 'delete' => '1'], [], null, '', $env);
+        Assert::true(!isset($deleted['error']), 'delete threw: ' . (string) ($deleted['error'] ?? ''));
+        Assert::same(0, $this->count('ai_conversation', $this->conversationU), 'own conversation is deleted without gateway/limiter');
+
+        $foreign = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationB, 'delete' => '1'], [], null, '', $env);
+        Assert::stringContains('Conversa não encontrada', (string) $foreign['html'], 'conversation of another unit stays "not found"');
+        Assert::same(1, $this->count('ai_conversation', $this->conversationB), 'conversation of another unit stays');
+
+        $audit = $this->run('AiToolCallList', [], ['decision' => 'denied'], null, '', $env);
+        Assert::stringContains('f8b-corr-denied', (string) $audit['html'], 'tool audit works without gateway/limiter');
+    }
+
+    public function testConversationListWithoutTheProgramShowsTranslatedDenial(): void
+    {
+        $result = $this->run('AiConversationList', [], [], ['AiConversationList' => true]);
+
+        Assert::stringContains('Permissão negada', (string) $result['html'], 'denial is translated');
+        Assert::false(str_contains((string) $result['html'], 'F8B teste conversa do U'), 'denied user sees no conversation');
+    }
+
     public function testToolCallListFiltersDeniedAndNeverShowsInputNorConversationText(): void
     {
         $result = $this->run('AiToolCallList', [], ['decision' => 'denied']);
@@ -305,9 +343,10 @@ final class AiCopilotListsIntegrationTest
      * @param array<string, string> $get
      * @param array<string, string> $post
      * @param array<string, bool>|null $programs
+     * @param array<string, string> $envOverrides
      * @return array<string, mixed>
      */
-    private function run(string $class, array $get, array $post = [], ?array $programs = null, string $extra = ''): array
+    private function run(string $class, array $get, array $post = [], ?array $programs = null, string $extra = '', array $envOverrides = []): array
     {
         $src = dirname(__DIR__, 2);
         $get = array_merge(['class' => $class], $get);
@@ -348,6 +387,7 @@ final class AiCopilotListsIntegrationTest
             'ANTHROPIC_API_KEY' => '',
             'RATE_LIMIT_DRIVER' => 'files',
         ];
+        $env = array_merge($env, $envOverrides);
         $prefix = 'env';
 
         foreach ($env as $name => $value) {
