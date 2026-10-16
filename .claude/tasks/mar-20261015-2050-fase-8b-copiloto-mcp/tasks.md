@@ -29,7 +29,7 @@
 | T-25 | backend | Correção: PII minimizada antes do corte de texto e visibilidade das ferramentas em cache | T-04, T-08, T-10, T-11, T-13 | sim | alta | Noether | [x] |
 | T-26 | frontend | Correção: disponibilidade leve do copiloto nas telas hospedeiras | T-13, T-16 | sim | média | Hamilton | [x] |
 | T-27 | backend | Correção: horários livres só de profissionais clínicos, distribuídos no dia | T-19 | sim | média | Gauss | [x] |
-| T-28 | backend | Correção: histórico legível sem IA, resposta minimizada, uso e auditoria gravados sempre | T-25, T-26 | não | alta | Dijkstra | [ ] |
+| T-28 | backend | Correção: histórico legível sem IA, resposta minimizada, uso e auditoria gravados sempre | T-25, T-26 | não | alta | Dijkstra | [x] |
 | T-29 | frontend | Correção: painel e lista abrem conversa sem IA, mostram a resposta gravada e apagam só por POST | T-26, T-28 | não | alta | Knuth | [ ] |
 
 ## Detalhamento

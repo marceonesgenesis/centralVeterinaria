@@ -50,6 +50,9 @@
 - 2026-10-16 · onda 8 · usuário — Regra de horários livres confirmada: elegível = usuário ativo do tenant com agendamento na unidade nos 90 dias anteriores ou no dia; fallback para a lista da agenda; 50 linhas repartidas por profissional ao longo do dia.
 - 2026-10-16 · T-25 · onda 8 — linha de wiring em AiCopilotPanelIntegrationTest.php (fora da lista) aceita; ?PiiMinimizer=null mantido; ToolRegistry::registered() novo; ferramenta sem RBAC em offeredNames → forbidden; commit RED 189c6a1 sem Co-Authored-By (cosmético).
 - 2026-10-16 · T-25 · onda 8 (rodada 1, plano-mandou) — teste de minimização antes do corte fortalecido (nenhum dígito do telefone/CPF), provado falhando com a ordem invertida.
+- 2026-10-16 · T-28 · onda 9 — a minimização da resposta quebrava 2 testes do painel pela fixture (tutor "F8B teste tutor"); a T-28 ajustou a própria fixture ANSWER em vez de deixar a SUITE vermelha para a T-29 — escopo autorizado.
+- 2026-10-16 · T-28 · onda 9 (gate) — interação gravada em finally após a mensagem: uso sempre contado na cota (monthlyTokenUsage soma todas as linhas); sem bloqueante.
+- 2026-10-16 · T-28 · onda 9 — conversations() do histórico com filtros opcionais family/anchor; exceção no laço continua virando resposta falha.
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -102,6 +105,10 @@
 - T-26: AiCopilotAvailability::reason duplica AiCopilotService::availability; closure de configuração do forContext sem teste unitário próprio.
 - T-27: sem teste da fronteira de 90 dias nem de agendamento no dia seguinte; schedulableProfessionals sem asserção de outro tenant.
 - Onda 8: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
+- T-28: ai_interaction inserida depois de appendMessage+touch; falha do insert no caminho de sucesso deixa a resposta gravada sem registro de uso (logar com correlation_id ou inserir antes) (AiCopilotService::recordInteraction).
+- T-28: teste RED do cenário 3 (conversation() com flag desligada) já passa no RED (regressão); AiConversationHistoryServiceTest não monta flag desligada/cota estourada (sem ação obrigatória).
+- Onda 9: AiCopilotPanel.php:168 ainda envolve o ask em transação — escopo da T-29 (onda 10).
+- Onda 9: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -124,5 +131,6 @@
   - Onda 6: BASE 93bc397 → HEAD ff42a18 (ff42a18, 67789bd, a96f54a, 5ff7bc7, bac7f0b, d1827a7, 1063c3d, 358b4a4)
   - Onda 7: BASE ec862a2 → HEAD 185bbdd (f2005cf, 93a1031, 89038e4, 185bbdd)
   - Onda 8: BASE b2464f4 → HEAD 5acfbb1 (ea33281, 21c4587, 189c6a1, 8ea9e28, 9ccfe8c, 13b24af, 5acfbb1)
-- Último status conhecido: onda 8 concluída; T-25..T-27 [x]; SUITE 1689/1689; T-28 e T-29 pendentes
-- Próxima onda recomendada: 9 — T-28 (depende de T-25, T-26), depois onda 10 — T-29
+  - Onda 9: BASE b277a80 → HEAD 68f006d (6eadd59, 9ba1885, 68f006d)
+- Último status conhecido: onda 9 concluída; T-25..T-28 [x]; SUITE 1698/1698; T-29 pendente
+- Próxima onda recomendada: 10 — T-29
