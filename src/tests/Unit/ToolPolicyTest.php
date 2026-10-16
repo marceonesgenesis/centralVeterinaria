@@ -514,6 +514,28 @@ final class ToolPolicyTest
         Assert::true(mb_strlen($row['motivo']) <= 160);
         Assert::true(mb_strlen($row['resultado']) <= 400);
         Assert::true(str_starts_with($row['motivo'], str_repeat('x', 152)));
+        Assert::true(str_starts_with($row['resultado'], str_repeat('y', 390)));
+
+        // Region where the phone/CPF was: no digit at all (a cut before
+        // minimizing leaves "(85) 9…" / "CPF 123.…"), and it carries the
+        // marker or a prefix of it (the cut may fall inside the marker).
+        $phoneRegion = mb_substr($row['motivo'], 152);
+        $cpfRegion = mb_substr($row['resultado'], 390);
+        Assert::same(0, preg_match('/\d/', $phoneRegion), 'phone digits leaked: ' . $phoneRegion);
+        Assert::same(0, preg_match('/\d/', $cpfRegion), 'CPF digits leaked: ' . $cpfRegion);
+        Assert::true(self::carriesMarker($phoneRegion, '[TELEFONE]'), 'phone region without marker: ' . $phoneRegion);
+        Assert::true(self::carriesMarker(preg_replace('/^\s*CPF/u', '', $cpfRegion), '[CPF]'), 'CPF region without marker: ' . $cpfRegion);
+    }
+
+    /** True when $region holds $marker or is cut inside it (" [TELEF…"). */
+    private static function carriesMarker(string $region, string $marker): bool
+    {
+        $region = trim(rtrim(trim($region), '…'));
+        if (str_contains($region, $marker)) {
+            return true;
+        }
+
+        return $region !== '' && str_starts_with($marker, $region);
     }
 
     public function testExcerptLengthsMustMapFieldsToPositiveLengths(): void
