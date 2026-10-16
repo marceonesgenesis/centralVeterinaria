@@ -28,6 +28,8 @@ final class ToolPolicy
 {
     public const TIMEOUT_MS = 5000;
     public const MAX_BYTES = 16384;
+    /** Upper bound of `mcp_tool_call.input_minimized` (column is TEXT). */
+    public const MAX_INPUT_BYTES = 4096;
 
     private const MESSAGES = [
         'not_offered' => 'sem permissão',
@@ -60,60 +62,94 @@ final class ToolPolicy
     }
 
     /**
+     * Never throws: any failure at any stage becomes a denied outcome with a
+     * fixed message, one `denied` audit row (best effort) and a log line
+     * with the exception class and correlation_id only.
+     *
      * @param array<string, mixed> $input as sent by the model (untrusted)
      * @param list<string> $offeredNames tools offered to the model in this turn
      */
     public function execute(ToolContext $context, string $family, string $toolName, array $input, array $offeredNames): ToolOutcome
     {
-        $started = ($this->monotonicMs)();
-        $inputMinimized = $this->minimizeInput($input);
-
-        $tool = in_array($toolName, $offeredNames, true) ? $this->registry->find($family, $toolName) : null;
-        if ($tool === null) {
-            return $this->deny($context, $toolName, $inputMinimized, 'not_offered', $started);
-        }
-
-        if ($this->validator->validate($tool->inputSchema(), $input) !== []) {
-            return $this->deny($context, $toolName, $inputMinimized, 'invalid_input', $started);
-        }
-
-        if (!$this->authorized($context, $tool)) {
-            return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started);
-        }
+        $started = $this->now();
+        $inputMinimized = '{}';
 
         try {
+            $inputMinimized = $this->minimizeInput($input);
+
+            $tool = in_array($toolName, $offeredNames, true) ? $this->registry->find($family, $toolName) : null;
+            if ($tool === null) {
+                return $this->deny($context, $toolName, $inputMinimized, 'not_offered', $started);
+            }
+
+            if ($this->validator->validate($tool->inputSchema(), $input) !== []) {
+                return $this->deny($context, $toolName, $inputMinimized, 'invalid_input', $started);
+            }
+
+            if (!$this->authorized($context, $tool)) {
+                return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started);
+            }
+
             $tool->assertInScope($context, $input);
-        } catch (ToolEntityNotFoundException) {
-            return $this->deny($context, $toolName, $inputMinimized, 'not_found', $started);
-        }
 
-        if (!$this->rateLimiter->attempt($context->tenantId, $context->userId)) {
-            return $this->deny($context, $toolName, $inputMinimized, 'rate_limited', $started);
-        }
+            if (!$this->withinRateLimit($context, $toolName)) {
+                return $this->deny($context, $toolName, $inputMinimized, 'rate_limited', $started);
+            }
 
-        try {
             $result = $tool->execute($context, $input);
-        } catch (ToolInputException) {
-            return $this->deny($context, $toolName, $inputMinimized, 'invalid_input', $started);
+
+            if ($this->now() - $started > self::TIMEOUT_MS) {
+                return $this->deny($context, $toolName, $inputMinimized, 'timeout', $started);
+            }
+
+            [$content, $rowCount, $truncated] = $this->content($result);
+            $this->audit($context, $toolName, $inputMinimized, McpToolCall::DECISION_ALLOWED, null, $rowCount, $truncated, $started);
+
+            return new ToolOutcome($toolName, false, $content, McpToolCall::DECISION_ALLOWED, null, $rowCount, $truncated);
         } catch (\Throwable $failure) {
-            error_log(sprintf(
-                '[ai-tool] %s failed with %s (correlation_id=%s)',
-                $toolName,
-                $failure::class,
-                $context->correlationId,
-            ));
+            $reason = match (true) {
+                $failure instanceof ToolInputException => 'invalid_input',
+                $failure instanceof ToolEntityNotFoundException => 'not_found',
+                default => 'error',
+            };
+            if ($reason === 'error') {
+                $this->log($toolName, $failure, $context->correlationId, 'failed');
+            }
 
-            return $this->deny($context, $toolName, $inputMinimized, 'error', $started);
+            return $this->deny($context, $toolName, $inputMinimized, $reason, $started);
         }
+    }
 
-        if (($this->monotonicMs)() - $started > self::TIMEOUT_MS) {
-            return $this->deny($context, $toolName, $inputMinimized, 'timeout', $started);
+    /** Fail-closed: a broken limiter backend denies the call. */
+    private function withinRateLimit(ToolContext $context, string $toolName): bool
+    {
+        try {
+            return $this->rateLimiter->attempt($context->tenantId, $context->userId);
+        } catch (\Throwable $failure) {
+            $this->log($toolName, $failure, $context->correlationId, 'rate limiter failed');
+
+            return false;
         }
+    }
 
-        [$content, $rowCount, $truncated] = $this->content($result);
-        $this->audit($context, $toolName, $inputMinimized, McpToolCall::DECISION_ALLOWED, null, $rowCount, $truncated, $started);
+    private function now(): int
+    {
+        try {
+            return (int) ($this->monotonicMs)();
+        } catch (\Throwable) {
+            return intdiv(hrtime(true), 1_000_000);
+        }
+    }
 
-        return new ToolOutcome($toolName, false, $content, McpToolCall::DECISION_ALLOWED, null, $rowCount, $truncated);
+    private function log(string $toolName, \Throwable $failure, string $correlationId, string $what): void
+    {
+        error_log(sprintf(
+            '[ai-tool] %s %s with %s (correlation_id=%s)',
+            self::safeName($toolName),
+            $what,
+            $failure::class,
+            $correlationId,
+        ));
     }
 
     private function authorized(ToolContext $context, AiTool $tool): bool
@@ -170,7 +206,11 @@ final class ToolPolicy
 
     private function deny(ToolContext $context, string $toolName, string $inputMinimized, string $reason, int $started): ToolOutcome
     {
-        $this->audit($context, $toolName, $inputMinimized, McpToolCall::DECISION_DENIED, $reason, 0, false, $started);
+        try {
+            $this->audit($context, $toolName, $inputMinimized, McpToolCall::DECISION_DENIED, $reason, 0, false, $started);
+        } catch (\Throwable $failure) {
+            $this->log($toolName, $failure, $context->correlationId, 'audit failed');
+        }
 
         return new ToolOutcome(
             $toolName,
@@ -193,7 +233,6 @@ final class ToolPolicy
         bool $truncated,
         int $started,
     ): void {
-        $name = trim($toolName) === '' ? 'unknown' : substr($toolName, 0, 60);
 
         $this->calls->insert(McpToolCall::record(
             $context->tenantId,
@@ -201,13 +240,13 @@ final class ToolPolicy
             $context->userId,
             $context->conversationId,
             $context->correlationId,
-            $name,
+            self::safeName($toolName),
             $inputMinimized,
             $decision,
             $reason,
             $rowCount,
             $truncated,
-            max(0, ($this->monotonicMs)() - $started),
+            max(0, $this->now() - $started),
         ));
     }
 
@@ -215,8 +254,22 @@ final class ToolPolicy
     private function minimizeInput(array $input): string
     {
         $json = json_encode(self::minimizeStrings(AuditRedactor::redact($input)), self::JSON_FLAGS);
+        if (!is_string($json)) {
+            return '{}';
+        }
+        if (strlen($json) > self::MAX_INPUT_BYTES) {
+            $json = (string) json_encode(['truncated' => mb_strcut($json, 0, intdiv(self::MAX_INPUT_BYTES, 2) - 32, 'UTF-8')], self::JSON_FLAGS);
+        }
 
-        return is_string($json) ? $json : '{}';
+        return strlen($json) > self::MAX_INPUT_BYTES ? '{"truncated":true}' : $json;
+    }
+
+    /** Tool name as stored: 1–60 bytes of valid UTF-8 (McpToolCall rejects others). */
+    private static function safeName(string $toolName): string
+    {
+        $name = mb_strcut(mb_scrub($toolName, 'UTF-8'), 0, 60, 'UTF-8');
+
+        return trim($name) === '' ? 'unknown' : $name;
     }
 
     /**

@@ -39,15 +39,12 @@ final class ToolRateLimiter
         return new self(new LoginRateLimiter($backend, self::MAX_CALLS, self::DECAY_SECONDS, self::PREFIX));
     }
 
-    /** Counts the call and returns false once the window is already full. */
+    /**
+     * Counts the call (atomic INCR) and returns false once it is past
+     * MAX_CALLS in the window. Backend failures propagate; ToolPolicy denies.
+     */
     public function attempt(int $tenantId, int $userId): bool
     {
-        $identifier = $tenantId . '|' . $userId;
-        if ($this->limiter->tooManyAttempts($identifier)) {
-            return false;
-        }
-        $this->limiter->hit($identifier);
-
-        return true;
+        return $this->limiter->hit($tenantId . '|' . $userId) <= self::MAX_CALLS;
     }
 }
