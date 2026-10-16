@@ -162,6 +162,14 @@
                         <icon>fas:list-check fa-fw</icon>
                         <action>AiInteractionList</action>
                     </menuitem>
+                    <menuitem label='_t{My conversations}'>
+                        <icon>fas:clock-rotate-left fa-fw</icon>
+                        <action>AiConversationList</action>
+                    </menuitem>
+                    <menuitem label='_t{Tool audit}'>
+                        <icon>fas:shield-halved fa-fw</icon>
+                        <action>AiToolCallList</action>
+                    </menuitem>
                 </menu>
             </menuitem>
 

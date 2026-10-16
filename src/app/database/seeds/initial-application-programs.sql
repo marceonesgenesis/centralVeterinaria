@@ -1031,4 +1031,61 @@ SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1
 FROM system_program p WHERE p.controller='AiInteractionList'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
 
+-- Fase 8B — Copiloto: AiCopilotPanel (cortina do copiloto) e AiConversationList (Minhas conversas)
+-- para todo grupo que já tem EncounterView; AiToolCallList (auditoria de ferramentas) só para o
+-- grupo 1 (Template - Admin). Um INSERT ... SELECT concede a vários grupos: o id de cada vínculo
+-- novo é MAX(id) + a posição do grupo entre os grupos com EncounterView que ainda não têm o programa.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Copilot Panel', 'AiCopilotPanel'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiCopilotPanel');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
+       + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
+          FROM system_group_program earlier_link
+          JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          WHERE earlier_link.system_group_id <= clinical_group.system_group_id
+          AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
+       clinical_group.system_group_id, p.id
+FROM system_program p
+JOIN (SELECT DISTINCT encounter_link.system_group_id
+      FROM system_group_program encounter_link
+      JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
+      WHERE encounter_view.controller='EncounterView') clinical_group
+WHERE p.controller='AiCopilotPanel'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Conversation List', 'AiConversationList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiConversationList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
+       + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
+          FROM system_group_program earlier_link
+          JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          WHERE earlier_link.system_group_id <= clinical_group.system_group_id
+          AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
+       clinical_group.system_group_id, p.id
+FROM system_program p
+JOIN (SELECT DISTINCT encounter_link.system_group_id
+      FROM system_group_program encounter_link
+      JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
+      WHERE encounter_view.controller='EncounterView') clinical_group
+WHERE p.controller='AiConversationList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Tool Call List', 'AiToolCallList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiToolCallList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='AiToolCallList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
 COMMIT;
