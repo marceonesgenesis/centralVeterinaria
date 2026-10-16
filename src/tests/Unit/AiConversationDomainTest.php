@@ -63,7 +63,7 @@ final class AiConversationDomainTest
     {
         $user = AiConversationMessage::user(10, 'Qual o peso?', self::now());
         Assert::same('user', $user->role());
-        Assert::false($user->failed());
+        Assert::false($user->isFailed());
         Assert::same([], $user->toolSummary());
 
         $summary = [['tool' => 'obter_paciente', 'label' => 'Paciente', 'count' => 1]];
@@ -73,7 +73,7 @@ final class AiConversationDomainTest
 
         $failed = AiConversationMessage::failed(10, 'ai_timeout', self::now());
         Assert::same('assistant', $failed->role());
-        Assert::true($failed->failed());
+        Assert::true($failed->isFailed());
         Assert::same('ai_timeout', $failed->content());
         Assert::throws(InvalidArgumentException::class, fn () => AiConversationMessage::failed(10, 'texto livre', self::now()));
 
@@ -101,7 +101,7 @@ final class AiConversationDomainTest
         Assert::same('rate_limited', $denied->denyReason());
         Assert::count(7, McpToolCall::DENY_REASONS);
 
-        $copy = McpToolCall::reconstitute($denied->toRow() + ['id' => 3, 'created_at' => '2026-10-15 10:00:00.000000']);
+        $copy = McpToolCall::reconstitute(array_merge($denied->toRow(), ['id' => 3, 'created_at' => '2026-10-15 10:00:00.000000']));
         Assert::same(3, $copy->id());
         Assert::same('denied', $copy->decision());
         Assert::same('buscar_paciente', $copy->toolName());
