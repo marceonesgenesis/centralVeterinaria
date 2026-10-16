@@ -37,6 +37,11 @@
 - 2026-10-15 · T-17 · onda 5 — Id do vínculo no seed 8B = MAX(id) + posição do grupo; teste extra roda o bloco em transação desfeita. A DML do bloco 8B não foi aplicada no centralvet (dev): depende de aprovação SQL do usuário.
 - 2026-10-15 · T-18 · onda 5 — Runbook cita RATE_LIMIT_DRIVER=files, cota por pergunta, cron de retenção, 0015 e ADR 0007 (relays das ondas 3 e 4 cumpridos).
 - 2026-10-15 · onda 5 — Fase 8B.1 (copiloto clínico) completa: T-01..T-18 [x]; resta a 8B.2 (T-19..T-24).
+- 2026-10-15 · T-19..T-22 · onda 6 — RED inválido por fakes/interface/testes de integração extras no commit RED: aceito (arquivos de teste/contrato em Arquivos prováveis).
+- 2026-10-15 · T-19 · onda 6 — `busy()` bloqueia o profissional em todo o tenant, como `assertNoConflict`: aceito.
+- 2026-10-15 · T-21 · onda 6 — receita por SQL próprio com hint de 5 s, conferida contra `totalsByType`: aceito.
+- 2026-10-15 · T-22 · onda 6 — flag `ai_copilot_management` independente de `ai_enabled`; `cv-touch-target` no rótulo do switch; gravação provada por fake: aceito.
+- 2026-10-15 · T-23 · onda 6 — registro das ferramentas de gestão no `ManagementToolset` fica com a T-23.
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -52,6 +57,7 @@
 - Onda 3 (board): T-13 `AiCopilotService` com 10º parâmetro `?PiiMinimizer` (passe null); `CopilotAnswer.text=''` se failed; `forContext` conecta no Redis e lança RuntimeException sem Redis; `AiCompletionRequest` 7º parâmetro `?array $toolChoice`; `StubAiGateway` lança ai_provider_error (400) para tool_use/tool_result sem tools; chamada final com as mesmas tools e tool_choice none; cota checada uma vez por pergunta (até 5 chamadas).
 - Onda 4 (board): T-14 `AiCopilotPanel::linkFor($family, ?$anchor)`; `transaction(callable $fn)` passa a conexão; link abre a cortina via generator; RuntimeException do limiter = painel indisponível (relay da onda 3 cumprido). T-15 `AiConversationList` usa `AiCopilotPanel::linkFor(...).'&conversation_id=<id>'`; histórico via `AiConversationHistoryService::forContext(TenantContext, PDO)` sem gateway/limiter/flag/termo/cota.
 - Onda 5 (board): T-16 link `data-cv-copilot="clinical"` em PatientForm (só edição) e EncounterView, some sem IA disponível; T-17 submenu de IA com 4 filhos e bloco 8B do seed (id = MAX(id)+posição; T-23 atualiza `Assert::same` de 4 filhos e usa o mesmo marcador).
+- Onda 6 (board): T-19 `busy()` em todo o tenant, `FreeSlotFinder` exige início > agora; T-20 `ConsultarEstoqueTool::FILTER_*`; T-21 `CopilotFinanceQueryInterface::OVERDUE|UPCOMING`; T-22 `AiSettingsService::setCopilotManagement(bool)` e `overview()['copilot_management']`. T-23 monta `new XTool(new CopilotXQuery($ctx,$pdo))`.
 
 ## Pendências
 - 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
@@ -76,6 +82,11 @@
 - T-17: só o grupo 1 (Template - Admin) tem EncounterView, então o 8B concede só a ele; compatibilidade MySQL 5.7 do bloco 8B verificada por inspeção (sem imagem 5.7 local); `testEveryCopilotScreenKeyHasATranslation` não é RED de comportamento.
 - T-18: runbook 5.7 ambíguo sobre `.verify.sql` e "mesma contagem" da ai_interaction; falta conferência da ordem DROP/CREATE TRIGGER dos 6 CHECKs (seção 0015); referência a códigos `ai_*` aponta para tabela errada em ia-assistente.md.
 - Onda 5: aplicar 0015 e bloco 8B do seed no centralvet (dev) depende de aprovação SQL do usuário; "nenhum push" não verificável por remoto.
+- T-19: verificar_horarios sem profissional_id corta em 50 linhas (a tarde some); profissional_id de usuário inativo vira not found em consultar_agenda.
+- T-20: teste de escape LIKE não prova o escape; expiring sem casos de borda; lote vencido pode aparecer em abaixo_minimo/termo sem sinalização.
+- T-21: ListarDebitosTool não normaliza fuso do relógio; vencimento por dia difere da tela no próprio dia e ticket_medio inclui receita sem atendimento (documentar no runbook T-24); falta caso de paciente novo na unidade A.
+- T-22: `.cv-touch-target` no `.tswitch` deixa o trilho no topo da caixa de 44px (conferir visualmente); gravação da flag provada só por fake, sem FeatureFlagRepository real.
+- Onda 6: 0015 e seed 8B no centralvet (dev) seguem dependendo de aprovação SQL; "nenhum push" não verificável por remoto.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -95,5 +106,6 @@
   - Onda 3: BASE 4ece9e1 → HEAD 3d76c96 (3d76c96, a823d73, 51e662b, dd595b3)
   - Onda 4: BASE 6ef9ffd → HEAD 69382a1 (69382a1, 99b8e46, 110fd8d, b1a6036, 8c736b8, beaf682, d620a57)
   - Onda 5: BASE b016bf4 → HEAD 09e41bc (09e41bc, a7dc809, 6a0d75d, ded9224, cfec6a4)
-- Último status conhecido: onda 5 concluída (T-16, T-17, T-18 [x]); 8B.1 completa; SUITE 1625/1625 no gate
-- Próxima onda recomendada: onda 6 (T-19..T-21; depois T-22, T-23, T-24 da 8B.2; confirmar no plano)
+  - Onda 6: BASE 93bc397 → HEAD ff42a18 (ff42a18, 67789bd, a96f54a, 5ff7bc7, bac7f0b, d1827a7, 1063c3d, 358b4a4)
+- Último status conhecido: onda 6 concluída (T-19..T-22 [x]); SUITE 1672/1672 no gate
+- Próxima onda recomendada: onda 7 (T-23, depois T-24)
