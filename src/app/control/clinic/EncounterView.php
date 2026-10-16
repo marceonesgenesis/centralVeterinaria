@@ -1689,16 +1689,17 @@ class EncounterView extends TPage
 
     /**
      * Whether the "Copiloto" link shows (Fase 8B):
-     * AiCopilotService::availability('clinical') is null. Any failure (no
-     * Redis, invalid AI config) hides it; the encounter always renders.
+     * AiCopilotAvailability::reason('clinical') is null — a lightweight
+     * check (flag, terms, quota, configuration) that never builds the
+     * gateway, the Redis rate limiter nor the tool registry. Any failure
+     * hides it; the encounter always renders.
      */
     private static function copilotAvailable(\CentralVet\Tenancy\TenantContext $context): bool
     {
         try
         {
-            $service = \CentralVet\Application\AiCopilotService::forContext($context, TTransaction::get(), self::aiLocale());
-
-            return $service->availability(\CentralVet\Ai\Tools\ToolFamily::CLINICAL) === null;
+            return \CentralVet\Application\AiCopilotAvailability::forContext($context, TTransaction::get())
+                ->reason(\CentralVet\Ai\Tools\ToolFamily::CLINICAL) === null;
         }
         catch (Throwable $e)
         {

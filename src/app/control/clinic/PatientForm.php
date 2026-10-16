@@ -726,8 +726,9 @@ class PatientForm extends TStandardForm
     /**
      * "Copiloto" link (Fase 8B): opens the AiCopilotPanel curtain anchored on
      * the patient. A link, not a TButton, so the patient form is never
-     * posted. Only when AiCopilotService::availability('clinical') is null;
-     * any failure (no tenant, no Redis, invalid AI config) hides it.
+     * posted. Only when AiCopilotAvailability::reason('clinical') is null
+     * (flag, terms, quota, configuration; no gateway, Redis limiter or tool
+     * registry); any failure (no tenant, database error) hides it.
      */
     private static function copilotLink(int $patientId): ?TElement
     {
@@ -738,12 +739,8 @@ class PatientForm extends TStandardForm
             $context = self::resolveTenantContext();
 
             TTransaction::open('permission');
-            $service = \CentralVet\Application\AiCopilotService::forContext(
-                $context,
-                TTransaction::get(),
-                \CentralVet\Ai\AiLocale::fromLanguage(ApplicationTranslator::getLanguage())
-            );
-            $available = $service->availability($family) === null;
+            $available = \CentralVet\Application\AiCopilotAvailability::forContext($context, TTransaction::get())
+                ->reason($family) === null;
             TTransaction::close();
         }
         catch (Throwable $e)
