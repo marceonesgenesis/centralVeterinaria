@@ -230,7 +230,7 @@ final class CopilotAgendaQueryIntegrationTest extends MysqlIntegrationTestCase
     {
         return $this->insert('service', [
             'tenant_id' => $tenantId,
-            'name' => $name . ' ' . bin2hex(random_bytes(3)),
+            'name' => $name,
             'duration_minutes' => $minutes,
             'price_cents' => 10000,
         ]);
