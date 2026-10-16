@@ -369,6 +369,93 @@ final class AnthropicMessagesGatewayTest
         Assert::same('ai_timeout', $this->failure(new StubAiGateway('timeout'))->reason());
     }
 
+    public function testPayloadWithoutToolsNorMessagesIsByteIdenticalToPhase8A(): void
+    {
+        $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null])->complete($this->request());
+
+        Assert::same(
+            '{"model":"claude-sonnet-5-5","max_tokens":8000,"system":[{"type":"text","text":"system prompt"}],'
+            . '"messages":[{"role":"user","content":"clinical text"}],"output_config":{"effort":"low"},"fallbacks":"default"}',
+            $this->calls[0]['body'],
+        );
+    }
+
+    public function testToolsAndMessagesAreSentAndToolUseBecomesResult(): void
+    {
+        $tools = [[
+            'name' => 'buscar_paciente',
+            'description' => 'Busca pacientes',
+            'input_schema' => ['type' => 'object', 'properties' => ['termo' => ['type' => 'string']], 'required' => ['termo']],
+        ]];
+        $messages = [
+            ['role' => 'user', 'content' => 'Quem é o Thor?'],
+            ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'toolu_0', 'name' => 'buscar_paciente', 'input' => ['termo' => 'Th']]]],
+            ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'toolu_0', 'content' => 'invalid_input', 'is_error' => true]]],
+        ];
+        $responseBody = (string) json_encode([
+            'model' => 'claude-sonnet-5-5',
+            'stop_reason' => 'tool_use',
+            'content' => [['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'buscar_paciente', 'input' => ['termo' => 'Thor']]],
+            'usage' => ['input_tokens' => 300, 'output_tokens' => 40],
+        ]);
+        $gateway = $this->gateway(['status' => 200, 'body' => $responseBody, 'request_id' => 'req_t', 'error' => null]);
+
+        $result = $gateway->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 'system prompt', 'ignored', $messages, $tools));
+
+        $body = json_decode($this->calls[0]['body'], true);
+        Assert::same($tools, $body['tools']);
+        Assert::same($messages, $body['messages']);
+        Assert::same(true, $body['messages'][2]['content'][0]['is_error']);
+        Assert::false(str_contains($this->calls[0]['body'], 'ignored'), 'userContent is ignored when messages are given');
+
+        Assert::same('tool_use', $result->stopReason);
+        Assert::same('', $result->text);
+        Assert::count(1, $result->toolUses);
+        Assert::same(['id' => 'toolu_1', 'name' => 'buscar_paciente', 'input' => ['termo' => 'Thor']], $result->toolUses[0]);
+        Assert::same('buscar_paciente', $result->toolUses[0]['name']);
+        Assert::same([['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'buscar_paciente', 'input' => ['termo' => 'Thor']]], $result->content);
+        Assert::same(300, $result->usage->inputTokens);
+    }
+
+    public function testEmptyToolInputIsSentAsJsonObject(): void
+    {
+        $messages = [
+            ['role' => 'user', 'content' => 'Agenda?'],
+            ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'toolu_0', 'name' => 'x', 'input' => []]]],
+            ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'toolu_0', 'content' => 'ok']]],
+        ];
+        $tools = [['name' => 'x', 'description' => 'd', 'input_schema' => ['type' => 'object', 'properties' => []]]];
+
+        $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null])
+            ->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools));
+
+        Assert::stringContains('"input":{}', $this->calls[0]['body']);
+        Assert::stringContains('"properties":{}', $this->calls[0]['body']);
+    }
+
+    public function testToolUseWithoutToolsIsProviderError(): void
+    {
+        $body = (string) json_encode([
+            'model' => 'claude-sonnet-5-5',
+            'stop_reason' => 'tool_use',
+            'content' => [['type' => 'text', 'text' => 'vou buscar'], ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'buscar_paciente', 'input' => []]],
+            'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+        ]);
+
+        $exception = $this->failure($this->gateway(['status' => 200, 'body' => $body, 'request_id' => null, 'error' => null]));
+
+        Assert::same('ai_provider_error', $exception->reason());
+        Assert::same(10, $exception->usage()?->inputTokens);
+    }
+
+    public function testEndTurnAnswerCarriesItsContentBlocks(): void
+    {
+        $result = $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null])->complete($this->request());
+
+        Assert::same([], $result->toolUses);
+        Assert::same([['type' => 'text', 'text' => 'Resumo pronto.']], $result->content);
+    }
+
     /**
      * @param array{status: int, body: string, request_id: ?string, error: ?string} $response
      * @param array<string, string> $env
