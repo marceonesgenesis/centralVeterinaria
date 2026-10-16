@@ -25,6 +25,16 @@ final class AiUsage
         return new self(0, 0);
     }
 
+    public function plus(AiUsage $other): self
+    {
+        return new self(
+            $this->inputTokens + $other->inputTokens,
+            $this->outputTokens + $other->outputTokens,
+            $this->cacheReadTokens + $other->cacheReadTokens,
+            $this->cacheWriteTokens + $other->cacheWriteTokens,
+        );
+    }
+
     public function totalTokens(): int
     {
         return $this->inputTokens + $this->outputTokens + $this->cacheReadTokens + $this->cacheWriteTokens;

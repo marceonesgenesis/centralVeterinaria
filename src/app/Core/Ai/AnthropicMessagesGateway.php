@@ -18,6 +18,12 @@ use CentralVet\Domain\Exception\AiProviderException;
  * failure becomes an AiProviderException carrying only a reason code, the
  * HTTP status and, after a 200, the usage, model and per-model cost.
  *
+ * Tool use: with `tools` in the request the payload carries them and the
+ * request `messages` (empty JSON objects for `input`/`properties`), and
+ * `stop_reason: tool_use` becomes a result with `toolUses`; without
+ * `tools` the payload is the single-user-message one and `tool_use` is a
+ * provider error.
+ *
  * Nothing here is logged: neither headers, request/response bodies nor the
  * API key.
  *
@@ -69,9 +75,15 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
             'model' => $this->config->model(),
             'max_tokens' => $this->config->maxOutputTokens(),
             'system' => [['type' => 'text', 'text' => $request->system]],
-            'messages' => [['role' => 'user', 'content' => $request->userContent]],
+            'messages' => $request->messages !== []
+                ? self::jsonObjects($request->messages)
+                : [['role' => 'user', 'content' => $request->userContent]],
             'output_config' => ['effort' => $this->config->effort()],
         ];
+
+        if ($request->tools !== []) {
+            $payload['tools'] = self::jsonObjects($request->tools);
+        }
 
         if ($this->config->fallbacksEnabled()) {
             $headers['anthropic-beta'] = self::FALLBACK_BETA;
@@ -92,13 +104,38 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
             $this->config->connectTimeoutSeconds(),
         );
 
-        return $this->parse($response);
+        return $this->parse($response, $request->tools !== []);
+    }
+
+    /**
+     * PHP encodes an empty array as `[]`; the API wants `{}` for a tool_use
+     * `input` and a schema's `properties`. Lists stay lists.
+     *
+     * @param array<mixed> $value
+     * @return array<mixed>
+     */
+    private static function jsonObjects(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if (in_array($key, ['input', 'properties'], true) && $item === []) {
+                $value[$key] = new \stdClass();
+                continue;
+            }
+
+            $value[$key] = self::jsonObjects($item);
+        }
+
+        return $value;
     }
 
     /**
      * @param array{status?: int, body?: string, request_id?: ?string, error?: ?string} $response
      */
-    private function parse(array $response): AiCompletionResult
+    private function parse(array $response, bool $toolsOffered): AiCompletionResult
     {
         $error = $response['error'] ?? null;
 
@@ -131,8 +168,16 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
         }
 
         $text = self::text($data['content'] ?? null);
+        $content = is_array($data['content'] ?? null) ? array_values($data['content']) : [];
+        $toolUses = [];
 
-        if (!in_array($stopReason, ['end_turn', 'stop_sequence'], true) || trim($text) === '') {
+        if ($stopReason === 'tool_use' && $toolsOffered) {
+            $toolUses = self::toolUses($content);
+
+            if ($toolUses === null || $toolUses === []) {
+                throw new AiProviderException('ai_provider_error', $status, $usage, $model, $cost);
+            }
+        } elseif (!in_array($stopReason, ['end_turn', 'stop_sequence'], true) || trim($text) === '') {
             throw new AiProviderException('ai_provider_error', $status, $usage, $model, $cost);
         }
 
@@ -146,7 +191,38 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
             $cost,
             $stopReason,
             is_string($requestId) && $requestId !== '' ? $requestId : null,
+            $toolUses,
+            $content,
         );
+    }
+
+    /**
+     * The `tool_use` blocks as {id, name, input}; null when one is malformed.
+     *
+     * @param list<mixed> $content
+     * @return list<array{id: string, name: string, input: array}>|null
+     */
+    private static function toolUses(array $content): ?array
+    {
+        $toolUses = [];
+
+        foreach ($content as $block) {
+            if (!is_array($block) || ($block['type'] ?? null) !== 'tool_use') {
+                continue;
+            }
+
+            $id = $block['id'] ?? null;
+            $name = $block['name'] ?? null;
+            $input = $block['input'] ?? [];
+
+            if (!is_string($id) || $id === '' || !is_string($name) || $name === '' || !is_array($input)) {
+                return null;
+            }
+
+            $toolUses[] = ['id' => $id, 'name' => $name, 'input' => $input];
+        }
+
+        return $toolUses;
     }
 
     private static function reasonForStatus(int $status): string

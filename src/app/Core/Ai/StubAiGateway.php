@@ -15,11 +15,23 @@ use CentralVet\Domain\Exception\AiProviderException;
  * Network-free gateway for gates and local development (AI_PROVIDER=stub,
  * refused in production by AiConfig). Echoes a deterministic text with no
  * usage nor cost; behavior `timeout` simulates a provider timeout.
+ *
+ * Tests of the tool-use loop use `scripted()`: the given steps
+ * (AiCompletionResult or AiProviderException) are consumed in order and a
+ * call beyond them fails with `ai_provider_error`. Every request received is
+ * kept in `requests()`. Without a script and with `messages`, the echo uses
+ * the text of the last `user` message.
  */
 final class StubAiGateway implements AiGatewayInterface
 {
     public const PROVIDER = 'stub';
     private const ECHO_LENGTH = 160;
+
+    /** @var list<AiCompletionResult|AiProviderException>|null */
+    private ?array $script = null;
+
+    /** @var list<AiCompletionRequest> */
+    private array $requests = [];
 
     public function __construct(private readonly string $behavior = 'ok')
     {
@@ -28,8 +40,45 @@ final class StubAiGateway implements AiGatewayInterface
         }
     }
 
+    /** @param list<AiCompletionResult|AiProviderException> $steps */
+    public static function scripted(array $steps): self
+    {
+        foreach ($steps as $step) {
+            if (!$step instanceof AiCompletionResult && !$step instanceof AiProviderException) {
+                throw new \InvalidArgumentException('Scripted step must be a result or a provider exception');
+            }
+        }
+
+        $stub = new self();
+        $stub->script = array_values($steps);
+
+        return $stub;
+    }
+
+    /** @return list<AiCompletionRequest> */
+    public function requests(): array
+    {
+        return $this->requests;
+    }
+
     public function complete(AiCompletionRequest $request): AiCompletionResult
     {
+        $this->requests[] = $request;
+
+        if ($this->script !== null) {
+            $step = array_shift($this->script);
+
+            if ($step === null) {
+                throw new AiProviderException('ai_provider_error');
+            }
+
+            if ($step instanceof AiProviderException) {
+                throw $step;
+            }
+
+            return $step;
+        }
+
         if ($this->behavior === 'timeout') {
             throw new AiProviderException('ai_timeout');
         }
@@ -37,7 +86,7 @@ final class StubAiGateway implements AiGatewayInterface
         $usage = AiUsage::none();
 
         return new AiCompletionResult(
-            sprintf('[stub] %s v%s: %s', $request->purpose, $request->promptVersion, mb_substr($request->userContent, 0, self::ECHO_LENGTH)),
+            sprintf('[stub] %s v%s: %s', $request->purpose, $request->promptVersion, mb_substr(self::echoSource($request), 0, self::ECHO_LENGTH)),
             self::PROVIDER,
             self::PROVIDER,
             $usage,
@@ -45,6 +94,38 @@ final class StubAiGateway implements AiGatewayInterface
             'end_turn',
             null,
         );
+    }
+
+    /** `userContent`, or the text of the last `user` message when there are messages. */
+    private static function echoSource(AiCompletionRequest $request): string
+    {
+        if ($request->messages === []) {
+            return $request->userContent;
+        }
+
+        foreach (array_reverse($request->messages) as $message) {
+            if (($message['role'] ?? null) !== 'user') {
+                continue;
+            }
+
+            $content = $message['content'] ?? '';
+
+            if (is_string($content)) {
+                return $content;
+            }
+
+            $text = '';
+
+            foreach ($content as $block) {
+                if (is_array($block) && ($block['type'] ?? null) === 'text' && is_string($block['text'] ?? null)) {
+                    $text .= $block['text'];
+                }
+            }
+
+            return $text;
+        }
+
+        return '';
     }
 
     public function isConfigured(): bool
