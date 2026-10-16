@@ -347,3 +347,44 @@ Gateway", linhas 1011-1034; idempotente, com `NOT EXISTS`).
 - Exige a extensão PHP `ext-curl` e HTTPS de saída (TCP 443) para
   `api.anthropic.com`; hospedagem que bloqueia saída resulta em `ai_timeout`.
 - Variáveis, custo e falhas: [`ia-assistente.md`](./ia-assistente.md).
+
+
+## Migration 0015 (copiloto)
+
+A `20261015_0015_phase8b_copilot.sql` cria 3 tabelas (`ai_conversation`,
+`ai_conversation_message` e `mcp_tool_call`) com 6 CHECKs novos e 9 FKs, e
+**amplia os 6 CHECKs de `ai_interaction`** (`purpose`, `subject`, `status`,
+`failed`, `decided` e `final`), cada um em DROP CHECK seguido de ADD
+CONSTRAINT: finalidades `copilot_*`, sujeito `ai_conversation` e status
+`answered`. Entre o drop e o create de cada CHECK a tabela fica sem a regra;
+aplique em janela curta, com backup. Não semeia dados; o copiloto de gestão só
+liga com a flag `ai_copilot_management`.
+
+Copie a 0015 com o prefixo `19-` (depois do `18-` da 0014) para um diretório
+temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261015_0015_phase8b_copilot.sql \
+  "$d/19-20261015_0015_phase8b_copilot.sql"
+cp src/app/database/migrations/20261015_0015_phase8b_copilot.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Aplique só com autorização SQL específica e rode o `.verify.sql` depois (3
+tabelas novas e `ai_interaction` com a mesma contagem de antes). Depois, a DML
+dos programas do copiloto no seed `initial-application-programs.sql`.
+
+### Cron da retenção do copiloto
+
+As conversas com mais de 90 dias sem atividade são apagadas por script, uma vez
+por dia, a partir da raiz de `src/` (a saída é um JSON de contadores, sem dado
+pessoal; sai com 1 em erro):
+
+```cron
+# Retenção de 90 dias das conversas do copiloto (diária, 03:30)
+30 3 * * * cd /caminho/da/aplicacao/src && php bin/ai-conversation-retention.php >> /caminho/dos/logs/ai-conversation-retention.log 2>&1
+```
+
+Sem a variável `RATE_LIMIT_DRIVER=files`, o limitador de chamadas do copiloto
+exige Redis acessível. Detalhes: [`ia-assistente.md`](./ia-assistente.md).

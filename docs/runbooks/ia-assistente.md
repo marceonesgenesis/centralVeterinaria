@@ -251,3 +251,134 @@ Três tabelas novas: `feature_flag`, `ai_tenant_setting` e `ai_interaction`
 desligada). `ai_interaction` não tem FK para o sujeito (atendimento ou resultado
 de exame): tenant e unidade são regra da aplicação. Aplicação e preparo no
 MySQL 5.7: [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md).
+
+## Copiloto (Fase 8B)
+
+O copiloto é um chat interno que responde perguntas lendo dados do sistema por
+ferramentas **somente leitura**, em um laço de tool use síncrono no PHP sobre o
+gateway da 8A. Decisão em
+[`ADR 0007 (copiloto-ferramentas-mcp)`](../architecture/adr/0007-copiloto-ferramentas-mcp.md).
+Não há endpoint MCP externo nem ferramenta de escrita. O painel é
+`AiCopilotPanel` (cortina lateral); a 8B.1 entrega o painel clínico e a 8B.2, o
+de gestão (documentado quando a 8B.2 for entregue).
+
+### Casos de uso (clínico)
+
+- Vacinas atrasadas ou próximas do paciente.
+- Resumo dos últimos atendimentos e leitura do prontuário de um atendimento.
+- Exames pendentes e liberados; prescrições em uso.
+- Comparar com outro paciente da mesma unidade.
+
+### Ferramentas e permissão
+
+Cada ferramenta exige a permissão da tela que já mostra o mesmo dado
+(`requiredPermission`): quem não abre a tela não lê pelo copiloto. A ferramenta
+sem permissão nem é oferecida ao modelo.
+
+| Ferramenta | `requiredPermission` |
+|---|---|
+| `buscar_paciente` | `GlobalSearchController::onSearch` |
+| `obter_paciente` | `PatientForm::onEdit` |
+| `obter_historico_atendimentos` | `EncounterView::onReload` |
+| `obter_prontuario` | `EncounterView::onReload` |
+| `obter_prescricoes` | `PrescriptionForm::__construct` |
+| `obter_exames` | `ExamResultForm::__construct` |
+| `consultar_vacinacao` | `VaccinationCardView::onReload` |
+
+Além dessas, o painel exige `AiCopilotPanel::onAsk` (perguntar), `onOpen`
+(abrir conversa) e `onDelete` (apagar), sempre com unidade ativa.
+
+### Limites
+
+| Limite | Valor |
+|---|---|
+| Rodadas de ferramentas por pergunta | 4 (`AiCopilotService::MAX_ROUNDS`) |
+| Orçamento de tempo por pergunta | 45 s (`AiCopilotService::BUDGET_SECONDS`); estourar vira resposta de "não consegui concluir", não erro |
+| Chamadas de ferramenta por usuário | 30 por 10 min (`ToolRateLimiter`, Redis ou `RATE_LIMIT_DRIVER=files`) |
+| Linhas por resultado | 50, com `truncated` |
+| Tamanho do resultado | 16 KB (`ToolPolicy::MAX_BYTES`) |
+| Tempo por ferramenta | 5 s: hint `MAX_EXECUTION_TIME(5000)` nas SELECTs e descarte acima de 5000 ms |
+
+Na hospedagem compartilhada sem Redis, use `RATE_LIMIT_DRIVER=files`; com o
+driver `redis` indisponível o painel mostra a IA como indisponível
+(`ai_provider_error`). A **cota mensal de tokens é verificada uma vez por
+pergunta** (antes do laço); uma pergunta pode fazer até 5 chamadas ao provedor
+(4 rodadas e a resposta final) e ultrapassar a cota em uma pergunta.
+
+### Regra de unidade do paciente
+
+Paciente "da unidade" é o que tem atendimento (`encounter`) ou agendamento
+(`appointment`) na unidade ativa; a tabela `patient` não tem unidade. As
+ferramentas só devolvem registros clínicos de atendimentos dessa unidade. Um id
+de outra unidade ou outro tenant responde "não encontrado", sem revelar que
+existe. Sem unidade ativa nada é lido.
+
+### Auditoria
+
+Toda chamada, permitida ou negada, grava uma linha em `mcp_tool_call` (ferramenta,
+entrada minimizada de até 4096 bytes, decisão, motivo, linhas, `truncated`,
+duração, conversa e correlação), sem o conteúdo devolvido. O grupo 1 consulta em
+`AiToolCallList` (Configurações > Assistente de IA > Auditoria de ferramentas;
+filtros por usuário, período, ferramenta e decisão, no máximo 200 linhas). Cada pergunta
+também grava **uma** linha em `ai_interaction` com finalidade `copilot_clinical`
+(ou `copilot_management`), `subject_type = ai_conversation` e status novo
+`answered` (uso e custo somados das rodadas; `suggestion_text` e `final_text`
+nulos, ou `failed` com `error_code`). Cota e custo da 8A valem para o copiloto.
+
+### Histórico e retenção
+
+Só o **autor** vê as próprias conversas, dentro do tenant e da unidade, em
+`AiConversationList` ("Minhas conversas"), e pode apagá-las; o gestor vê a
+auditoria, nunca o texto. "Minhas conversas" funciona mesmo com a IA desligada
+(direito de apagar os próprios dados). A retenção é de **90 dias** sem
+atividade: o script apaga as conversas ociosas de todos os tenants, em lotes
+(mensagens caem por `ON DELETE CASCADE`); `mcp_tool_call` e `ai_interaction`
+ficam. Rode uma vez por dia, a partir da raiz de `src/`:
+
+```cron
+# Retenção de 90 dias das conversas do copiloto (diária, 03:30)
+30 3 * * * cd /caminho/da/aplicacao/src && php bin/ai-conversation-retention.php >> /caminho/dos/logs/ai-conversation-retention.log 2>&1
+```
+
+A saída é uma linha JSON `{"deleted":n,"batches":b}`; em erro só a classe da
+exceção vai ao `error_log` e o código de saída é 1. Não há texto de pergunta ou
+resposta no log.
+
+### Motivos de recusa de ferramenta
+
+Gravados em `mcp_tool_call.deny_reason`; o modelo recebe só uma mensagem fixa.
+
+| `deny_reason` | Causa |
+|---|---|
+| `not_offered` | Ferramenta fora da família, da flag ou da permissão do usuário. |
+| `forbidden` | A permissão mudou entre a oferta e a execução. |
+| `invalid_input` | Entrada fora do schema ou acima de 4096 bytes. |
+| `not_found` | Id inexistente, de outra unidade ou outro tenant. |
+| `rate_limited` | 30 chamadas em 10 min, ou limiter indisponível (fail-closed). |
+| `timeout` | Resultado acima de 5 s, descartado. |
+| `error` | Falha inesperada (só a classe é logada). |
+
+Falha do copiloto na pergunta usa os mesmos códigos `ai_*` da tabela acima.
+A flag `ai_assistant` (e `ai_copilot_management` na gestão) desligada dá
+`ai_disabled`.
+
+### Incidente
+
+Desligar a flag `ai_assistant` do tenant em `AiSettingsForm` esconde o painel e
+nada vai ao provedor; para todos os tenants ou chave vazada, siga
+[Incidente: desligar a IA](#incidente-desligar-a-ia). Dimensione o uso em
+`AiToolCallList` e `AiInteractionList`.
+
+### Smoke manual com chave real
+
+Só em ambiente de teste, com `ANTHROPIC_API_KEY` real no env e a IA ligada
+(termo aceito, flag `ai_assistant`). Nunca cole dado de cliente real nem a chave
+em log ou relatório.
+
+1. Abra o copiloto numa tela de paciente da unidade ativa.
+2. Pergunte: "Quais vacinas deste paciente estão atrasadas?".
+3. Confira: a resposta cita "Consultei: ..." com `consultar_vacinacao`; surge
+   uma linha `allowed` em `AiToolCallList`; surge uma linha `answered` em
+   `AiInteractionList`; a conversa aparece em "Minhas conversas".
+4. Com um usuário sem a permissão da tela de vacinas, repita: a ferramenta não
+   é oferecida (`not_offered`) e a resposta não traz o dado.
