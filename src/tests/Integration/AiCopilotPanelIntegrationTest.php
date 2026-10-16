@@ -211,6 +211,29 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         Assert::false(str_contains((string) $out['html'], 'Conversa apagada'), 'no deletion confirmation');
     }
 
+    /** T-29 correção 1: ask() sem permissão → "Permissão negada", nada gravado, pergunta digitada preservada. */
+    public function testAskWithoutPermissionShowsPermissionDeniedAndKeepsTheQuestion(): void
+    {
+        $out = $this->runPanel(
+            'T14::$allow = false;'
+            . '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => "", "conversation_id" => "",'
+            . ' "question" => "Pergunta digitada sem permissão", "submit_token" => str_repeat("g", 32)]); $page->show();'
+            . '$out["provider"] = CvFormat::userMessage("AI assistant is unavailable: ai_provider_error");'
+            . '$out["conversations"] = $count("SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = :t");'
+            . '$out["interactions"] = $count("SELECT COUNT(*) FROM ai_interaction WHERE tenant_id = :t");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains('Permissão negada', $html, 'denial is shown as permission denied');
+        Assert::false(str_contains($html, (string) $out['provider']), 'denial is not reported as a provider error');
+        Assert::false(str_contains($html, 'ai_provider_error'), 'no raw provider code');
+        Assert::same(0, $out['conversations'], 'nothing stored');
+        Assert::same(0, $out['interactions'], 'no ai_interaction');
+        Assert::stringContains('Pergunta digitada sem permissão', $html, 'typed question is kept on screen');
+    }
+
     /** T-29: onAsk usa a conexão em autocommit de connection(), sem transação em volta do laço. */
     public function testAskRunsOnAnAutocommitConnection(): void
     {
@@ -296,7 +319,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         $subclasses = 'if (!class_exists("AiCopilotPanel")) { $out["missing"] = true; } else {'
             . 'final class T14 {'
             . ' public static PDO $pdo; public static CentralVet\Tenancy\TenantContext $context;'
-            . ' public static ?CentralVet\Ai\StubAiGateway $gateway = null; public static ?PDO $probe = null; public static array $seen = [];'
+            . ' public static ?CentralVet\Ai\StubAiGateway $gateway = null; public static ?PDO $probe = null; public static array $seen = []; public static bool $allow = true;'
             . ' public static function service(CentralVet\Tenancy\TenantContext $c, string $locale): CentralVet\Application\AiCopilotService {'
             . '  self::$gateway ??= CentralVet\Ai\StubAiGateway::scripted(['
             . '   new CentralVet\Domain\AiCompletionResult("", "fake", "claude-sonnet-5-5", new CentralVet\Domain\AiUsage(10, 5), 15, "tool_use", "req-1",'
@@ -306,7 +329,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . '  ]);'
             . '  $clinical = new CentralVet\Persistence\CopilotClinicalQuery($c, self::$pdo);'
             . '  $flags = new CentralVet\Persistence\FeatureFlagRepository($c, self::$pdo);'
-            . '  $auth = new CentralVet\Tests\Support\FakeAuthorizationPolicy(true);'
+            . '  $auth = new CentralVet\Tests\Support\FakeAuthorizationPolicy(self::$allow);'
             . '  $registry = new CentralVet\Ai\Tools\ToolRegistry(CentralVet\Ai\Tools\Clinical\ClinicalToolset::create($clinical), $flags, $auth, $c);'
             . '  $policy = new CentralVet\Ai\Tools\ToolPolicy($registry, new CentralVet\Ai\Tools\JsonSchemaValidator(),'
             . '   new CentralVet\Persistence\McpToolCallRepository($c, self::$pdo),'
