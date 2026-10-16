@@ -24,8 +24,10 @@
 --     'ai_conversation'; status + 'answered'; failed_ck accepts an answered row without
 --     error_code and without suggestion_text; decided_ck and final_ck treat 'answered'
 --     like 'pending_review' (no decider, no decision time, no final_text);
---   * adds FKs from ai_conversation to tenant/system_unit/system_users (RESTRICT) and to
---     patient (anchor_patient_id, ON DELETE SET NULL); from ai_conversation_message to
+--   * adds FKs from ai_conversation to tenant/system_unit/system_users/patient (all
+--     RESTRICT; MySQL 8 rejects SET NULL/CASCADE on a column used in a CHECK, error 3823,
+--     and anchor_patient_id is in ai_conversation_anchor_ck; patients are never deleted
+--     physically, and encounter/appointment already block it with RESTRICT); from ai_conversation_message to
 --     tenant (RESTRICT) and ai_conversation (ON DELETE CASCADE); from mcp_tool_call to
 --     tenant/system_unit/system_users (RESTRICT);
 --   * creates 3 tables, 6 new CHECK constraints (ai_conversation.family, .anchor;
@@ -78,7 +80,7 @@ CREATE TABLE ai_conversation (
     CONSTRAINT ai_conversation_user_fk FOREIGN KEY (system_user_id) REFERENCES system_users (id)
         ON UPDATE RESTRICT ON DELETE RESTRICT,
     CONSTRAINT ai_conversation_anchor_patient_fk FOREIGN KEY (anchor_patient_id) REFERENCES patient (id)
-        ON UPDATE RESTRICT ON DELETE SET NULL,
+        ON UPDATE RESTRICT ON DELETE RESTRICT,
     CONSTRAINT ai_conversation_family_ck CHECK (family IN ('clinical', 'management')),
     CONSTRAINT ai_conversation_anchor_ck CHECK (family = 'clinical' OR anchor_patient_id IS NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

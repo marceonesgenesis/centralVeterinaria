@@ -19,8 +19,8 @@ WHERE table_schema = DATABASE()
   AND table_name IN ('ai_conversation', 'ai_conversation_message', 'mcp_tool_call')
 ORDER BY table_name, ordinal_position;
 
--- Foreign keys of the new tables (expected: 9 rows; ai_conversation_anchor_patient_fk
--- with delete rule SET NULL, ai_conversation_message_conversation_fk with CASCADE, the
+-- Foreign keys of the new tables (expected: 9 rows; only
+-- ai_conversation_message_conversation_fk with delete rule CASCADE, the
 -- others RESTRICT; mcp_tool_call has no FK to ai_conversation)
 SELECT table_name, constraint_name, referenced_table_name, delete_rule
 FROM information_schema.referential_constraints
