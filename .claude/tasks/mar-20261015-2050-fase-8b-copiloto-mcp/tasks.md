@@ -20,9 +20,9 @@
 | T-16 | frontend | Botão "Copiloto" em `PatientForm` e `EncounterView` | T-07, T-14 | sim | simples | Kratos | [ ] |
 | T-17 | frontend | Menu de IA, seed de programas e testes de navegação/chaves | T-14, T-15 | sim | média | Saitama | [ ] |
 | T-18 | docs | Runbook do copiloto (8B.1), ADR 0007 e MySQL 5.7 | T-01, T-12, T-13, T-14, T-15 | sim | média | Gandalf | [ ] |
-| T-19 | backend | Ferramentas `consultar_agenda` e `verificar_horarios` | T-04 | sim | alta | Arquimedes | [x] |
-| T-20 | backend | Ferramenta `consultar_estoque` | T-04 | sim | média | Goku | [x] |
-| T-21 | backend | Ferramentas `listar_debitos` e `indicadores_clinica` | T-04 | sim | alta | Ada | [x] |
+| T-19 | backend | Ferramentas `consultar_agenda` e `verificar_horarios` | T-04 | sim | alta | Arquimedes | [ ] |
+| T-20 | backend | Ferramenta `consultar_estoque` | T-04 | sim | média | Goku | [ ] |
+| T-21 | backend | Ferramentas `listar_debitos` e `indicadores_clinica` | T-04 | sim | alta | Ada | [ ] |
 | T-22 | frontend | Flag `ai_copilot_management`: serviço e interruptor em `AiSettingsForm` | T-04, T-07, T-15 | sim | média | Curie | [ ] |
 | T-23 | backend | `ManagementToolset`, registro no serviço e item "Copiloto de gestão" | T-07, T-13, T-17, T-19, T-20, T-21 | sim | média | Lamport | [ ] |
 | T-24 | docs | Runbook da 8B.2 (gestão) | T-18, T-19, T-20, T-21, T-22 | sim | simples | Gandalf | [ ] |

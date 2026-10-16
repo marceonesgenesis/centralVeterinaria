@@ -34,6 +34,7 @@
 - `scripts/test-db/provision.sh` recusa banco existente: a 0015 entra no `centralvet_test` pelo gate, não por reprovisionamento.
 
 ## Pendências
+- 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
 - T-03: `recordAnswer`/`recordSuggestion` sem guarda por `AiPurpose::isCopilot`; falta teste de `decide` inválido em `answered`.
 - T-04: JsonSchemaValidator valida schema de forma preguiçosa e ignora restrições fora do tipo; erro de chave extra ecoa o nome (PII); registry aceita nome duplicado; `iterable` vs `array`; teste de allowlist fraco (ToolRegistryTest:66).
 - T-07: contagem "33 chaves" no plano (são 32); teste não garante formato en/pt das entradas.
@@ -58,4 +59,4 @@
 - Commits por onda:
   - Onda 1: BASE bc35d6d → HEAD 73f950e (73f950e, 3d7defe, 992df54, fb5a5b7, 555966d, 760dd08, 2f4530d, 205e5d1, 8a89e0d, 95c3ce3, 1fc7ab5, ac009bd, 9cecaf0, 08d5937)
 - Último status conhecido: onda 1 concluída (T-01..T-07 [x]); SUITE 1513/1513
-- Próxima onda recomendada: onda 2 (T-08, T-09, T-10, T-11, T-12, T-19, T-20, T-21)
+- Próxima onda recomendada: onda 2 (T-08..T-12; T-19..T-21 ficam na Onda 6)
