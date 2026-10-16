@@ -91,6 +91,7 @@ class AiInteractionList extends TPage
             \CentralVet\Domain\AiInteraction::STATUS_EDITED         => _t('Edited'),
             \CentralVet\Domain\AiInteraction::STATUS_DISCARDED      => _t('Discarded'),
             \CentralVet\Domain\AiInteraction::STATUS_FAILED         => _t('Failed'),
+            \CentralVet\Domain\AiInteraction::STATUS_ANSWERED       => _t('Answered'),
             default                                                 => $status,
         };
     }

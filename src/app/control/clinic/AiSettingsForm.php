@@ -9,7 +9,8 @@
  * (`accept_terms`, obrigatória para ligar enquanto o termo atual não foi
  * aceito), versão e data do aceite, cota mensal de tokens
  * (`monthly_token_quota`), cartão do mês (tokens usados / cota, custo em
- * US$ e pedidos por finalidade) e link para AiInteractionList. Mostra o
+ * US$ e pedidos por finalidade) e links para AiInteractionList e
+ * AiToolCallList (auditoria de ferramentas do copiloto). Mostra o
  * modelo configurado (AI_MODEL) e se o provedor está configurado; nunca a
  * chave. Sem regra própria: tudo passa por
  * CentralVet\Application\AiSettingsService (RBAC, termo, cota, auditoria).
@@ -194,6 +195,7 @@ class AiSettingsForm extends TPage
         $container->style = 'width: 100%';
         $container->add(CvPage::header(_t('AI assistant'), _t('Settings'), [
             ['icon' => 'fa:list', 'label' => _t('View interactions'), 'href' => 'index.php?class=AiInteractionList', 'class' => 'btn btn-default cv-touch-target'],
+            ['icon' => 'fa:toolbox', 'label' => _t('Tool audit'), 'href' => 'index.php?class=AiToolCallList', 'class' => 'btn btn-default cv-touch-target'],
         ], false));
 
         return $container;
@@ -315,6 +317,8 @@ class AiSettingsForm extends TPage
             \CentralVet\Domain\AiPurpose::PATIENT_SUMMARY    => _t('Patient summary'),
             \CentralVet\Domain\AiPurpose::ANAMNESIS_ORGANIZE => _t('Anamnesis organization'),
             \CentralVet\Domain\AiPurpose::EXAM_SUMMARY       => _t('Exam summary'),
+            \CentralVet\Domain\AiPurpose::COPILOT_CLINICAL   => _t('Clinical copilot'),
+            \CentralVet\Domain\AiPurpose::COPILOT_MANAGEMENT => _t('Management copilot'),
             default                                          => $purpose,
         };
     }
