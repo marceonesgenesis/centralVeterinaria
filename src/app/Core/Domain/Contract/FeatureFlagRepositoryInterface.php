@@ -12,6 +12,9 @@ interface FeatureFlagRepositoryInterface
 {
     public const AI_ASSISTANT = 'ai_assistant';
 
+    /** Copilot management tools (Fase 8B.2); off while the row is missing. */
+    public const AI_COPILOT_MANAGEMENT = 'ai_copilot_management';
+
     public function isEnabled(string $flagKey): bool;
 
     public function set(string $flagKey, bool $enabled, int $systemUserId): void;
