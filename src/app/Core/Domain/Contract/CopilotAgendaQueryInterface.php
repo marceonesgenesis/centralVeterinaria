@@ -38,5 +38,16 @@ interface CopilotAgendaQueryInterface
     /** @return list<array{id: int, name: string}> */
     public function professionals(): array;
 
+    /**
+     * Professionals the copilot offers free slots for when none is named:
+     * active members of the tenant with at least one appointment (any
+     * status) in the active unit with scheduled_at in the 90 days before
+     * the calendar day of $day or on that day. When nobody qualifies, the
+     * agenda list (professionals()) is returned instead. Ordered by name.
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    public function schedulableProfessionals(DateTimeImmutable $day): array;
+
     public function professionalExists(int $id): bool;
 }

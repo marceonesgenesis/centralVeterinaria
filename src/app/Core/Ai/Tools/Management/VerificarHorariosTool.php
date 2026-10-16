@@ -18,9 +18,12 @@ use DateTimeImmutable;
 
 /**
  * Free agenda slots of one day for a service duration, per professional
- * (one, or every professional of the tenant). Same conflict rule as the
- * booking (AppointmentService::assertNoConflict) on the agenda grid
- * (07:00-19:00, step 30); see FreeSlotFinder. At most 50 rows.
+ * (one, or the schedulable professionals of the active unit; see
+ * CopilotAgendaQueryInterface::schedulableProfessionals). Same conflict
+ * rule as the booking (AppointmentService::assertNoConflict) on the agenda
+ * grid (07:00-19:00, step 30); see FreeSlotFinder. At most 50 rows: one
+ * professional is cut at the first 50; several share the 50 rows, spread
+ * over the day (FreeSlotFinder::spread).
  */
 final class VerificarHorariosTool implements AiTool
 {
@@ -102,22 +105,29 @@ final class VerificarHorariosTool implements AiTool
 
         $professionalId = isset($input['profissional_id']) ? (int) $input['profissional_id'] : null;
 
+        $professionals = $professionalId !== null
+            ? $this->query->professionals()
+            : $this->query->schedulableProfessionals($day);
         $names = [];
-        foreach ($this->query->professionals() as $professional) {
+        foreach ($professionals as $professional) {
             $names[(int) $professional['id']] = (string) $professional['name'];
         }
         $professionalIds = $professionalId !== null ? [$professionalId] : array_keys($names);
 
-        $slots = (new FreeSlotFinder())->find(
+        $finder = new FreeSlotFinder();
+        $slots = $finder->find(
             $day,
             $duration,
             $this->query->busy($day, $professionalId),
             $professionalIds,
             ($this->clock)(),
         );
+        $shown = $professionalId !== null
+            ? array_slice($slots, 0, ToolResult::MAX_ROWS)
+            : $finder->spread($slots, ToolResult::MAX_ROWS);
 
         $data = [];
-        foreach (array_slice($slots, 0, ToolResult::MAX_ROWS) as $slot) {
+        foreach ($shown as $slot) {
             $data[] = [
                 'horario' => $slot['start'],
                 'profissional_id' => $slot['professional_id'],
@@ -125,6 +135,6 @@ final class VerificarHorariosTool implements AiTool
             ];
         }
 
-        return new ToolResult($data, count($slots) > ToolResult::MAX_ROWS);
+        return new ToolResult($data, count($slots) > count($shown));
     }
 }

@@ -18,7 +18,9 @@ use PDO;
  * only, service duration > 0, the professional's appointments of the whole
  * tenant on that calendar day (appointments are assumed not to cross
  * midnight). Professionals are active system users that are members of the
- * tenant, as AgendaView::listProfessionals. Only `patient.name` and
+ * tenant, as AgendaView::listProfessionals; schedulableProfessionals()
+ * narrows them to those with an appointment in the active unit in the 90
+ * days up to the day asked (T-27). Only `patient.name` and
  * `system_users.name` are read as names; no contact column leaves here.
  * Every top-level statement carries the 5 s execution-time optimizer hint.
  */
@@ -127,6 +129,39 @@ final class CopilotAgendaQuery implements CopilotAgendaQueryInterface
               ORDER BY u.name ASC, u.id ASC",
             [':member_tenant_id' => $this->context->tenantId()],
         );
+
+        return array_map(static fn (array $row): array => [
+            'id' => (int) $row['id'],
+            'name' => (string) ($row['name'] ?? ''),
+        ], $rows);
+    }
+
+    public function schedulableProfessionals(DateTimeImmutable $day): array
+    {
+        $query = TenantQuery::forTenant($this->context->tenantId(), 'a')
+            ->andEquals('system_unit_id', $this->context->requireUnitId(), 'a');
+
+        $midnight = $day->setTime(0, 0);
+        $rows = $this->fetchAll(
+            "SELECT /*+ MAX_EXECUTION_TIME(5000) */ u.id, u.name
+               FROM system_users u
+              WHERE u.active = 'Y'{$this->tenantMemberSql('u')}
+                AND EXISTS (SELECT 1 FROM appointment a
+                             WHERE {$query->whereSql()}
+                               AND a.professional_system_user_id = u.id
+                               AND a.scheduled_at >= :recent_from AND a.scheduled_at < :recent_to)
+              ORDER BY u.name ASC, u.id ASC",
+            [
+                ...$query->parameters(),
+                ':member_tenant_id' => $this->context->tenantId(),
+                ':recent_from' => $midnight->modify('-90 days')->format('Y-m-d H:i:s'),
+                ':recent_to' => $midnight->modify('+1 day')->format('Y-m-d H:i:s'),
+            ],
+        );
+
+        if ($rows === []) {
+            return $this->professionals();
+        }
 
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],

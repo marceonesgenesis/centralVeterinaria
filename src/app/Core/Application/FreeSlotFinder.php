@@ -58,6 +58,53 @@ final class FreeSlotFinder
     }
 
     /**
+     * Cuts find() output to at most $limit rows sharing the limit equally
+     * among the professionals with a free slot (quota max(1, intdiv($limit, n)))
+     * and spacing each one's picks over the day: with k free slots and a
+     * quota q < k, the picks are the indices round(i * (k - 1) / (q - 1)),
+     * i = 0..q-1 (only the first one when q = 1). Output ordered by time,
+     * then by professional in order of first appearance (T-27).
+     *
+     * @param list<array{start: string, professional_id: int}> $slots
+     * @return list<array{start: string, professional_id: int}>
+     */
+    public function spread(array $slots, int $limit): array
+    {
+        if ($limit <= 0 || $slots === []) {
+            return [];
+        }
+
+        $byProfessional = [];
+        foreach ($slots as $slot) {
+            $byProfessional[$slot['professional_id']][] = $slot;
+        }
+
+        $quota = max(1, intdiv($limit, count($byProfessional)));
+        $order = array_flip(array_keys($byProfessional));
+        $picked = [];
+        foreach ($byProfessional as $free) {
+            $count = count($free);
+            if ($count <= $quota) {
+                array_push($picked, ...$free);
+                continue;
+            }
+
+            $indices = $quota === 1 ? [0] : array_map(
+                static fn (int $i): int => (int) round($i * ($count - 1) / ($quota - 1)),
+                range(0, $quota - 1),
+            );
+            foreach (array_unique($indices) as $index) {
+                $picked[] = $free[$index];
+            }
+        }
+
+        usort($picked, static fn (array $a, array $b): int => [$a['start'], $order[$a['professional_id']]]
+            <=> [$b['start'], $order[$b['professional_id']]]);
+
+        return array_slice($picked, 0, $limit);
+    }
+
+    /**
      * @param list<array{professional_id: int, start: string, end: string}> $busy
      * @return array<int, list<array{0: DateTimeImmutable, 1: DateTimeImmutable}>>
      */
