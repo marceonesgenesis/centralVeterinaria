@@ -26,6 +26,10 @@
 - 2026-10-15 · T-10 · onda 2 — Default de `limite` no código; `alergias` texto livre.
 - 2026-10-15 · T-11 · onda 2 — Sem patient_id e sem âncora → ToolInputException (negada pela política); só obter_exames passa tutorNames como knownNames; prescrição draft em "ativas" com provisorio=true; teste ajustado no commit de implementação sem mudar asserções.
 - 2026-10-15 · T-12 · onda 2 — `batches` conta só lotes com exclusão; erro → error_log sem JSON.
+- 2026-10-15 · T-13 · onda 3 — RuntimeException do ToolRateLimiter com driver redis indisponível: aceito; painel (T-14) trata como "indisponível"; runbook (T-18) cita RATE_LIMIT_DRIVER=files para hospedagem compartilhada.
+- 2026-10-15 · T-13 · onda 3 — Chamada final sem tools com blocos tool_use no histórico dá 400 na API: corrigido com as mesmas tools + tool_choice none; stub rejeita tool_use sem tools como a API; tool_use residual vira texto "não consegui concluir". Escopo nos arquivos da T-02 autorizado.
+- 2026-10-15 · T-13 · onda 3 — 10º parâmetro de AiCopilotService = ?PiiMinimizer = null.
+- 2026-10-15 · T-13 · onda 3 — Sugestões aplicadas: orçamento checado antes das ferramentas; custo somado assertado. Cota checada uma vez por pergunta → documentar no runbook (T-18).
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -38,6 +42,7 @@
 - Hash de `custom.css` e `layout.html` já diverge em `framework_hashes.php` (pré-existente); nada da 8B toca esses arquivos.
 - `scripts/test-db/provision.sh` recusa banco existente: a 0015 entra no `centralvet_test` pelo gate, não por reprovisionamento.
 - Onda 2 (board): `ToolPolicy::execute` nunca lança (exceções viram denied auditado; MAX_INPUT_BYTES=4096; `ToolRateLimiter::attempt` atômico); `PiiMinimizer` sem instância, T-13 passa `null` no 6º parâmetro; repositórios `(TenantContext, PDO)` com `insert` checando só tenant, `touch` alheio no-op; ferramentas clínicas `(CopilotClinicalQueryInterface, ?Closure $clock)`; `AiConversationRetention::forConnection(PDO, ?Closure)->runOnce()` → {deleted, batches}.
+- Onda 3 (board): T-13 `AiCopilotService` com 10º parâmetro `?PiiMinimizer` (passe null); `CopilotAnswer.text=''` se failed; `forContext` conecta no Redis e lança RuntimeException sem Redis; `AiCompletionRequest` 7º parâmetro `?array $toolChoice`; `StubAiGateway` lança ai_provider_error (400) para tool_use/tool_result sem tools; chamada final com as mesmas tools e tool_choice none; cota checada uma vez por pergunta (até 5 chamadas).
 
 ## Pendências
 - 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
@@ -54,6 +59,7 @@
 - T-10: `truncated` sempre false em buscar_paciente/historico (pedir limit+1); falta teste de histórico fora da unidade; `$clock` não usado em ObterProntuarioTool.
 - T-11: via/posologia/duracao fora de freeTextFields; `$clock` não usado em ObterExamesTool; fixture de exame com status inválido e faltam casos requested/âncora fora da unidade.
 - T-12: teste não distingue updated_at de created_at; laço de lotes/MAX_BATCHES sem teste; sem trava contra execuções sobrepostas.
+- T-13: `AiCopilotService` 10º parâmetro `?PiiMinimizer` diverge da Interface em tasks.md (segue ruling da T-08); cota por pergunta (T-18) e RuntimeException do limiter (T-14) em relay no board.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -70,5 +76,6 @@
 - Commits por onda:
   - Onda 1: BASE bc35d6d → HEAD 73f950e (73f950e, 3d7defe, 992df54, fb5a5b7, 555966d, 760dd08, 2f4530d, 205e5d1, 8a89e0d, 95c3ce3, 1fc7ab5, ac009bd, 9cecaf0, 08d5937)
   - Onda 2: BASE 7713431 → HEAD 120a196 (120a196, 6cfbab8, c9007d9, 1f62358, 954be65, 8d5ce21, 7ca2db8, fb35ee2, 9d50f98, 0d1216a, d675483, 1356001)
-- Último status conhecido: onda 2 concluída (T-08..T-12 [x]); SUITE 1568/1568, Skipped 0
-- Próxima onda recomendada: onda 3 (T-13; T-19..T-21 ficam na Onda 6)
+  - Onda 3: BASE 4ece9e1 → HEAD 3d76c96 (3d76c96, a823d73, 51e662b, dd595b3)
+- Último status conhecido: onda 3 concluída (T-13 [x]); SUITE 1594/1594 na cruzada final
+- Próxima onda recomendada: onda 4 (T-14, T-15, T-18 dependem de T-13; confirmar no plano; T-19..T-21 ficam na Onda 6)
