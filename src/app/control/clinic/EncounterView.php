@@ -339,6 +339,7 @@ class EncounterView extends TPage
             }
 
             $ai = self::aiState($context, $encounter, $encounterId);
+            $copilot = self::copilotAvailable($context);
 
             $timeline = $service->timeline($encounterId);
 
@@ -413,6 +414,7 @@ class EncounterView extends TPage
                 'professional' => $professional,
                 'unit' => $unit,
                 'ai' => $ai,
+                'copilot' => $copilot,
                 'timeline' => $timeline,
                 'documents' => $documents,
                 'account' => $account,
@@ -491,6 +493,11 @@ class EncounterView extends TPage
         $actions->{'class'} = 'cv-page-head__actions';
 
         $actions->add($this->timerElement($encounter));
+
+        if (!empty($data['copilot']))
+        {
+            $actions->add(self::copilotLink($encounter->patientId()));
+        }
 
         $print = new TButton('print_encounter');
         $print->setLabel(_t('Print'));
@@ -1678,6 +1685,48 @@ class EncounterView extends TPage
         }
 
         return $state;
+    }
+
+    /**
+     * Whether the "Copiloto" link shows (Fase 8B):
+     * AiCopilotService::availability('clinical') is null. Any failure (no
+     * Redis, invalid AI config) hides it; the encounter always renders.
+     */
+    private static function copilotAvailable(\CentralVet\Tenancy\TenantContext $context): bool
+    {
+        try
+        {
+            $service = \CentralVet\Application\AiCopilotService::forContext($context, TTransaction::get(), self::aiLocale());
+
+            return $service->availability(\CentralVet\Ai\Tools\ToolFamily::CLINICAL) === null;
+        }
+        catch (Throwable $e)
+        {
+            error_log(__METHOD__ . ': copilot link hidden (' . get_class($e) . ')');
+
+            return false;
+        }
+    }
+
+    /**
+     * "Copiloto" link opening the AiCopilotPanel curtain anchored on the
+     * encounter's patient. A link, not headerButton(): that one posts the
+     * encounter form.
+     */
+    private static function copilotLink(int $patientId): TElement
+    {
+        $family = \CentralVet\Ai\Tools\ToolFamily::CLINICAL;
+
+        $link = TElement::tag('a', '', [
+            'class' => 'btn btn-default cv-touch-target',
+            'href' => CvFormat::e(AiCopilotPanel::linkFor($family, $patientId)),
+            'generator' => 'adianti',
+            'data-cv-copilot' => $family,
+        ]);
+        $link->add(new TImage('fa:comments'));
+        $link->add(TElement::tag('span', CvFormat::e(_t('Copilot'))));
+
+        return $link;
     }
 
     /** Prompt locale of the session language: `en` or `pt`. */
