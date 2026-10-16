@@ -260,7 +260,7 @@ gateway da 8A. Decisão em
 [`ADR 0007 (copiloto-ferramentas-mcp)`](../architecture/adr/0007-copiloto-ferramentas-mcp.md).
 Não há endpoint MCP externo nem ferramenta de escrita. O painel é
 `AiCopilotPanel` (cortina lateral); a 8B.1 entrega o painel clínico e a 8B.2, o
-de gestão (documentado quando a 8B.2 for entregue).
+de gestão (veja [Copiloto de gestão (8B.2)](#copiloto-de-gestão-8b2)).
 
 ### Casos de uso (clínico)
 
