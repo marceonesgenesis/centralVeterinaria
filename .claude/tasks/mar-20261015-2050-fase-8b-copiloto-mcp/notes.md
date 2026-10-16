@@ -42,6 +42,8 @@
 - 2026-10-15 · T-21 · onda 6 — receita por SQL próprio com hint de 5 s, conferida contra `totalsByType`: aceito.
 - 2026-10-15 · T-22 · onda 6 — flag `ai_copilot_management` independente de `ai_enabled`; `cv-touch-target` no rótulo do switch; gravação provada por fake: aceito.
 - 2026-10-15 · T-23 · onda 6 — registro das ferramentas de gestão no `ManagementToolset` fica com a T-23.
+- 2026-10-15 · T-23 · onda 7 — teste extra em AiCopilotServiceForContextIntegrationTest.php (arquivo da T-13) aceito; RED = ManagementToolsetTest + teste do menu; seed inalterado (AiCopilotPanel já concedido no bloco 8B).
+- 2026-10-15 · T-24 · onda 7 — cruzada do gate continua válida após a correção posterior só de docs (185bbdd).
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -87,6 +89,9 @@
 - T-21: ListarDebitosTool não normaliza fuso do relógio; vencimento por dia difere da tela no próprio dia e ticket_medio inclui receita sem atendimento (documentar no runbook T-24); falta caso de paciente novo na unidade A.
 - T-22: `.cv-touch-target` no `.tswitch` deixa o trilho no topo da caixa de 44px (conferir visualmente); gravação da flag provada só por fake, sem FeatureFlagRepository real.
 - Onda 6: 0015 e seed 8B no centralvet (dev) seguem dependendo de aprovação SQL; "nenhum push" não verificável por remoto.
+- T-23: nenhum teste falha se `ManagementToolset::create` sair de `forContext`; asserir as definições management (5) e clinical sobre o registry montado (AiCopilotService.php:154-162).
+- T-24: runbook linha 391 sugere que basta `ai_copilot_management`; o código exige `ai_assistant` (ai_enabled) ligada; "IA indisponível" gera ai_terms_pending/ai_quota_exceeded/ai_not_configured.
+- Onda 7: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -107,5 +112,6 @@
   - Onda 4: BASE 6ef9ffd → HEAD 69382a1 (69382a1, 99b8e46, 110fd8d, b1a6036, 8c736b8, beaf682, d620a57)
   - Onda 5: BASE b016bf4 → HEAD 09e41bc (09e41bc, a7dc809, 6a0d75d, ded9224, cfec6a4)
   - Onda 6: BASE 93bc397 → HEAD ff42a18 (ff42a18, 67789bd, a96f54a, 5ff7bc7, bac7f0b, d1827a7, 1063c3d, 358b4a4)
-- Último status conhecido: onda 6 concluída (T-19..T-22 [x]); SUITE 1672/1672 no gate
-- Próxima onda recomendada: onda 7 (T-23, depois T-24)
+  - Onda 7: BASE ec862a2 → HEAD 185bbdd (f2005cf, 93a1031, 89038e4, 185bbdd)
+- Último status conhecido: onda 7 concluída; 8B.2 completa, T-01..T-24 todas [x]; SUITE 1676/1676 no gate
+- Próxima onda recomendada: nenhuma (revisão final)

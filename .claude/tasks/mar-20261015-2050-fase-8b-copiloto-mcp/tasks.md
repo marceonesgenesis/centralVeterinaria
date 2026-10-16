@@ -24,8 +24,8 @@
 | T-20 | backend | Ferramenta `consultar_estoque` | T-04 | sim | média | Goku | [x] |
 | T-21 | backend | Ferramentas `listar_debitos` e `indicadores_clinica` | T-04 | sim | alta | Ada | [x] |
 | T-22 | frontend | Flag `ai_copilot_management`: serviço e interruptor em `AiSettingsForm` | T-04, T-07, T-15 | sim | média | Curie | [x] |
-| T-23 | backend | `ManagementToolset`, registro no serviço e item "Copiloto de gestão" | T-07, T-13, T-17, T-19, T-20, T-21 | sim | média | Lamport | [ ] |
-| T-24 | docs | Runbook da 8B.2 (gestão) | T-18, T-19, T-20, T-21, T-22 | sim | simples | Gandalf | [ ] |
+| T-23 | backend | `ManagementToolset`, registro no serviço e item "Copiloto de gestão" | T-07, T-13, T-17, T-19, T-20, T-21 | sim | média | Lamport | [x] |
+| T-24 | docs | Runbook da 8B.2 (gestão) | T-18, T-19, T-20, T-21, T-22 | sim | simples | Gandalf | [x] |
 
 ## Detalhamento
 
