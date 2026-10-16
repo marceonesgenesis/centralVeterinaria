@@ -104,6 +104,38 @@ final class AiCopilotServiceForContextIntegrationTest extends MysqlIntegrationTe
     }
 
     /**
+     * T-23: with `ai_assistant` and `ai_copilot_management` on, a management
+     * question (no anchor) goes through the management toolset and records
+     * one answered `copilot_management` interaction.
+     */
+    public function testManagementAskRecordsACopilotManagementInteraction(): void
+    {
+        $out = $this->runAdianti(
+            '$unitId = (int) $pdo->query("SELECT MIN(id) FROM system_unit")->fetchColumn();'
+            . '$userId = (int) $pdo->query("SELECT MIN(id) FROM system_users")->fetchColumn();'
+            . '$slug = "f8b-t23-" . bin2hex(random_bytes(4));'
+            . '$pdo->prepare("INSERT INTO tenant (public_id, slug, legal_name, status) VALUES (UUID(), :slug, :name, \'active\')")'
+            . '->execute(["slug" => $slug, "name" => "F8B teste tenant (" . $slug . ")"]);'
+            . '$tenantId = (int) $pdo->lastInsertId();'
+            . '$flag = $pdo->prepare("INSERT INTO feature_flag (tenant_id, flag_key, enabled, updated_by_system_user_id) VALUES (:t, :k, 1, :user)");'
+            . 'foreach (["ai_assistant", "ai_copilot_management"] as $key) { $flag->execute(["t" => $tenantId, "k" => $key, "user" => $userId]); }'
+            . '$pdo->prepare("INSERT INTO ai_tenant_setting (tenant_id, terms_version, terms_accepted_at, terms_accepted_by_system_user_id, monthly_token_quota, updated_by_system_user_id)'
+            . ' VALUES (:t, :v, NOW(6), :user, 300000, :user2)")->execute(["t" => $tenantId, "v" => CentralVet\Domain\AiTerms::VERSION, "user" => $userId, "user2" => $userId]);'
+            . '$context = CentralVet\Tenancy\TenantContext::authenticated($tenantId, $userId, $unitId);'
+            . '$answer = CentralVet\Application\AiCopilotService::forContext($context, $pdo, "pt")->ask("management", null, null, "agenda de hoje");'
+            . '$interaction = $pdo->prepare("SELECT purpose, status FROM ai_interaction WHERE tenant_id = :t");'
+            . '$interaction->execute(["t" => $tenantId]);'
+            . '$out = ["failed" => $answer->failed, "interactions" => $interaction->fetchAll(PDO::FETCH_ASSOC)];',
+        );
+
+        Assert::true(!isset($out['error']), 'subprocess threw: ' . (string) ($out['error'] ?? ''));
+        Assert::false($out['failed'] ?? true, 'subprocess output: ' . json_encode($out));
+        Assert::count(1, $out['interactions']);
+        Assert::same('copilot_management', $out['interactions'][0]['purpose']);
+        Assert::same('answered', $out['interactions'][0]['status']);
+    }
+
+    /**
      * Runs $body after init.php with the `AiCopilotPanel` program in the
      * session and the stub provider; `$pdo` (test database, open
      * transaction) is in scope and the transaction is always rolled back.

@@ -70,6 +70,7 @@ final class AiNavigationIntegrationTest
                 '_t{AI interactions}' => 'AiInteractionList',
                 '_t{My conversations}' => 'AiConversationList',
                 '_t{Tool audit}' => 'AiToolCallList',
+                '_t{Management copilot}' => 'AiCopilotPanel#method=onOpen#family=management',
             ],
             $children
         );
