@@ -28,8 +28,6 @@ use CentralVet\Domain\AiConversation;
 use CentralVet\Domain\AiConversationMessage;
 use CentralVet\Domain\AiInteraction;
 use CentralVet\Domain\AiPurpose;
-use CentralVet\Domain\AiTenantSetting;
-use CentralVet\Domain\AiTerms;
 use CentralVet\Domain\AiUsage;
 use CentralVet\Domain\Contract\AiConversationRepositoryInterface;
 use CentralVet\Domain\Contract\AiGatewayInterface;
@@ -54,7 +52,6 @@ use CentralVet\Tenancy\AdiantiSessionContextSource;
 use CentralVet\Tenancy\TenantContext;
 use Closure;
 use DateTimeImmutable;
-use DateTimeZone;
 use InvalidArgumentException;
 use PDO;
 use Throwable;
@@ -71,10 +68,20 @@ use Throwable;
  * with the same tools and `tool_choice: none` when the rounds run out (the
  * API refuses tool blocks without `tools`), or TIMEOUT_TEXT without another
  * call when the budget does. A final call that still asks for a tool also
- * ends with TIMEOUT_TEXT. The interaction is recorded in every case
- * after it starts (`answered` with the summed usage, or `failed`); the
- * answer text lives only in the conversation (90-day retention). Logs and
- * exception messages carry ids and class names only.
+ * ends with TIMEOUT_TEXT. The answer is minimized (PiiMinimizer, tutor
+ * names of the anchor) before it is stored and returned.
+ *
+ * No transaction is opened here: the caller hands a PDO in autocommit, so
+ * each tool call audit (`mcp_tool_call`, written by ToolPolicy) and the
+ * `ai_interaction` survive a late failure. The interaction is inserted in a
+ * `finally` once it starts (`answered` with the summed usage, `failed` with
+ * the provider reason, or `failed`/`ai_provider_error` when an unexpected
+ * exception escapes, which is rethrown); the answer text lives only in the
+ * conversation (90-day retention). Logs and exception messages carry ids and
+ * class names only.
+ *
+ * Reading the history (list, open, delete) goes through
+ * AiConversationHistoryService and does not depend on the AI availability.
  */
 final class AiCopilotService
 {
@@ -88,12 +95,8 @@ final class AiCopilotService
         'en' => 'I could not finish the lookup, try a more specific question.',
     ];
 
-    /** Messages shown when a conversation is opened. */
-    private const CONVERSATION_VIEW_LIMIT = 500;
-
     private const ACTION_ASK = 'AiCopilotPanel::onAsk';
     private const ACTION_OPEN = 'AiCopilotPanel::onOpen';
-    private const ACTION_DELETE = 'AiCopilotPanel::onDelete';
     private const ENTITY_TYPE = 'ai_conversation';
 
     private const PURPOSES = [
@@ -103,6 +106,8 @@ final class AiCopilotService
 
     private readonly Closure $clock;
     private readonly Closure $monotonicSeconds;
+    private readonly AiConversationHistoryService $history;
+    private readonly AiCopilotAvailability $availability;
 
     /**
      * $minimizer is accepted for the planned signature only: PiiMinimizer is
@@ -126,6 +131,15 @@ final class AiCopilotService
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable();
         $this->monotonicSeconds = $monotonicSeconds ?? static fn (): float => hrtime(true) / 1_000_000_000;
+        $this->history = new AiConversationHistoryService($conversations, $authorization, $context);
+        $this->availability = new AiCopilotAvailability(
+            $flags,
+            $settings,
+            $interactions,
+            fn (): bool => $this->gateway->isConfigured(),
+            $context,
+            $this->clock,
+        );
     }
 
     /**
@@ -275,35 +289,13 @@ final class AiCopilotService
      * `ai_disabled` (flag `ai_assistant`, and `ai_copilot_management` for
      * management) → `ai_terms_pending` → `ai_quota_exceeded` (month of the
      * application timezone) → `ai_not_configured`; null when available.
-     * Never calls the gateway.
+     * Never calls the gateway (delegates to AiCopilotAvailability).
+     *
+     * @throws InvalidArgumentException for an unknown family.
      */
     public function availability(string $family): ?string
     {
-        self::purpose($family);
-
-        if (!$this->flags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT)) {
-            return 'ai_disabled';
-        }
-
-        if ($family === ToolFamily::MANAGEMENT && !$this->flags->isEnabled(FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT)) {
-            return 'ai_disabled';
-        }
-
-        $setting = $this->settings->find() ?? AiTenantSetting::defaults($this->context->tenantId());
-
-        if (!$setting->hasAcceptedTerms(AiTerms::VERSION)) {
-            return 'ai_terms_pending';
-        }
-
-        if ($this->interactions->monthlyTokenUsage($this->monthStart()) >= $setting->monthlyTokenQuota()) {
-            return 'ai_quota_exceeded';
-        }
-
-        if (!$this->gateway->isConfigured()) {
-            return 'ai_not_configured';
-        }
-
-        return null;
+        return $this->availability->reason($family);
     }
 
     /**
@@ -320,47 +312,44 @@ final class AiCopilotService
         }
     }
 
-    /** @return list<AiConversation> owned conversations, most recent first */
+    /**
+     * Owned conversations of the active unit, most recent first (history
+     * only: no availability check).
+     *
+     * @return list<AiConversation>
+     * @throws InvalidArgumentException for an unknown family.
+     */
     public function conversations(?string $family, ?int $anchorPatientId, int $limit): array
     {
-        $this->context->requireUnitId();
-
         if ($family !== null) {
             self::purpose($family);
         }
 
-        $this->authorize(self::ACTION_OPEN, null, ['list' => true]);
-
-        return $this->conversations->listOwned($family, $anchorPatientId, $limit);
+        return $this->history->conversations($limit, $family, $anchorPatientId);
     }
 
-    /** @return array{conversation: AiConversation, messages: list<AiConversationMessage>}|null */
+    /**
+     * History only: readable with the AI unavailable.
+     *
+     * @return array{conversation: AiConversation, messages: list<AiConversationMessage>}|null
+     */
     public function conversation(int $id): ?array
     {
-        $this->context->requireUnitId();
-        $this->authorize(self::ACTION_OPEN, $id, []);
-
-        $conversation = $this->conversations->findOwned($id);
-
-        if ($conversation === null) {
-            return null;
-        }
-
-        return [
-            'conversation' => $conversation,
-            'messages' => $this->conversations->lastMessages($id, self::CONVERSATION_VIEW_LIMIT),
-        ];
+        return $this->history->conversation($id);
     }
 
+    /** History only: the author deletes with the AI unavailable. */
     public function deleteConversation(int $id): bool
     {
-        $this->context->requireUnitId();
-        $this->authorize(self::ACTION_DELETE, $id, []);
-
-        return $this->conversations->deleteOwned($id);
+        return $this->history->deleteConversation($id);
     }
 
-    /** @param list<array{role: string, content: string|list<array<string, mixed>>}> $messages */
+    /**
+     * Runs the loop, stores the (minimized) answer or the failed message and,
+     * in `finally`, records and inserts the interaction.
+     *
+     * @param list<array{role: string, content: string|list<array<string, mixed>>}> $messages
+     */
     private function converse(
         AiConversation $conversation,
         AiInteraction $interaction,
@@ -374,127 +363,159 @@ final class AiCopilotService
         $promptVersion = AiPromptCatalog::VERSIONS[$purpose];
         $tools = $this->registry->definitions($family);
         $offered = array_map(static fn (array $tool): string => $tool['name'], $tools);
+        $conversationId = (int) $conversation->id();
 
         $usage = AiUsage::none();
         $cost = null;
         $last = null;
+        $model = null;
+        $reason = null;
+        $text = '';
         $summary = [];
         $rounds = 0;
+        $completed = false;
         $started = $this->monotonic();
 
         try {
-            while (true) {
-                $final = $rounds >= self::MAX_ROUNDS;
-                $result = $this->gateway->complete(new AiCompletionRequest(
-                    $purpose,
-                    $promptVersion,
-                    $system,
-                    '',
-                    $messages,
-                    $tools,
-                    $final && $tools !== [] ? ['type' => 'none'] : null,
-                ));
-                $last = $result;
-                $usage = $usage->plus($result->usage);
-                $cost = self::addCost($cost, $result->costMicroUsd);
+            try {
+                while (true) {
+                    $final = $rounds >= self::MAX_ROUNDS;
+                    $result = $this->gateway->complete(new AiCompletionRequest(
+                        $purpose,
+                        $promptVersion,
+                        $system,
+                        '',
+                        $messages,
+                        $tools,
+                        $final && $tools !== [] ? ['type' => 'none'] : null,
+                    ));
+                    $last = $result;
+                    $model = $result->model;
+                    $usage = $usage->plus($result->usage);
+                    $cost = self::addCost($cost, $result->costMicroUsd);
 
-                if ($final && $result->stopReason === 'tool_use') {
-                    $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
+                    if ($final && $result->stopReason === 'tool_use') {
+                        $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
 
-                    break;
-                }
-
-                if ($final || $result->stopReason !== 'tool_use' || $result->toolUses === []) {
-                    $text = trim($result->text);
-
-                    if ($text === '') {
-                        return $this->fail($conversation, $interaction, 'ai_provider_error', $started, $usage, $result->model, $cost);
+                        break;
                     }
 
-                    break;
-                }
+                    if ($final || $result->stopReason !== 'tool_use' || $result->toolUses === []) {
+                        $text = trim($result->text);
 
-                if ($this->monotonic() - $started >= self::BUDGET_SECONDS) {
-                    $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
+                        if ($text === '') {
+                            $reason = 'ai_provider_error';
+                        }
 
-                    break;
-                }
+                        break;
+                    }
 
-                $rounds++;
-                $messages[] = ['role' => 'assistant', 'content' => $result->content];
-                $results = [];
+                    if ($this->monotonic() - $started >= self::BUDGET_SECONDS) {
+                        $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
 
-                foreach ($result->toolUses as $use) {
-                    $name = (string) ($use['name'] ?? '');
-                    $input = is_array($use['input'] ?? null) ? $use['input'] : [];
-                    $outcome = $this->policy->execute($toolContext, $family, $name, $input, $offered);
-                    $results[] = [
-                        'type' => 'tool_result',
-                        'tool_use_id' => (string) ($use['id'] ?? ''),
-                        'content' => $outcome->content,
-                        'is_error' => $outcome->isError,
-                    ];
+                        break;
+                    }
 
-                    if (!$outcome->isError) {
-                        $summary = $this->countTool($summary, $family, $name, $lang);
+                    $rounds++;
+                    $messages[] = ['role' => 'assistant', 'content' => $result->content];
+                    $results = [];
+
+                    foreach ($result->toolUses as $use) {
+                        $name = (string) ($use['name'] ?? '');
+                        $input = is_array($use['input'] ?? null) ? $use['input'] : [];
+                        $outcome = $this->policy->execute($toolContext, $family, $name, $input, $offered);
+                        $results[] = [
+                            'type' => 'tool_result',
+                            'tool_use_id' => (string) ($use['id'] ?? ''),
+                            'content' => $outcome->content,
+                            'is_error' => $outcome->isError,
+                        ];
+
+                        if (!$outcome->isError) {
+                            $summary = $this->countTool($summary, $family, $name, $lang);
+                        }
+                    }
+
+                    $messages[] = ['role' => 'user', 'content' => $results];
+
+                    if ($this->monotonic() - $started >= self::BUDGET_SECONDS) {
+                        $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
+
+                        break;
                     }
                 }
-
-                $messages[] = ['role' => 'user', 'content' => $results];
-
-                if ($this->monotonic() - $started >= self::BUDGET_SECONDS) {
-                    $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
-
-                    break;
-                }
+            } catch (AiProviderException $e) {
+                $reason = $e->reason();
+                $usage = $e->usage() !== null ? $usage->plus($e->usage()) : $usage;
+                $model = $e->model() ?? $model;
+                $cost = self::addCost($cost, $e->costMicroUsd());
+            } catch (Throwable $e) {
+                error_log('AiCopilotService: copilot loop failed (' . $e::class . ', correlation_id=' . $toolContext->correlationId . ')');
+                $reason = 'ai_provider_error';
             }
-        } catch (AiProviderException $e) {
-            $partial = $e->usage() !== null ? $usage->plus($e->usage()) : $usage;
 
-            return $this->fail($conversation, $interaction, $e->reason(), $started, $partial, $e->model() ?? $last?->model, self::addCost($cost, $e->costMicroUsd()));
-        } catch (Throwable $e) {
-            error_log('AiCopilotService: copilot loop failed (' . $e::class . ', correlation_id=' . $toolContext->correlationId . ')');
+            $now = ($this->clock)();
 
-            return $this->fail($conversation, $interaction, 'ai_provider_error', $started, $usage, $last?->model, $cost);
+            if ($reason !== null) {
+                $this->conversations->appendMessage(AiConversationMessage::failed($conversationId, $reason, $now));
+                $answer = new CopilotAnswer($conversationId, '', [], true, $reason);
+            } else {
+                $anchor = $conversation->anchorPatientId();
+                $text = PiiMinimizer::minimize($text, $anchor !== null ? $this->clinical->tutorNames($anchor) : []);
+                $summary = array_values($summary);
+                $this->conversations->appendMessage(AiConversationMessage::assistant($conversationId, $text, $summary, $now));
+                $answer = new CopilotAnswer($conversationId, $text, $summary, false, null);
+            }
+
+            $this->touch($conversation, $now);
+            $completed = true;
+
+            return $answer;
+        } finally {
+            $this->recordInteraction($interaction, $completed, $reason, $started, $usage, $cost, $model, $last, $toolContext->correlationId);
         }
-
-        /** @var AiCompletionResult $last */
-        $interaction->recordAnswer(
-            $usage,
-            $cost,
-            $last->provider !== '' ? $last->provider : $this->gateway->providerName(),
-            $last->model,
-            $last->stopReason,
-            $last->providerRequestId,
-            $this->elapsedMs($started),
-        );
-        $this->interactions->insert($interaction);
-
-        $summary = array_values($summary);
-        $now = ($this->clock)();
-        $this->conversations->appendMessage(AiConversationMessage::assistant((int) $conversation->id(), $text, $summary, $now));
-        $this->touch($conversation, $now);
-
-        return new CopilotAnswer((int) $conversation->id(), $text, $summary, false, null);
     }
 
-    private function fail(
-        AiConversation $conversation,
+    /**
+     * Closes and inserts the interaction: `answered` when the answer was
+     * stored, `failed` with $reason (or `ai_provider_error` for an
+     * unexpected exception). While an exception is propagating, a failure
+     * of this insert is logged and does not replace it.
+     */
+    private function recordInteraction(
         AiInteraction $interaction,
-        string $reason,
+        bool $completed,
+        ?string $reason,
         float $started,
         AiUsage $usage,
-        ?string $model,
         ?int $cost,
-    ): CopilotAnswer {
-        $interaction->recordFailure($reason, $this->elapsedMs($started), $usage, $model, $this->gateway->providerName(), $cost);
-        $this->interactions->insert($interaction);
+        ?string $model,
+        ?AiCompletionResult $last,
+        string $correlationId,
+    ): void {
+        try {
+            if ($completed && $reason === null && $last !== null) {
+                $interaction->recordAnswer(
+                    $usage,
+                    $cost,
+                    $last->provider !== '' ? $last->provider : $this->gateway->providerName(),
+                    $last->model,
+                    $last->stopReason,
+                    $last->providerRequestId,
+                    $this->elapsedMs($started),
+                );
+            } else {
+                $interaction->recordFailure($reason ?? 'ai_provider_error', $this->elapsedMs($started), $usage, $model, $this->gateway->providerName(), $cost);
+            }
 
-        $now = ($this->clock)();
-        $this->conversations->appendMessage(AiConversationMessage::failed((int) $conversation->id(), $reason, $now));
-        $this->touch($conversation, $now);
+            $this->interactions->insert($interaction);
+        } catch (Throwable $e) {
+            if ($completed) {
+                throw $e;
+            }
 
-        return new CopilotAnswer((int) $conversation->id(), '', [], true, $reason);
+            error_log('AiCopilotService: interaction not recorded (' . $e::class . ', correlation_id=' . $correlationId . ')');
+        }
     }
 
     private function touch(AiConversation $conversation, DateTimeImmutable $now): void
@@ -596,14 +617,5 @@ final class AiCopilotService
     private function elapsedMs(float $started): int
     {
         return max(0, (int) round(($this->monotonic() - $started) * 1000));
-    }
-
-    /** First instant of the current month in the application timezone (as AiAssistService). */
-    private function monthStart(): DateTimeImmutable
-    {
-        return ($this->clock)()
-            ->setTimezone(new DateTimeZone(date_default_timezone_get()))
-            ->modify('first day of this month')
-            ->setTime(0, 0);
     }
 }
