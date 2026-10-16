@@ -23,6 +23,8 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
 {
     private const MARKER = '__T14_PANEL__';
     private const ANSWER = 'Resposta roteirizada do copiloto';
+    private const STORED_QUESTION = 'Pergunta gravada do autor';
+    private const STORED_ANSWER = 'Resposta gravada do copiloto';
 
     public function setUp(): void
     {
@@ -106,6 +108,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . ' "question" => "Como está o paciente?", "submit_token" => str_repeat("c", 32)]);'
             . '$conversationId = (int) $count("SELECT MAX(id) FROM ai_conversation WHERE tenant_id = :t");'
             . '$out["before"] = $count("SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = :t");'
+            . '$_SERVER["REQUEST_METHOD"] = "POST";'
             . '$page = new AiCopilotPanelT14(["method" => "onDelete"]);'
             . '$page->onDelete(["conversation_id" => (string) $conversationId, "family" => "clinical", "anchor_patient_id" => (string) $patientId]); $page->show();'
             . '$s = $pdo->prepare("SELECT COUNT(*) FROM ai_conversation WHERE id = :c"); $s->execute(["c" => $conversationId]);'
@@ -144,6 +147,86 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
 
         Assert::stringContains((string) $out['reason'], $html, 'the 8A reason is shown');
         Assert::false(str_contains($html, 'form_AiCopilotPanel'), 'no question form while unavailable');
+    }
+
+    /** T-29 (a): IA desligada → abrir a conversa do autor mostra as mensagens e o motivo no lugar do formulário. */
+    public function testDisabledAiOpensTheConversationWithTheReasonInPlaceOfTheForm(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . '$pdo->prepare("UPDATE feature_flag SET enabled = 0 WHERE tenant_id = :t AND flag_key = \'ai_assistant\'")->execute(["t" => $tenantId]);'
+            . '$page = new AiCopilotPanelT14(["method" => "onOpen"]);'
+            . '$page->onOpen(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => (string) $conversationId]); $page->show();'
+            . '$out["reason"] = _t("The AI assistant is turned off for this clinic.");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains(self::STORED_QUESTION, $html, 'stored question is shown without AI');
+        Assert::stringContains(self::STORED_ANSWER, $html, 'stored answer is shown without AI');
+        Assert::stringContains((string) $out['reason'], $html, 'translated reason in place of the form');
+        Assert::false(str_contains($html, 'name="question"'), 'no question textarea while unavailable');
+        Assert::false(str_contains($html, 'form_AiCopilotPanel"'), 'no question form while unavailable');
+        Assert::stringContains('Apagar conversa', $html, 'the author can still delete the conversation');
+        Assert::stringContains('Conversas anteriores', $html, 'previous conversations are still listed');
+    }
+
+    /** T-29 (b): pergunta que esgota a cota mostra a resposta gravada e, em seguida, o motivo de cota. */
+    public function testAskThatReachesTheQuotaShowsTheStoredAnswerAndTheQuotaReason(): void
+    {
+        $out = $this->runPanel(
+            '$pdo->prepare("UPDATE ai_tenant_setting SET monthly_token_quota = 1 WHERE tenant_id = :t")->execute(["t" => $tenantId]);'
+            . '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "Como está o paciente?", "submit_token" => str_repeat("e", 32)]); $page->show();'
+            . '$out["quota"] = CvFormat::userMessage("AI assistant is unavailable: ai_quota_exceeded");'
+            . '$out["messages"] = $count("SELECT COUNT(*) FROM ai_conversation_message WHERE tenant_id = :t");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::same(2, $out['messages'], 'question and answer stored');
+        Assert::false(str_contains((string) $out['quota'], 'ai_quota_exceeded'), 'quota reason is translated');
+        Assert::stringContains(self::ANSWER, $html, 'stored answer of the stub is shown');
+        Assert::stringContains((string) $out['quota'], $html, 'quota reason is shown after the answer');
+        Assert::true(strpos($html, self::ANSWER) < strpos($html, (string) $out['quota']), 'answer comes before the reason');
+        Assert::false(str_contains($html, 'name="question"'), 'no question textarea once the quota is reached');
+    }
+
+    /** T-29: apagar só por POST. */
+    public function testDeleteByGetKeepsTheConversation(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . '$_SERVER["REQUEST_METHOD"] = "GET";'
+            . '$page = new AiCopilotPanelT14(["method" => "onDelete"]);'
+            . '$page->onDelete(["conversation_id" => (string) $conversationId, "family" => "clinical", "anchor_patient_id" => (string) $patientId]); $page->show();'
+            . '$s = $pdo->prepare("SELECT COUNT(*) FROM ai_conversation WHERE id = :c"); $s->execute(["c" => $conversationId]);'
+            . '$out["after"] = (int) $s->fetchColumn();'
+            . '$out["invalid"] = _t("Invalid action");'
+        );
+
+        Assert::same(1, $out['after'], 'GET never deletes');
+        Assert::stringContains((string) $out['invalid'], (string) $out['html'], 'GET is refused with a warning');
+        Assert::false(str_contains((string) $out['html'], 'Conversa apagada'), 'no deletion confirmation');
+    }
+
+    /** T-29: onAsk usa a conexão em autocommit de connection(), sem transação em volta do laço. */
+    public function testAskRunsOnAnAutocommitConnection(): void
+    {
+        $out = $this->runPanel(
+            'T14::$probe = $connect();'
+            . '$page = new AiCopilotPanelT29Probe(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "Como está o paciente?", "submit_token" => str_repeat("f", 32)]); $page->show();'
+            . '$out["seen"] = T14::$seen;'
+        );
+
+        Assert::true(is_array($out['seen']) && $out['seen'] !== [], 'makeService/makeHistory received the connection of connection()');
+        foreach ($out['seen'] as $where => $inTransaction) {
+            Assert::same(false, $inTransaction, 'connection is in autocommit during onAsk (' . $where . ')');
+        }
+        Assert::stringContains(self::ANSWER, (string) $out['html'], 'answer still rendered');
     }
 
     public function testButtonsAreTouchTargetsAndNothingIsCenteredOrRightAligned(): void
@@ -211,7 +294,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         $subclasses = 'if (!class_exists("AiCopilotPanel")) { $out["missing"] = true; } else {'
             . 'final class T14 {'
             . ' public static PDO $pdo; public static CentralVet\Tenancy\TenantContext $context;'
-            . ' public static ?CentralVet\Ai\StubAiGateway $gateway = null;'
+            . ' public static ?CentralVet\Ai\StubAiGateway $gateway = null; public static ?PDO $probe = null; public static array $seen = [];'
             . ' public static function service(CentralVet\Tenancy\TenantContext $c, string $locale): CentralVet\Application\AiCopilotService {'
             . '  self::$gateway ??= CentralVet\Ai\StubAiGateway::scripted(['
             . '   new CentralVet\Domain\AiCompletionResult("", "fake", "claude-sonnet-5-5", new CentralVet\Domain\AiUsage(10, 5), 15, "tool_use", "req-1",'
@@ -232,8 +315,18 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . '}'
             . 'class AiCopilotPanelT14 extends AiCopilotPanel {'
             . ' protected static function resolveTenantContext(): CentralVet\Tenancy\TenantContext { return T14::$context; }'
-            . ' protected static function makeService(CentralVet\Tenancy\TenantContext $context, string $locale): CentralVet\Application\AiCopilotService { return T14::service($context, $locale); }'
+            . ' protected static function makeService(CentralVet\Tenancy\TenantContext $context, string $locale, ?PDO $connection = null): CentralVet\Application\AiCopilotService { return T14::service($context, $locale); }'
+            . ' protected static function makeHistory(CentralVet\Tenancy\TenantContext $context, PDO $connection): CentralVet\Application\AiConversationHistoryService {'
+            . '  return new CentralVet\Application\AiConversationHistoryService(new CentralVet\Persistence\AiConversationRepository($context, $connection), new CentralVet\Tests\Support\FakeAuthorizationPolicy(true), $context); }'
+            . ' protected static function connection(): PDO { return T14::$pdo; }'
             . ' protected static function transaction(callable $fn): mixed { return $fn(T14::$pdo); }'
+            . '}'
+            . 'class AiCopilotPanelT29Probe extends AiCopilotPanelT14 {'
+            . ' protected static function connection(): PDO { return T14::$probe; }'
+            . ' protected static function makeService(CentralVet\Tenancy\TenantContext $context, string $locale, ?PDO $connection = null): CentralVet\Application\AiCopilotService {'
+            . '  T14::$seen["makeService"] = $connection === T14::$probe ? $connection->inTransaction() : "other connection"; return T14::service($context, $locale); }'
+            . ' protected static function makeHistory(CentralVet\Tenancy\TenantContext $context, PDO $connection): CentralVet\Application\AiConversationHistoryService {'
+            . '  if ($connection === T14::$probe) { T14::$seen["makeHistory"] = $connection->inTransaction(); } return parent::makeHistory($context, T14::$pdo); }'
             . '}';
 
         $seed = '$unitId = (int) $pdo->query("SELECT MIN(id) FROM system_unit")->fetchColumn();'
@@ -257,14 +350,22 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . '$pdo->prepare("INSERT INTO ai_tenant_setting (tenant_id, terms_version, terms_accepted_at, terms_accepted_by_system_user_id, monthly_token_quota, updated_by_system_user_id)'
             . ' VALUES (:t, :v, NOW(6), :user, 300000, :user2)")->execute(["t" => $tenantId, "v" => CentralVet\Domain\AiTerms::VERSION, "user" => $userId, "user2" => $userId]);'
             . 'T14::$pdo = $pdo; T14::$context = CentralVet\Tenancy\TenantContext::authenticated($tenantId, $userId, $unitId);'
-            . '$count = static function (string $sql) use ($pdo, $tenantId): int { $s = $pdo->prepare($sql); $s->execute(["t" => $tenantId]); return (int) $s->fetchColumn(); };';
+            . '$count = static function (string $sql) use ($pdo, $tenantId): int { $s = $pdo->prepare($sql); $s->execute(["t" => $tenantId]); return (int) $s->fetchColumn(); };'
+            . '$seedConversation = static function () use ($pdo, $tenantId, $unitId, $userId, $patientId): int {'
+            . ' $pdo->prepare("INSERT INTO ai_conversation (tenant_id, system_unit_id, system_user_id, family, anchor_patient_id, title) VALUES (:t, :u, :user, \'clinical\', :p, \'Conversa gravada\')")'
+            . ' ->execute(["t" => $tenantId, "u" => $unitId, "user" => $userId, "p" => $patientId]); $id = (int) $pdo->lastInsertId();'
+            . ' $m = $pdo->prepare("INSERT INTO ai_conversation_message (tenant_id, conversation_id, role, content) VALUES (:t, :c, :r, :content)");'
+            . ' $m->execute(["t" => $tenantId, "c" => $id, "r" => "user", "content" => "' . self::STORED_QUESTION . '"]);'
+            . ' $m->execute(["t" => $tenantId, "c" => $id, "r" => "assistant", "content" => "' . self::STORED_ANSWER . '"]);'
+            . ' return $id; };';
 
         $code = 'chdir(' . var_export($src, true) . '); require "init.php";'
             . 'ApplicationTranslator::setLanguage("pt");'
             . 'TSession::setValue("programs", ["AiCopilotPanel" => true]);'
             . '$out = [];'
-            . '$pdo = new PDO(' . var_export($dsn, true) . ', (string) (getenv("DB_USERNAME") ?: "centralvet"),'
+            . '$connect = static fn (): PDO => new PDO(' . var_export($dsn, true) . ', (string) (getenv("DB_USERNAME") ?: "centralvet"),'
             . ' (string) (getenv("DB_PASSWORD") ?: ""), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);'
+            . '$pdo = $connect();'
             . '$pdo->beginTransaction();'
             . 'ob_start();'
             . 'try { ' . $subclasses . $seed . $body . ' } }'

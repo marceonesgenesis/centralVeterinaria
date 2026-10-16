@@ -141,7 +141,7 @@ final class AiCopilotListsIntegrationTest
 
     public function testDeleteRemovesTheOwnConversation(): void
     {
-        $result = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationU, 'delete' => '1']);
+        $result = $this->run('AiConversationList', ['method' => 'onDelete'], ['conversation_id' => (string) $this->conversationU]);
 
         Assert::true(!isset($result['error']), 'delete threw: ' . (string) ($result['error'] ?? ''));
         Assert::same(0, $this->count('ai_conversation', $this->conversationU), 'own conversation is deleted');
@@ -149,17 +149,34 @@ final class AiCopilotListsIntegrationTest
         Assert::stringContains('Conversa apagada', (string) $result['html'], 'deletion is confirmed in pt');
     }
 
-    public function testDeleteWithoutConfirmationAsksAndKeepsTheConversation(): void
+    /** T-29: GET (link, prefetch, recarga) nunca apaga, mesmo com `delete=1`. */
+    public function testDeleteByGetIsRefusedAndKeepsTheConversation(): void
     {
-        $result = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationU]);
+        $result = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationU, 'delete' => '1']);
 
         Assert::true(!isset($result['error']), 'delete threw: ' . (string) ($result['error'] ?? ''));
-        Assert::same(1, $this->count('ai_conversation', $this->conversationU), 'nothing is deleted before the confirmation');
+        Assert::same(1, $this->count('ai_conversation', $this->conversationU), 'GET never deletes');
+        Assert::stringContains('Ação inválida', (string) $result['html'], 'GET is refused with a warning');
+        Assert::false(str_contains((string) $result['html'], 'Conversa apagada'), 'no deletion confirmation');
+    }
+
+    /** T-29: apagar é um TForm por linha enviado por POST, nunca um link. */
+    public function testDeleteIsAPostFormPerRow(): void
+    {
+        $result = $this->run('AiConversationList', []);
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::same(0, preg_match('/<a\b[^>]*method=onDelete/', $html), 'no delete link');
+        Assert::true(preg_match('/<form\b[^>]*name="form_AiConversationList_' . $this->conversationU . '"/', $html) === 1, 'row has its own delete form');
+        Assert::true(preg_match('/<button\b[^>]*__adianti_post_data\(\'form_AiConversationList_' . $this->conversationU . '\'[^>]*>/', $html, $button) === 1, 'delete button posts the row form');
+        Assert::stringContains('method=onDelete', $button[0], 'delete button posts to onDelete');
+        Assert::stringContains('cv-touch-target', $button[0], 'delete button is a touch target');
     }
 
     public function testDeletingConversationOfThePreviousUnitShowsNotFound(): void
     {
-        $result = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationB, 'delete' => '1']);
+        $result = $this->run('AiConversationList', ['method' => 'onDelete'], ['conversation_id' => (string) $this->conversationB]);
 
         Assert::stringContains('Conversa não encontrada', (string) $result['html'], 'conversation of the previous unit is "not found"');
         Assert::same(1, $this->count('ai_conversation', $this->conversationB), 'conversation of the previous unit stays');
@@ -167,7 +184,7 @@ final class AiCopilotListsIntegrationTest
 
     public function testDeletingConversationOfAnotherUserShowsNotFound(): void
     {
-        $result = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationV, 'delete' => '1']);
+        $result = $this->run('AiConversationList', ['method' => 'onDelete'], ['conversation_id' => (string) $this->conversationV]);
 
         Assert::stringContains('Conversa não encontrada', (string) $result['html'], 'conversation of another user is "not found"');
         Assert::same(1, $this->count('ai_conversation', $this->conversationV), 'conversation of another user stays');
@@ -191,11 +208,11 @@ final class AiCopilotListsIntegrationTest
         Assert::stringContains('F8B teste conversa do U', (string) $list['html'], 'own conversation is listed without gateway/limiter');
         Assert::false(str_contains((string) $list['html'], 'ai_not_configured'), 'no raw error code on screen');
 
-        $deleted = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationU, 'delete' => '1'], [], null, '', $env);
+        $deleted = $this->run('AiConversationList', ['method' => 'onDelete'], ['conversation_id' => (string) $this->conversationU], null, '', $env);
         Assert::true(!isset($deleted['error']), 'delete threw: ' . (string) ($deleted['error'] ?? ''));
         Assert::same(0, $this->count('ai_conversation', $this->conversationU), 'own conversation is deleted without gateway/limiter');
 
-        $foreign = $this->run('AiConversationList', ['method' => 'onDelete', 'conversation_id' => (string) $this->conversationB, 'delete' => '1'], [], null, '', $env);
+        $foreign = $this->run('AiConversationList', ['method' => 'onDelete'], ['conversation_id' => (string) $this->conversationB], null, '', $env);
         Assert::stringContains('Conversa não encontrada', (string) $foreign['html'], 'conversation of another unit stays "not found"');
         Assert::same(1, $this->count('ai_conversation', $this->conversationB), 'conversation of another unit stays');
 
@@ -404,6 +421,7 @@ final class AiCopilotListsIntegrationTest
             . 'foreach (' . var_export($session, true) . ' as $k => $v) { TSession::setValue($k, $v); }'
             . '$_GET = ' . var_export($get, true) . ';'
             . '$_POST = ' . var_export($post, true) . ';'
+            . '$_SERVER["REQUEST_METHOD"] = ' . var_export($post !== [] ? 'POST' : 'GET', true) . ';'
             . '$_REQUEST = array_merge($_GET, $_POST);'
             . '$out = [];'
             . 'ob_start();'
