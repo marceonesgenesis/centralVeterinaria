@@ -17,11 +17,13 @@ use CentralVet\Application\CopilotAnswer;
 use CentralVet\Authorization\Exception\AuthorizationDenied;
 use CentralVet\Domain\AiCompletionResult;
 use CentralVet\Domain\AiConversation;
+use CentralVet\Domain\AiConversationMessage;
 use CentralVet\Domain\AiInteraction;
 use CentralVet\Domain\AiPurpose;
 use CentralVet\Domain\AiTenantSetting;
 use CentralVet\Domain\AiTerms;
 use CentralVet\Domain\AiUsage;
+use CentralVet\Domain\Contract\AiConversationRepositoryInterface;
 use CentralVet\Domain\Contract\AiGatewayInterface;
 use CentralVet\Domain\Contract\FeatureFlagRepositoryInterface;
 use CentralVet\Domain\Exception\AiProviderException;
@@ -44,6 +46,7 @@ use CentralVet\Tests\Support\FakeRedis;
 use Closure;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * T-13: AiCopilotService runs the read-only tool-use loop (at most
@@ -538,7 +541,113 @@ final class AiCopilotServiceTest
         Assert::null($service->conversation($answer->conversationId));
     }
 
-    private function service(AiGatewayInterface $gateway, ?Closure $monotonic = null): AiCopilotService
+    /**
+     * T-28 (spec § 3.5): the answer is minimized (tutor names of the anchor
+     * included) before it is stored and before it is returned.
+     */
+    public function testAnswerWithPhoneAndEmailIsMinimizedBeforeStoringAndReturning(): void
+    {
+        $gateway = StubAiGateway::scripted([self::text('Ligue para (85) 98765-4321 ou maria@ex.com', 10, 5)]);
+
+        $answer = $this->service($gateway)->ask('clinical', null, self::PATIENT_ID, 'Contato da tutora?');
+
+        $stored = $this->conversations->lastMessages($answer->conversationId, 10)[1]->content();
+        foreach (['answer' => $answer->text, 'message' => $stored] as $where => $text) {
+            Assert::stringContains('[TELEFONE]', $text, "{$where} must carry [TELEFONE]");
+            Assert::stringContains('[EMAIL]', $text, "{$where} must carry [EMAIL]");
+            Assert::false(str_contains($text, '98765'), "{$where} must not carry the phone");
+            Assert::false(str_contains($text, 'maria@ex.com'), "{$where} must not carry the e-mail");
+        }
+    }
+
+    /**
+     * T-28: an unexpected failure writing the answer still records the
+     * interaction (failed, `ai_provider_error`, usage kept) and the tool call
+     * audit, and the exception reaches the caller.
+     */
+    public function testFailureWritingTheAnswerKeepsTheInteractionAndTheToolCallAndRethrows(): void
+    {
+        $gateway = StubAiGateway::scripted([
+            self::toolUse([['tu_1', 'obter_paciente', ['patient_id' => self::PATIENT_ID]]], 100, 10),
+            self::text('Rex, canino.', 200, 30),
+        ]);
+        $failing = new class ($this->conversations) implements AiConversationRepositoryInterface {
+            public function __construct(private readonly FakeAiConversationRepository $inner)
+            {
+            }
+
+            public function insert(AiConversation $conversation): AiConversation
+            {
+                return $this->inner->insert($conversation);
+            }
+
+            public function findOwned(int $id): ?AiConversation
+            {
+                return $this->inner->findOwned($id);
+            }
+
+            public function touch(AiConversation $conversation): void
+            {
+                $this->inner->touch($conversation);
+            }
+
+            public function listOwned(?string $family, ?int $anchorPatientId, int $limit): array
+            {
+                return $this->inner->listOwned($family, $anchorPatientId, $limit);
+            }
+
+            public function deleteOwned(int $id): bool
+            {
+                return $this->inner->deleteOwned($id);
+            }
+
+            public function appendMessage(AiConversationMessage $message): AiConversationMessage
+            {
+                if ($message->role() !== AiConversationMessage::ROLE_USER) {
+                    throw new RuntimeException('append failed');
+                }
+
+                return $this->inner->appendMessage($message);
+            }
+
+            public function lastMessages(int $conversationId, int $limit): array
+            {
+                return $this->inner->lastMessages($conversationId, $limit);
+            }
+        };
+
+        Assert::throws(RuntimeException::class, fn () => $this->service($gateway, null, $failing)->ask('clinical', null, self::PATIENT_ID, 'Resumo'));
+
+        $interactions = $this->interactions->all();
+        Assert::count(1, $interactions);
+        Assert::same(AiInteraction::STATUS_FAILED, $interactions[0]->status());
+        Assert::same('ai_provider_error', $interactions[0]->errorCode());
+        Assert::same(300, $interactions[0]->usage()->inputTokens, 'usage of both rounds is kept');
+
+        $calls = $this->calls->all();
+        Assert::count(1, $calls);
+        Assert::same($interactions[0]->correlationId(), $calls[0]->correlationId());
+    }
+
+    /** T-28: reading an existing conversation does not depend on the AI availability. */
+    public function testConversationOpensWithTheAiDisabled(): void
+    {
+        $answer = $this->service(StubAiGateway::scripted([self::text('Resposta', 1, 1)]))
+            ->ask('clinical', null, self::PATIENT_ID, 'Pergunta');
+        $this->flags = new FakeFeatureFlagRepository([]);
+        $this->interactions->setMonthlyTokenUsage(PHP_INT_MAX);
+        $service = $this->service(new UnconfiguredAiGateway());
+
+        Assert::same('ai_disabled', $service->availability('clinical'));
+
+        $opened = $service->conversation($answer->conversationId);
+        Assert::notNull($opened);
+        Assert::count(2, $opened['messages']);
+        Assert::count(1, $service->conversations('clinical', self::PATIENT_ID, 10));
+        Assert::true($service->deleteConversation($answer->conversationId));
+    }
+
+    private function service(AiGatewayInterface $gateway, ?Closure $monotonic = null, ?AiConversationRepositoryInterface $conversations = null): AiCopilotService
     {
         $registry = new ToolRegistry(ClinicalToolset::create($this->clinical), $this->flags, $this->authorization, $this->context);
         $policy = new ToolPolicy(
@@ -554,7 +663,7 @@ final class AiCopilotServiceTest
             $this->interactions,
             $this->settings,
             $this->flags,
-            $this->conversations,
+            $conversations ?? $this->conversations,
             $registry,
             $policy,
             $this->clinical,
