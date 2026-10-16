@@ -170,6 +170,10 @@
                         <icon>fas:shield-halved fa-fw</icon>
                         <action>AiToolCallList</action>
                     </menuitem>
+                    <menuitem label='_t{Management copilot}'>
+                        <icon>fas:chart-line fa-fw</icon>
+                        <action>AiCopilotPanel#method=onOpen#family=management</action>
+                    </menuitem>
                 </menu>
             </menuitem>
 

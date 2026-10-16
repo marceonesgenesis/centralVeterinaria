@@ -10,6 +10,7 @@ use CentralVet\Ai\AiLocale;
 use CentralVet\Ai\AiPromptCatalog;
 use CentralVet\Ai\PiiMinimizer;
 use CentralVet\Ai\Tools\Clinical\ClinicalToolset;
+use CentralVet\Ai\Tools\Management\ManagementToolset;
 use CentralVet\Ai\Tools\JsonSchemaValidator;
 use CentralVet\Ai\Tools\ToolContext;
 use CentralVet\Ai\Tools\ToolFamily;
@@ -43,7 +44,10 @@ use CentralVet\Observability\CorrelationId\CorrelationIdContext;
 use CentralVet\Persistence\AiConversationRepository;
 use CentralVet\Persistence\AiInteractionRepository;
 use CentralVet\Persistence\AiTenantSettingRepository;
+use CentralVet\Persistence\CopilotAgendaQuery;
 use CentralVet\Persistence\CopilotClinicalQuery;
+use CentralVet\Persistence\CopilotFinanceQuery;
+use CentralVet\Persistence\CopilotStockQuery;
 use CentralVet\Persistence\FeatureFlagRepository;
 use CentralVet\Persistence\McpToolCallRepository;
 use CentralVet\Tenancy\AdiantiSessionContextSource;
@@ -147,7 +151,15 @@ final class AiCopilotService
         );
         $flags = new FeatureFlagRepository($context, $connection);
         $clinical = new CopilotClinicalQuery($context, $connection);
-        $registry = new ToolRegistry(ClinicalToolset::create($clinical), $flags, $authorization, $context);
+        $tools = array_merge(
+            ClinicalToolset::create($clinical),
+            ManagementToolset::create(
+                new CopilotAgendaQuery($context, $connection),
+                new CopilotStockQuery($context, $connection),
+                new CopilotFinanceQuery($context, $connection),
+            ),
+        );
+        $registry = new ToolRegistry($tools, $flags, $authorization, $context);
         $policy = new ToolPolicy(
             $registry,
             new JsonSchemaValidator(),
