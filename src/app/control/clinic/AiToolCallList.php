@@ -79,7 +79,7 @@ class AiToolCallList extends TPage
         catch (Exception $e)
         {
             error_log(__METHOD__ . ': ' . get_class($e));
-            new TMessage('error', CvFormat::userError($e));
+            new TMessage('error', CvFormat::e(_t('Could not complete the operation. Please try again')));
             parent::add($container);
             return;
         }

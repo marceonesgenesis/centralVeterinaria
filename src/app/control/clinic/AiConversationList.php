@@ -5,8 +5,9 @@
  * Conversas do próprio usuário na unidade ativa (família, data, título),
  * mais recentes primeiro, com abrir (AiCopilotPanel com `conversation_id`)
  * e apagar (confirmação e `onDelete` com `delete=1`). Nunca mostra o texto
- * das mensagens. Tudo passa por CentralVet\Application\AiCopilotService
- * (RBAC `AiCopilotPanel::onOpen|onDelete` na unidade ativa); conversa de
+ * das mensagens. Tudo passa por CentralVet\Application\AiConversationHistoryService
+ * (RBAC `AiCopilotPanel::onOpen|onDelete` na unidade ativa, sem depender de
+ * gateway, limiter, flag, termo ou cota); conversa de
  * outro usuário ou de outra unidade (inclusive a anterior à troca de
  * unidade) é "Conversa não encontrada".
  *
@@ -49,7 +50,7 @@ class AiConversationList extends TPage
 
             $conversations = static::transaction(static function (PDO $connection) use ($context): array
             {
-                return static::makeService($context, $connection)->conversations(null, null, self::LIMIT);
+                return static::makeService($context, $connection)->conversations(self::LIMIT);
             });
         }
         catch (Exception $e)
@@ -144,8 +145,9 @@ class AiConversationList extends TPage
             return;
         }
 
+        // nunca o código cru: texto genérico traduzido
         error_log('AiConversationList: ' . get_class($e));
-        new TMessage('error', CvFormat::userError($e));
+        new TMessage('error', CvFormat::e(_t('Could not complete the operation. Please try again')));
     }
 
     private static function emptyState(): TElement
@@ -232,9 +234,10 @@ class AiConversationList extends TPage
         return $card;
     }
 
-    protected static function makeService(\CentralVet\Tenancy\TenantContext $context, PDO $connection): \CentralVet\Application\AiCopilotService
+    /** Serviço leve de histórico: sem gateway, limiter, flag, termo ou cota. */
+    protected static function makeService(\CentralVet\Tenancy\TenantContext $context, PDO $connection): \CentralVet\Application\AiConversationHistoryService
     {
-        return \CentralVet\Application\AiCopilotService::forContext($context, $connection, (string) ApplicationTranslator::getLanguage());
+        return \CentralVet\Application\AiConversationHistoryService::forContext($context, $connection);
     }
 
     /**
