@@ -47,6 +47,70 @@ final class AiDomainTest
         Assert::throws(InvalidArgumentException::class, fn () => AiPurpose::decideAction('next_steps'));
     }
 
+    /** T-03 (8B): finalidades do copiloto ficam fora de ALL, com conversa como sujeito e sem decisão. */
+    public function testCopilotPurposesStayOutOfTheAssistantList(): void
+    {
+        Assert::count(3, AiPurpose::ALL);
+        Assert::count(2, AiPurpose::COPILOT);
+        Assert::same(['copilot_clinical', 'copilot_management'], AiPurpose::COPILOT);
+        Assert::same('ai_conversation', AiPurpose::SUBJECT_CONVERSATION);
+
+        foreach ([AiPurpose::COPILOT_CLINICAL, AiPurpose::COPILOT_MANAGEMENT] as $purpose) {
+            AiPurpose::assertValid($purpose);
+            Assert::false(in_array($purpose, AiPurpose::ALL, true), "{$purpose} must stay out of ALL");
+            Assert::same('ai_conversation', AiPurpose::subjectType($purpose));
+            Assert::same('AiCopilotPanel::onAsk', AiPurpose::hostAction($purpose));
+            Assert::throws(InvalidArgumentException::class, fn () => AiPurpose::decideAction($purpose));
+        }
+    }
+
+    /** T-03 (8B): uma linha por pergunta do copiloto, status answered e nenhum texto. */
+    public function testCopilotAnswerIsRecordedWithoutText(): void
+    {
+        $interaction = AiInteraction::start(1, 1, 1, AiPurpose::COPILOT_CLINICAL, 10, 'copilot_clinical.v1', str_repeat('b', 64), 'corr-1');
+
+        $interaction->recordAnswer(new AiUsage(100, 20), 5, 'stub', 'stub', 'end_turn', null, 120);
+
+        Assert::same('answered', AiInteraction::STATUS_ANSWERED);
+        Assert::same('answered', $interaction->status());
+        Assert::same('ai_conversation', $interaction->subjectType());
+        Assert::null($interaction->suggestionText());
+        Assert::null($interaction->finalText());
+        Assert::same(120, $interaction->usage()->totalTokens());
+        Assert::same(5, $interaction->costMicroUsd());
+        Assert::same('stub', $interaction->provider());
+        Assert::same('stub', $interaction->model());
+        Assert::same('end_turn', $interaction->stopReason());
+        Assert::null($interaction->providerRequestId());
+        Assert::same(120, $interaction->latencyMs());
+
+        $row = $interaction->toRow();
+        Assert::same('answered', $row['status']);
+        Assert::null($row['suggestion_text']);
+        Assert::null($row['final_text']);
+        Assert::same('ai_conversation', $row['subject_type']);
+        Assert::same(100, $row['input_tokens']);
+        Assert::same(20, $row['output_tokens']);
+
+        $copy = AiInteraction::reconstitute(['id' => 7] + $row);
+        Assert::same('answered', $copy->status());
+        Assert::null($copy->suggestionText());
+
+        Assert::throws(InvalidArgumentException::class, fn () => $interaction->decide('accepted', null, 9, new DateTimeImmutable()));
+        Assert::throws(InvalidArgumentException::class, fn () => $copy->decide('discarded', null, 9, new DateTimeImmutable()));
+        Assert::throws(InvalidArgumentException::class, fn () => $interaction->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1));
+    }
+
+    /** T-03 (8B): resposta só a partir de interação aguardando o provedor. */
+    public function testRecordAnswerRequiresAnInteractionAwaitingTheProvider(): void
+    {
+        $failed = AiInteraction::start(1, 1, 1, AiPurpose::COPILOT_MANAGEMENT, 10, 'copilot_management.v1', str_repeat('b', 64), 'corr-2');
+        $failed->recordFailure('ai_timeout', 30000, null, null, 'stub');
+
+        Assert::throws(InvalidArgumentException::class, fn () => $failed->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1));
+        Assert::throws(InvalidArgumentException::class, fn () => self::withSuggestion()->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1));
+    }
+
     public function testStartAssignsSubjectTypeAndPendingState(): void
     {
         $interaction = self::start(AiPurpose::EXAM_SUMMARY);

@@ -7,6 +7,7 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Ai\AiPromptCatalog;
 use CentralVet\Ai\PiiMinimizer;
 use CentralVet\Domain\AiCompletionRequest;
+use CentralVet\Domain\AiPurpose;
 use CentralVet\Tests\Support\Assert;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -237,14 +238,61 @@ final class AiPromptCatalogTest
             'exam_summary' => ['exam' => ['exam_name' => 'Hemograma'] + $this->encounter()],
         ];
 
-        Assert::same(array_keys($pinned), array_values(AiPromptCatalog::VERSIONS));
-        foreach (AiPromptCatalog::VERSIONS as $purpose => $version) {
+        $copilotPinned = [
+            'copilot_clinical.v1' => [
+                'pt' => '9a18e0ed606b81ea4e677839b16845f90a701b92b9b07ded16c0db5546efa5b0',
+                'en' => '48ad4fbbcf2685efaa5734b5b63d1eaf0f93877a0e2d04e6d04bef40bca48324',
+            ],
+            'copilot_management.v1' => [
+                'pt' => 'de132f598d7789891d67fbede46a2df4489fa9ccf18368c63135db1c286a99bb',
+                'en' => 'd7ffd28749392ea8c3782ca216c048ef1a90f75e17a9b0a3a81b3e1e2f3d42d1',
+            ],
+        ];
+
+        Assert::same(array_merge(array_keys($pinned), array_keys($copilotPinned)), array_values(AiPromptCatalog::VERSIONS));
+        foreach (AiPurpose::ALL as $purpose) {
+            $version = AiPromptCatalog::VERSIONS[$purpose];
             foreach (['pt', 'en'] as $lang) {
                 $request = AiPromptCatalog::build($purpose, $contexts[$purpose], $lang, new DateTimeImmutable(self::TODAY));
                 Assert::same($version, $request->promptVersion);
                 Assert::same($pinned[$version][$lang], hash('sha256', $request->system), "{$version}/{$lang}: prompt text changed; bump the version and this map");
             }
         }
+        foreach (AiPurpose::COPILOT as $purpose) {
+            $version = AiPromptCatalog::version($purpose);
+            foreach (['pt', 'en'] as $lang) {
+                Assert::same($copilotPinned[$version][$lang], hash('sha256', AiPromptCatalog::copilotSystem($purpose, $lang)), "{$version}/{$lang}: prompt text changed; bump the version and this map");
+            }
+        }
+    }
+
+    /** T-03 (8B): prompts do copiloto versionados, somente leitura, pt/en. */
+    public function testCopilotSystemPromptsPerPurposeAndLocale(): void
+    {
+        Assert::same('copilot_clinical.v1', AiPromptCatalog::version('copilot_clinical'));
+        Assert::same('copilot_management.v1', AiPromptCatalog::version('copilot_management'));
+
+        $clinicalPt = AiPromptCatalog::copilotSystem('copilot_clinical', 'pt');
+        Assert::stringContains('somente leitura', $clinicalPt);
+        Assert::stringContains('diga que não encontrou', $clinicalPt);
+        Assert::stringContains('Não faça diagnóstico, não prescreva', $clinicalPt);
+        Assert::stringContains('[NOME]', $clinicalPt);
+        Assert::stringContains('pendente de revisão', $clinicalPt);
+        Assert::stringContains('prontuário', $clinicalPt);
+
+        $managementEn = AiPromptCatalog::copilotSystem('copilot_management', 'en');
+        Assert::stringContains('read-only', $managementEn);
+        Assert::stringContains('stock', $managementEn);
+        Assert::stringContains('schedule', $managementEn);
+        Assert::false(str_contains($managementEn, 'somente leitura'), 'en copilot prompt must be in English');
+        Assert::false(str_contains($managementEn, 'medical record'), 'management prompt has no clinical context');
+
+        Assert::same(AiPromptCatalog::copilotSystem('copilot_clinical', 'en'), AiPromptCatalog::copilotSystem('copilot_clinical', 'en-US'));
+        Assert::true($clinicalPt !== AiPromptCatalog::copilotSystem('copilot_management', 'pt'));
+
+        Assert::throws(InvalidArgumentException::class, static fn () => AiPromptCatalog::copilotSystem('patient_summary', 'pt'));
+        Assert::throws(InvalidArgumentException::class, static fn () => AiPromptCatalog::copilotSystem('next_steps', 'pt'));
+        Assert::throws(InvalidArgumentException::class, fn () => AiPromptCatalog::build('copilot_clinical', ['encounter' => $this->encounter()], 'pt'));
     }
 
     public function testUnknownPurposeThrows(): void
