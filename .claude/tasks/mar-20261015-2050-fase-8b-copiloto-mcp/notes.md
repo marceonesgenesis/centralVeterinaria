@@ -45,6 +45,12 @@
 - 2026-10-15 · T-23 · onda 7 — teste extra em AiCopilotServiceForContextIntegrationTest.php (arquivo da T-13) aceito; RED = ManagementToolsetTest + teste do menu; seed inalterado (AiCopilotPanel já concedido no bloco 8B).
 - 2026-10-15 · T-24 · onda 7 — cruzada do gate continua válida após a correção posterior só de docs (185bbdd).
 
+- 2026-10-15 · plano · onda 8 — Ondas de correção 8–10 (revisão final + `/code-review` de `bc35d6d..b2464f4`, HEAD `b2464f4`): T-25 (PII minimizada antes do corte via `ToolResult::excerptLengths`; visibilidade em cache no `ToolRegistry`, `ToolPolicy` sem `AuthorizationPolicyInterface`), T-26 (`AiCopilotAvailability` leve nas telas hospedeiras), T-27 (horários livres), T-28 (histórico via `AiConversationHistoryService`, resposta minimizada, `ai_interaction` em `finally`, serviço sem transação), T-29 (painel/lista: leitura sem IA, resposta gravada exibida, `onAsk` em autocommit, exclusão só por POST). Fora: sugestões de duplicação do helper `patientId` e do `copilotLink`/docblock em `PatientForm`.
+- 2026-10-15 · plano · onda 8 — T-27: o schema não marca papel clínico e a agenda (`AgendaView::listProfessionals`) usa todo usuário ativo do tenant. Profissional elegível para `verificar_horarios` sem `profissional_id` = usuário ativo do tenant com `appointment` na unidade ativa nos 90 dias antes do dia pedido ou no próprio dia (sem nenhum, volta à lista da agenda); limite de 50 repartido igualmente entre os profissionais, com horários espaçados no dia.
+- 2026-10-16 · onda 8 · usuário — Regra de horários livres confirmada: elegível = usuário ativo do tenant com agendamento na unidade nos 90 dias anteriores ou no dia; fallback para a lista da agenda; 50 linhas repartidas por profissional ao longo do dia.
+- 2026-10-16 · T-25 · onda 8 — linha de wiring em AiCopilotPanelIntegrationTest.php (fora da lista) aceita; ?PiiMinimizer=null mantido; ToolRegistry::registered() novo; ferramenta sem RBAC em offeredNames → forbidden; commit RED 189c6a1 sem Co-Authored-By (cosmético).
+- 2026-10-16 · T-25 · onda 8 (rodada 1, plano-mandou) — teste de minimização antes do corte fortalecido (nenhum dígito do telefone/CPF), provado falhando com a ordem invertida.
+
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
 - Fora do plano, só com aprovação SQL do usuário: 0015 no `centralvet` (dev) e a DML do bloco 8B do seed (T-17). Sem isso, o smoke manual nas telas reais não roda.
@@ -92,6 +98,10 @@
 - T-23: nenhum teste falha se `ManagementToolset::create` sair de `forContext`; asserir as definições management (5) e clinical sobre o registry montado (AiCopilotService.php:154-162).
 - T-24: runbook linha 391 sugere que basta `ai_copilot_management`; o código exige `ai_assistant` (ai_enabled) ligada; "IA indisponível" gera ai_terms_pending/ai_quota_exceeded/ai_not_configured.
 - Onda 7: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
+- T-25: ToolResult aceita excerptLengths fora de freeTextFields (validar excerptLengths ⊆ freeTextFields); ToolPolicy não confere ToolContext contra o contexto do registry; semântica de forbidden vs not_offered mudou.
+- T-26: AiCopilotAvailability::reason duplica AiCopilotService::availability; closure de configuração do forContext sem teste unitário próprio.
+- T-27: sem teste da fronteira de 90 dias nem de agendamento no dia seguinte; schedulableProfessionals sem asserção de outro tenant.
+- Onda 8: 0015 e seed 8B no centralvet (dev) dependem de aprovação SQL; "nenhum push" não verificável por remoto.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -113,5 +123,6 @@
   - Onda 5: BASE b016bf4 → HEAD 09e41bc (09e41bc, a7dc809, 6a0d75d, ded9224, cfec6a4)
   - Onda 6: BASE 93bc397 → HEAD ff42a18 (ff42a18, 67789bd, a96f54a, 5ff7bc7, bac7f0b, d1827a7, 1063c3d, 358b4a4)
   - Onda 7: BASE ec862a2 → HEAD 185bbdd (f2005cf, 93a1031, 89038e4, 185bbdd)
-- Último status conhecido: onda 7 concluída; 8B.2 completa, T-01..T-24 todas [x]; SUITE 1676/1676 no gate
-- Próxima onda recomendada: nenhuma (revisão final)
+  - Onda 8: BASE b2464f4 → HEAD 5acfbb1 (ea33281, 21c4587, 189c6a1, 8ea9e28, 9ccfe8c, 13b24af, 5acfbb1)
+- Último status conhecido: onda 8 concluída; T-25..T-27 [x]; SUITE 1689/1689; T-28 e T-29 pendentes
+- Próxima onda recomendada: 9 — T-28 (depende de T-25, T-26), depois onda 10 — T-29

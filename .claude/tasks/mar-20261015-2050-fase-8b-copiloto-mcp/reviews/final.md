@@ -1,0 +1,90 @@
+# Revisão final
+Escopo: bc35d6d..HEAD (b2464f4), branch feat/fase-8b-copiloto-mcp, base main. Spec docs/superpowers/specs/2026-10-15-fase-8b-copiloto-mcp-design.md; aceite 8B.1/8B.2 do plan.md.
+Verificado: AiCopilotService, ToolPolicy, ToolRegistry, ToolContext/Family, JsonSchemaValidator, 7 ferramentas clínicas, 5 de gestão (execute/assertInScope), CopilotClinical/Agenda/Stock/FinanceQuery, AiConversationRepository, McpToolCallRepository, AiToolAuditService, AiConversationHistoryService, AiConversationRetention + bin, migration 0015, AiCopilotPanel, AiConversationList, AiToolCallList, cv-ai-copilot.js, diffs de gateway/request/purpose/interaction/prompt/settings/PatientForm/EncounterView/menu. `git diff bc35d6d -- composer.json framework_hashes.php custom.css` = 0 linhas; CSS novo só com text-align:left.
+Não verificado: SUITE não rodada nesta revisão (vale o gate da onda 7, 1676/1676); regex do PiiMinimizer para fragmentos; seed SQL e compatibilidade 5.7; runbooks/ADR (T-18, T-24); FakeAiConversationRepository/T-05; jsonObjects do gateway (T-02); CSS visual do switch (T-22).
+
+## Triagem
+- [resolvida] T-19..T-21 marcação [x] espúria na onda 1 → tasks concluídas na onda 6 (notes.md Retomada)
+- [aberta] T-03 recordAnswer/recordSuggestion sem guarda por isCopilot; falta teste de decide() em answered → AiInteraction.php (recordAnswer só checa assertAwaitingProvider); AiDomainTest.php:101-111 testa só recordAnswer
+- [aberta] T-04 validador: schema agora validado no início (assertSupported), mas chave extra ecoa o nome e registry aceita nome duplicado → JsonSchemaValidator.php ("not allowed"), ToolRegistry.php construtor
+- [aberta] T-07 contagem 32/33 e formato en/pt sem teste
+- [aberta] T-02 jsonObjects troca [] por {} em qualquer profundidade; falta teste messages sem tools com tool_use → AnthropicMessagesGateway.php jsonObjects (não reavaliado)
+- [aberta] T-01 .verify.sql sem índices auxiliares; RESTRICT da âncora (paciente com conversa não pode ser excluído) → 0015.sql ai_conversation_anchor_patient_fk
+- [aberta] T-05 teste com + e reconstitute frágil (não reavaliado)
+- [aberta] T-06 superseded estreito; draft como ativa tratado por ruling T-11 (provisorio=true); fixture otherUnitId
+- [aberta] 0015 no centralvet (dev) depende de aprovação SQL; "nenhum push" não verificável por remoto
+- [aberta] T-08 rate limit depois do escopo (fixado pela spec) → ToolPolicy.php:93-95
+- [aberta] T-09 search tenant-wide (confirmado intencional em AiToolAuditService, requiresUnitScope:false); insert não confere unidade/usuário → McpToolCallRepository.php search/insert
+- [aberta] T-10 truncated sempre false em buscar_paciente/histórico → BuscarPacienteTool execute (ToolResult($data,false)), ObterHistoricoAtendimentosTool execute
+- [aberta] T-11 via/posologia/duracao fora de freeTextFields → ObterPrescricoesTool execute (ToolResult sem freeTextFields)
+- [aberta] T-12 updated_at×created_at, MAX_BATCHES sem teste, sem trava de sobreposição
+- [aberta] T-13 10º parâmetro ?PiiMinimizer diverge da Interface (ruling); relays de cota/limiter cumpridos
+- [promovida] T-14 "onDelete com painel indisponível mostra 'Conversa não encontrada'": o conjunto da branch (AiConversationList abre pela cortina) torna o histórico do autor inacessível com IA indisponível → ver Achado 1; demais itens da T-14 (GET sem CSRF, espaços, foco) seguem abertos
+- [aberta] T-15 teste de negação fraco; coluna Motivo com código cru; sem teste de XSS → AiToolCallList.php table (denyReason cru)
+- [resolvida] Onda 4 menu/permissões de AiConversationList e AiToolCallList → menu.xml +3 itens e bloco 8B do seed (T-17)
+- [aberta] T-16 link sem RBAC de onOpen; docblock órfão PatientForm.php:720-725; markup duplicado; error_log por render
+- [aberta] T-17 seed só no grupo 1; 5.7 por inspeção
+- [aberta] T-18 runbook 5.7 ambíguo; referência de códigos ai_* (não verificado)
+- [aberta] Onda 5 SQL dev pendente de aprovação
+- [aberta] T-19 verificar_horarios sem profissional_id corta em 50 e inclui todo usuário ativo do tenant → VerificarHorariosTool.php:109 (code-review item 5)
+- [aberta] T-20 escape LIKE/expiring sem bordas/lote vencido
+- [aberta] T-21 fuso, vencimento no dia, ticket_medio com receita sem atendimento
+- [aberta] T-22 trilho do switch; flag provada só por fake
+- [aberta] Onda 6 SQL dev pendente
+- [aberta] T-23 nenhum teste falha se ManagementToolset sair de forContext (o teste de gestão com stub não chama ferramenta) → AiCopilotServiceForContextIntegrationTest.php:111
+- [aberta] T-24 runbook linha 391 (ai_assistant também exigida) (não verificado)
+- [aberta] Onda 7 SQL dev pendente
+## Rulings
+- plano · onda 0 — branch feat/fase-8b-copiloto-mcp a partir da 8A, base main, sem push
+- plano · onda 0 — uma linha ai_interaction por pergunta, status answered, subject ai_conversation, 6 CHECKs ampliados
+- plano · onda 0 — finalidades em AiPurpose::COPILOT fora de ALL; hostAction AiCopilotPanel::onAsk
+- plano · onda 0 — requiredPermission por ferramenta = ação da tela (PrescriptionForm/ExamResultForm::__construct)
+- plano · onda 0 — paciente da unidade = encounter ou appointment na unidade; fora = não encontrado
+- plano · onda 0 — sem nº de prontuário/condições crônicas/motivo; prescrição ativa = validade ou 30 dias
+- plano · onda 0 — vencimento do receivable = created_at + 7 dias
+- plano · onda 0 — painel de gestão pelo item "Copiloto de gestão"
+- plano · onda 0 — 4 respostas do usuário confirmam as premissas
+- plano · onda 0 — timeout 5 s por hint MAX_EXECUTION_TIME + descarte na ToolPolicy
+- plano · onda 0 — mcp_tool_call.conversation_id sem FK; âncora com FK (depois RESTRICT, T-01)
+- plano · onda 0 — flag de gestão indisponível → ai_disabled; constante na onda 1
+- plano · onda 0 — rótulos "Consultei" via AiTool::label, fora do translations.json
+- T-02, T-03, T-04 · onda 1 — RED com arquivos extras de teste/suporte aceito
+- T-05 · onda 1 — isFailed() em vez de failed()
+- T-01 · onda 1 — 0015 aplicada no centralvet_test após correção 73f950e (âncora RESTRICT)
+- T-01 · onda 1 — 3 FKs RESTRICT extras aceitas
+- T-06 · onda 1 — superseded só na mesma unidade
+- T-04 · onda 1 — validate static; fake de flags por lista
+- T-07 · onda 1 — 32 chaves; ordenação exigida
+- T-08, T-10, T-11 · onda 2 — fail-closed concentrado na ToolPolicy (toda exceção vira denied auditado)
+- T-08 · onda 2 — 6º parâmetro ?PiiMinimizer null; rate limit depois do escopo
+- T-10 · onda 2 — default de limite no código; alergias texto livre
+- T-11 · onda 2 — sem patient_id → ToolInputException; draft com provisorio=true
+- T-12 · onda 2 — batches só com exclusão; erro → error_log sem JSON
+- T-13 · onda 3 — RuntimeException do limiter sem Redis aceita; painel trata como indisponível
+- T-13 · onda 3 — chamada final com as mesmas tools e tool_choice none
+- T-13 · onda 3 — 10º parâmetro ?PiiMinimizer null
+- T-13 · onda 3 — orçamento antes das ferramentas; cota uma vez por pergunta
+- T-15 · onda 4 — histórico (listar/abrir/apagar) independente de gateway/limiter/config (AiConversationHistoryService) — abrir não cumprido, ver Achado 1
+- T-15 · onda 4 — teste de conversa da unidade anterior sem RED aceito
+- T-15 · onda 4 — menu/permissões para a T-17
+- T-16 · onda 5 — link sem conferir permissão de onOpen (sugestão)
+- T-17 · onda 5 — id do vínculo = MAX(id)+posição; DML não aplicada no dev
+- T-18 · onda 5 — runbook cita RATE_LIMIT_DRIVER=files, cota, cron, 0015, ADR
+- onda 5 — 8B.1 completa
+- T-19..T-22 · onda 6 — RED com fakes/interface extras aceito
+- T-19 · onda 6 — busy() em todo o tenant
+- T-21 · onda 6 — receita por SQL próprio
+- T-22 · onda 6 — flag independente de ai_enabled; cv-touch-target no switch
+- T-23 · onda 6 — registro das ferramentas de gestão com a T-23
+- T-23 · onda 7 — teste extra no arquivo da T-13; seed inalterado
+- T-24 · onda 7 — cruzada válida após correção só de docs (185bbdd)
+## Achados
+- [bloqueante] Histórico do autor inacessível com IA indisponível: AiCopilotPanel::load() devolve o motivo antes de carregar a conversa (AiCopilotPanel.php:235-240), e "Abrir" de Minhas conversas passa por essa cortina (AiConversationList openLink); com cota estourada/flag off/termo pendente/Redis fora (forContext, AiCopilotService.php:141-168) o autor não lê nenhuma conversa, e a resposta da pergunta que estoura a cota é gravada mas não exibida; se a IA ficar desligada > 90 dias a retenção apaga sem o autor ter acesso. Contradiz o ruling T-15 ("abrir não depende de gateway/limiter/config") → AiCopilotPanel.php:235, :168
+- [bloqueante] PII ao provedor: texto cortado antes da minimização — ToolFormat::excerpt corta motivo (160) e resultado (400) dentro de execute (ObterHistoricoAtendimentosTool.php:100, ObterExamesTool.php:103) e só depois ToolPolicy::content aplica PiiMinimizer (ToolPolicy.php:179-187); um telefone/CPF ou o nome completo do tutor partidos no corte deixam de casar com o padrão/knownNames e seguem ao modelo. Minimizar antes de cortar. (Regex do PiiMinimizer para fragmentos não verificada.)
+- [sugestão] Laço inteiro (até 45 s e 5 chamadas) dentro de uma transação 'permission'; falha tardia em load() faz rollback de ai_conversation, ai_interaction e mcp_tool_call (auditoria e pergunta perdidas) → AiCopilotPanel.php:168
+- [sugestão] Resposta do assistente gravada sem PiiMinimizer, contra spec § 3.5 ("content já minimizado") → AiCopilotService.php:476
+- [sugestão] Aceite 8B.1: AiCopilotServiceForContextIntegrationTest não assere linhas de mcp_tool_call com o correlation_id da ai_interaction (só o teste unitário com fakes, AiCopilotServiceTest.php:341) → AiCopilotServiceForContextIntegrationTest.php:64-100
+- [sugestão] Exclusão por GET sem CSRF (AiCopilotPanel onDelete e AiConversationList onDelete com delete=1); padrão pré-existente (ServiceList::onDelete) → AiConversationList.php onDelete
+- [sugestão] ToolRegistry::find refaz visible() (RBAC + auditoria de decisão) a cada chamada e no countTool → ToolRegistry.php find; AiCopilotService.php:514
+- [sugestão] Botões das telas hospedeiras montam forContext completo (gateway, Redis, registry) a cada render → PatientForm.php:732, EncounterView.php copilotAvailable
+- [sugestão] Duplicações: patientId() nas 7 ferramentas, copilotLink em PatientForm/EncounterView, conversas em AiCopilotService e AiConversationHistoryService

@@ -93,17 +93,17 @@ Entregar o copiloto conversacional interno do Central Vet (spec aprovada `docs/s
 | `src/tests/Unit/AiPromptCatalogTest.php` | Hashes dos prompts novos | modificar | T-03 |
 | `src/app/Core/Ai/Tools/AiTool.php` | Interface da ferramenta | criar | T-04 |
 | `src/app/Core/Ai/Tools/ToolContext.php` | Contexto imutável montado pelo servidor | criar | T-04 |
-| `src/app/Core/Ai/Tools/ToolResult.php` | Resultado (`data`, `rowCount`, `truncated`) | criar | T-04 |
+| `src/app/Core/Ai/Tools/ToolResult.php` ⚠ | Resultado (`data`, `rowCount`, `truncated`) | criar (original), modificar (correção) | T-04, T-25 |
 | `src/app/Core/Ai/Tools/ToolFamily.php` | Famílias, allowlist e flags | criar | T-04 |
 | `src/app/Core/Ai/Tools/ToolFormat.php` | Primeiro nome, idade, data, trecho | criar | T-04 |
 | `src/app/Core/Ai/Tools/JsonSchemaValidator.php` | Validador JSON Schema mínimo | criar | T-04 |
-| `src/app/Core/Ai/Tools/ToolRegistry.php` | Ferramentas visíveis por família, flag e RBAC | criar | T-04 |
+| `src/app/Core/Ai/Tools/ToolRegistry.php` ⚠ | Ferramentas visíveis por família, flag e RBAC | criar (original), modificar (correção) | T-04, T-25 |
 | `src/app/Core/Ai/Tools/ToolEntityNotFoundException.php` | Id fora do tenant/unidade | criar | T-04 |
 | `src/app/Core/Ai/Tools/ToolInputException.php` | Entrada inválida detectada pela ferramenta | criar | T-04 |
 | `src/app/Core/Domain/Contract/FeatureFlagRepositoryInterface.php` | Constante `AI_COPILOT_MANAGEMENT` | modificar | T-04 |
 | `src/tests/Support/FakeAiTool.php` | Ferramenta fake para testes | criar | T-04 |
 | `src/tests/Unit/JsonSchemaValidatorTest.php` | Testes do validador | criar | T-04 |
-| `src/tests/Unit/ToolRegistryTest.php` | Visibilidade por flag e RBAC | criar | T-04 |
+| `src/tests/Unit/ToolRegistryTest.php` ⚠ | Visibilidade por flag e RBAC | criar (original), modificar (correção) | T-04, T-25 |
 | `src/app/Core/Domain/AiConversation.php` | Conversa do autor | criar | T-05 |
 | `src/app/Core/Domain/AiConversationMessage.php` | Mensagem da conversa | criar | T-05 |
 | `src/app/Core/Domain/McpToolCall.php` | Linha de auditoria de ferramenta | criar | T-05 |
@@ -118,43 +118,43 @@ Entregar o copiloto conversacional interno do Central Vet (spec aprovada `docs/s
 | `src/tests/Integration/CopilotClinicalQueryIntegrationTest.php` | Integração da leitura clínica | criar | T-06 |
 | `src/app/config/translations.json` ⚠ | Textos pt/en das telas (8B.1 e interruptor da 8B.2) | modificar | T-07, T-22 |
 | `src/tests/Unit/CopilotTranslationsTest.php` | Chaves do copiloto traduzidas | criar | T-07 |
-| `src/app/Core/Ai/Tools/ToolPolicy.php` | Portão fail-closed antes de cada `execute` | criar | T-08 |
+| `src/app/Core/Ai/Tools/ToolPolicy.php` ⚠ | Portão fail-closed antes de cada `execute` | criar (original), modificar (correção) | T-08, T-25 |
 | `src/app/Core/Ai/Tools/ToolOutcome.php` | Resultado da política para o laço | criar | T-08 |
 | `src/app/Core/Ai/Tools/ToolRateLimiter.php` | 30 chamadas / 10 min por usuário | criar | T-08 |
-| `src/tests/Unit/ToolPolicyTest.php` | Motivos de recusa, ordem, limites, PII | criar | T-08 |
+| `src/tests/Unit/ToolPolicyTest.php` ⚠ | Motivos de recusa, ordem, limites, PII | criar (original), modificar (correção) | T-08, T-25 |
 | `src/app/Core/Persistence/AiConversationRepository.php` | PDO das conversas | criar | T-09 |
 | `src/app/Core/Persistence/McpToolCallRepository.php` | PDO da auditoria | criar | T-09 |
 | `src/tests/Integration/CopilotRepositoryIntegrationTest.php` | Integração dos dois repositórios | criar | T-09 |
 | `src/app/Core/Ai/Tools/Clinical/BuscarPacienteTool.php` | `buscar_paciente` | criar | T-10 |
 | `src/app/Core/Ai/Tools/Clinical/ObterPacienteTool.php` | `obter_paciente` | criar | T-10 |
-| `src/app/Core/Ai/Tools/Clinical/ObterHistoricoAtendimentosTool.php` | `obter_historico_atendimentos` | criar | T-10 |
+| `src/app/Core/Ai/Tools/Clinical/ObterHistoricoAtendimentosTool.php` ⚠ | `obter_historico_atendimentos` | criar (original), modificar (correção) | T-10, T-25 |
 | `src/app/Core/Ai/Tools/Clinical/ObterProntuarioTool.php` | `obter_prontuario` | criar | T-10 |
-| `src/tests/Unit/ClinicalToolsPatientTest.php` | Testes das 4 ferramentas | criar | T-10 |
+| `src/tests/Unit/ClinicalToolsPatientTest.php` ⚠ | Testes das 4 ferramentas | criar (original), modificar (correção) | T-10, T-25 |
 | `src/app/Core/Ai/Tools/Clinical/ObterPrescricoesTool.php` | `obter_prescricoes` | criar | T-11 |
-| `src/app/Core/Ai/Tools/Clinical/ObterExamesTool.php` | `obter_exames` | criar | T-11 |
+| `src/app/Core/Ai/Tools/Clinical/ObterExamesTool.php` ⚠ | `obter_exames` | criar (original), modificar (correção) | T-11, T-25 |
 | `src/app/Core/Ai/Tools/Clinical/ConsultarVacinacaoTool.php` | `consultar_vacinacao` | criar | T-11 |
-| `src/tests/Unit/ClinicalToolsRecordsTest.php` | Testes das 3 ferramentas | criar | T-11 |
+| `src/tests/Unit/ClinicalToolsRecordsTest.php` ⚠ | Testes das 3 ferramentas | criar (original), modificar (correção) | T-11, T-25 |
 | `src/app/Core/Application/AiConversationRetention.php` | Apaga conversas com mais de 90 dias, em lotes | criar | T-12 |
 | `src/bin/ai-conversation-retention.php` | Comando de cron | criar | T-12 |
 | `src/tests/Integration/AiConversationRetentionIntegrationTest.php` | Retenção apaga conversas e mantém auditoria | criar | T-12 |
-| `src/app/Core/Application/AiCopilotService.php` ⚠ | Laço de conversa | criar (T-13), modificar (T-23) | T-13, T-23 |
+| `src/app/Core/Application/AiCopilotService.php` ⚠ | Laço de conversa | criar (T-13), modificar (T-23, T-25, T-28) | T-13, T-23, T-25, T-28 |
 | `src/app/Core/Application/CopilotAnswer.php` | Resposta do laço para a tela | criar | T-13 |
 | `src/app/Core/Ai/Tools/Clinical/ClinicalToolset.php` | Instancia as 7 ferramentas clínicas | criar | T-13 |
-| `src/tests/Unit/AiCopilotServiceTest.php` | Laço com stub roteirizado | criar | T-13 |
-| `src/tests/Integration/AiCopilotServiceForContextIntegrationTest.php` | `forContext` e gravação real | criar | T-13 |
-| `src/app/control/clinic/AiCopilotPanel.php` | Cortina do copiloto | criar | T-14 |
+| `src/tests/Unit/AiCopilotServiceTest.php` ⚠ | Laço com stub roteirizado | criar (original), modificar (correção) | T-13, T-25, T-28 |
+| `src/tests/Integration/AiCopilotServiceForContextIntegrationTest.php` ⚠ | `forContext` e gravação real | criar (original), modificar (correção) | T-13, T-28 |
+| `src/app/control/clinic/AiCopilotPanel.php` ⚠ | Cortina do copiloto | criar (original), modificar (correção) | T-14, T-29 |
 | `src/app/templates/adminbs5/js/cv-ai-copilot.js` | Estado "pensando…" e envio único | criar | T-14 |
 | `src/app/templates/adminbs5/cv-components.css` | Estilos `.cv-ai-copilot*` | modificar | T-14 |
-| `src/tests/Integration/AiCopilotPanelIntegrationTest.php` | Painel abre, envia, lista, apaga | criar | T-14 |
-| `src/app/control/clinic/AiConversationList.php` | "Minhas conversas" | criar | T-15 |
+| `src/tests/Integration/AiCopilotPanelIntegrationTest.php` ⚠ | Painel abre, envia, lista, apaga | criar (original), modificar (correção) | T-14, T-29 |
+| `src/app/control/clinic/AiConversationList.php` ⚠ | "Minhas conversas" | criar (original), modificar (correção) | T-15, T-29 |
 | `src/app/control/clinic/AiToolCallList.php` | Auditoria de ferramentas do gestor | criar | T-15 |
 | `src/app/Core/Application/AiToolAuditService.php` | Busca na auditoria com RBAC | criar | T-15 |
 | `src/app/control/clinic/AiInteractionList.php` | Rótulo do status `answered` | modificar | T-15 |
 | `src/app/control/clinic/AiSettingsForm.php` ⚠ | Rótulos das finalidades do copiloto (T-15); interruptor da gestão (T-22) | modificar | T-15, T-22 |
-| `src/tests/Integration/AiCopilotListsIntegrationTest.php` | Telas de conversas e auditoria | criar | T-15 |
-| `src/app/control/clinic/PatientForm.php` | Botão "Copiloto" | modificar | T-16 |
-| `src/app/control/clinic/EncounterView.php` | Botão "Copiloto" | modificar | T-16 |
-| `src/tests/Integration/CopilotHostButtonsIntegrationTest.php` | Botões nas telas hospedeiras | criar | T-16 |
+| `src/tests/Integration/AiCopilotListsIntegrationTest.php` ⚠ | Telas de conversas e auditoria | criar (original), modificar (correção) | T-15, T-29 |
+| `src/app/control/clinic/PatientForm.php` ⚠ | Botão "Copiloto" | modificar (original), modificar (correção) | T-16, T-26 |
+| `src/app/control/clinic/EncounterView.php` ⚠ | Botão "Copiloto" | modificar (original), modificar (correção) | T-16, T-26 |
+| `src/tests/Integration/CopilotHostButtonsIntegrationTest.php` ⚠ | Botões nas telas hospedeiras | criar (original), modificar (correção) | T-16, T-26 |
 | `src/menu.xml` ⚠ | Itens do submenu de IA | modificar | T-17, T-23 |
 | `src/app/database/seeds/initial-application-programs.sql` | Programas `AiCopilotPanel`, `AiConversationList`, `AiToolCallList` | modificar | T-17 |
 | `src/tests/Integration/AiNavigationIntegrationTest.php` ⚠ | Filhos do submenu de IA | modificar | T-17, T-23 |
@@ -162,14 +162,14 @@ Entregar o copiloto conversacional interno do Central Vet (spec aprovada `docs/s
 | `docs/runbooks/ia-assistente.md` ⚠ | Runbook do copiloto (8B.1, depois 8B.2) | modificar | T-18, T-24 |
 | `docs/architecture/adr/0007-copiloto-ferramentas-mcp.md` | ADR do copiloto | criar | T-18 |
 | `docs/runbooks/shared-hosting-mysql57.md` | Migration 0015 e cron da retenção no 5.7 | modificar | T-18 |
-| `src/app/Core/Domain/Contract/CopilotAgendaQueryInterface.php` | Contrato da agenda | criar | T-19 |
-| `src/app/Core/Persistence/CopilotAgendaQuery.php` | Agenda e intervalos ocupados por unidade | criar | T-19 |
-| `src/app/Core/Application/FreeSlotFinder.php` | Cálculo de horários livres | criar | T-19 |
+| `src/app/Core/Domain/Contract/CopilotAgendaQueryInterface.php` ⚠ | Contrato da agenda | criar (original), modificar (correção) | T-19, T-27 |
+| `src/app/Core/Persistence/CopilotAgendaQuery.php` ⚠ | Agenda e intervalos ocupados por unidade | criar (original), modificar (correção) | T-19, T-27 |
+| `src/app/Core/Application/FreeSlotFinder.php` ⚠ | Cálculo de horários livres | criar (original), modificar (correção) | T-19, T-27 |
 | `src/app/Core/Ai/Tools/Management/ConsultarAgendaTool.php` | `consultar_agenda` | criar | T-19 |
-| `src/app/Core/Ai/Tools/Management/VerificarHorariosTool.php` | `verificar_horarios` | criar | T-19 |
-| `src/tests/Support/FakeCopilotAgendaQuery.php` | Fake da agenda | criar | T-19 |
-| `src/tests/Unit/AgendaToolsTest.php` | Testes das ferramentas de agenda | criar | T-19 |
-| `src/tests/Integration/CopilotAgendaQueryIntegrationTest.php` | Integração da agenda | criar | T-19 |
+| `src/app/Core/Ai/Tools/Management/VerificarHorariosTool.php` ⚠ | `verificar_horarios` | criar (original), modificar (correção) | T-19, T-27 |
+| `src/tests/Support/FakeCopilotAgendaQuery.php` ⚠ | Fake da agenda | criar (original), modificar (correção) | T-19, T-27 |
+| `src/tests/Unit/AgendaToolsTest.php` ⚠ | Testes das ferramentas de agenda | criar (original), modificar (correção) | T-19, T-27 |
+| `src/tests/Integration/CopilotAgendaQueryIntegrationTest.php` ⚠ | Integração da agenda | criar (original), modificar (correção) | T-19, T-27 |
 | `src/app/Core/Domain/Contract/CopilotStockQueryInterface.php` | Contrato do estoque | criar | T-20 |
 | `src/app/Core/Persistence/CopilotStockQuery.php` | Estoque por unidade | criar | T-20 |
 | `src/app/Core/Ai/Tools/Management/ConsultarEstoqueTool.php` | `consultar_estoque` | criar | T-20 |
@@ -188,6 +188,10 @@ Entregar o copiloto conversacional interno do Central Vet (spec aprovada `docs/s
 | `src/tests/Integration/AiSettingsScreensIntegrationTest.php` | Interruptor na tela | modificar | T-22 |
 | `src/app/Core/Ai/Tools/Management/ManagementToolset.php` | Instancia as 5 ferramentas de gestão | criar | T-23 |
 | `src/tests/Unit/ManagementToolsetTest.php` | Registro das ferramentas de gestão | criar | T-23 |
+| `src/app/Core/Application/AiCopilotAvailability.php` | Disponibilidade leve (flag, termo, cota, configuração) sem gateway, limiter nem Redis | criar | T-26 |
+| `src/tests/Unit/AiCopilotAvailabilityTest.php` | Ordem dos motivos e flag de gestão | criar | T-26 |
+| `src/app/Core/Application/AiConversationHistoryService.php` | Leitura de conversa do autor sempre disponível | modificar | T-28 |
+| `src/tests/Unit/AiConversationHistoryServiceTest.php` | Conversa lida com IA indisponível | criar | T-28 |
 
 Arquivos com ⚠ são serializados em ondas diferentes (ver Estratégia de execução).
 
@@ -250,6 +254,15 @@ Onda 7: T-07,T-13,T-17,T-19,T-20,T-21 → T-23 ; T-18,T-19,T-20,T-21,T-22 → T-
 ### Onda 7
 - T-23, T-24 — registro das ferramentas de gestão e entrada do painel; runbook da gestão; depois, validação cruzada e revisão final (Fase 5)
 
+### Onda 8 — correção (revisão final)
+- T-25, T-26, T-27 — PII minimizada antes do corte e visibilidade em cache (bloqueante 2 + code-review 7), disponibilidade leve nas telas hospedeiras (code-review 8), horários livres por profissional clínico (code-review 6); arquivos disjuntos
+
+### Onda 9 — correção (revisão final)
+- T-28 — histórico sempre legível no serviço, resposta minimizada, gravação de uso e auditoria independente do desfecho (bloqueante 1 no serviço + code-review 3 e 4); depois da T-25, que muda a construção da `ToolPolicy` no mesmo `AiCopilotService`
+
+### Onda 10 — correção (revisão final)
+- T-29 — painel e "Minhas conversas": abrir conversa com IA indisponível, mostrar a resposta recém-gravada, `ask` sem transação aberta, exclusão só por POST (bloqueante 1 na tela + code-review 3 e 5)
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
@@ -278,6 +291,11 @@ Onda 7: T-07,T-13,T-17,T-19,T-20,T-21 → T-23 ; T-18,T-19,T-20,T-21,T-22 → T-
 | Ada | general-purpose | inherit | T-21 |
 | Curie | general-purpose | inherit | T-22 |
 | Lamport | general-purpose | inherit | T-23 |
+| Noether | general-purpose | inherit | T-25 |
+| Hamilton | general-purpose | inherit | T-26 |
+| Gauss | general-purpose | inherit | T-27 |
+| Dijkstra | general-purpose | inherit | T-28 |
+| Knuth | general-purpose | inherit | T-29 |
 
 ## Review Focus
 - Pergunta "o tutor ligou do 85 98765-4321, CPF 123.456.789-09; as vacinas do Thor estão em dia?" → `ai_conversation.title` e `ai_conversation_message.content` gravam `[TELEFONE]`/`[CPF]`, nunca os dígitos; o texto enviado ao gateway também → T-13

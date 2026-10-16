@@ -26,6 +26,11 @@
 | T-22 | frontend | Flag `ai_copilot_management`: serviço e interruptor em `AiSettingsForm` | T-04, T-07, T-15 | sim | média | Curie | [x] |
 | T-23 | backend | `ManagementToolset`, registro no serviço e item "Copiloto de gestão" | T-07, T-13, T-17, T-19, T-20, T-21 | sim | média | Lamport | [x] |
 | T-24 | docs | Runbook da 8B.2 (gestão) | T-18, T-19, T-20, T-21, T-22 | sim | simples | Gandalf | [x] |
+| T-25 | backend | Correção: PII minimizada antes do corte de texto e visibilidade das ferramentas em cache | T-04, T-08, T-10, T-11, T-13 | sim | alta | Noether | [x] |
+| T-26 | frontend | Correção: disponibilidade leve do copiloto nas telas hospedeiras | T-13, T-16 | sim | média | Hamilton | [x] |
+| T-27 | backend | Correção: horários livres só de profissionais clínicos, distribuídos no dia | T-19 | sim | média | Gauss | [x] |
+| T-28 | backend | Correção: histórico legível sem IA, resposta minimizada, uso e auditoria gravados sempre | T-25, T-26 | não | alta | Dijkstra | [ ] |
+| T-29 | frontend | Correção: painel e lista abrem conversa sem IA, mostram a resposta gravada e apagam só por POST | T-26, T-28 | não | alta | Knuth | [ ] |
 
 ## Detalhamento
 
@@ -884,6 +889,211 @@ Acrescenta à seção do copiloto em `ia-assistente.md` a subseção "Copiloto d
 
 **Validação**
 - `/usr/bin/grep -c "AgendaView::onReload\|ProductList::onReload\|PendingReceivableList::onReload\|FinancialOverview::onFilter" docs/runbooks/ia-assistente.md` (evidência: ≥ 4)
+
+### T-25 — Correção: PII minimizada antes do corte de texto e visibilidade das ferramentas em cache
+
+**Camada:** backend
+**Dependências:** T-04, T-08, T-10, T-11, T-13
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Noether
+
+Origem: revisão final (bloqueante 2) e `/code-review` de `bc35d6d..b2464f4` (item 7).
+
+Achado 1 (bloqueante, PII): `ToolFormat::excerpt` corta o texto (160 em `ObterHistoricoAtendimentosTool.php:100`, 400 em `ObterExamesTool.php:103`) antes de `ToolPolicy::content` (`ToolPolicy.php:179-187`) passar o `PiiMinimizer`. Um corte no meio de `(85) 98765-4321`, de um CPF ou de um nome deixa um fragmento que o minimizador não reconhece e que vai ao modelo. Reprodução exigida: anamnese com 152 caracteres seguidos de `(85) 98765-4321` (o corte de 160 cai dentro do número) e resultado de exame com `123.456.789-09` atravessando a posição 400. O `content` enviado ao modelo não pode ter nenhum dígito do telefone ou do CPF. Veredito: corrigir. As ferramentas devolvem o texto completo; a política minimiza o texto inteiro e só depois corta. Isso vale para toda ferramenta que corta texto, hoje as duas citadas.
+
+Achado 2 (code-review, eficiência e RBAC duplicado): `ToolRegistry::find` (:75-77) refaz `visible()` a cada lookup, o que repete o RBAC e grava `audit_log` por ferramenta, e `ToolPolicy` (:158) autoriza de novo. Reprodução exigida: uma pergunta com 3 `tool_use` gera, com `FakeAuthorizationPolicy`, exatamente 1 decisão por ferramenta ofertada. Veredito: corrigir. A visibilidade fica em cache por família na instância do registry (uma instância por requisição); a política deixa de chamar o RBAC e consulta o motivo em cache. O comportamento continua fail-closed: ferramenta não visível nunca executa.
+
+**Arquivos prováveis**
+- `src/app/Core/Ai/Tools/ToolResult.php`
+- `src/app/Core/Ai/Tools/ToolRegistry.php`
+- `src/app/Core/Ai/Tools/ToolPolicy.php`
+- `src/app/Core/Ai/Tools/Clinical/ObterHistoricoAtendimentosTool.php`
+- `src/app/Core/Ai/Tools/Clinical/ObterExamesTool.php`
+- `src/app/Core/Application/AiCopilotService.php`
+- `src/tests/Unit/ToolPolicyTest.php`
+- `src/tests/Unit/ToolRegistryTest.php`
+- `src/tests/Unit/ClinicalToolsPatientTest.php`
+- `src/tests/Unit/ClinicalToolsRecordsTest.php`
+- `src/tests/Unit/AiCopilotServiceTest.php`
+
+**Interface**
+- Produz: `new ToolResult(array $data, bool $truncated = false, array $freeTextFields = [], array $knownNames = [], array $excerptLengths = [])`. `$excerptLengths` é um `array<string, int>` de campo para máximo de caracteres. A `ToolPolicy` aplica `PiiMinimizer::minimize` ao texto completo de cada campo de `freeTextFields` e só depois `ToolFormat::excerpt($minimizado, $max)` nos campos de `excerptLengths`.
+- Produz: `ObterHistoricoAtendimentosTool` devolve `motivo` com a anamnese completa e `excerptLengths` `['motivo' => 160]`. `ObterExamesTool` devolve `resultado` com o texto completo e `['resultado' => 400]`. Nenhuma ferramenta chama `ToolFormat::excerpt` em texto livre.
+- Produz: `ToolRegistry::denialReason(string $family, string $name): ?string`, que devolve `null` (visível), `not_offered` (fora da allowlist ou com flag desligada) ou `forbidden` (RBAC negado). `visible()`, `definitions()`, `find()` e `denialReason()` usam o mesmo cache por família, com 1 `decide` por ferramenta por instância.
+- Produz: `new ToolPolicy(ToolRegistry $registry, JsonSchemaValidator $validator, McpToolCallRepositoryInterface $calls, ToolRateLimiter $rateLimiter, PiiMinimizer $minimizer, ?Closure $monotonicMs = null)`. Sai o `AuthorizationPolicyInterface`. O passo 3 usa `ToolRegistry::denialReason` e devolve `forbidden`; a ordem e os motivos da T-08 ficam iguais.
+- Consome: T-04 `ToolFormat::excerpt(?string $text, int $max): ?string`, T-08 `ToolPolicy::execute(ToolContext $context, string $family, string $toolName, array $input, array $offeredNames): ToolOutcome`, T-13 `AiCopilotService::forContext(TenantContext $context, PDO $connection, string $locale): self`
+
+**Teste RED**
+- `src/tests/Unit/ToolPolicyTest.php` — o `FakeAiTool` devolve `motivo` = 152 caracteres + `(85) 98765-4321 ligou` com `excerptLengths ['motivo' => 160]`, e `resultado` = 390 caracteres + `CPF 123.456.789-09` com `['resultado' => 400]`. O `content` não pode conter `98765`, `987`, `4321`, `123.456` nem `789-09`. Com 3 execuções de ferramentas visíveis, a `FakeAuthorizationPolicy` recebe exatamente 1 pedido por ferramenta ofertada. Hoje falha porque `ToolResult` não aceita `excerptLengths` e a política autoriza a cada chamada (comando: `SUITE | /usr/bin/grep -E 'ToolPolicy|ToolRegistry|ClinicalTools|AiCopilotService|Failed:'`)
+
+**Critério de aceite**
+- Os dois textos da reprodução chegam ao `content` sem nenhum dígito do telefone ou do CPF; o campo cortado tem no máximo 160 (ou 400) caracteres.
+- `FakeAuthorizationPolicy::requests` tem 1 pedido por ferramenta da família, por instância de `ToolRegistry`, em uma pergunta com 3 `tool_use`; a `ToolPolicy` não tem dependência de `AuthorizationPolicyInterface` (`/usr/bin/grep -c "AuthorizationPolicyInterface" src/app/Core/Ai/Tools/ToolPolicy.php` → `0`).
+- Os 7 motivos de recusa da T-08 continuam com o mesmo `deny_reason`.
+- `/usr/bin/grep -rn "ToolFormat::excerpt" src/app/Core/Ai/Tools/Clinical src/app/Core/Ai/Tools/Management` → nenhuma linha.
+
+**Validação**
+- `SUITE | /usr/bin/grep -E 'ToolPolicy|ToolRegistry|ClinicalTools|AiCopilotService|Failed:'` (evidência: `PASS` dos casos novos e antigos, `Failed: 0`)
+- `LINT app/Core/Ai/Tools/ToolPolicy.php`, `LINT app/Core/Ai/Tools/ToolRegistry.php`, `LINT app/Core/Ai/Tools/ToolResult.php` (evidência: `No syntax errors detected`)
+
+### T-26 — Correção: disponibilidade leve do copiloto nas telas hospedeiras
+
+**Camada:** frontend
+**Dependências:** T-13, T-16
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Hamilton
+
+Origem: `/code-review` de `bc35d6d..b2464f4` (item 8).
+
+Achado: para decidir se o link aparece, `EncounterView::copilotAvailable` (:1695-1705) e `PatientForm::copilotLink` (:732-752) montam a cada renderização um `AiCopilotService::forContext` completo, com gateway, `ToolRateLimiter::fromEnvironment()` (Redis) e registry. Com o Redis fora do ar o link some, e cada renderização paga o custo inteiro. Reprodução exigida: `RATE_LIMIT_DRIVER=redis` com `REDIS_HOST` inválido, IA ligada e termo aceito. O link "Copiloto" tem de aparecer nas duas telas. Veredito: corrigir com uma checagem leve que lê só flag, termo, cota e configuração.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/AiCopilotAvailability.php`
+- `src/tests/Unit/AiCopilotAvailabilityTest.php`
+- `src/app/control/clinic/PatientForm.php`
+- `src/app/control/clinic/EncounterView.php`
+- `src/tests/Integration/CopilotHostButtonsIntegrationTest.php`
+
+**Interface**
+- Produz: `new AiCopilotAvailability(FeatureFlagRepositoryInterface $flags, AiTenantSettingRepositoryInterface $settings, AiInteractionRepositoryInterface $interactions, Closure $configured, TenantContext $context, ?Closure $clock = null)` e `AiCopilotAvailability::forContext(TenantContext $context, PDO $connection): self`. `$configured` é `fn (): bool`. No `forContext`, ele testa se `AiConfig::fromEnvironment()` sai sem exceção e se o provedor é `stub` ou é `anthropic` com `apiKey() !== null` (a regra de `AnthropicMessagesGateway::isConfigured`), sem instanciar gateway, limiter nem registry.
+- Produz: `AiCopilotAvailability::reason(string $family): ?string`, na ordem `ai_assistant` → termo `AiTerms::VERSION` → cota do mês no fuso da aplicação → configuração. Na gestão, exige também `ai_copilot_management`, senão `ai_disabled`. É a mesma regra de `AiCopilotService::availability`.
+- Produz: `EncounterView` e `PatientForm` mostram o link quando `AiCopilotAvailability::forContext($context, TTransaction::get())->reason('clinical') === null`. A falha da checagem continua escondendo o link, com `error_log` só da classe.
+- Consome: T-13 `AiCopilotService::availability(string $family): ?string`, T-16 `data-cv-copilot="clinical"`
+
+**Teste RED**
+- `src/tests/Unit/AiCopilotAvailabilityTest.php` — com fakes, `reason('clinical')` devolve `ai_disabled`, `ai_terms_pending`, `ai_quota_exceeded` e `ai_not_configured` nessa ordem, e `reason('management')` sem `ai_copilot_management` devolve `ai_disabled`. Hoje falha porque `AiCopilotAvailability` não existe (comando: `SUITE | /usr/bin/grep -E 'AiCopilotAvailability|CopilotHostButtons|Failed:'`)
+
+**Critério de aceite**
+- `CopilotHostButtonsIntegrationTest`: com `RATE_LIMIT_DRIVER=redis` e `REDIS_HOST=invalid.local` no subprocesso, o HTML de `PatientForm::onEdit` e de `EncounterView::onReload` contém `data-cv-copilot="clinical"`; com a flag desligada, não contém.
+- `/usr/bin/grep -c "AiCopilotService::forContext" src/app/control/clinic/EncounterView.php src/app/control/clinic/PatientForm.php` → `0` nos dois.
+
+**Validação**
+- `SUITE | /usr/bin/grep -E 'AiCopilotAvailability|CopilotHostButtons|EncounterAi|Failed:'` (evidência: `PASS` e `Failed: 0`)
+- `LINT app/Core/Application/AiCopilotAvailability.php`, `LINT app/control/clinic/EncounterView.php`, `LINT app/control/clinic/PatientForm.php` (evidência: `No syntax errors detected`)
+
+### T-27 — Correção: horários livres só de profissionais clínicos, distribuídos no dia
+
+**Camada:** backend
+**Dependências:** T-19
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Gauss
+
+Origem: `/code-review` de `bc35d6d..b2464f4` (item 6).
+
+Achado: sem `profissional_id`, `VerificarHorariosTool` (:105-121) usa todo usuário ativo do tenant (incluindo recepção e administração) e corta os primeiros 50 horários. O resultado fica com um ou dois profissionais e só a manhã. Reprodução exigida: 3 profissionais livres o dia inteiro (24 horários cada) e 1 usuário administrativo sem agenda na unidade. O resultado tem de cobrir os 3 profissionais da manhã ao fim da tarde e não pode citar o administrativo. Veredito: corrigir. O schema não marca papel clínico, e o critério da agenda (`AgendaView::listProfessionals`) só exige usuário ativo do tenant. A regra registrada é: profissional elegível = usuário ativo do tenant com pelo menos um `appointment` na unidade ativa nos 90 dias antes do dia pedido ou no próprio dia; sem nenhum elegível, volta à lista da agenda. O limite de 50 é repartido igualmente entre os profissionais, com horários espaçados pelo dia.
+
+**Arquivos prováveis**
+- `src/app/Core/Domain/Contract/CopilotAgendaQueryInterface.php`
+- `src/app/Core/Persistence/CopilotAgendaQuery.php`
+- `src/app/Core/Application/FreeSlotFinder.php`
+- `src/app/Core/Ai/Tools/Management/VerificarHorariosTool.php`
+- `src/tests/Support/FakeCopilotAgendaQuery.php`
+- `src/tests/Unit/AgendaToolsTest.php`
+- `src/tests/Integration/CopilotAgendaQueryIntegrationTest.php`
+
+**Interface**
+- Produz: `CopilotAgendaQueryInterface::schedulableProfessionals(DateTimeImmutable $day): array` → `list<array{id: int, name: string}>`, com a regra acima e o hint `/*+ MAX_EXECUTION_TIME(5000) */`.
+- Produz: `FreeSlotFinder::spread(array $slots, int $limit): array`. A cota por profissional é `max(1, intdiv($limit, n))`, onde `n` é o número de profissionais com horário livre. Os horários escolhidos de cada profissional são os índices `round(i * (k - 1) / (cota - 1))` dos `k` livres dele. A saída vem ordenada por horário e depois por profissional, com no máximo `$limit` linhas.
+- Produz: `VerificarHorariosTool` sem `profissional_id` usa `schedulableProfessionals` e `spread($slots, ToolResult::MAX_ROWS)`; `truncated` é `true` quando algum horário livre ficou de fora. Com `profissional_id`, o comportamento da T-19 não muda.
+- Consome: T-19 `FreeSlotFinder::find(DateTimeImmutable $day, int $durationMinutes, array $busy, array $professionalIds, DateTimeImmutable $now): array`
+
+**Teste RED**
+- `src/tests/Unit/AgendaToolsTest.php` — com o fake devolvendo 3 profissionais elegíveis livres de 07:00 a 19:00 (duração 30), `verificar_horarios` sem `profissional_id` devolve no máximo 50 linhas, pelo menos 16 por profissional, e cada um com horário antes de 09:00 e depois de 17:00, com `truncated` `true`. Hoje falha porque o corte pega só os primeiros 50 (comando: `SUITE | /usr/bin/grep -E 'AgendaTools|CopilotAgendaQuery|Failed:'`)
+
+**Critério de aceite**
+- `CopilotAgendaQueryIntegrationTest`: um usuário ativo do tenant sem agendamento na unidade nos 90 dias não aparece em `schedulableProfessionals`; um com agendamento há 30 dias na unidade aparece; um com agendamento só na unidade B não aparece com o contexto na A.
+- Reprodução do achado: 3 profissionais cobertos da manhã à tarde e o usuário administrativo ausente.
+
+**Validação**
+- `SUITE | /usr/bin/grep -E 'AgendaTools|CopilotAgendaQuery|Failed:'` (evidência: `PASS` e `Failed: 0`)
+- `LINT app/Core/Persistence/CopilotAgendaQuery.php`, `LINT app/Core/Application/FreeSlotFinder.php`, `LINT app/Core/Ai/Tools/Management/VerificarHorariosTool.php` (evidência: `No syntax errors detected`)
+
+### T-28 — Correção: histórico legível sem IA, resposta minimizada, uso e auditoria gravados sempre
+
+**Camada:** backend
+**Dependências:** T-25, T-26
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Dijkstra
+
+Origem: revisão final (bloqueante 1, parte do serviço, e o achado da resposta não minimizada) e `/code-review` de `bc35d6d..b2464f4` (itens 3 e 4).
+
+Achado 1 (promovido): o histórico do autor só é lido depois de `availability()`. Com cota, flag, termo, configuração ou Redis indisponível, a conversa fica inacessível. Veredito: corrigir. Ler conversa existente usa só o histórico (tenant, unidade e autor) e independe da disponibilidade da IA.
+
+Achado 2 (revisão final, spec § 3.5): a resposta do assistente é gravada sem minimizar (`AiCopilotService.php:476`). Reprodução exigida: o stub responde `Ligue para (85) 98765-4321 ou maria@ex.com`. A mensagem gravada e o `CopilotAnswer::text` têm de trazer `[TELEFONE]` e o marcador de e-mail, sem os dados. Veredito: corrigir.
+
+Achado 3 (code-review): todo o laço roda numa transação (`AiCopilotPanel.php:168`), e uma exceção tardia desfaz `ai_interaction` e `mcp_tool_call`. Reprodução exigida: `appendMessage` da resposta lança `RuntimeException` depois de 1 `tool_use`. Mesmo assim, 1 linha de `ai_interaction` e 1 de `mcp_tool_call` ficam gravadas, e a exceção sobe. Veredito: corrigir. O serviço não abre transação e espera um PDO em autocommit (a tela passa a fornecê-lo na T-29). `ai_interaction` é inserida em `finally`, com `recordFailure('ai_provider_error', ...)` quando houve exceção inesperada. `mcp_tool_call` é gravada pela política a cada chamada.
+
+**Arquivos prováveis**
+- `src/app/Core/Application/AiConversationHistoryService.php`
+- `src/tests/Unit/AiConversationHistoryServiceTest.php`
+- `src/app/Core/Application/AiCopilotService.php`
+- `src/tests/Unit/AiCopilotServiceTest.php`
+- `src/tests/Integration/AiCopilotServiceForContextIntegrationTest.php`
+
+**Interface**
+- Produz: `AiConversationHistoryService::conversation(int $id): ?array` → `array{conversation: AiConversation, messages: list<AiConversationMessage>}`. Usa RBAC `AiCopilotPanel::onOpen` com unidade e só devolve conversa do dono no tenant e na unidade. Não consulta flag, termo, cota, gateway nem Redis.
+- Produz: `AiCopilotService::conversations`, `AiCopilotService::conversation` e `AiCopilotService::deleteConversation` delegam ao `AiConversationHistoryService`, sem checar disponibilidade.
+- Produz: `AiCopilotService::availability` delega a `AiCopilotAvailability`, montada com os repositórios do serviço e `fn (): bool => $this->gateway->isConfigured()`.
+- Produz: a resposta passa por `PiiMinimizer::minimize($texto, tutorNames(âncora))` antes de `appendMessage` e de `CopilotAnswer::text`.
+- Produz: `ask` não abre transação (o chamador passa PDO em autocommit). `ai_interaction` é inserida em `finally`, com `recordFailure` para exceção inesperada. `CopilotAnswer::conversationId` é sempre o id da conversa gravada, mesmo em falha.
+- Consome: T-13 `AiCopilotService::ask(string $family, ?int $conversationId, ?int $anchorPatientId, string $question): CopilotAnswer`, T-25 `new ToolPolicy(ToolRegistry $registry, JsonSchemaValidator $validator, McpToolCallRepositoryInterface $calls, ToolRateLimiter $rateLimiter, PiiMinimizer $minimizer, ?Closure $monotonicMs = null)`, T-26 `AiCopilotAvailability::reason(string $family): ?string`, T-26 `new AiCopilotAvailability(FeatureFlagRepositoryInterface $flags, AiTenantSettingRepositoryInterface $settings, AiInteractionRepositoryInterface $interactions, Closure $configured, TenantContext $context, ?Closure $clock = null)`
+
+**Teste RED**
+- `src/tests/Unit/AiCopilotServiceTest.php` — o stub responde `Ligue para (85) 98765-4321 ou maria@ex.com`, e a mensagem gravada e o `CopilotAnswer::text` não contêm `98765` nem `maria@ex.com`. Com `appendMessage` da resposta lançando `RuntimeException` depois de 1 `tool_use`, `FakeAiInteractionRepository::all()` tem 1 linha, `FakeMcpToolCallRepository::all()` tem 1 linha e a exceção sobe. Com a flag desligada, `conversation(<id do autor>)` devolve as mensagens. Hoje falha porque a resposta é gravada crua e `conversation()` passa pela disponibilidade (comando: `SUITE | /usr/bin/grep -E 'AiCopilotService|AiConversationHistoryService|Failed:'`)
+
+**Critério de aceite**
+- Os três cenários da reprodução passam; `AiConversationHistoryServiceTest` lê a conversa do autor com IA indisponível e devolve `null` para outro usuário, outra unidade e outro tenant.
+- `AiCopilotServiceForContextIntegrationTest`: depois de um `ask` com 1 `tool_use` roteirizado, as linhas de `mcp_tool_call` e a de `ai_interaction` têm o mesmo `correlation_id`. Após uma exceção forçada na gravação da resposta, `SELECT COUNT(*) FROM ai_interaction WHERE correlation_id = <id>` → `1`. A contagem de `ai_conversation` anterior ao teste é preservada (nenhuma conversa existente é perdida).
+
+**Validação**
+- `SUITE | /usr/bin/grep -E 'AiCopilotService|AiConversationHistoryService|Failed:'` (evidência: `PASS` e `Failed: 0`)
+- Review Focus: caso "pergunta com telefone e CPF" (T-13) continua `PASS` (evidência: nome do método no relatório)
+- `LINT app/Core/Application/AiCopilotService.php`, `LINT app/Core/Application/AiConversationHistoryService.php` (evidência: `No syntax errors detected`)
+
+### T-29 — Correção: painel e lista abrem conversa sem IA, mostram a resposta gravada e apagam só por POST
+
+**Camada:** frontend
+**Dependências:** T-26, T-28
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Knuth
+
+Origem: revisão final (bloqueante 1, parte da tela) e `/code-review` de `bc35d6d..b2464f4` (itens 3 e 5).
+
+Achado 1 (promovido): `AiCopilotPanel::load` (:235-240) devolve a indisponibilidade antes de carregar a conversa. Com isso, "Abrir" em "Minhas conversas" não mostra nada com IA indisponível, e a resposta da pergunta que estoura a cota é gravada mas não aparece. Reprodução exigida: (a) com a flag `ai_assistant` desligada, abrir a conversa do autor mostra as mensagens dela e o motivo traduzido no lugar do campo de pergunta; (b) com a cota a 1 token do fim, perguntar mostra a resposta gravada e, em seguida, o motivo `ai_quota_exceeded`. Veredito: corrigir. Abrir e ler usam `AiConversationHistoryService::conversation`. Só o formulário de pergunta depende de `AiCopilotAvailability::reason`. Depois de `ask()`, a conversa é renderizada pelo id devolvido, qualquer que seja a disponibilidade.
+
+Achado 2 (code-review 3): `perform` (:168) abre `static::transaction` em volta do laço inteiro. Veredito: corrigir. `onAsk` usa um PDO em autocommit (`connection()`); leitura e exclusão continuam em transação curta.
+
+Achado 3 (code-review 5): a exclusão em `AiConversationList` (:78, :211) é um link GET (`TAction` serializado) sem proteção CSRF. Reprodução exigida: GET em `index.php?class=AiConversationList&method=onDelete&conversation_id=<id>&delete=1` não pode apagar. Veredito: corrigir no padrão da 8A (`onAiExamSummary`: `TButton` com `setFormName` num `TForm`, enviado por POST). `onDelete` nas duas telas recusa método diferente de POST com aviso e sem apagar.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/AiCopilotPanel.php`
+- `src/app/control/clinic/AiConversationList.php`
+- `src/tests/Integration/AiCopilotPanelIntegrationTest.php`
+- `src/tests/Integration/AiCopilotListsIntegrationTest.php`
+
+**Interface**
+- Produz: `protected static function connection(): PDO` em `AiCopilotPanel`, com padrão `TConnection::open('permission')` em autocommit e usado só por `onAsk`, e `protected static function makeHistory(TenantContext $context, PDO $connection): AiConversationHistoryService`.
+- Produz: com `reason !== null`, o painel renderiza conversa, lista anterior e "Apagar conversa", e põe o motivo `ai_*` traduzido no lugar de `form_AiCopilotPanel`.
+- Produz: `AiConversationList` apaga por um `TForm` `form_AiConversationList_<id>` com hidden `conversation_id` e `TButton` (`setFormName`) para `onDelete`. `AiCopilotPanel::onDelete` e `AiConversationList::onDelete` só apagam com `$_SERVER['REQUEST_METHOD'] === 'POST'`.
+- Consome: T-26 `AiCopilotAvailability::reason(string $family): ?string`, T-28 `AiConversationHistoryService::conversation(int $id): ?array`
+
+**Teste RED**
+- `src/tests/Integration/AiCopilotPanelIntegrationTest.php` — em subprocesso, com `ai_assistant` desligada, `onOpen` com `conversation_id` do autor mostra o texto das 2 mensagens semeadas e o motivo traduzido, sem o textarea `question`. Com `REQUEST_METHOD=GET`, `onDelete` mantém `SELECT COUNT(*) FROM ai_conversation WHERE id = <id>` em `1`. Hoje falha porque o painel devolve só o motivo e apaga por GET (comando: `SUITE | /usr/bin/grep -E 'AiCopilotPanel|AiCopilotLists|Failed:'`)
+
+**Critério de aceite**
+- As reproduções (a), (b) e a do GET passam. Na reprodução (b), o HTML contém o texto da resposta do stub e o motivo de cota.
+- `AiCopilotListsIntegrationTest`: o HTML de "Minhas conversas" não tem `<a` com `method=onDelete`, cada linha tem `form_AiConversationList_<id>`, e o POST apaga a conversa (`COUNT(*)` → `0`).
+- Uma subclasse com `connection()` que registra `inTransaction()` durante `onAsk` vê `false`.
+
+**Validação**
+- `SUITE | /usr/bin/grep -E 'AiCopilotPanel|AiCopilotLists|Failed:'` (evidência: `PASS` e `Failed: 0`)
+- Review Focus: caso "envio duplo" (T-14) e "conversa da unidade anterior" (T-15) continuam `PASS` (evidência: nomes dos métodos no relatório)
+- `LINT app/control/clinic/AiCopilotPanel.php`, `LINT app/control/clinic/AiConversationList.php` (evidência: `No syntax errors detected`)
 
 ## Legenda
 
