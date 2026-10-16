@@ -516,4 +516,50 @@ final class AiSettingsServiceTest
         Assert::true($flags->isEnabled(FeatureFlagRepositoryInterface::AI_ASSISTANT));
         Assert::same([], $audit->events);
     }
+
+    public function testSetCopilotManagementTurnsTheFlagOnWithTheContextUser(): void
+    {
+        [$service, , $flags, , $policy, $audit] = $this->build(self::acceptedSetting(), [FeatureFlagRepositoryInterface::AI_ASSISTANT]);
+
+        Assert::false($service->overview()['copilot_management']);
+
+        $service->setCopilotManagement(true);
+
+        Assert::same([
+            ['flag_key' => FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT, 'enabled' => true, 'system_user_id' => self::USER_ID],
+        ], $flags->changes());
+        Assert::true($service->overview()['copilot_management']);
+        Assert::true($service->overview()['enabled']);
+        Assert::same('AiSettingsForm::onSave', $policy->requests[1]->action());
+        Assert::false($policy->requests[1]->requiresUnitScope());
+        Assert::same(['ai.settings.copilot_management_enabled'], self::actions($audit));
+    }
+
+    public function testSetCopilotManagementOffWritesOnlyWhenItChanges(): void
+    {
+        [$service, , $flags, , , $audit] = $this->build(null, [FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT]);
+
+        $service->setCopilotManagement(true);
+        Assert::same([], $flags->changes());
+
+        $service->setCopilotManagement(false);
+        $service->setCopilotManagement(false);
+
+        Assert::same([
+            ['flag_key' => FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT, 'enabled' => false, 'system_user_id' => self::USER_ID],
+        ], $flags->changes());
+        Assert::false($service->overview()['copilot_management']);
+        Assert::same(['ai.settings.copilot_management_disabled'], self::actions($audit));
+    }
+
+    public function testSetCopilotManagementDeniedThrowsWithoutChangingTheFlag(): void
+    {
+        [$service, , $flags, , , $audit] = $this->build(null, [], false);
+
+        Assert::throws(AuthorizationDenied::class, fn () => $service->setCopilotManagement(true));
+
+        Assert::same([], $flags->changes());
+        Assert::false($flags->isEnabled(FeatureFlagRepositoryInterface::AI_COPILOT_MANAGEMENT));
+        Assert::same([], $audit->events);
+    }
 }

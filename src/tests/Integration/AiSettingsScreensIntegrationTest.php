@@ -223,4 +223,48 @@ final class AiSettingsScreensIntegrationTest
 
         Assert::stringContains((string) $result['denied'], (string) $result['html'], 'denied user sees the not-allowed message');
     }
+
+    public function testSettingsFormRendersTheManagementCopilotSwitchWithPortugueseLabel(): void
+    {
+        $result = $this->runAdianti(
+            'T13::$flags = new CentralVet\\Tests\\Support\\FakeFeatureFlagRepository(["ai_copilot_management"]);'
+            . '$page = new AiSettingsFormT13([]); $page->show();'
+        );
+
+        $html = (string) $result['html'];
+
+        Assert::true(preg_match('/<input[^>]*name="ai_copilot_management"[^>]*>/', $html, $input) === 1, 'the management copilot switch must be rendered');
+        Assert::stringContains('btn-tswitch', $input[0], 'ai_copilot_management is a switch');
+        Assert::stringContains('checked', $input[0], 'the switch reflects the stored flag');
+        Assert::true(preg_match('/name="ai_copilot_management".{0,600}?<label[^>]*class="[^"]*tswitch[^"]*cv-touch-target/s', $html) === 1, 'the switch carries cv-touch-target');
+        Assert::stringContains('Ligar o copiloto de gestão (agenda, estoque, débitos e indicadores)', $html, 'label in Portuguese');
+
+        $source = (string) file_get_contents(dirname(__DIR__, 2) . '/app/control/clinic/AiSettingsForm.php');
+        Assert::same(0, preg_match_all('/text-align:\s*(right|center)/', $source), 'AiSettingsForm must not right/center-align anything inline');
+    }
+
+    public function testSavingTogglesOnlyTheManagementCopilotFlag(): void
+    {
+        $result = $this->runAdianti(
+            'T13::$flags = new CentralVet\\Tests\\Support\\FakeFeatureFlagRepository(["ai_assistant"]);'
+            . '$s = CentralVet\\Domain\\AiTenantSetting::defaults(3); $s->acceptTerms(CentralVet\\Domain\\AiTerms::VERSION, 1, new DateTimeImmutable("2026-10-01 09:00:00"));'
+            . 'T13::$settings = new CentralVet\\Tests\\Support\\FakeAiTenantSettingRepository($s);'
+            . '$_POST = ["ai_enabled" => "1", "ai_copilot_management" => "1", "monthly_token_quota" => "300000"];'
+            . '$page = new AiSettingsFormT13(["method" => "onSave"]); $page->onSave($_POST);'
+            . '$out["on"] = T13::$flags->isEnabled("ai_copilot_management");'
+            . '$_POST = ["ai_enabled" => "1", "monthly_token_quota" => "300000"];'
+            . '$page = new AiSettingsFormT13(["method" => "onSave"]); $page->onSave($_POST);'
+            . '$out["off"] = T13::$flags->isEnabled("ai_copilot_management");'
+            . '$out["assistant"] = T13::$flags->isEnabled("ai_assistant");'
+            . '$out["changes"] = T13::$flags->changes();'
+        );
+
+        Assert::same(true, $result['on'] ?? null, 'checking the switch turns the management copilot on');
+        Assert::same(false, $result['off'] ?? null, 'unchecking turns it off');
+        Assert::same(true, $result['assistant'] ?? null, 'the ai_assistant flag stays on');
+        Assert::same([
+            ['flag_key' => 'ai_copilot_management', 'enabled' => true, 'system_user_id' => 1],
+            ['flag_key' => 'ai_copilot_management', 'enabled' => false, 'system_user_id' => 1],
+        ], $result['changes'] ?? null, 'only ai_copilot_management rows are written (1 then 0)');
+    }
 }
