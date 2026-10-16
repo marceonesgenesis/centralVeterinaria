@@ -16,6 +16,8 @@ use InvalidArgumentException;
  * (`tool_use_id`/`content`/`is_error`) blocks; when it is not empty the
  * gateway ignores `userContent`. `tools` is
  * list<array{name: string, description: string, input_schema: array}>.
+ * `toolChoice` (optional, needs `tools`) is the API `tool_choice`:
+ * {type: auto|any|none} or {type: tool, name}; null leaves the API default.
  */
 final class AiCompletionRequest
 {
@@ -26,6 +28,7 @@ final class AiCompletionRequest
         public readonly string $userContent,
         public readonly array $messages = [],
         public readonly array $tools = [],
+        public readonly ?array $toolChoice = null,
     ) {
         AiPurpose::assertValid($purpose);
 
@@ -44,6 +47,16 @@ final class AiCompletionRequest
             if (!is_array($tool) || !is_string($tool['name'] ?? null) || $tool['name'] === ''
                 || !is_string($tool['description'] ?? null) || !is_array($tool['input_schema'] ?? null)) {
                 throw new InvalidArgumentException('Invalid tool definition');
+            }
+        }
+
+        if ($toolChoice !== null) {
+            $type = $toolChoice['type'] ?? null;
+            $valid = in_array($type, ['auto', 'any', 'none'], true)
+                || ($type === 'tool' && is_string($toolChoice['name'] ?? null) && $toolChoice['name'] !== '');
+
+            if (!$valid || $tools === []) {
+                throw new InvalidArgumentException('Invalid tool choice');
             }
         }
     }

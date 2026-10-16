@@ -19,8 +19,10 @@ use CentralVet\Domain\Exception\AiProviderException;
  * Tests of the tool-use loop use `scripted()`: the given steps
  * (AiCompletionResult or AiProviderException) are consumed in order and a
  * call beyond them fails with `ai_provider_error`. Every request received is
- * kept in `requests()`. Without a script and with `messages`, the echo uses
- * the text of the last `user` message.
+ * kept in `requests()` (with its `toolChoice`). Without a script and with
+ * `messages`, the echo uses the text of the last `user` message. Like the
+ * Messages API, `tool_use`/`tool_result` blocks without `tools` are refused
+ * (HTTP 400 → `ai_provider_error`) before any script step is consumed.
  */
 final class StubAiGateway implements AiGatewayInterface
 {
@@ -65,6 +67,10 @@ final class StubAiGateway implements AiGatewayInterface
     {
         $this->requests[] = $request;
 
+        if ($request->tools === [] && self::hasToolBlocks($request->messages)) {
+            throw new AiProviderException('ai_provider_error', 400);
+        }
+
         if ($this->script !== null) {
             $step = array_shift($this->script);
 
@@ -94,6 +100,24 @@ final class StubAiGateway implements AiGatewayInterface
             'end_turn',
             null,
         );
+    }
+
+    /** @param list<array<string, mixed>> $messages */
+    private static function hasToolBlocks(array $messages): bool
+    {
+        foreach ($messages as $message) {
+            if (!is_array($message['content'] ?? null)) {
+                continue;
+            }
+
+            foreach ($message['content'] as $block) {
+                if (is_array($block) && in_array($block['type'] ?? null, ['tool_use', 'tool_result'], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /** `userContent`, or the text of the last `user` message when there are messages. */

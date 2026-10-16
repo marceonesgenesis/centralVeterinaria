@@ -85,6 +85,10 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
             $payload['tools'] = self::jsonObjects($request->tools);
         }
 
+        if ($request->toolChoice !== null) {
+            $payload['tool_choice'] = $request->toolChoice;
+        }
+
         if ($this->config->fallbacksEnabled()) {
             $headers['anthropic-beta'] = self::FALLBACK_BETA;
             $payload['fallbacks'] = 'default';

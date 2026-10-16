@@ -64,8 +64,10 @@ use Throwable;
  * minimized question is stored, one `ai_interaction` is started and the
  * tool-use loop runs: at most MAX_ROUNDS rounds within BUDGET_SECONDS, each
  * `tool_use` through ToolPolicy (fail-closed, audited), then one final call
- * without tools when the rounds run out, or TIMEOUT_TEXT without another
- * call when the budget does. The interaction is recorded in every case
+ * with the same tools and `tool_choice: none` when the rounds run out (the
+ * API refuses tool blocks without `tools`), or TIMEOUT_TEXT without another
+ * call when the budget does. A final call that still asks for a tool also
+ * ends with TIMEOUT_TEXT. The interaction is recorded in every case
  * after it starts (`answered` with the summed usage, or `failed`); the
  * answer text lives only in the conversation (90-day retention). Logs and
  * exception messages carry ids and class names only.
@@ -378,11 +380,18 @@ final class AiCopilotService
                     $system,
                     '',
                     $messages,
-                    $final ? [] : $tools,
+                    $tools,
+                    $final && $tools !== [] ? ['type' => 'none'] : null,
                 ));
                 $last = $result;
                 $usage = $usage->plus($result->usage);
                 $cost = self::addCost($cost, $result->costMicroUsd);
+
+                if ($final && $result->stopReason === 'tool_use') {
+                    $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
+
+                    break;
+                }
 
                 if ($final || $result->stopReason !== 'tool_use' || $result->toolUses === []) {
                     $text = trim($result->text);
@@ -390,6 +399,12 @@ final class AiCopilotService
                     if ($text === '') {
                         return $this->fail($conversation, $interaction, 'ai_provider_error', $started, $usage, $result->model, $cost);
                     }
+
+                    break;
+                }
+
+                if ($this->monotonic() - $started >= self::BUDGET_SECONDS) {
+                    $text = self::TIMEOUT_TEXT[$lang] ?? self::TIMEOUT_TEXT['pt'];
 
                     break;
                 }
