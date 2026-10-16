@@ -259,25 +259,74 @@ final class AgendaToolsTest
         Assert::same(['2026-10-20', 5], $busyCalls[0]['args']);
     }
 
-    public function testVerificarHorariosForEveryProfessionalTruncatesAtFifty(): void
+    public function testVerificarHorariosForEveryProfessionalKeepsAllWhenUnderTheLimit(): void
     {
-        $query = $this->query();
-        $two = (new VerificarHorariosTool($query, $this->clock()))
+        $result = (new VerificarHorariosTool($this->query(), $this->clock()))
             ->execute($this->context(), ['data' => '2026-10-20', 'duracao_min' => 30]);
-        Assert::same(48, $two->rowCount, '2 professionals x 24 slots');
-        Assert::false($two->truncated);
 
+        Assert::same(48, $result->rowCount, '2 professionals x 24 slots');
+        Assert::false($result->truncated);
+    }
+
+    /**
+     * T-27: without profissional_id only the schedulable professionals of the
+     * unit are offered (never the administrative user), and the 50-row limit
+     * is shared among them with slots spread over the whole day.
+     */
+    public function testVerificarHorariosSpreadsTheLimitAmongSchedulableProfessionals(): void
+    {
+        $query = new FakeCopilotAgendaQuery();
         $query->seed('professionals', [
             ['id' => 5, 'name' => 'Ana Paula Ribeiro'],
             ['id' => 6, 'name' => 'Bruno Costa'],
             ['id' => 7, 'name' => 'Carla Dias'],
+            ['id' => 9, 'name' => 'Rita Recepcao'],
         ]);
+        $query->seed('schedulableProfessionals', [
+            ['id' => 5, 'name' => 'Ana Paula Ribeiro'],
+            ['id' => 6, 'name' => 'Bruno Costa'],
+            ['id' => 7, 'name' => 'Carla Dias'],
+        ]);
+
         $result = (new VerificarHorariosTool($query, $this->clock()))
             ->execute($this->context(), ['data' => '2026-10-20', 'duracao_min' => 30]);
 
-        Assert::same(50, $result->rowCount, '3 professionals x 24 slots = 72, cut to 50');
-        Assert::true($result->truncated);
+        Assert::true($result->rowCount <= 50, 'at most 50 rows');
+        Assert::true($result->truncated, '3 x 24 free slots do not fit in 50 rows');
+        Assert::false(in_array(9, array_column($result->data, 'profissional_id'), true), 'administrative user is not offered');
         Assert::same(['horario' => '2026-10-20 07:00', 'profissional_id' => 5, 'profissional' => 'Ana'], $result->data[0]);
         Assert::same(['horario' => '2026-10-20 07:00', 'profissional_id' => 6, 'profissional' => 'Bruno'], $result->data[1]);
+
+        foreach ([5, 6, 7] as $professionalId) {
+            $times = array_values(array_map(
+                static fn (array $row): string => substr($row['horario'], 11),
+                array_filter($result->data, static fn (array $row): bool => $row['profissional_id'] === $professionalId),
+            ));
+            Assert::true(count($times) >= 16, "professional {$professionalId} has at least 16 slots");
+            Assert::true(min($times) < '09:00', "professional {$professionalId} has a morning slot");
+            Assert::true(max($times) > '17:00', "professional {$professionalId} has a late afternoon slot");
+        }
+    }
+
+    public function testFreeSlotFinderSpreadSharesTheLimitAndSpacesTheSlots(): void
+    {
+        $finder = new FreeSlotFinder();
+        $slots = $finder->find(new DateTimeImmutable('2026-10-20'), 30, [], [5, 6, 7], new DateTimeImmutable('2026-10-15 10:10:00'));
+        Assert::count(72, $slots);
+
+        $spread = $finder->spread($slots, 50);
+        Assert::count(48, $spread, 'quota intdiv(50, 3) = 16 per professional');
+        Assert::same(
+            ['07:00', '08:00', '08:30', '09:30', '10:00', '11:00', '11:30', '12:30', '13:00', '14:00', '14:30', '15:30', '16:00', '17:00', '17:30', '18:30'],
+            array_map(static fn (string $start): string => substr($start, 11), $this->startsOf($spread, 6)),
+            'indices round(i * 23 / 15)',
+        );
+        Assert::same(['start' => '2026-10-20 07:00', 'professional_id' => 5], $spread[0]);
+        Assert::same(['start' => '2026-10-20 07:00', 'professional_id' => 7], $spread[2]);
+        Assert::same(['start' => '2026-10-20 08:00', 'professional_id' => 5], $spread[3]);
+
+        Assert::same($slots, $finder->spread($slots, 100), 'everything fits: unchanged');
+        Assert::same([], $finder->spread([], 50));
+        Assert::count(2, $finder->spread($slots, 2), 'quota is at least 1, output never above the limit');
     }
 }

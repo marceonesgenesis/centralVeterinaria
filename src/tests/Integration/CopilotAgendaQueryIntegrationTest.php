@@ -133,6 +133,49 @@ final class CopilotAgendaQueryIntegrationTest extends MysqlIntegrationTestCase
         Assert::true($this->query($this->tenantB)->professionalExists($this->ids['outsider']));
     }
 
+    /**
+     * T-27: schedulable = active member of the tenant with an appointment
+     * (any status) in the active unit in the 90 days before the day or on
+     * the day itself; with nobody eligible, the agenda list is used.
+     */
+    public function testSchedulableProfessionalsHaveARecentAppointmentInTheActiveUnit(): void
+    {
+        $admin = $this->insertUser('F8B Rita Administrativa', 'Y', $this->tenantA);
+        $recent = $this->insertUser('F8B Edu Recente', 'Y', $this->tenantA);
+        $unitBOnly = $this->insertUser('F8B Fabi UnidadeB', 'Y', $this->tenantA);
+        $old = $this->insertUser('F8B Gil Antigo', 'Y', $this->tenantA);
+
+        $patient = (int) $this->pdo->query("SELECT id FROM patient WHERE name = 'F8B Rex Agenda' ORDER BY id DESC LIMIT 1")->fetchColumn();
+        $service = $this->insertService($this->tenantA, 'F8B Servico T27', 30);
+        $this->insertAppointment($this->tenantA, $this->unitA, $patient, $service, $recent, '2031-08-26 10:00:00', 'atendido');
+        $this->insertAppointment($this->tenantA, $this->unitB, $patient, $service, $unitBOnly, '2031-09-20 10:00:00', 'atendido');
+        $this->insertAppointment($this->tenantA, $this->unitA, $patient, $service, $old, '2031-06-26 10:00:00', 'atendido');
+
+        $query = $this->query($this->tenantA);
+        $rows = $query->schedulableProfessionals($this->day());
+        $ids = array_column($rows, 'id');
+
+        Assert::true(in_array($recent, $ids, true), 'appointment 30 days before in the unit');
+        Assert::true(in_array($this->ids['pro'], $ids, true), 'appointment on the day in the unit');
+        Assert::false(in_array($admin, $ids, true), 'active member without appointments in the unit');
+        Assert::false(in_array($unitBOnly, $ids, true), 'appointment only in unit B');
+        Assert::false(in_array($old, $ids, true), 'appointment more than 90 days before');
+        Assert::false(in_array($this->ids['inactive'], $ids, true));
+        Assert::same(['id', 'name'], array_keys($rows[0]));
+
+        $unitB = array_column($this->query($this->tenantA, $this->unitB)->schedulableProfessionals($this->day()), 'id');
+        Assert::true(in_array($unitBOnly, $unitB, true), 'eligible with unit B active');
+
+        Assert::same(
+            $query->professionals(),
+            $query->schedulableProfessionals(new DateTimeImmutable('2035-01-10 00:00:00')),
+            'nobody eligible: falls back to the agenda list',
+        );
+
+        $none = new CopilotAgendaQuery(TenantContext::authenticated($this->tenantA, $this->userId, null), $this->pdo);
+        Assert::throws(MissingTenantContext::class, fn () => $none->schedulableProfessionals($this->day()));
+    }
+
     public function testRequiresAnActiveUnit(): void
     {
         $query = new CopilotAgendaQuery(TenantContext::authenticated($this->tenantA, $this->userId, null), $this->pdo);

@@ -11,15 +11,17 @@ use InvalidArgumentException;
 /**
  * In-memory double for CopilotAgendaQueryInterface (T-19).
  *
- * seed('appointments' | 'busy' | 'professionals', $rows) stores the list the
- * method returns. appointments() is cut to $limit; busy() keeps only the
+ * seed('appointments' | 'busy' | 'professionals' | 'schedulableProfessionals',
+ * $rows) stores the list the method returns; schedulableProfessionals() falls
+ * back to the seeded professionals when it was not seeded or seeded empty
+ * (same fallback as the real query). appointments() is cut to $limit; busy() keeps only the
  * rows of $professionalId when one is given; professionalExists() answers
  * from the seeded professionals. Nothing is filtered by date or unit here:
  * the caller decides what to seed. calls() records every call, in order.
  */
 final class FakeCopilotAgendaQuery implements CopilotAgendaQueryInterface
 {
-    private const METHODS = ['appointments', 'busy', 'professionals'];
+    private const METHODS = ['appointments', 'busy', 'professionals', 'schedulableProfessionals'];
 
     /** @var array<string, list<array<string, mixed>>> */
     private array $seeded = [];
@@ -65,6 +67,15 @@ final class FakeCopilotAgendaQuery implements CopilotAgendaQueryInterface
         $this->record(__FUNCTION__, []);
 
         return $this->seeded['professionals'] ?? [];
+    }
+
+    public function schedulableProfessionals(DateTimeImmutable $day): array
+    {
+        $this->record(__FUNCTION__, [$day->format('Y-m-d')]);
+
+        $rows = $this->seeded['schedulableProfessionals'] ?? [];
+
+        return $rows !== [] ? $rows : ($this->seeded['professionals'] ?? []);
     }
 
     public function professionalExists(int $id): bool
