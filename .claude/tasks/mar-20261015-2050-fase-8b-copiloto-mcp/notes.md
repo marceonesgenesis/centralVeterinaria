@@ -21,6 +21,11 @@
 - 2026-10-15 · T-06 · onda 1 — `superseded` de vacina só conta reforço aplicado na mesma unidade: aceito.
 - 2026-10-15 · T-04 · onda 1 — `validate` é static; `FakeFeatureFlagRepository` recebe lista de flags ligadas: aceito.
 - 2026-10-15 · T-07 · onda 1 — 32 chaves (spec dizia 33); ordenação do translations.json passou a ser exigida: T-22 deve inserir na posição ordenada.
+- 2026-10-15 · T-08, T-10, T-11 · onda 2 — Fail-closed corrigido só na ToolPolicy: toda exceção vira denied auditado (invalid_input/not_found/rate_limited/error); falha do limiter nega; falha da auditoria ainda nega e loga. T-10 e T-11 sem mudança de código. Sugestões aplicadas junto: limiter atômico por INCR, teto 4096 bytes em input_minimized, corte UTF-8 seguro do nome.
+- 2026-10-15 · T-08 · onda 2 — 6º parâmetro de ToolPolicy = ?PiiMinimizer null (construtor privado; usa estático); rate limit mantido depois do escopo, como fixa a spec.
+- 2026-10-15 · T-10 · onda 2 — Default de `limite` no código; `alergias` texto livre.
+- 2026-10-15 · T-11 · onda 2 — Sem patient_id e sem âncora → ToolInputException (negada pela política); só obter_exames passa tutorNames como knownNames; prescrição draft em "ativas" com provisorio=true; teste ajustado no commit de implementação sem mudar asserções.
+- 2026-10-15 · T-12 · onda 2 — `batches` conta só lotes com exclusão; erro → error_log sem JSON.
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -32,6 +37,7 @@
 - `AiNavigationIntegrationTest.php:65` fixa os filhos do submenu de IA; T-17 e T-23 atualizam o teste.
 - Hash de `custom.css` e `layout.html` já diverge em `framework_hashes.php` (pré-existente); nada da 8B toca esses arquivos.
 - `scripts/test-db/provision.sh` recusa banco existente: a 0015 entra no `centralvet_test` pelo gate, não por reprovisionamento.
+- Onda 2 (board): `ToolPolicy::execute` nunca lança (exceções viram denied auditado; MAX_INPUT_BYTES=4096; `ToolRateLimiter::attempt` atômico); `PiiMinimizer` sem instância, T-13 passa `null` no 6º parâmetro; repositórios `(TenantContext, PDO)` com `insert` checando só tenant, `touch` alheio no-op; ferramentas clínicas `(CopilotClinicalQueryInterface, ?Closure $clock)`; `AiConversationRetention::forConnection(PDO, ?Closure)->runOnce()` → {deleted, batches}.
 
 ## Pendências
 - 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
@@ -43,6 +49,11 @@
 - T-05: teste usa `+` em vez de `array_merge` (id nunca reconstituído); `reconstitute()` quebra com tool_summary malformado.
 - T-06: prescrição `draft` conta como ativa (avaliar `status = 'issued'` na T-11); `superseded` mais estreito que a Interface; fixture `otherUnitId()` pode ser de outro tenant.
 - Aplicação da 0015 no `centralvet` (dev) segue dependendo de aprovação SQL do usuário; "nenhum push" não verificável por remoto.
+- T-08: rate limit depois de assertInScope (sondagem de ids alheios não consome cota; fixado pela spec).
+- T-09: insert não confere unidade/usuário nem conversation_id; lacunas de teste (lastMessages outro tenant, deleteOwned outra unidade); `search` é tenant-wide: confirmar em T-15.
+- T-10: `truncated` sempre false em buscar_paciente/historico (pedir limit+1); falta teste de histórico fora da unidade; `$clock` não usado em ObterProntuarioTool.
+- T-11: via/posologia/duracao fora de freeTextFields; `$clock` não usado em ObterExamesTool; fixture de exame com status inválido e faltam casos requested/âncora fora da unidade.
+- T-12: teste não distingue updated_at de created_at; laço de lotes/MAX_BATCHES sem teste; sem trava contra execuções sobrepostas.
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -58,5 +69,6 @@
 - BASE da onda 1: bc35d6d
 - Commits por onda:
   - Onda 1: BASE bc35d6d → HEAD 73f950e (73f950e, 3d7defe, 992df54, fb5a5b7, 555966d, 760dd08, 2f4530d, 205e5d1, 8a89e0d, 95c3ce3, 1fc7ab5, ac009bd, 9cecaf0, 08d5937)
-- Último status conhecido: onda 1 concluída (T-01..T-07 [x]); SUITE 1513/1513
-- Próxima onda recomendada: onda 2 (T-08..T-12; T-19..T-21 ficam na Onda 6)
+  - Onda 2: BASE 7713431 → HEAD 120a196 (120a196, 6cfbab8, c9007d9, 1f62358, 954be65, 8d5ce21, 7ca2db8, fb35ee2, 9d50f98, 0d1216a, d675483, 1356001)
+- Último status conhecido: onda 2 concluída (T-08..T-12 [x]); SUITE 1568/1568, Skipped 0
+- Próxima onda recomendada: onda 3 (T-13; T-19..T-21 ficam na Onda 6)

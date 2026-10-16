@@ -9,11 +9,11 @@
 | T-05 | backend | Domínio e contratos de conversa e auditoria, com fakes | — | sim | média | Spock | [x] |
 | T-06 | backend | Leitura clínica por tenant e unidade (`CopilotClinicalQuery`) | — | sim | alta | Sherlock | [x] |
 | T-07 | frontend | Traduções pt/en das telas do copiloto | — | sim | simples | Maquiavel | [x] |
-| T-08 | backend | `ToolPolicy` fail-closed, rate limit, limites de saída, PII e auditoria | T-04, T-05 | sim | alta | Jaspion | [ ] |
-| T-09 | backend | Repositórios PDO de conversa e de `mcp_tool_call` | T-01, T-05 | sim | média | Levi | [ ] |
-| T-10 | backend | Ferramentas `buscar_paciente`, `obter_paciente`, `obter_historico_atendimentos`, `obter_prontuario` | T-04, T-06 | sim | média | Yoda | [ ] |
-| T-11 | backend | Ferramentas `obter_prescricoes`, `obter_exames`, `consultar_vacinacao` | T-04, T-06 | sim | média | Naruto | [ ] |
-| T-12 | backend | Retenção de 90 dias das conversas (comando de cron) | T-01, T-05 | sim | média | Thanos | [ ] |
+| T-08 | backend | `ToolPolicy` fail-closed, rate limit, limites de saída, PII e auditoria | T-04, T-05 | sim | alta | Jaspion | [x] |
+| T-09 | backend | Repositórios PDO de conversa e de `mcp_tool_call` | T-01, T-05 | sim | média | Levi | [x] |
+| T-10 | backend | Ferramentas `buscar_paciente`, `obter_paciente`, `obter_historico_atendimentos`, `obter_prontuario` | T-04, T-06 | sim | média | Yoda | [x] |
+| T-11 | backend | Ferramentas `obter_prescricoes`, `obter_exames`, `consultar_vacinacao` | T-04, T-06 | sim | média | Naruto | [x] |
+| T-12 | backend | Retenção de 90 dias das conversas (comando de cron) | T-01, T-05 | sim | média | Thanos | [x] |
 | T-13 | backend | `AiCopilotService` (laço de tool use) e `ClinicalToolset` | T-02, T-03, T-04, T-05, T-06, T-08, T-09, T-10, T-11 | não | alta | Batman | [ ] |
 | T-14 | frontend | Painel do copiloto em cortina lateral (`AiCopilotPanel`) | T-07, T-13 | sim | alta | Tesla | [ ] |
 | T-15 | frontend | "Minhas conversas", auditoria de ferramentas e rótulos da 8A | T-03, T-07, T-09, T-13 | sim | média | Hegel | [ ] |
