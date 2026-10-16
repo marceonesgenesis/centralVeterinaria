@@ -417,6 +417,25 @@ final class AnthropicMessagesGatewayTest
         Assert::same(300, $result->usage->inputTokens);
     }
 
+    public function testToolChoiceIsSerializedOnlyWhenDefined(): void
+    {
+        $messages = [
+            ['role' => 'user', 'content' => 'Agenda?'],
+            ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'toolu_0', 'name' => 'x', 'input' => ['a' => 1]]]],
+            ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'toolu_0', 'content' => 'ok']]],
+        ];
+        $tools = [['name' => 'x', 'description' => 'd', 'input_schema' => ['type' => 'object', 'properties' => ['a' => ['type' => 'integer']]]]];
+        $gateway = $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null]);
+
+        $gateway->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools, ['type' => 'none']));
+        $gateway->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools));
+
+        $withChoice = json_decode($this->calls[0]['body'], true);
+        Assert::same(['type' => 'none'], $withChoice['tool_choice']);
+        Assert::same($tools, $withChoice['tools']);
+        Assert::false(array_key_exists('tool_choice', json_decode($this->calls[1]['body'], true)), 'no tool_choice when undefined');
+    }
+
     public function testEmptyToolInputIsSentAsJsonObject(): void
     {
         $messages = [

@@ -169,7 +169,7 @@ final class AiCopilotServiceTest
         Assert::same($answer->conversationId, $rows[0]->conversationId());
     }
 
-    public function testFourRoundsThenOneFinalCallWithoutTools(): void
+    public function testFourRoundsThenOneFinalCallWithTheSameToolsAndToolChoiceNone(): void
     {
         $steps = [];
         for ($i = 1; $i <= 4; $i++) {
@@ -184,11 +184,52 @@ final class AiCopilotServiceTest
         Assert::count(5, $requests);
         for ($i = 0; $i < 4; $i++) {
             Assert::count(7, $requests[$i]->tools, "round {$i} offers the tools");
+            Assert::null($requests[$i]->toolChoice, "round {$i} leaves tool_choice to the API default");
         }
-        Assert::same([], $requests[4]->tools, 'the final call carries no tools');
+        Assert::same($requests[0]->tools, $requests[4]->tools, 'the final call keeps the same tool definitions');
+        Assert::same(['type' => 'none'], $requests[4]->toolChoice, 'the final call forbids tool use');
+        Assert::false($answer->failed, 'the final call must end in an answer, not a provider error');
         Assert::same('Resposta final.', $answer->text);
         Assert::same([['tool' => 'obter_paciente', 'label' => 'cadastro do paciente', 'count' => 4]], $answer->toolSummary);
         Assert::count(4, $this->calls->all());
+        Assert::same(AiInteraction::STATUS_ANSWERED, $this->interactions->all()[0]->status());
+    }
+
+    public function testToolUseDespiteToolChoiceNoneEndsWithTheCouldNotFinishText(): void
+    {
+        $steps = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $steps[] = self::toolUse([["tu_{$i}", 'obter_paciente', []]], 10, 1);
+        }
+        $gateway = StubAiGateway::scripted($steps);
+
+        $answer = $this->service($gateway)->ask('clinical', null, self::PATIENT_ID, 'Pergunta longa');
+
+        Assert::count(5, $gateway->requests());
+        Assert::false($answer->failed);
+        Assert::same(AiCopilotService::TIMEOUT_TEXT['pt'], $answer->text);
+        Assert::count(4, $this->calls->all(), 'the fifth tool_use is not executed');
+        Assert::same(AiInteraction::STATUS_ANSWERED, $this->interactions->all()[0]->status());
+        Assert::same(55, $this->interactions->all()[0]->usage()->totalTokens());
+    }
+
+    public function testBudgetSpentByTheProviderCallSkipsTheTools(): void
+    {
+        $gateway = StubAiGateway::scripted([
+            self::toolUse([['tu_1', 'obter_paciente', []]], 100, 10),
+            self::text('nunca chega', 1, 1),
+        ]);
+        $ticks = [0.0, 46.0];
+        $monotonic = static function () use (&$ticks): float {
+            return count($ticks) > 1 ? array_shift($ticks) : $ticks[0];
+        };
+
+        $answer = $this->service($gateway, $monotonic)->ask('clinical', null, self::PATIENT_ID, 'Resumo');
+
+        Assert::count(1, $gateway->requests());
+        Assert::same(AiCopilotService::TIMEOUT_TEXT['pt'], $answer->text);
+        Assert::same([], $this->calls->all(), 'no tool runs after the budget is spent');
+        Assert::same([], $answer->toolSummary);
     }
 
     public function testExhaustedBudgetReturnsTheTimeoutTextWithoutAnotherCall(): void
@@ -290,6 +331,7 @@ final class AiCopilotServiceTest
         Assert::same($answer->conversationId, $interaction->subjectId());
         Assert::same(600, $interaction->usage()->inputTokens);
         Assert::same(60, $interaction->usage()->outputTokens);
+        Assert::same(660, $interaction->costMicroUsd(), 'cost is summed over the rounds');
         Assert::same(hash('sha256', 'Resumo'), $interaction->inputSha256());
         Assert::null($interaction->suggestionText());
 

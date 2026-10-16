@@ -107,6 +107,53 @@ final class StubAiGatewayScriptTest
         Assert::same('oi', $request->messages[0]['content']);
     }
 
+    public function testToolBlocksWithoutToolsAreRejectedLikeTheApi(): void
+    {
+        $messages = [
+            ['role' => 'user', 'content' => 'Quem é o Thor?'],
+            ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'toolu_0', 'name' => 'buscar_paciente', 'input' => []]]],
+            ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'toolu_0', 'content' => '{}']]],
+        ];
+        $final = new AiCompletionResult('ok', 'stub', 'stub', AiUsage::none(), 0, 'end_turn', null);
+
+        foreach ([StubAiGateway::scripted([$final]), new StubAiGateway()] as $gateway) {
+            try {
+                $gateway->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 'system', '', $messages));
+                throw new \RuntimeException('Expected AiProviderException');
+            } catch (AiProviderException $exception) {
+                Assert::same('ai_provider_error', $exception->reason());
+                Assert::same(400, $exception->httpStatus());
+            }
+
+            Assert::count(1, $gateway->requests());
+        }
+
+        $tools = [['name' => 'buscar_paciente', 'description' => 'd', 'input_schema' => ['type' => 'object']]];
+        $gateway = StubAiGateway::scripted([$final]);
+        $result = $gateway->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 'system', '', $messages, $tools, ['type' => 'none']));
+
+        Assert::same($final, $result, 'the script step is kept for an accepted request');
+        Assert::same(['type' => 'none'], $gateway->requests()[0]->toolChoice);
+    }
+
+    public function testToolChoiceIsValidated(): void
+    {
+        $tools = [['name' => 'buscar_paciente', 'description' => 'd', 'input_schema' => ['type' => 'object']]];
+        $messages = [['role' => 'user', 'content' => 'oi']];
+
+        Assert::null((new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools))->toolChoice);
+
+        foreach ([['type' => 'auto'], ['type' => 'any'], ['type' => 'none'], ['type' => 'tool', 'name' => 'buscar_paciente']] as $choice) {
+            Assert::same($choice, (new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools, $choice))->toolChoice);
+        }
+
+        foreach ([['type' => 'never'], ['type' => 'tool'], []] as $choice) {
+            Assert::throws(\InvalidArgumentException::class, fn () => new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools, $choice));
+        }
+
+        Assert::throws(\InvalidArgumentException::class, fn () => new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, [], ['type' => 'none']), 'tool_choice needs tools');
+    }
+
     public function testUsagePlusSumsTheFourCounters(): void
     {
         $sum = (new AiUsage(1, 2, 3, 4))->plus(new AiUsage(10, 20, 30, 40));
