@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Unit;
 
+use CentralVet\Ai\Tools\AiTool;
 use CentralVet\Ai\Tools\JsonSchemaValidator;
 use CentralVet\Ai\Tools\ToolContext;
 use CentralVet\Ai\Tools\ToolFamily;
@@ -14,6 +15,7 @@ use CentralVet\Ai\Tools\ToolRateLimiter;
 use CentralVet\Ai\Tools\ToolRegistry;
 use CentralVet\Ai\Tools\ToolResult;
 use CentralVet\Domain\Contract\FeatureFlagRepositoryInterface;
+use CentralVet\Domain\Contract\McpToolCallRepositoryInterface;
 use CentralVet\Domain\McpToolCall;
 use CentralVet\Security\LoginRateLimiter;
 use CentralVet\Tenancy\TenantContext;
@@ -57,7 +59,7 @@ final class ToolPolicyTest
         return ToolContext::create($this->tenant(), 'corr-t08', 42, 'copilot_clinical', null);
     }
 
-    private function policy(FakeAiTool $tool, ?Closure $clock = null): ToolPolicy
+    private function policy(AiTool $tool, ?Closure $clock = null, ?ToolRateLimiter $limiter = null, ?McpToolCallRepositoryInterface $calls = null): ToolPolicy
     {
         $registry = new ToolRegistry(
             [$tool],
@@ -70,8 +72,8 @@ final class ToolPolicyTest
             $registry,
             new JsonSchemaValidator(),
             $this->policyAuthorization,
-            $this->calls,
-            new ToolRateLimiter(new LoginRateLimiter($this->redis, ToolRateLimiter::MAX_CALLS, ToolRateLimiter::DECAY_SECONDS, 'centralvet:ai-tool:')),
+            $calls ?? $this->calls,
+            $limiter ?? new ToolRateLimiter(new LoginRateLimiter($this->redis, ToolRateLimiter::MAX_CALLS, ToolRateLimiter::DECAY_SECONDS, 'centralvet:ai-tool:')),
             null,
             $clock,
         );
@@ -333,5 +335,153 @@ final class ToolPolicyTest
         Assert::false(str_contains($minimized, '123.456'));
         Assert::stringContains('Rex', $minimized);
         Assert::same('termo', array_key_first(json_decode($minimized, true)));
+    }
+
+    /** Tool whose assertInScope() throws $scopeFailure (8B T-08 correção 1). */
+    private function scopeFailingTool(\Throwable $scopeFailure): AiTool
+    {
+        return new class (self::TOOL, self::PERMISSION, $scopeFailure) implements AiTool {
+            public int $executions = 0;
+
+            public function __construct(private string $toolName, private string $permission, private \Throwable $failure)
+            {
+            }
+
+            public function name(): string
+            {
+                return $this->toolName;
+            }
+
+            public function description(): string
+            {
+                return 'scope failing tool';
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => ['id' => ['type' => 'integer', 'minimum' => 1]]];
+            }
+
+            public function requiredPermission(): string
+            {
+                return $this->permission;
+            }
+
+            public function family(): string
+            {
+                return ToolFamily::CLINICAL;
+            }
+
+            public function label(string $lang): string
+            {
+                return 'Falha';
+            }
+
+            public function assertInScope(ToolContext $context, array $input): void
+            {
+                throw $this->failure;
+            }
+
+            public function execute(ToolContext $context, array $input): ToolResult
+            {
+                $this->executions++;
+
+                return new ToolResult([]);
+            }
+        };
+    }
+
+    public function testToolInputExceptionInScopeIsDeniedAndAudited(): void
+    {
+        $tool = $this->scopeFailingTool(new ToolInputException('patient_id required'));
+        $outcome = $this->run($this->policy($tool));
+
+        $this->assertDenied($outcome, 'invalid_input', 'entrada inválida');
+        Assert::same(0, $tool->executions);
+    }
+
+    public function testPdoExceptionInScopeIsDeniedAsErrorWithoutLeak(): void
+    {
+        $tool = $this->scopeFailingTool(new \PDOException('SQLSTATE[HY000] secret'));
+        $outcome = $this->run($this->policy($tool));
+
+        $this->assertDenied($outcome, 'error', 'erro ao consultar');
+        Assert::false(str_contains($outcome->content, 'SQLSTATE'));
+        Assert::false(str_contains($outcome->content, 'PDOException'));
+        Assert::same(0, $tool->executions);
+    }
+
+    public function testRateLimiterFailureDeniesFailClosed(): void
+    {
+        $broken = new class extends \Redis {
+            public function __construct()
+            {
+            }
+
+            public function get($key): mixed
+            {
+                throw new \RedisException('Connection refused secret');
+            }
+
+            public function incr($key, $by = 1): \Redis|int|false
+            {
+                throw new \RedisException('Connection refused secret');
+            }
+        };
+        $tool = $this->tool();
+        $limiter = new ToolRateLimiter(new LoginRateLimiter($broken, ToolRateLimiter::MAX_CALLS, ToolRateLimiter::DECAY_SECONDS, 'centralvet:ai-tool:'));
+        $outcome = $this->run($this->policy($tool, null, $limiter));
+
+        $this->assertDenied($outcome, 'rate_limited', 'limite atingido');
+        Assert::false(str_contains($outcome->content, 'secret'));
+        Assert::same(0, $tool->executions());
+    }
+
+    public function testGenericExceptionInExecuteIsDeniedAndAudited(): void
+    {
+        $tool = $this->tool(failure: new \LogicException('internal detail'));
+        $outcome = $this->run($this->policy($tool));
+
+        $this->assertDenied($outcome, 'error', 'erro ao consultar');
+        Assert::false(str_contains($outcome->content, 'internal detail'));
+    }
+
+    public function testRegistryFailureIsDeniedAsError(): void
+    {
+        $tool = $this->tool();
+        $outcome = $this->policy($tool)->execute($this->context(), 'unknown_family', self::TOOL, ['id' => 5], [self::TOOL]);
+
+        $this->assertDenied($outcome, 'error', 'erro ao consultar');
+        Assert::same(0, $tool->executions());
+    }
+
+    public function testAuditFailureStillDeniesWithoutPropagating(): void
+    {
+        $failingCalls = new class implements McpToolCallRepositoryInterface {
+            public function insert(McpToolCall $call): McpToolCall
+            {
+                throw new \PDOException('SQLSTATE audit down');
+            }
+
+            public function search(?int $systemUserId, ?string $toolName, ?string $decision, ?\DateTimeImmutable $from, ?\DateTimeImmutable $to, int $limit): array
+            {
+                return [];
+            }
+        };
+        $tool = $this->tool(new ToolResult([['nome' => 'Rex']]));
+        $outcome = $this->run($this->policy($tool, null, null, $failingCalls));
+
+        Assert::true($outcome->isError);
+        Assert::same('denied', $outcome->decision);
+        Assert::same('error', $outcome->denyReason);
+        Assert::same(['error' => 'erro ao consultar'], json_decode($outcome->content, true));
+    }
+
+    public function testHugeInputIsCappedInAudit(): void
+    {
+        $outcome = $this->run($this->policy($this->tool()), ['id' => 5, 'extra' => str_repeat('x', 100000)]);
+
+        Assert::same('invalid_input', $outcome->denyReason);
+        Assert::true(strlen($this->calls->all()[0]->inputMinimized()) <= ToolPolicy::MAX_INPUT_BYTES);
     }
 }
