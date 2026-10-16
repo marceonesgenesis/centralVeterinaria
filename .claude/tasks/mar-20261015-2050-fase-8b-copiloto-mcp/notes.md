@@ -30,6 +30,9 @@
 - 2026-10-15 · T-13 · onda 3 — Chamada final sem tools com blocos tool_use no histórico dá 400 na API: corrigido com as mesmas tools + tool_choice none; stub rejeita tool_use sem tools como a API; tool_use residual vira texto "não consegui concluir". Escopo nos arquivos da T-02 autorizado.
 - 2026-10-15 · T-13 · onda 3 — 10º parâmetro de AiCopilotService = ?PiiMinimizer = null.
 - 2026-10-15 · T-13 · onda 3 — Sugestões aplicadas: orçamento checado antes das ferramentas; custo somado assertado. Cota checada uma vez por pergunta → documentar no runbook (T-18).
+- 2026-10-15 · T-15 · onda 4 — Histórico (listar/abrir/apagar) não depende de gateway/limiter/config de IA (direito do autor de apagar os próprios dados): AiConversationHistoryService, arquivo novo autorizado fora de Arquivos prováveis.
+- 2026-10-15 · T-15 · onda 4 — Teste de onOpen de conversa da unidade anterior/outro usuário → "Conversa não encontrada" sem mensagens: commit de cobertura sem RED aceito (passa contra o código atual); fixture liga a IA e teardown limpa.
+- 2026-10-15 · T-15 · onda 4 — Menu e permissões de AiConversationList e AiToolCallList ficam para a T-17 (seed).
 
 ## Bloqueios
 - Gate entre a Onda 1 e a Onda 2: aplicar `20261015_0015_phase8b_copilot.sql` no `centralvet_test` (orquestrador, skill `sql-write-approval`, usuário de migration, cópia temporária com o checksum real, `.verify.sql` depois). Desbloqueia quando o verify do `centralvet_test` for anotado aqui (3 tabelas novas vazias; contagem de `ai_interaction` igual à de antes).
@@ -43,6 +46,7 @@
 - `scripts/test-db/provision.sh` recusa banco existente: a 0015 entra no `centralvet_test` pelo gate, não por reprovisionamento.
 - Onda 2 (board): `ToolPolicy::execute` nunca lança (exceções viram denied auditado; MAX_INPUT_BYTES=4096; `ToolRateLimiter::attempt` atômico); `PiiMinimizer` sem instância, T-13 passa `null` no 6º parâmetro; repositórios `(TenantContext, PDO)` com `insert` checando só tenant, `touch` alheio no-op; ferramentas clínicas `(CopilotClinicalQueryInterface, ?Closure $clock)`; `AiConversationRetention::forConnection(PDO, ?Closure)->runOnce()` → {deleted, batches}.
 - Onda 3 (board): T-13 `AiCopilotService` com 10º parâmetro `?PiiMinimizer` (passe null); `CopilotAnswer.text=''` se failed; `forContext` conecta no Redis e lança RuntimeException sem Redis; `AiCompletionRequest` 7º parâmetro `?array $toolChoice`; `StubAiGateway` lança ai_provider_error (400) para tool_use/tool_result sem tools; chamada final com as mesmas tools e tool_choice none; cota checada uma vez por pergunta (até 5 chamadas).
+- Onda 4 (board): T-14 `AiCopilotPanel::linkFor($family, ?$anchor)`; `transaction(callable $fn)` passa a conexão; link abre a cortina via generator; RuntimeException do limiter = painel indisponível (relay da onda 3 cumprido). T-15 `AiConversationList` usa `AiCopilotPanel::linkFor(...).'&conversation_id=<id>'`; histórico via `AiConversationHistoryService::forContext(TenantContext, PDO)` sem gateway/limiter/flag/termo/cota.
 
 ## Pendências
 - 2026-10-15 · T-19..T-21 · onda 1 — marcação [x] espúria anterior ao fechamento da onda 1, origem desconhecida, corrigida para [ ] (são da Onda 6).
@@ -60,6 +64,9 @@
 - T-11: via/posologia/duracao fora de freeTextFields; `$clock` não usado em ObterExamesTool; fixture de exame com status inválido e faltam casos requested/âncora fora da unidade.
 - T-12: teste não distingue updated_at de created_at; laço de lotes/MAX_BATCHES sem teste; sem trava contra execuções sobrepostas.
 - T-13: `AiCopilotService` 10º parâmetro `?PiiMinimizer` diverge da Interface em tasks.md (segue ruling da T-08); cota por pergunta (T-18) e RuntimeException do limiter (T-14) em relay no board.
+- T-14: pergunta só com espaços cai no catch genérico (mensagem em inglês); texto digitado se perde em erro de infraestrutura no onAsk; catch RuntimeException amplo vira ai_provider_error; onAsk/onDelete aceitam GET sem CSRF; foco/live region após a resposta; onDelete com painel indisponível mostra "Conversa não encontrada" enganoso; asserção do JS é só str_contains.
+- T-15: testToolCallListWithoutTheProgramIsDenied fraco (afirmar "Permissão negada"); coluna Motivo mostra código cru (not_found etc.); sem teste de XSS em título/nome; AiToolCallList mostra mensagem de unidade ativa sem exigir unidade.
+- Onda 4: menu/permissões de AiConversationList e AiToolCallList dependem da T-17 (seed).
 
 ## Riscos
 - Tool use altera o payload do assistente da 8A → T-02 compara o body JSON de uma requisição sem `tools` antes/depois.
@@ -77,5 +84,6 @@
   - Onda 1: BASE bc35d6d → HEAD 73f950e (73f950e, 3d7defe, 992df54, fb5a5b7, 555966d, 760dd08, 2f4530d, 205e5d1, 8a89e0d, 95c3ce3, 1fc7ab5, ac009bd, 9cecaf0, 08d5937)
   - Onda 2: BASE 7713431 → HEAD 120a196 (120a196, 6cfbab8, c9007d9, 1f62358, 954be65, 8d5ce21, 7ca2db8, fb35ee2, 9d50f98, 0d1216a, d675483, 1356001)
   - Onda 3: BASE 4ece9e1 → HEAD 3d76c96 (3d76c96, a823d73, 51e662b, dd595b3)
-- Último status conhecido: onda 3 concluída (T-13 [x]); SUITE 1594/1594 na cruzada final
-- Próxima onda recomendada: onda 4 (T-14, T-15, T-18 dependem de T-13; confirmar no plano; T-19..T-21 ficam na Onda 6)
+  - Onda 4: BASE 6ef9ffd → HEAD 69382a1 (69382a1, 99b8e46, 110fd8d, b1a6036, 8c736b8, beaf682, d620a57)
+- Último status conhecido: onda 4 concluída (T-14, T-15 [x]); SUITE 1617/1617 na cruzada final
+- Próxima onda recomendada: onda 5 (confirmar no plano; T-18 e demais pendentes; T-19..T-21 ficam na Onda 6)
