@@ -17,6 +17,10 @@ use CentralVet\Tests\Support\TestDatabase;
  * (init.php), apontado para o banco de teste e com AI_PROVIDER=stub — sem
  * rede. As fixtures são gravadas de fato num tenant descartável
  * ("F8B teste") e apagadas em tearDown().
+ *
+ * T-26: o subprocesso roda com RATE_LIMIT_DRIVER=redis e REDIS_HOST
+ * inválido — a disponibilidade nas telas é leve (AiCopilotAvailability) e
+ * não monta gateway, limiter nem registry.
  */
 final class CopilotHostButtonsIntegrationTest
 {
@@ -208,6 +212,11 @@ final class CopilotHostButtonsIntegrationTest
             'AI_STUB_BEHAVIOR' => 'ok',
             'APP_ENV' => 'testing',
             'ANTHROPIC_API_KEY' => '',
+            // T-26: the host screens must not depend on Redis (only the
+            // copilot panel uses the tool rate limiter).
+            'RATE_LIMIT_DRIVER' => 'redis',
+            'REDIS_HOST' => 'invalid.local',
+            'SESSION_DRIVER' => 'files',
         ];
         $prefix = 'env';
 
