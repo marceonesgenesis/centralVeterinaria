@@ -502,6 +502,17 @@ final class UserMessageTest
         );
     }
 
+    public function testEveryCopilotScreenKeyHasATranslation(): void
+    {
+        // Fase 8B, T-17: _t('...') de AiCopilotPanel, AiConversationList e AiToolCallList
+        // e os _t{...} novos do submenu de IA.
+        self::assertScreenKeysTranslated(
+            ['My conversations', 'Tool audit'],
+            ['AiCopilotPanel.php', 'AiConversationList.php', 'AiToolCallList.php'],
+            3,
+        );
+    }
+
     /**
      * @return array<string, string>
      */
