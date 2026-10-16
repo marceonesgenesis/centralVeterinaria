@@ -22,7 +22,7 @@ use CentralVet\Tests\Support\TestDatabase;
 final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
 {
     private const MARKER = '__T14_PANEL__';
-    private const ANSWER = 'F8B teste resposta do copiloto';
+    private const ANSWER = 'Resposta roteirizada do copiloto';
 
     public function setUp(): void
     {
