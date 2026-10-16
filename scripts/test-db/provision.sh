@@ -57,6 +57,7 @@ $migrations_dir/20261005_0011_phase6b_surgery.sql
 $migrations_dir/20261006_0012_phase7a_communication.sql
 $migrations_dir/20261006_0013_phase7b_documents.sql
 $migrations_dir/20261007_0014_phase8a_ai_gateway.sql
+$migrations_dir/20261015_0015_phase8b_copilot.sql
 "
 
 # Preflight: no docker, no SQL. Paths contain no spaces.
