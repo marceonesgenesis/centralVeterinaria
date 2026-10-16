@@ -37,15 +37,13 @@ final class ToolPolicyTest
     private const PERMISSION = 'PatientForm::onEdit';
 
     private FakeMcpToolCallRepository $calls;
-    private FakeAuthorizationPolicy $policyAuthorization;
-    private FakeAuthorizationPolicy $registryAuthorization;
+    private FakeAuthorizationPolicy $authorization;
     private FakeRedis $redis;
 
     public function setUp(): void
     {
         $this->calls = new FakeMcpToolCallRepository(self::TENANT);
-        $this->policyAuthorization = new FakeAuthorizationPolicy(true);
-        $this->registryAuthorization = new FakeAuthorizationPolicy(true);
+        $this->authorization = new FakeAuthorizationPolicy(true);
         $this->redis = new FakeRedis();
     }
 
@@ -59,23 +57,29 @@ final class ToolPolicyTest
         return ToolContext::create($this->tenant(), 'corr-t08', 42, 'copilot_clinical', null);
     }
 
-    private function policy(AiTool $tool, ?Closure $clock = null, ?ToolRateLimiter $limiter = null, ?McpToolCallRepositoryInterface $calls = null): ToolPolicy
+    /** @param list<AiTool>|AiTool $tools */
+    private function policy(AiTool|array $tools, ?Closure $clock = null, ?ToolRateLimiter $limiter = null, ?McpToolCallRepositoryInterface $calls = null, ?ToolRegistry $registry = null): ToolPolicy
     {
-        $registry = new ToolRegistry(
-            [$tool],
-            new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
-            $this->registryAuthorization,
-            $this->tenant(),
-        );
+        $registry ??= $this->registry($tools);
 
         return new ToolPolicy(
             $registry,
             new JsonSchemaValidator(),
-            $this->policyAuthorization,
             $calls ?? $this->calls,
             $limiter ?? new ToolRateLimiter(new LoginRateLimiter($this->redis, ToolRateLimiter::MAX_CALLS, ToolRateLimiter::DECAY_SECONDS, 'centralvet:ai-tool:')),
             null,
             $clock,
+        );
+    }
+
+    /** @param list<AiTool>|AiTool $tools */
+    private function registry(AiTool|array $tools): ToolRegistry
+    {
+        return new ToolRegistry(
+            is_array($tools) ? $tools : [$tools],
+            new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
+            $this->authorization,
+            $this->tenant(),
         );
     }
 
@@ -120,10 +124,13 @@ final class ToolPolicyTest
 
     public function testToolWithoutScreenPermissionRequestedByModelIsNotOffered(): void
     {
-        $this->registryAuthorization->setAllowed(false);
+        $this->authorization->setAllowed(false);
         $tool = $this->tool();
-        $outcome = $this->run($this->policy($tool));
+        $registry = $this->registry($tool);
+        $offered = array_column($registry->definitions(ToolFamily::CLINICAL), 'name');
+        $outcome = $this->run($this->policy($tool, registry: $registry), ['id' => 5], $offered);
 
+        Assert::same([], $offered);
         $this->assertDenied($outcome, 'not_offered', 'sem permissão');
         Assert::same(0, $tool->executions());
     }
@@ -139,23 +146,24 @@ final class ToolPolicyTest
 
     public function testInvalidInputWinsOverRbacDenial(): void
     {
-        $this->policyAuthorization->setAllowed(false);
+        $this->authorization->setAllowed(false);
         $tool = $this->tool();
         $outcome = $this->run($this->policy($tool), ['id' => 0]);
 
         $this->assertDenied($outcome, 'invalid_input', 'entrada inválida');
-        Assert::count(0, $this->policyAuthorization->requests, 'RBAC must not run after invalid input');
+        Assert::true(count($this->authorization->requests) <= 1, 'RBAC runs at most once, from the registry cache');
     }
 
     public function testForbiddenWhenRbacDenies(): void
     {
-        $this->policyAuthorization->setAllowed(false);
+        $this->authorization->setAllowed(false);
         $tool = $this->tool();
         $outcome = $this->run($this->policy($tool));
 
         $this->assertDenied($outcome, 'forbidden', 'sem permissão');
         Assert::same(0, $tool->executions());
-        $request = $this->policyAuthorization->requests[0];
+        Assert::count(1, $this->authorization->requests);
+        $request = $this->authorization->requests[0];
         Assert::same(self::PERMISSION, $request->action());
         Assert::same(self::TENANT, $request->context()->tenantId());
         Assert::same(self::UNIT, $request->context()->unitId());
@@ -483,5 +491,53 @@ final class ToolPolicyTest
 
         Assert::same('invalid_input', $outcome->denyReason);
         Assert::true(strlen($this->calls->all()[0]->inputMinimized()) <= ToolPolicy::MAX_INPUT_BYTES);
+    }
+
+    public function testFreeTextIsMinimizedBeforeTheExcerptCut(): void
+    {
+        $motive = str_repeat('x', 152) . ' (85) 98765-4321 ligou';
+        $exam = str_repeat('y', 390) . ' CPF 123.456.789-09 conferido';
+        $result = new ToolResult(
+            [['motivo' => $motive, 'resultado' => $exam]],
+            false,
+            ['motivo', 'resultado'],
+            [],
+            ['motivo' => 160, 'resultado' => 400],
+        );
+        $outcome = $this->run($this->policy($this->tool($result)));
+
+        Assert::false($outcome->isError);
+        foreach (['98765', '987', '4321', '123.456', '789-09'] as $fragment) {
+            Assert::false(str_contains($outcome->content, $fragment), 'content leaks ' . $fragment);
+        }
+        $row = json_decode($outcome->content, true)['rows'][0];
+        Assert::true(mb_strlen($row['motivo']) <= 160);
+        Assert::true(mb_strlen($row['resultado']) <= 400);
+        Assert::true(str_starts_with($row['motivo'], str_repeat('x', 152)));
+    }
+
+    public function testExcerptLengthsMustMapFieldsToPositiveLengths(): void
+    {
+        Assert::throws(\InvalidArgumentException::class, static fn () => new ToolResult([], false, [], [], ['motivo' => 0]));
+        Assert::throws(\InvalidArgumentException::class, static fn () => new ToolResult([], false, [], [], [160]));
+    }
+
+    public function testThreeExecutionsDecideRbacOncePerOfferedTool(): void
+    {
+        $tools = [
+            $this->tool(new ToolResult([['nome' => 'Rex']])),
+            new FakeAiTool('buscar_paciente', ToolFamily::CLINICAL, 'GlobalSearchController::onSearch'),
+        ];
+        $registry = $this->registry($tools);
+        $policy = $this->policy($tools, registry: $registry);
+        $offered = array_column($registry->definitions(ToolFamily::CLINICAL), 'name');
+
+        foreach ([self::TOOL, 'buscar_paciente', self::TOOL] as $name) {
+            $outcome = $policy->execute($this->context(), ToolFamily::CLINICAL, $name, ['id' => 5], $offered);
+            Assert::false($outcome->isError, $name . ' must run');
+        }
+
+        $actions = array_map(static fn ($request): string => $request->action(), $this->authorization->requests);
+        Assert::same([self::PERMISSION, 'GlobalSearchController::onSearch'], $actions);
     }
 }

@@ -208,7 +208,8 @@ final class ClinicalToolsPatientTest
         $row = $result->data[0];
         Assert::same(['encounter_id', 'data', 'motivo', 'diagnostico', 'conduta'], array_keys($row));
         Assert::same(9, $row['encounter_id']);
-        Assert::true(mb_strlen((string) $row['motivo']) <= 160);
+        Assert::same(str_repeat('Vômito há dois dias. ', 20), $row['motivo'], 'tool returns the full text; the policy cuts after minimizing');
+        Assert::same(['motivo' => 160], $result->excerptLengths);
         Assert::same(['motivo', 'diagnostico', 'conduta'], $result->freeTextFields);
         Assert::same(['Maria Souza Lima'], $result->knownNames);
         Assert::same(['encounters', 42, 5], [$query->calls()[1]['method'], ...$query->calls()[1]['args']]);

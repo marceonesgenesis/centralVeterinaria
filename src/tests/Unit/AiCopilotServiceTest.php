@@ -258,6 +258,33 @@ final class AiCopilotServiceTest
         Assert::same(AiCopilotService::TIMEOUT_TEXT['pt'], $messages[1]->content());
     }
 
+    public function testThreeToolUsesDecideRbacOncePerOfferedTool(): void
+    {
+        $gateway = StubAiGateway::scripted([
+            self::toolUse([
+                ['tu_1', 'obter_paciente', ['patient_id' => self::PATIENT_ID]],
+                ['tu_2', 'obter_historico_atendimentos', ['patient_id' => self::PATIENT_ID]],
+                ['tu_3', 'obter_paciente', []],
+            ], 100, 10),
+            self::text('Rex está bem.', 200, 30),
+        ]);
+
+        $answer = $this->service($gateway)->ask('clinical', null, self::PATIENT_ID, 'Resumo do paciente');
+
+        Assert::false($answer->failed);
+        Assert::count(3, $this->calls->all());
+        $tools = [];
+        foreach ($this->authorization->requests as $request) {
+            if ($request->entityType() === 'mcp_tool') {
+                $tools[] = $request->metadata()['tool'];
+            }
+        }
+        sort($tools);
+        $expected = array_map(static fn ($tool): string => $tool->name(), ClinicalToolset::create($this->clinical));
+        sort($expected);
+        Assert::same($expected, $tools, 'one RBAC decision per offered tool');
+    }
+
     public function testDeniedToolInTheMiddleSendsAnErrorResultAndTheAnswerArrives(): void
     {
         $gateway = StubAiGateway::scripted([
@@ -517,7 +544,6 @@ final class AiCopilotServiceTest
         $policy = new ToolPolicy(
             $registry,
             new JsonSchemaValidator(),
-            $this->authorization,
             $this->calls,
             new ToolRateLimiter(new LoginRateLimiter(new FakeRedis(), ToolRateLimiter::MAX_CALLS, ToolRateLimiter::DECAY_SECONDS, ToolRateLimiter::PREFIX)),
             null,

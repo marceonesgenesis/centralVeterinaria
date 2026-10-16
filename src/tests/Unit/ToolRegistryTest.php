@@ -218,4 +218,54 @@ final class ToolRegistryTest
         Assert::same('copilot_clinical', $context->purpose);
         Assert::same(99, $context->anchorPatientId);
     }
+
+    public function testDenialReasonDistinguishesNotOfferedFromForbidden(): void
+    {
+        $tools = [
+            ...$this->tools(),
+            new FakeAiTool('obter_paciente', 'clinical', 'PatientForm::onEdit'),
+        ];
+        $policy = new class implements \CentralVet\Authorization\Contract\AuthorizationPolicyInterface {
+            public function decide(\CentralVet\Authorization\AuthorizationRequest $request): \CentralVet\Authorization\AuthorizationDecision
+            {
+                $allowed = $request->action() !== 'PatientForm::onEdit';
+
+                return new \CentralVet\Authorization\AuthorizationDecision($allowed, $allowed ? 'granted' : 'denied:permission', 'corr');
+            }
+        };
+        $registry = new ToolRegistry(
+            $tools,
+            new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
+            $policy,
+            $this->context(),
+        );
+
+        Assert::null($registry->denialReason('clinical', 'buscar_paciente'));
+        Assert::same('forbidden', $registry->denialReason('clinical', 'obter_paciente'));
+        Assert::same('not_offered', $registry->denialReason('clinical', 'apagar_paciente'));
+        Assert::same('not_offered', $registry->denialReason('clinical', 'nao_existe'));
+        Assert::same('not_offered', $registry->denialReason('management', 'consultar_agenda'));
+        Assert::same('not_offered', $registry->denialReason('clinical', 'consultar_agenda'));
+        Assert::null($registry->find('clinical', 'obter_paciente'));
+        Assert::throws(\InvalidArgumentException::class, static fn () => $registry->denialReason('admin', 'buscar_paciente'));
+    }
+
+    public function testVisibilityIsCachedPerFamilyWithOneDecisionPerTool(): void
+    {
+        $policy = new FakeAuthorizationPolicy(true);
+        $registry = new ToolRegistry(
+            [...$this->tools(), new FakeAiTool('obter_paciente', 'clinical', 'PatientForm::onEdit')],
+            new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
+            $policy,
+            $this->context(),
+        );
+
+        $registry->definitions('clinical');
+        $registry->visible('clinical');
+        $registry->find('clinical', 'buscar_paciente');
+        $registry->find('clinical', 'obter_paciente');
+        $registry->denialReason('clinical', 'obter_paciente');
+
+        Assert::count(2, $policy->requests);
+    }
 }

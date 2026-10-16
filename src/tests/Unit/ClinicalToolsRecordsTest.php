@@ -211,7 +211,8 @@ final class ClinicalToolsRecordsTest
         Assert::same(true, $result->data[0]['provisorio']);
         Assert::same(false, $result->data[1]['provisorio']);
         Assert::same(false, $result->data[2]['provisorio']);
-        Assert::true(mb_strlen((string) $result->data[0]['resultado']) <= 400);
+        Assert::same(str_repeat('a ', 300), $result->data[0]['resultado'], 'tool returns the full text; the policy cuts after minimizing');
+        Assert::same(['resultado' => 400], $result->excerptLengths);
         Assert::same('Hemograma sem alterações', $result->data[1]['resultado']);
         Assert::null($result->data[2]['resultado']);
         Assert::same('Hemograma', $result->data[1]['exame']);
