@@ -54,7 +54,8 @@ final class JsonSchemaValidator
         foreach ($input as $name => $value) {
             $name = (string) $name;
             if (!array_key_exists($name, $properties)) {
-                $errors[] = $name . ': not allowed';
+                // The key comes from the model and may carry personal data: never echo it.
+                $errors[] = 'unexpected property: not allowed';
                 continue;
             }
             $error = self::validateValue($name, $properties[$name], $value);

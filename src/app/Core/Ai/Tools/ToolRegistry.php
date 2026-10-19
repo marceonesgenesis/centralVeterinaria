@@ -40,13 +40,30 @@ final class ToolRegistry
         private readonly TenantContext $context,
     ) {
         $list = [];
+        $names = [];
         foreach ($tools as $tool) {
             if (!$tool instanceof AiTool) {
                 throw new \InvalidArgumentException('ToolRegistry only accepts AiTool instances');
             }
+            $name = $tool->name();
+            if (isset($names[$name])) {
+                throw new \LogicException('Duplicate tool name: ' . $name);
+            }
+            $names[$name] = true;
             $list[] = $tool;
         }
         $this->tools = $list;
+    }
+
+    /**
+     * True only when the call scope is the session this registry was built
+     * for (same tenant, user and active unit); ToolPolicy denies otherwise.
+     */
+    public function sameContext(ToolContext $context): bool
+    {
+        return $context->tenantId === $this->context->tenantId()
+            && $context->userId === $this->context->userId()
+            && $context->unitId === $this->context->unitId();
     }
 
     /** @return list<AiTool> */
@@ -128,7 +145,7 @@ final class ToolRegistry
         $reasons = [];
         foreach ($this->tools as $tool) {
             $name = $tool->name();
-            if ($tool->family() !== $family || !ToolFamily::isAllowed($family, $name) || isset($tools[$name])) {
+            if ($tool->family() !== $family || !ToolFamily::isAllowed($family, $name)) {
                 continue;
             }
             $tools[$name] = $tool;
