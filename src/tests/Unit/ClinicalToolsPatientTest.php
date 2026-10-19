@@ -131,7 +131,7 @@ final class ClinicalToolsPatientTest
             Assert::false(array_key_exists($key, $row), "Unexpected key {$key}");
         }
         Assert::same(['Maria Souza Lima'], $result->knownNames);
-        Assert::same(['searchPatients', 'Rex', 10], [$query->calls()[0]['method'], ...$query->calls()[0]['args']]);
+        Assert::same(['searchPatients', 'Rex', 11], [$query->calls()[0]['method'], ...$query->calls()[0]['args']]);
     }
 
     public function testBuscarPacienteRespectsLimit(): void
@@ -142,6 +142,30 @@ final class ClinicalToolsPatientTest
         $result = (new BuscarPacienteTool($query, $this->clock()))->execute($this->context(), ['termo' => 'Rex', 'limite' => 20]);
 
         Assert::same(20, $result->rowCount);
+    }
+
+    public function testBuscarPacienteMarksTruncatedWhenMoreRowsThanLimit(): void
+    {
+        $query = new FakeCopilotClinicalQuery();
+        $query->seed('searchPatients', array_map(fn (int $id): array => $this->patientRow($id), range(1, 3)));
+
+        $result = (new BuscarPacienteTool($query, $this->clock()))->execute($this->context(), ['termo' => 'Rex', 'limite' => 2]);
+
+        Assert::same(2, $result->rowCount);
+        Assert::same([1, 2], array_column($result->data, 'id'));
+        Assert::true($result->truncated === true);
+        Assert::same(['searchPatients', 'Rex', 3], [$query->calls()[0]['method'], ...$query->calls()[0]['args']]);
+    }
+
+    public function testBuscarPacienteIsNotTruncatedWhenRowsFitTheLimit(): void
+    {
+        $query = new FakeCopilotClinicalQuery();
+        $query->seed('searchPatients', array_map(fn (int $id): array => $this->patientRow($id), range(1, 2)));
+
+        $result = (new BuscarPacienteTool($query, $this->clock()))->execute($this->context(), ['termo' => 'Rex', 'limite' => 2]);
+
+        Assert::same(2, $result->rowCount);
+        Assert::true($result->truncated === false);
     }
 
     public function testObterPacienteUsesAnchorWhenPatientIdIsMissing(): void
@@ -212,7 +236,57 @@ final class ClinicalToolsPatientTest
         Assert::same(['motivo' => 160], $result->excerptLengths);
         Assert::same(['motivo', 'diagnostico', 'conduta'], $result->freeTextFields);
         Assert::same(['Maria Souza Lima'], $result->knownNames);
-        Assert::same(['encounters', 42, 5], [$query->calls()[1]['method'], ...$query->calls()[1]['args']]);
+        Assert::same(['encounters', 42, 6], [$query->calls()[1]['method'], ...$query->calls()[1]['args']]);
+    }
+
+    /** @return array<string, mixed> */
+    private function encounterRow(int $id): array
+    {
+        return [
+            'id' => $id,
+            'started_at' => '2026-10-01 09:00:00',
+            'status' => 'closed',
+            'anamnesis_text' => 'Vômito',
+            'diagnosis_text' => 'Gastrite',
+            'clinical_plan_text' => 'Dieta leve',
+        ];
+    }
+
+    public function testObterHistoricoMarksTruncatedWhenMoreRowsThanLimit(): void
+    {
+        $query = new FakeCopilotClinicalQuery();
+        $query->setInUnit('patient', 42, true);
+        $query->seed('encounters', array_map(fn (int $id): array => $this->encounterRow($id), range(1, 3)));
+        $tool = new ObterHistoricoAtendimentosTool($query, $this->clock());
+
+        $result = $tool->execute($this->context(42), ['limite' => 2]);
+
+        Assert::same(2, $result->rowCount);
+        Assert::same([1, 2], array_column($result->data, 'encounter_id'));
+        Assert::true($result->truncated === true);
+        Assert::same(['encounters', 42, 3], [$query->calls()[0]['method'], ...$query->calls()[0]['args']]);
+    }
+
+    public function testObterHistoricoIsNotTruncatedWhenRowsFitTheLimit(): void
+    {
+        $query = new FakeCopilotClinicalQuery();
+        $query->setInUnit('patient', 42, true);
+        $query->seed('encounters', array_map(fn (int $id): array => $this->encounterRow($id), range(1, 2)));
+        $tool = new ObterHistoricoAtendimentosTool($query, $this->clock());
+
+        $result = $tool->execute($this->context(42), ['limite' => 2]);
+
+        Assert::same(2, $result->rowCount);
+        Assert::true($result->truncated === false);
+    }
+
+    public function testObterHistoricoOutsideUnitIsNotFound(): void
+    {
+        $query = new FakeCopilotClinicalQuery();
+        $query->setInUnit('patient', 8, false);
+        $tool = new ObterHistoricoAtendimentosTool($query, $this->clock());
+
+        Assert::throws(ToolEntityNotFoundException::class, fn () => $tool->assertInScope($this->context(42), ['patient_id' => 8]));
     }
 
     public function testObterProntuarioOutsideUnitIsNotFound(): void
