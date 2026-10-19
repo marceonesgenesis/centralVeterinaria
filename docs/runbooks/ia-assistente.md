@@ -333,7 +333,9 @@ auditoria, nunca o texto. "Minhas conversas" funciona mesmo com a IA desligada
 (direito de apagar os próprios dados). A retenção é de **90 dias** sem
 atividade: o script apaga as conversas ociosas de todos os tenants, em lotes
 (mensagens caem por `ON DELETE CASCADE`); `mcp_tool_call` e `ai_interaction`
-ficam. Rode uma vez por dia, a partir da raiz de `src/`:
+ficam. O `DELETE` é feito em lotes (tamanho e número máximo de lotes por
+execução configuráveis em `AiConversationRetention::forConnection`, ambos >= 1),
+para não segurar travas longas. Rode uma vez por dia, a partir da raiz de `src/`:
 
 ```cron
 # Retenção de 90 dias das conversas do copiloto (diária, 03:30)
@@ -341,26 +343,40 @@ ficam. Rode uma vez por dia, a partir da raiz de `src/`:
 ```
 
 A saída é uma linha JSON `{"deleted":n,"batches":b}`; em erro só a classe da
-exceção vai ao `error_log` e o código de saída é 1. Não há texto de pergunta ou
+exceção vai ao `error_log` e o código de saída é 1. Há trava contra execução
+sobreposta (`flock` em arquivo no diretório temporário): se outra execução
+ainda roda, a saída é `{"skipped":"locked"}` com código 0 e nada é apagado;
+isso é normal, não é erro, e a próxima execução do cron retoma. Não há texto de pergunta ou
 resposta no log.
+
+**Âncora de paciente (`ON DELETE RESTRICT`).** A conversa clínica guarda
+`anchor_patient_id` com FK `ai_conversation_anchor_patient_fk` em `patient`,
+`ON DELETE RESTRICT`: um paciente com conversa não pode ser excluído
+fisicamente até o purge de 90 dias apagar a conversa (ou o autor apagá-la em
+"Minhas conversas"). Quem exclui ou anonimiza paciente por script deve apagar
+antes as conversas dele; o erro de FK é o sintoma esperado.
 
 ### Motivos de recusa de ferramenta
 
 Gravados em `mcp_tool_call.deny_reason`; o modelo recebe só uma mensagem fixa.
 
-| `deny_reason` | Causa |
-|---|---|
-| `not_offered` | Ferramenta fora da família, da flag ou da permissão do usuário. |
-| `forbidden` | A permissão mudou entre a oferta e a execução. |
-| `invalid_input` | Entrada fora do schema ou acima de 4096 bytes. |
-| `not_found` | Id inexistente, de outra unidade ou outro tenant. |
-| `rate_limited` | 30 chamadas em 10 min, ou limiter indisponível (fail-closed). |
-| `timeout` | Resultado acima de 5 s, descartado. |
-| `error` | Falha inesperada (só a classe é logada). |
+| `deny_reason` | Rótulo na tela | Causa |
+|---|---|---|
+| `not_offered` | Ferramenta não oferecida | Ferramenta fora da família, da flag ou da permissão do usuário. |
+| `forbidden` | Ferramenta sem permissão | A permissão mudou entre a oferta e a execução, ou o contexto da chamada não é o do registro. |
+| `invalid_input` | Entrada inválida | Entrada fora do schema ou acima de 4096 bytes. |
+| `not_found` | Registro não encontrado | Id inexistente, de outra unidade ou outro tenant. |
+| `rate_limited` | Limite de chamadas atingido | 30 chamadas em 10 min, ou limiter indisponível (fail-closed). |
+| `timeout` | Tempo limite excedido | Resultado acima de 5 s, descartado. |
+| `error` | Falha inesperada | Falha inesperada (só a classe é logada). |
 
-Falha do copiloto na pergunta usa os mesmos códigos `ai_*` da tabela acima.
-A flag `ai_assistant` (e `ai_copilot_management` na gestão) desligada dá
-`ai_disabled`.
+A coluna "Motivo" de `AiToolCallList` mostra o rótulo traduzido (pt); o valor
+gravado em `deny_reason` continua sendo o código da primeira coluna.
+
+Falha do copiloto na pergunta usa os códigos `ai_*` da tabela de
+[Motivos de falha e o que fazer](#motivos-de-falha-e-o-que-fazer) (8A, acima no
+documento), não a de `deny_reason`. A flag `ai_assistant` (e
+`ai_copilot_management` na gestão) desligada dá `ai_disabled`.
 
 ### Incidente
 
@@ -394,7 +410,12 @@ no interruptor "copiloto de gestão" de `AiSettingsForm`, gravado no mesmo
 RBAC de `AiSettingsForm::onSave` e auditoria
 `ai.settings.copilot_management_enabled|_disabled`). Sem linha em
 `feature_flag`, fica desligada. Flag desligada ou IA indisponível: o painel
-mostra o motivo `ai_disabled`. Termo aceito e `ai_assistant` seguem valendo.
+mostra o motivo `ai_disabled`. A flag de gestão **não basta**: o painel exige também
+`ai_assistant` ligada (a de gestão só libera a família de ferramentas), o termo
+aceito e a cota/configuração em dia. A indisponibilidade segue a ordem
+`ai_disabled` (qualquer das flags) → `ai_terms_pending` → `ai_quota_exceeded`
+→ `ai_not_configured`; veja a tabela de
+[motivos de falha](#motivos-de-falha-e-o-que-fazer).
 
 **Ferramentas.**
 
@@ -410,7 +431,20 @@ mostra o motivo `ai_disabled`. Termo aceito e `ai_assistant` seguem valendo.
 
 - Vencimento de débito = `receivable.created_at` + 7 dias (o schema não tem
   vencimento; mesma regra de `PendingItemQuery::openReceivables`). Débitos por
-  unidade via `encounter_account.system_unit_id`.
+  unidade via `encounter_account.system_unit_id`. O vencimento é comparado por
+  **dia**: um débito criado há 7 dias só fica "vencido" no dia seguinte e,
+  no próprio dia do vencimento, aparece como "a vencer" (`>=` hoje), o que
+  pode diferir da tela de pendências, que já o lista nesse dia.
+- `indicadores_clinica`: `ticket_medio` = receita / atendimentos iniciados no
+  período (arredondado ao centavo), `null` sem atendimentos. A receita inclui
+  lançamentos de entrada sem atendimento (ex.: venda avulsa), então o ticket
+  médio pode superar o valor médio dos atendimentos; leia-o como receita por
+  atendimento, não como ticket de atendimento.
+- `consultar_agenda`: profissional inativo ainda pode ser consultado (pode ter
+  agendamentos antigos); `verificar_horarios` só aceita profissional ativo.
+- Estoque: lote vencido sai da validade/lote em `abaixo_minimo` e `termo`
+  (comparado com `CURDATE()` do MySQL, o mesmo relógio das gravações);
+  `vencendo_30d` usa o relógio da aplicação.
 - Estoque: saldo só da unidade ativa; `minimum` nulo quando o mínimo é 0.
 - Horários livres: grade 07:00-19:00 em passos de 30 min (a da `AgendaView`),
   calculada por `FreeSlotFinder`; só horários futuros. A ocupação do profissional
@@ -424,6 +458,12 @@ mostra o motivo `ai_disabled`. Termo aceito e `ai_assistant` seguem valendo.
 **Menu.** Item "Copiloto de gestão" no submenu de IA (abre o painel de gestão;
 não há dashboard clínico). Precisa da permissão de `AiCopilotPanel::onAsk` e do
 vínculo de menu aplicado pelo seed 8B.
+
+**Seed.** O bloco 8B de `initial-application-programs.sql` concede
+`AiCopilotPanel` e `AiConversationList` só aos grupos que já têm
+`EncounterView` (no seed, só o grupo 1, Template - Admin) e `AiToolCallList`
+só ao grupo 1; outros grupos precisam de vínculo manual. O bloco no MySQL 5.7
+foi conferido só por inspeção (sem imagem 5.7 local).
 
 **Smoke de gestão (chave real).** Só em ambiente de teste, com a IA e a flag
 `ai_copilot_management` ligadas, sem dado de cliente real em log ou relatório.

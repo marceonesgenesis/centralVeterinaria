@@ -371,9 +371,25 @@ cp src/app/database/migrations/20261015_0015_phase8b_copilot.verify.sql "$d/"
 python3 scripts/prepare-mysql57.py "$d" "$d/out"
 ```
 
-Aplique só com autorização SQL específica e rode o `.verify.sql` depois (3
-tabelas novas e `ai_interaction` com a mesma contagem de antes). Depois, a DML
-dos programas do copiloto no seed `initial-application-programs.sql`.
+Confira a ordem DROP TRIGGER, CREATE TRIGGER dos 6 CHECKs de `ai_interaction`
+no arquivo preparado (cada `<nome>_bi`/`<nome>_bu` sai do drop antes do create):
+
+```bash
+grep -n "TRIGGER IF EXISTS .*ai_interaction\|CREATE TRIGGER .*ai_interaction" \
+  "$d/out/19-20261015_0015_phase8b_copilot.sql"
+```
+
+Aplique só com autorização SQL específica. Antes, anote
+`SELECT COUNT(*) FROM ai_interaction`; depois, rode o mesmo comando e exija o
+**mesmo número** (a migration só amplia CHECKs, não apaga linhas).
+
+Na conferência, **não** use o `.verify.sql` original: ele consulta
+`information_schema.check_constraints`, que o 5.7 não tem. Use o verify adaptado
+que o preparador grava em `$d/out/manifest.json` (chave `verification`, arquivo
+`20261015_0015_phase8b_copilot.verify.sql`), onde a consulta de CHECKs vira
+`information_schema.TRIGGERS` (`EVENT_OBJECT_TABLE`); as demais consultas
+(tabelas, colunas, FKs) são as mesmas. Depois, a DML dos programas do copiloto
+no seed `initial-application-programs.sql`.
 
 ### Cron da retenção do copiloto
 
