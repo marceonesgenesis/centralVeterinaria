@@ -371,6 +371,48 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(2, $out['messages'], 'question and answer stored');
     }
 
+    /** Pendências 8B T-14 (T-22): após o envio, o foco vai para a resposta nova (JS lê o marcador do shell). */
+    public function testAnsweredAskMarksTheLatestAnswerForFocus(): void
+    {
+        $out = $this->runPanel(
+            '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "Como está o paciente?", "submit_token" => str_repeat("e", 32)]); $page->show();'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::true(preg_match('/<section[^>]*class="cv-ai-copilot"[^>]*>/', $html, $shell) === 1, 'panel shell rendered');
+        Assert::stringContains('data-cv-copilot-focus="latest"', $shell[0], 'shell asks the JS to focus the new answer');
+
+        preg_match_all('/<div[^>]*cv-ai-copilot__message--assistant[^>]*>/', $html, $answers);
+        Assert::true($answers[0] !== [], 'assistant answer rendered');
+        $latest = (string) end($answers[0]);
+        Assert::stringContains('data-cv-copilot-latest="1"', $latest, 'latest answer is marked');
+        Assert::stringContains('tabindex="-1"', $latest, 'latest answer is programmatically focusable');
+        Assert::same(1, substr_count($html, 'data-cv-copilot-latest="1"'), 'only one element is marked as latest');
+
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/app/templates/adminbs5/js/cv-ai-copilot.js');
+        Assert::stringContains('data-cv-copilot-latest', $js, 'JS looks for the latest answer');
+        Assert::stringContains('data-cv-copilot-focus', $js, 'JS reads the focus marker of the shell');
+        Assert::stringContains('.focus(', $js, 'JS moves the focus');
+    }
+
+    /** T-22: abrir conversa existente sem envio não move o foco. */
+    public function testOpenExistingConversationDoesNotAskForFocus(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . '$page = new AiCopilotPanelT14(["method" => "onOpen"]);'
+            . '$page->onOpen(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => (string) $conversationId]); $page->show();'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains(self::STORED_ANSWER, $html, 'stored answer is shown');
+        Assert::false(str_contains($html, 'data-cv-copilot-focus'), 'onOpen without a submit does not ask for focus');
+    }
+
     public function testButtonsAreTouchTargetsAndNothingIsCenteredOrRightAligned(): void
     {
         $out = $this->runPanel(
