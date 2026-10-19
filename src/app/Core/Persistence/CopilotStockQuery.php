@@ -95,7 +95,9 @@ final class CopilotStockQuery implements CopilotStockQueryInterface
     }
 
     /**
-     * Adds the earliest-expiring batch with stock of the unit to each product row.
+     * Adds the earliest-expiring batch with stock of the unit to each product
+     * row, skipping batches already expired (CURDATE(): the MySQL session
+     * date, the same one the stock writes use); null when none is left.
      *
      * @param list<array<string, mixed>> $rows
      * @return list<array{product_id: int, name: string, balance: string, minimum: ?string, next_expiry: ?string, lot: ?string}>
@@ -117,7 +119,7 @@ final class CopilotStockQuery implements CopilotStockQueryInterface
             'SELECT /*+ MAX_EXECUTION_TIME(5000) */ b.product_id, b.lot, b.expiry_date
                FROM stock_batch b
               WHERE b.tenant_id = :tenant_id AND b.system_unit_id = :unit_id
-                AND b.quantity > 0 AND b.expiry_date IS NOT NULL
+                AND b.quantity > 0 AND b.expiry_date IS NOT NULL AND b.expiry_date >= CURDATE()
                 AND b.product_id IN (' . implode(', ', $placeholders) . ')
               ORDER BY b.expiry_date ASC, b.id ASC',
             $parameters,
