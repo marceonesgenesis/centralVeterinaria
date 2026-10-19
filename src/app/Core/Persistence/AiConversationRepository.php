@@ -7,6 +7,7 @@ namespace CentralVet\Persistence;
 use CentralVet\Domain\AiConversation;
 use CentralVet\Domain\AiConversationMessage;
 use CentralVet\Domain\Contract\AiConversationRepositoryInterface;
+use CentralVet\Tenancy\Exception\TenantBoundaryViolation;
 use CentralVet\Tenancy\TenantContext;
 use InvalidArgumentException;
 use PDO;
@@ -16,7 +17,8 @@ use PDO;
  * (migration 0015). Every query starts from TenantQuery::forTenant() with
  * the tenant of the context (ADR 0002); "owned" adds the active unit
  * (`requireUnitId()`) and the user of the context, so a conversation of
- * another tenant, unit or user behaves as missing. Messages carry the
+ * another tenant, unit or user behaves as missing; inserting a conversation
+ * of another tenant, unit or user throws TenantBoundaryViolation. Messages carry the
  * tenant of the context and are only appended to an owned conversation;
  * deleting a conversation cascades to its messages (FK), while the tool
  * call audit (`mcp_tool_call`, no FK) stays.
@@ -36,6 +38,13 @@ final class AiConversationRepository implements AiConversationRepositoryInterfac
         }
 
         $this->context->assertTenant($conversation->tenantId());
+
+        if (
+            $conversation->systemUnitId() !== $this->context->requireUnitId()
+            || $conversation->systemUserId() !== $this->context->userId()
+        ) {
+            throw new TenantBoundaryViolation('Resource does not belong to the authenticated user or unit');
+        }
 
         $row = $conversation->toRow();
         unset($row['id']);

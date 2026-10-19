@@ -6,6 +6,7 @@ namespace CentralVet\Persistence;
 
 use CentralVet\Domain\Contract\McpToolCallRepositoryInterface;
 use CentralVet\Domain\McpToolCall;
+use CentralVet\Tenancy\Exception\TenantBoundaryViolation;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -14,8 +15,10 @@ use PDO;
 /**
  * PDO-backed persistence of the copilot tool call audit (`mcp_tool_call`,
  * migration 0015). Every query starts from TenantQuery::forTenant() with the
- * tenant of the context (ADR 0002); inserting a row of another tenant throws
- * TenantBoundaryViolation. `created_at` is filled by the database. The
+ * tenant of the context (ADR 0002); inserting a row of another tenant, unit
+ * or user, or pointing at a conversation (no FK) that does not exist in the
+ * tenant, throws TenantBoundaryViolation. The owner of the conversation is
+ * not required: retention and deletion by the author leave the audit. `created_at` is filled by the database. The
  * search reads `mcp_tool_call_tenant_created_idx`, newest first.
  *
  * The minimized input is never put into exception messages.
@@ -33,6 +36,14 @@ final class McpToolCallRepository implements McpToolCallRepositoryInterface
         }
 
         $this->context->assertTenant($call->tenantId());
+
+        if (
+            $call->systemUnitId() !== $this->context->requireUnitId()
+            || $call->systemUserId() !== $this->context->userId()
+            || ($call->conversationId() !== null && !$this->conversationExists($call->conversationId()))
+        ) {
+            throw new TenantBoundaryViolation('Resource does not belong to the authenticated user or unit');
+        }
 
         $row = $call->toRow();
         unset($row['id']);
@@ -97,5 +108,15 @@ final class McpToolCallRepository implements McpToolCallRepositoryInterface
             static fn (array $row): McpToolCall => McpToolCall::reconstitute($row),
             $statement->fetchAll(PDO::FETCH_ASSOC),
         );
+    }
+
+    private function conversationExists(int $conversationId): bool
+    {
+        $query = TenantQuery::forTenant($this->context->tenantId())->andEquals('id', $conversationId);
+
+        $statement = $this->connection->prepare("SELECT 1 FROM ai_conversation WHERE {$query->whereSql()} LIMIT 1");
+        $statement->execute($query->parameters());
+
+        return $statement->fetchColumn() !== false;
     }
 }
