@@ -234,6 +234,123 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         Assert::stringContains('Pergunta digitada sem permissão', $html, 'typed question is kept on screen');
     }
 
+    /** Pendências 8B T-16: pergunta só com espaços não chega ao serviço; o formulário volta com o aviso traduzido. */
+    public function testBlankQuestionKeepsTheFormWithATranslatedWarning(): void
+    {
+        $out = $this->runPanel(
+            '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "   ", "submit_token" => str_repeat("h", 32)]); $page->show();'
+            . '$out["conversations"] = $count("SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = :t");'
+            . '$out["interactions"] = $count("SELECT COUNT(*) FROM ai_interaction WHERE tenant_id = :t");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains('Digite uma pergunta antes de enviar', $html, 'translated blank-question warning');
+        Assert::true(preg_match('/<textarea[^>]*name="question"/', $html) === 1, 'question textarea of the form is rendered');
+        Assert::stringContains('name="form_AiCopilotPanel"', $html, 'question form rendered');
+        Assert::false(str_contains($html, 'Copilot question must have'), 'no raw English service message');
+        Assert::same(0, $out['conversations'], 'service not called: nothing stored');
+        Assert::same(0, $out['interactions'], 'service not called: no ai_interaction');
+    }
+
+    /** Pendências 8B T-16: IA desligada no pré-check do onAsk → motivo e a pergunta digitada em textarea somente leitura. */
+    public function testAskWithAiTurnedOffShowsTheReasonAndKeepsTheQuestion(): void
+    {
+        $out = $this->runPanel(
+            '$pdo->prepare("UPDATE feature_flag SET enabled = 0 WHERE tenant_id = :t AND flag_key = \'ai_assistant\'")->execute(["t" => $tenantId]);'
+            . '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "Pergunta com a IA desligada", "submit_token" => str_repeat("i", 32)]); $page->show();'
+            . '$out["reason"] = _t("The AI assistant is turned off for this clinic.");'
+            . '$out["conversations"] = $count("SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = :t");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains((string) $out['reason'], $html, 'the 8A reason is shown');
+        Assert::true(preg_match('/<textarea[^>]*readonly[^>]*>Pergunta com a IA desligada<\/textarea>/', $html) === 1, 'typed question kept in a readonly textarea');
+        Assert::false(str_contains($html, 'name="question"'), 'no question form while unavailable');
+        Assert::same(0, $out['conversations'], 'nothing stored');
+    }
+
+    /** Pendências 8B T-16: AiUnavailableException ao montar o serviço → motivo e a pergunta digitada preservada. */
+    public function testAskWithServiceUnavailableAtBuildKeepsTheQuestion(): void
+    {
+        $out = $this->runPanel(
+            'T14::$buildReason = "ai_disabled";'
+            . '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => "",'
+            . ' "question" => "Pergunta na montagem indisponível", "submit_token" => str_repeat("j", 32)]); $page->show();'
+            . '$out["reason"] = _t("The AI assistant is turned off for this clinic.");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains((string) $out['reason'], $html, 'the 8A reason is shown');
+        Assert::true(preg_match('/<textarea[^>]*readonly[^>]*>Pergunta na montagem indisponível<\/textarea>/', $html) === 1, 'typed question kept in a readonly textarea');
+        Assert::false(str_contains($html, 'name="question"'), 'no question form while unavailable');
+    }
+
+    /** Pendências 8B T-16: apagar com âncora fora da unidade → "Paciente não encontrado" e a conversa fica. */
+    public function testDeleteWithAnchorOutsideTheUnitKeepsTheConversation(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . '$_SERVER["REQUEST_METHOD"] = "POST";'
+            . '$page = new AiCopilotPanelT14(["method" => "onDelete"]);'
+            . '$page->onDelete(["conversation_id" => (string) $conversationId, "family" => "clinical", "anchor_patient_id" => (string) $otherPatientId]); $page->show();'
+            . '$s = $pdo->prepare("SELECT COUNT(*) FROM ai_conversation WHERE id = :c"); $s->execute(["c" => $conversationId]);'
+            . '$out["after"] = (int) $s->fetchColumn();'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::same(1, $out['after'], 'conversation is kept');
+        Assert::stringContains('Paciente não encontrado', $html, 'patient not found message');
+        Assert::false(str_contains($html, 'Conversa apagada'), 'no deletion confirmation');
+    }
+
+    /** Pendências 8B T-16: RBAC negado em onOpen → "Permissão negada", sem a conversa. */
+    public function testOpenWithoutPermissionShowsPermissionDenied(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . 'T14::$historyAllow = false;'
+            . '$page = new AiCopilotPanelT14(["method" => "onOpen"]);'
+            . '$page->onOpen(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => (string) $conversationId]); $page->show();'
+            . '$s = $pdo->prepare("SELECT COUNT(*) FROM ai_conversation WHERE id = :c"); $s->execute(["c" => $conversationId]);'
+            . '$out["after"] = (int) $s->fetchColumn();'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains('Permissão negada', $html, 'denial is shown');
+        Assert::false(str_contains($html, self::STORED_ANSWER), 'conversation is not shown');
+        Assert::same(1, $out['after'], 'conversation is kept');
+    }
+
+    /** Pendências 8B T-16: RBAC negado em onDelete → "Permissão negada" e a conversa fica. */
+    public function testDeleteWithoutPermissionKeepsTheConversation(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . 'T14::$historyAllow = false;'
+            . '$_SERVER["REQUEST_METHOD"] = "POST";'
+            . '$page = new AiCopilotPanelT14(["method" => "onDelete"]);'
+            . '$page->onDelete(["conversation_id" => (string) $conversationId, "family" => "clinical", "anchor_patient_id" => (string) $patientId]); $page->show();'
+            . '$s = $pdo->prepare("SELECT COUNT(*) FROM ai_conversation WHERE id = :c"); $s->execute(["c" => $conversationId]);'
+            . '$out["after"] = (int) $s->fetchColumn();'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::same(1, $out['after'], 'conversation is kept');
+        Assert::stringContains('Permissão negada', $html, 'denial is shown');
+        Assert::false(str_contains($html, 'Conversa apagada'), 'no deletion confirmation');
+    }
+
     /** T-29: onAsk usa a conexão em autocommit de connection(), sem transação em volta do laço. */
     public function testAskRunsOnAnAutocommitConnection(): void
     {
@@ -320,7 +437,9 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . 'final class T14 {'
             . ' public static PDO $pdo; public static CentralVet\Tenancy\TenantContext $context;'
             . ' public static ?CentralVet\Ai\StubAiGateway $gateway = null; public static ?PDO $probe = null; public static array $seen = []; public static bool $allow = true;'
+            . ' public static bool $historyAllow = true; public static ?string $buildReason = null;'
             . ' public static function service(CentralVet\Tenancy\TenantContext $c, string $locale): CentralVet\Application\AiCopilotService {'
+            . '  if (self::$buildReason !== null) { throw new CentralVet\Domain\Exception\AiUnavailableException(self::$buildReason); }'
             . '  self::$gateway ??= CentralVet\Ai\StubAiGateway::scripted(['
             . '   new CentralVet\Domain\AiCompletionResult("", "fake", "claude-sonnet-5-5", new CentralVet\Domain\AiUsage(10, 5), 15, "tool_use", "req-1",'
             . '    [["id" => "tu_1", "name" => "obter_paciente", "input" => []]], [["type" => "tool_use", "id" => "tu_1", "name" => "obter_paciente", "input" => []]]),'
@@ -342,7 +461,7 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
             . ' protected static function resolveTenantContext(): CentralVet\Tenancy\TenantContext { return T14::$context; }'
             . ' protected static function makeService(CentralVet\Tenancy\TenantContext $context, string $locale, ?PDO $connection = null): CentralVet\Application\AiCopilotService { return T14::service($context, $locale); }'
             . ' protected static function makeHistory(CentralVet\Tenancy\TenantContext $context, PDO $connection): CentralVet\Application\AiConversationHistoryService {'
-            . '  return new CentralVet\Application\AiConversationHistoryService(new CentralVet\Persistence\AiConversationRepository($context, $connection), new CentralVet\Tests\Support\FakeAuthorizationPolicy(true), $context); }'
+            . '  return new CentralVet\Application\AiConversationHistoryService(new CentralVet\Persistence\AiConversationRepository($context, $connection), new CentralVet\Tests\Support\FakeAuthorizationPolicy(T14::$historyAllow), $context); }'
             . ' protected static function connection(): PDO { return T14::$pdo; }'
             . ' protected static function transaction(callable $fn): mixed { return $fn(T14::$pdo); }'
             . '}'
