@@ -111,6 +111,39 @@ final class AiDomainTest
         Assert::throws(InvalidArgumentException::class, fn () => self::withSuggestion()->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1));
     }
 
+    /** T-01 (pendências 8B): interação 8A aguardando o provedor nunca termina answered. */
+    public function testAssistantInteractionNeverRecordsAnAnswer(): void
+    {
+        $interaction = self::start(AiPurpose::PATIENT_SUMMARY);
+
+        self::assertThrowsMessage(
+            'Only copilot interactions record an answer',
+            fn () => $interaction->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1),
+        );
+        Assert::same(AiInteraction::STATUS_PENDING_REVIEW, $interaction->status());
+    }
+
+    /** T-01 (pendências 8B): copiloto nunca grava texto de sugestão. */
+    public function testCopilotInteractionNeverRecordsASuggestion(): void
+    {
+        $interaction = AiInteraction::start(1, 1, 1, AiPurpose::COPILOT_CLINICAL, 10, 'copilot_clinical.v1', str_repeat('b', 64), 'corr-3');
+
+        self::assertThrowsMessage(
+            'Copilot interactions never record a suggestion',
+            fn () => $interaction->recordSuggestion(self::result('Texto do modelo'), 10),
+        );
+        Assert::null($interaction->suggestionText());
+    }
+
+    /** T-01 (pendências 8B): decisão desconhecida é rejeitada antes do guarda de answered. */
+    public function testUnknownDecisionOnAnsweredInteractionIsRejectedAsUnknown(): void
+    {
+        $interaction = AiInteraction::start(1, 1, 1, AiPurpose::COPILOT_CLINICAL, 10, 'copilot_clinical.v1', str_repeat('b', 64), 'corr-4');
+        $interaction->recordAnswer(new AiUsage(1, 1), 1, 'stub', 'stub', 'end_turn', null, 1);
+
+        self::assertThrowsMessage('Unknown AI decision', fn () => $interaction->decide('bogus', null, 9, new DateTimeImmutable()));
+    }
+
     public function testStartAssignsSubjectTypeAndPendingState(): void
     {
         $interaction = self::start(AiPurpose::EXAM_SUMMARY);
@@ -325,6 +358,19 @@ final class AiDomainTest
         Assert::true($exception instanceof DomainException);
         Assert::same('AI subject not found', $exception->getMessage());
         Assert::same(['key' => 'AI subject not found', 'params' => []], UserMessage::resolve($exception->getMessage()));
+    }
+
+    private static function assertThrowsMessage(string $message, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (InvalidArgumentException $e) {
+            Assert::same($message, $e->getMessage());
+
+            return;
+        }
+
+        throw new \CentralVet\Tests\Support\AssertionFailedException("Expected InvalidArgumentException: {$message}");
     }
 
     private static function start(string $purpose): AiInteraction
