@@ -124,6 +124,23 @@ final class CopilotFinanceQueryIntegrationTest extends MysqlIntegrationTestCase
         Assert::same($reader->totalsByType($this->unitA, '2031-10-01 00:00:00', '2031-11-01 00:00:00')['income'], $indicators['revenue_cents']);
     }
 
+    /**
+     * Pendências 8B, T-10: "new" is per unit — a patient seen before only in
+     * unit B, whose first encounter in unit A falls in the period, is new in A.
+     */
+    public function testPatientSeenBeforeOnlyInUnitBIsNewInUnitA(): void
+    {
+        $tutor = $this->insertTutor($this->tenantA, 'F8B teste Tutor Migrado');
+        $patient = $this->insertPatient($this->tenantA, $tutor, 'F8B teste Rex Migrado');
+        $this->insertEncounter($this->tenantA, $this->unitB, $patient, '2031-11-15 09:00:00');
+        $this->insertEncounter($this->tenantA, $this->unitA, $patient, '2031-12-05 09:00:00');
+
+        Assert::same(
+            ['encounters' => 1, 'revenue_cents' => 0, 'new_patients' => 1, 'returning_encounters' => 0],
+            $this->query($this->tenantA)->indicators(new DateTimeImmutable('2031-12-01 00:00:00'), new DateTimeImmutable('2032-01-01 00:00:00')),
+        );
+    }
+
     public function testIndicatorsOfAnEmptyPeriodAreZero(): void
     {
         Assert::same(

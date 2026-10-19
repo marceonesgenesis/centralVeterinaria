@@ -12,6 +12,7 @@ use CentralVet\Ai\Tools\ToolResult;
 use CentralVet\Domain\Contract\CopilotFinanceQueryInterface;
 use Closure;
 use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Open receivables of the active unit, overdue or still to fall due (due
@@ -88,7 +89,8 @@ final class ListarDebitosTool implements AiTool
     public function execute(ToolContext $context, array $input): ToolResult
     {
         $limit = max(1, min(self::MAX_LIMIT, (int) ($input['limite'] ?? self::DEFAULT_LIMIT)));
-        $today = ($this->clock)()->setTime(0, 0);
+        // Calendar day in the application timezone, whatever the clock's zone.
+        $today = ($this->clock)()->setTimezone(new DateTimeZone(date_default_timezone_get()))->setTime(0, 0);
 
         $rows = $this->query->openReceivables((string) $input['situacao'], $today, $limit + 1);
         $truncated = count($rows) > $limit;
