@@ -91,8 +91,11 @@ final class ObterHistoricoAtendimentosTool implements AiTool
         $patientId = $this->patientId($context, $input);
         $limit = max(1, min(self::MAX_LIMIT, (int) ($input['limite'] ?? self::DEFAULT_LIMIT)));
 
+        $rows = $this->query->encounters($patientId, $limit + 1);
+        $truncated = count($rows) > $limit;
+
         $data = [];
-        foreach (array_slice($this->query->encounters($patientId, $limit), 0, $limit) as $row) {
+        foreach (array_slice($rows, 0, $limit) as $row) {
             $data[] = [
                 'encounter_id' => (int) $row['id'],
                 'data' => (string) $row['started_at'],
@@ -104,7 +107,7 @@ final class ObterHistoricoAtendimentosTool implements AiTool
 
         return new ToolResult(
             $data,
-            false,
+            $truncated,
             ['motivo', 'diagnostico', 'conduta'],
             array_values(array_unique($this->query->tutorNames($patientId))),
             ['motivo' => self::MOTIVE_LENGTH],

@@ -89,7 +89,9 @@ final class BuscarPacienteTool implements AiTool
         $limit = max(1, min(self::MAX_LIMIT, (int) ($input['limite'] ?? self::DEFAULT_LIMIT)));
         $today = ($this->clock)();
 
-        $rows = array_slice($this->query->searchPatients(trim((string) $input['termo']), $limit), 0, $limit);
+        $rows = $this->query->searchPatients(trim((string) $input['termo']), $limit + 1);
+        $truncated = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
 
         $data = [];
         $knownNames = [];
@@ -108,6 +110,6 @@ final class BuscarPacienteTool implements AiTool
             ];
         }
 
-        return new ToolResult($data, false, [], array_values(array_unique($knownNames)));
+        return new ToolResult($data, $truncated, [], array_values(array_unique($knownNames)));
     }
 }
