@@ -70,12 +70,20 @@ final class AiCopilotAvailability
                     return false;
                 }
 
-                // Same rule as AnthropicMessagesGateway::isConfigured (the stub is always configured).
-                return $config->provider() === 'stub'
-                    || ($config->provider() === 'anthropic' && $config->apiKey() !== null);
+                return self::providerConfigured($config);
             },
             $context,
         );
+    }
+
+    /**
+     * Same rule as AnthropicMessagesGateway::isConfigured: the stub is always
+     * configured; anthropic only with an API key.
+     */
+    public static function providerConfigured(AiConfig $config): bool
+    {
+        return $config->provider() === 'stub'
+            || ($config->provider() === 'anthropic' && $config->apiKey() !== null);
     }
 
     /**
