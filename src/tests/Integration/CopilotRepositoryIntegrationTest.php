@@ -92,6 +92,66 @@ final class CopilotRepositoryIntegrationTest extends MysqlIntegrationTestCase
         ));
     }
 
+    public function testInsertOfAnotherUserOrUnitIsRejectedAndWritesNothing(): void
+    {
+        $repository = $this->conversations($this->tenantA, $this->userU, $this->unitA);
+        $calls = $this->toolCalls($this->tenantA, $this->userU, $this->unitA);
+
+        foreach ([
+            'other user' => [$this->unitA, $this->userV],
+            'other unit' => [$this->unitB, $this->userU],
+        ] as $case => [$unitId, $userId]) {
+            Assert::throws(TenantBoundaryViolation::class, fn () => $repository->insert(
+                $this->conversation($this->tenantA, $unitId, $userId, 'F8B teste insert alheio'),
+            ), "conversation of {$case}");
+            Assert::throws(TenantBoundaryViolation::class, fn () => $calls->insert(
+                $this->call($this->tenantA, $unitId, $userId, null, 'obter_paciente', McpToolCall::DECISION_ALLOWED, null),
+            ), "tool call of {$case}");
+        }
+
+        Assert::same('0', $this->scalar('SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = ? AND title = ?', [$this->tenantA, 'F8B teste insert alheio']));
+        Assert::same('0', $this->scalar('SELECT COUNT(*) FROM mcp_tool_call WHERE tenant_id = ? AND tool_name = ?', [$this->tenantA, 'obter_paciente']));
+    }
+
+    public function testToolCallConversationMustBelongToTheTenant(): void
+    {
+        $foreignConversation = (int) $this->conversations($this->tenantB, $this->userU, $this->unitA)
+            ->insert($this->conversation($this->tenantB, $this->unitA, $this->userU, 'F8B teste outro tenant'))->id();
+        $missingConversation = (int) $this->pdo->query('SELECT COALESCE(MAX(id), 0) + 1000 FROM ai_conversation')->fetchColumn();
+        $calls = $this->toolCalls($this->tenantA, $this->userU, $this->unitA);
+
+        foreach (['other tenant' => $foreignConversation, 'missing' => $missingConversation] as $case => $conversationId) {
+            Assert::throws(TenantBoundaryViolation::class, fn () => $calls->insert(
+                $this->call($this->tenantA, $this->unitA, $this->userU, $conversationId, 'buscar_paciente', McpToolCall::DECISION_ALLOWED, null),
+            ), $case);
+            Assert::same('0', $this->scalar('SELECT COUNT(*) FROM mcp_tool_call WHERE conversation_id = ?', [$conversationId]), $case);
+        }
+
+        $ofAnotherUser = (int) $this->conversations($this->tenantA, $this->userV, $this->unitA)
+            ->insert($this->conversation($this->tenantA, $this->unitA, $this->userV, 'F8B teste de V'))->id();
+        $stored = $calls->insert($this->call($this->tenantA, $this->unitA, $this->userU, $ofAnotherUser, 'buscar_paciente', McpToolCall::DECISION_ALLOWED, null));
+        Assert::true((int) $stored->id() > 0, 'owner of the conversation is not required');
+    }
+
+    public function testLastMessagesOfAnotherTenantIsEmpty(): void
+    {
+        $repository = $this->conversations($this->tenantA, $this->userU, $this->unitA);
+        $id = (int) $repository->insert($this->conversation($this->tenantA, $this->unitA, $this->userU, 'F8B teste tenant'))->id();
+        $repository->appendMessage(AiConversationMessage::user($id, 'F8B pergunta', new DateTimeImmutable('2026-10-15 10:00:00')));
+
+        Assert::count(1, $repository->lastMessages($id, 20));
+        Assert::same([], $this->conversations($this->tenantB, $this->userU, $this->unitA)->lastMessages($id, 20), 'other tenant');
+    }
+
+    public function testDeleteOwnedOfAnotherUnitKeepsTheConversation(): void
+    {
+        $repository = $this->conversations($this->tenantA, $this->userU, $this->unitA);
+        $id = (int) $repository->insert($this->conversation($this->tenantA, $this->unitA, $this->userU, 'F8B teste unidade'))->id();
+
+        Assert::false($this->conversations($this->tenantA, $this->userU, $this->unitB)->deleteOwned($id), 'other unit cannot delete');
+        Assert::same('1', $this->scalar('SELECT COUNT(*) FROM ai_conversation WHERE id = ?', [$id]));
+    }
+
     public function testDeleteOwnedCascadesMessagesAndKeepsToolCalls(): void
     {
         $repository = $this->conversations($this->tenantA, $this->userU, $this->unitA);
@@ -214,7 +274,8 @@ final class CopilotRepositoryIntegrationTest extends MysqlIntegrationTestCase
 
         $allowed = $a->insert($this->call($this->tenantA, $this->unitA, $this->userU, null, 'buscar_paciente', McpToolCall::DECISION_ALLOWED, null));
         $denied = $a->insert($this->call($this->tenantA, $this->unitA, $this->userU, null, 'buscar_paciente', McpToolCall::DECISION_DENIED, 'forbidden'));
-        $a->insert($this->call($this->tenantA, $this->unitA, $this->userV, null, 'obter_paciente', McpToolCall::DECISION_DENIED, 'not_found'));
+        $this->toolCalls($this->tenantA, $this->userV, $this->unitA)
+            ->insert($this->call($this->tenantA, $this->unitA, $this->userV, null, 'obter_paciente', McpToolCall::DECISION_DENIED, 'not_found'));
         $b->insert($this->call($this->tenantB, $this->unitA, $this->userU, null, 'buscar_paciente', McpToolCall::DECISION_DENIED, 'forbidden'));
         Assert::true((int) $allowed->id() > 0);
 
