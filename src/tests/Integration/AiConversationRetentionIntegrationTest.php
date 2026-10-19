@@ -8,17 +8,26 @@ use CentralVet\Application\AiConversationRetention;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\MysqlIntegrationTestCase;
 use DateTimeImmutable;
+use InvalidArgumentException;
 
 /**
  * 90-day retention of the copilot conversations (Fase 8B, T-12) against the
  * real schema of migration 0015: with a fixed clock, a conversation idle for
  * 91 days is deleted (its messages fall by cascade) and one idle for 89 days
  * stays; the audit (`mcp_tool_call`, `ai_interaction`) is never touched.
+ * Injected batch size and cap drive the loop; `updated_at`, not
+ * `created_at`, decides; the bin skips when another run holds the lock.
  * Everything lives inside the test transaction, rolled back in tearDown().
  */
 final class AiConversationRetentionIntegrationTest extends MysqlIntegrationTestCase
 {
     private const NOW = '2031-06-15 12:00:00.000000';
+
+    /**
+     * Clock of the batch tests: old enough that no row outside this test is
+     * past the cutoff, so the exact `{deleted, batches}` is only ours.
+     */
+    private const PAST_NOW = '2001-06-15 12:00:00.000000';
 
     private int $userId;
     private int $unitId;
@@ -75,6 +84,86 @@ final class AiConversationRetentionIntegrationTest extends MysqlIntegrationTestC
         Assert::same(1, $this->count("SELECT COUNT(*) FROM ai_interaction WHERE subject_type = 'ai_conversation' AND subject_id = " . $old));
     }
 
+    public function testInjectedBatchSizeAndCapStopAtTheCapAndKeepTheAudit(): void
+    {
+        $now = new DateTimeImmutable(self::PAST_NOW);
+        $this->assertNothingElseIsPastTheCutoff($now);
+        $ids = [];
+        for ($i = 0; $i < 5; $i++) {
+            $ids[] = $this->conversation($now->modify('-120 days'));
+        }
+        $this->toolCall($ids[0]);
+        $this->interaction($ids[0]);
+        $toolCallsBefore = $this->count('SELECT COUNT(*) FROM mcp_tool_call');
+        $interactionsBefore = $this->count('SELECT COUNT(*) FROM ai_interaction');
+
+        $result = AiConversationRetention::forConnection($this->pdo, static fn (): DateTimeImmutable => $now, 2, 2)->runOnce();
+
+        Assert::same(['deleted' => 4, 'batches' => 2], $result);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM ai_conversation WHERE id IN (' . implode(',', $ids) . ')'));
+        Assert::same($toolCallsBefore, $this->count('SELECT COUNT(*) FROM mcp_tool_call'));
+        Assert::same($interactionsBefore, $this->count('SELECT COUNT(*) FROM ai_interaction'));
+    }
+
+    public function testShortBatchStopsTheLoop(): void
+    {
+        $now = new DateTimeImmutable(self::PAST_NOW);
+        $this->assertNothingElseIsPastTheCutoff($now);
+        for ($i = 0; $i < 3; $i++) {
+            $this->conversation($now->modify('-120 days'));
+        }
+
+        $result = AiConversationRetention::forConnection($this->pdo, static fn (): DateTimeImmutable => $now, 2, 10)->runOnce();
+
+        Assert::same(['deleted' => 3, 'batches' => 2], $result);
+        Assert::same(0, $this->count('SELECT COUNT(*) FROM ai_conversation WHERE tenant_id = ' . $this->tenantId));
+    }
+
+    public function testUpdatedAtDecidesNotCreatedAt(): void
+    {
+        $now = new DateTimeImmutable(self::PAST_NOW);
+        $this->assertNothingElseIsPastTheCutoff($now);
+        $active = $this->conversation($now->modify('-10 days'), $now->modify('-120 days'));
+
+        $result = AiConversationRetention::forConnection($this->pdo, static fn (): DateTimeImmutable => $now, 2, 2)->runOnce();
+
+        Assert::same(['deleted' => 0, 'batches' => 0], $result);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM ai_conversation WHERE id = ' . $active));
+    }
+
+    public function testBatchSizeAndCapMustBePositive(): void
+    {
+        $clock = static fn (): DateTimeImmutable => new DateTimeImmutable(self::PAST_NOW);
+
+        Assert::throws(InvalidArgumentException::class, fn () => AiConversationRetention::forConnection($this->pdo, $clock, 0, 1), 'batch size');
+        Assert::throws(InvalidArgumentException::class, fn () => AiConversationRetention::forConnection($this->pdo, $clock, 1, 0), 'cap');
+    }
+
+    public function testBinSkipsWhenAnotherRunHoldsTheLock(): void
+    {
+        $bin = dirname(__DIR__, 2) . '/bin/ai-conversation-retention.php';
+        $lockFile = sys_get_temp_dir() . '/centralvet-ai-conversation-retention-' . md5(dirname($bin)) . '.lock';
+        $handle = fopen($lockFile, 'c');
+        Assert::true($handle !== false && flock($handle, LOCK_EX | LOCK_NB), 'test takes the lock');
+
+        try {
+            // Unreachable database: without the lock the bin fails (exit 1)
+            // instead of deleting anything outside the test transaction.
+            exec(
+                'env DB_HOST=127.0.0.1 DB_PORT=1 DB_DATABASE=f8b_unreachable '
+                . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($bin) . ' 2>/dev/null',
+                $output,
+                $exitCode,
+            );
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+
+        Assert::same(0, $exitCode);
+        Assert::same(['{"skipped":"locked"}'], $output);
+    }
+
     public function testConstantsMatchTheContract(): void
     {
         Assert::same(90, AiConversationRetention::RETENTION_DAYS);
@@ -82,7 +171,7 @@ final class AiConversationRetentionIntegrationTest extends MysqlIntegrationTestC
         Assert::same(200, AiConversationRetention::MAX_BATCHES);
     }
 
-    private function conversation(DateTimeImmutable $updatedAt): int
+    private function conversation(DateTimeImmutable $updatedAt, ?DateTimeImmutable $createdAt = null): int
     {
         $stamp = $updatedAt->format('Y-m-d H:i:s.u');
         $this->pdo->prepare(
@@ -92,7 +181,7 @@ final class AiConversationRetentionIntegrationTest extends MysqlIntegrationTestC
             'tenant' => $this->tenantId,
             'unit' => $this->unitId,
             'user' => $this->userId,
-            'created' => $stamp,
+            'created' => $createdAt?->format('Y-m-d H:i:s.u') ?? $stamp,
             'updated' => $stamp,
         ]);
 
@@ -138,6 +227,12 @@ final class AiConversationRetentionIntegrationTest extends MysqlIntegrationTestC
             'conversation' => $conversationId,
             'sha' => str_repeat('b', 64),
         ]);
+    }
+
+    private function assertNothingElseIsPastTheCutoff(DateTimeImmutable $now): void
+    {
+        $cutoff = $now->modify('-' . AiConversationRetention::RETENTION_DAYS . ' days')->format('Y-m-d H:i:s');
+        Assert::same(0, $this->count("SELECT COUNT(*) FROM ai_conversation WHERE updated_at < '{$cutoff}'"), 'no foreign row past the cutoff');
     }
 
     private function count(string $sql): int
