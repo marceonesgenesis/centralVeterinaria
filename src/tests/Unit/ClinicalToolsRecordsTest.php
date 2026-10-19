@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Unit;
 
+use CentralVet\Ai\PiiMinimizer;
 use CentralVet\Ai\Tools\AiTool;
 use CentralVet\Ai\Tools\Clinical\ConsultarVacinacaoTool;
 use CentralVet\Ai\Tools\Clinical\ObterExamesTool;
@@ -202,6 +203,18 @@ final class ClinicalToolsRecordsTest
         foreach (['via', 'posologia', 'duracao'] as $field) {
             Assert::true(in_array($field, $result->freeTextFields, true), $field . ' must be a free-text field');
         }
+    }
+
+    public function testPrescriptionPosologyMasksTutorName(): void
+    {
+        $query = $this->query();
+        $posologia = 'Maria Souza aplica a cada 12 h';
+        $query->seed('prescriptions', [['frequency' => $posologia] + $this->prescription('issued')]);
+
+        $result = $this->run(new ObterPrescricoesTool($query, $this->clock()), []);
+
+        Assert::true(in_array('Maria Souza', $result->knownNames, true), 'tutor name must be a known name');
+        Assert::true(!str_contains(PiiMinimizer::minimize($posologia, $result->knownNames), 'Maria'), 'tutor name must be masked');
     }
 
     public function testPrescriptionsAllPassesOnlyActiveFalse(): void
