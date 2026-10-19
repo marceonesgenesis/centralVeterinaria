@@ -115,6 +115,31 @@ final class FinanceToolsTest
         Assert::same(['a_vencer', 3], [$this->lastCall($query)['args'][0], $this->lastCall($query)['args'][2]]);
     }
 
+    /**
+     * Pendências 8B, T-10: "today" is the calendar day in the application
+     * timezone, whatever the timezone of the injected clock.
+     */
+    public function testListarDebitosUsesTheDayInTheApplicationTimezone(): void
+    {
+        $previous = date_default_timezone_get();
+        date_default_timezone_set('America/Fortaleza');
+
+        try {
+            $query = new FakeCopilotFinanceQuery();
+            $query->seed('openReceivables', [
+                ['receivable_id' => 1, 'tutor_full_name' => 'Ana Lima', 'open_cents' => 500, 'due_date' => '2031-03-01'],
+            ]);
+            $clock = static fn (): DateTimeImmutable => new DateTimeImmutable('2031-03-11 01:30:00', new \DateTimeZone('UTC'));
+
+            $result = $this->run(new ListarDebitosTool($query, $clock), ['situacao' => 'vencidos']);
+
+            Assert::same('2031-03-10', substr((string) $this->lastCall($query)['args'][1], 0, 10), '01:30 UTC is still the 10th in Fortaleza');
+            Assert::same(9, $result->data[0]['dias_em_atraso']);
+        } finally {
+            date_default_timezone_set($previous);
+        }
+    }
+
     public function testIndicadoresMetadata(): void
     {
         $tool = new IndicadoresClinicaTool(new FakeCopilotFinanceQuery(), $this->clock());
