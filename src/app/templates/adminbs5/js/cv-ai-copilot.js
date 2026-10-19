@@ -8,6 +8,12 @@
  * enquanto ocupado devolve false (o POST não sai). A resposta substitui a
  * cortina; se nada chegar em 60 s (orçamento do serviço: 45 s), o botão
  * volta a ficar ativo.
+ *
+ * Foco (T-22): a resposta substitui a cortina e o botão focado some. O
+ * painel marca o shell com data-cv-copilot-focus="latest" quando a cortina
+ * veio de um envio; ao carregar, este script foca a última resposta
+ * ([data-cv-copilot-latest="1"], tabindex="-1") ou, sem resposta, o campo
+ * question, e remove o atributo (o foco não volta a ser movido).
  */
 (function () {
     'use strict';
@@ -27,6 +33,22 @@
         var status = statusRegion();
         if (status) {
             status.textContent = '';
+        }
+    }
+
+    function focusLatest() {
+        var shells = document.querySelectorAll('[data-cv-copilot-focus="latest"]');
+
+        for (var i = 0; i < shells.length; i++) {
+            var shell = shells[i];
+            shell.removeAttribute('data-cv-copilot-focus');
+
+            var target = shell.querySelector('[data-cv-copilot-latest="1"]')
+                || shell.querySelector('textarea[name="question"]');
+
+            if (target && typeof target.focus === 'function') {
+                target.focus();
+            }
         }
     }
 
@@ -69,6 +91,11 @@
             }, RELEASE_MS);
 
             return true;
-        }
+        },
+        focusLatest: focusLatest
     };
+
+    // o script vem no fim da cortina: o shell já está no DOM; o setTimeout
+    // espera o Adianti terminar de inserir o HTML do painel
+    window.setTimeout(focusLatest, 0);
 })();
