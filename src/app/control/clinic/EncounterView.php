@@ -496,7 +496,8 @@ class EncounterView extends TPage
 
         if (!empty($data['copilot']))
         {
-            $actions->add(self::copilotLink($encounter->patientId()));
+            // link, não headerButton(): esse posta o formulário do atendimento
+            $actions->add(AiCopilotPanel::hostLink(\CentralVet\Ai\Tools\ToolFamily::CLINICAL, $encounter->patientId()));
         }
 
         $print = new TButton('print_encounter');
@@ -1707,27 +1708,6 @@ class EncounterView extends TPage
 
             return false;
         }
-    }
-
-    /**
-     * "Copiloto" link opening the AiCopilotPanel curtain anchored on the
-     * encounter's patient. A link, not headerButton(): that one posts the
-     * encounter form.
-     */
-    private static function copilotLink(int $patientId): TElement
-    {
-        $family = \CentralVet\Ai\Tools\ToolFamily::CLINICAL;
-
-        $link = TElement::tag('a', '', [
-            'class' => 'btn btn-default cv-touch-target',
-            'href' => CvFormat::e(AiCopilotPanel::linkFor($family, $patientId)),
-            'generator' => 'adianti',
-            'data-cv-copilot' => $family,
-        ]);
-        $link->add(new TImage('fa:comments'));
-        $link->add(TElement::tag('span', CvFormat::e(_t('Copilot'))));
-
-        return $link;
     }
 
     /** Prompt locale of the session language: `en` or `pt`. */

@@ -64,6 +64,25 @@ class AiCopilotPanel extends TPage
     }
 
     /**
+     * Botão "Copiloto" das telas hospedeiras (PatientForm, EncounterView):
+     * um link, não um TButton, para nunca postar o formulário da tela. Quem
+     * chama confere a disponibilidade antes.
+     */
+    public static function hostLink(string $family, ?int $anchorPatientId): TElement
+    {
+        $link = TElement::tag('a', '', [
+            'class' => 'btn btn-default cv-touch-target',
+            'href' => CvFormat::e(self::linkFor($family, $anchorPatientId)),
+            'generator' => 'adianti',
+            'data-cv-copilot' => $family,
+        ]);
+        $link->add(new TImage('fa:comments'));
+        $link->add(TElement::tag('span', CvFormat::e(_t('Copilot'))));
+
+        return $link;
+    }
+
+    /**
      * Abre a cortina: params `family`, `anchor_patient_id`, `conversation_id`.
      * Ler não depende da IA: a conversa vem do histórico e só o formulário
      * de pergunta depende da disponibilidade.

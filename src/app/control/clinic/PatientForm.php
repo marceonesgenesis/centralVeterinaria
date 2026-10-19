@@ -719,11 +719,6 @@ class PatientForm extends TStandardForm
     }
 
     /**
-     * Resolves the tenant context of the authenticated session, mirroring
-     * the helper used by SystemUnitForm/SystemUnitList (T-03). Duplicated
-     * here (rather than shared) to avoid touching files outside T-10 scope.
-     */
-    /**
      * "Copiloto" link (Fase 8B): opens the AiCopilotPanel curtain anchored on
      * the patient. A link, not a TButton, so the patient form is never
      * posted. Only when AiCopilotAvailability::reason('clinical') is null
@@ -755,18 +750,14 @@ class PatientForm extends TStandardForm
             return null;
         }
 
-        $link = TElement::tag('a', '', [
-            'class' => 'btn btn-default cv-touch-target',
-            'href' => CvFormat::e(AiCopilotPanel::linkFor($family, $patientId)),
-            'generator' => 'adianti',
-            'data-cv-copilot' => $family,
-        ]);
-        $link->add(new TImage('fa:comments'));
-        $link->add(TElement::tag('span', CvFormat::e(_t('Copilot'))));
-
-        return $link;
+        return AiCopilotPanel::hostLink($family, $patientId);
     }
 
+    /**
+     * Resolves the tenant context of the authenticated session, mirroring
+     * the helper used by SystemUnitForm/SystemUnitList (T-03). Duplicated
+     * here (rather than shared) to avoid touching files outside T-10 scope.
+     */
     private static function resolveTenantContext()
     {
         $source = new \CentralVet\Tenancy\AdiantiSessionContextSource();
