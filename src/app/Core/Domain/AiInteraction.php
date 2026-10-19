@@ -176,6 +176,10 @@ final class AiInteraction
 
     public function recordSuggestion(AiCompletionResult $result, int $latencyMs): void
     {
+        if (AiPurpose::isCopilot($this->purpose())) {
+            throw new InvalidArgumentException('Copilot interactions never record a suggestion');
+        }
+
         $this->assertAwaitingProvider();
 
         $text = trim($result->text);
@@ -208,6 +212,10 @@ final class AiInteraction
         ?string $providerRequestId,
         int $latencyMs,
     ): void {
+        if (!AiPurpose::isCopilot($this->purpose())) {
+            throw new InvalidArgumentException('Only copilot interactions record an answer');
+        }
+
         $this->assertAwaitingProvider();
 
         $this->status = self::STATUS_ANSWERED;
