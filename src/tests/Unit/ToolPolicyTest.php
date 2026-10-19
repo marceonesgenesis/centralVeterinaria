@@ -169,6 +169,24 @@ final class ToolPolicyTest
         Assert::same(self::UNIT, $request->context()->unitId());
     }
 
+    public function testToolContextOfAnotherUserIsForbiddenWithoutRunningTheTool(): void
+    {
+        $tool = $this->tool();
+        $foreign = ToolContext::create(TenantContext::authenticated(self::TENANT, 99, self::UNIT), 'corr-t20', 42, 'copilot_clinical', null);
+
+        $outcome = $this->policy($tool)->execute($foreign, ToolFamily::CLINICAL, self::TOOL, ['id' => 5], [self::TOOL]);
+
+        Assert::true($outcome->isError, 'context mismatch must be denied');
+        Assert::same('denied', $outcome->decision);
+        Assert::same('forbidden', $outcome->denyReason);
+        Assert::same(['error' => 'sem permissão'], json_decode($outcome->content, true));
+        Assert::same(0, $tool->executions());
+        $rows = $this->calls->all();
+        Assert::count(1, $rows);
+        Assert::same(McpToolCall::DECISION_DENIED, $rows[0]->decision());
+        Assert::same('forbidden', $rows[0]->denyReason());
+    }
+
     public function testNotFoundWhenOutOfScope(): void
     {
         $tool = $this->tool(inScope: false);
