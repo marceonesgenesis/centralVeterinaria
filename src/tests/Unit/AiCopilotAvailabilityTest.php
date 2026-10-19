@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Tests\Unit;
 
+use CentralVet\Ai\AiConfig;
 use CentralVet\Application\AiCopilotAvailability;
 use CentralVet\Domain\AiTenantSetting;
 use CentralVet\Domain\AiTerms;
@@ -88,6 +89,13 @@ final class AiCopilotAvailabilityTest
         $availability = $this->availability([FeatureFlagRepositoryInterface::AI_ASSISTANT], self::setting(AiTerms::VERSION), new FakeAiInteractionRepository(self::TENANT_ID), true);
 
         Assert::throws(\InvalidArgumentException::class, static fn () => $availability->reason('other'));
+    }
+
+    public function testProviderConfiguredFollowsProviderAndApiKey(): void
+    {
+        Assert::true(AiCopilotAvailability::providerConfigured(AiConfig::fromArray(['AI_PROVIDER' => 'stub'])));
+        Assert::false(AiCopilotAvailability::providerConfigured(AiConfig::fromArray([])));
+        Assert::true(AiCopilotAvailability::providerConfigured(AiConfig::fromArray(['ANTHROPIC_API_KEY' => 'sk-ant-test-f8b'])));
     }
 
     /** @param list<string> $flags */
