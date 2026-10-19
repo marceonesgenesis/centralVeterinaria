@@ -197,6 +197,29 @@ final class AgendaToolsTest
         }
     }
 
+    /**
+     * Pendências 8B, T-08: an inactive member that still has appointments
+     * can be asked about in consultar_agenda; verificar_horarios keeps
+     * requiring an active professional (no free slots for an inactive one).
+     */
+    public function testConsultarAgendaAcceptsInactiveProfessionalButVerificarHorariosDoesNot(): void
+    {
+        $query = $this->query();
+        $query->seed('inactive_professionals', [['id' => 8, 'name' => 'Carla Inativa']]);
+        $input = ['data' => '2026-10-20', 'duracao_min' => 30, 'profissional_id' => 8];
+
+        (new ConsultarAgendaTool($query, $this->clock()))->assertInScope($this->context(), $input);
+
+        Assert::throws(
+            ToolEntityNotFoundException::class,
+            fn () => (new VerificarHorariosTool($query, $this->clock()))->assertInScope($this->context(), $input),
+        );
+        Assert::throws(
+            ToolEntityNotFoundException::class,
+            fn () => (new ConsultarAgendaTool($query, $this->clock()))->assertInScope($this->context(), ['profissional_id' => 99]),
+        );
+    }
+
     public function testConsultarAgendaOutputsFirstNamesOnlyAndTruncatesAtFifty(): void
     {
         $row = [

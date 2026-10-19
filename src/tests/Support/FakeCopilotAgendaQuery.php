@@ -16,12 +16,13 @@ use InvalidArgumentException;
  * back to the seeded professionals when it was not seeded or seeded empty
  * (same fallback as the real query). appointments() is cut to $limit; busy() keeps only the
  * rows of $professionalId when one is given; professionalExists() answers
- * from the seeded professionals. Nothing is filtered by date or unit here:
+ * from the seeded professionals and, with $includeInactive, also from the
+ * rows seeded as 'inactive_professionals' (members with active = 'N'). Nothing is filtered by date or unit here:
  * the caller decides what to seed. calls() records every call, in order.
  */
 final class FakeCopilotAgendaQuery implements CopilotAgendaQueryInterface
 {
-    private const METHODS = ['appointments', 'busy', 'professionals', 'schedulableProfessionals'];
+    private const METHODS = ['appointments', 'busy', 'professionals', 'schedulableProfessionals', 'inactive_professionals'];
 
     /** @var array<string, list<array<string, mixed>>> */
     private array $seeded = [];
@@ -78,11 +79,16 @@ final class FakeCopilotAgendaQuery implements CopilotAgendaQueryInterface
         return $rows !== [] ? $rows : ($this->seeded['professionals'] ?? []);
     }
 
-    public function professionalExists(int $id): bool
+    public function professionalExists(int $id, bool $includeInactive = false): bool
     {
-        $this->record(__FUNCTION__, [$id]);
+        $this->record(__FUNCTION__, [$id, $includeInactive]);
 
-        foreach ($this->seeded['professionals'] ?? [] as $row) {
+        $rows = $this->seeded['professionals'] ?? [];
+        if ($includeInactive) {
+            $rows = [...$rows, ...($this->seeded['inactive_professionals'] ?? [])];
+        }
+
+        foreach ($rows as $row) {
             if ((int) $row['id'] === $id) {
                 return true;
             }
