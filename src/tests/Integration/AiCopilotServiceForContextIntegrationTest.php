@@ -94,6 +94,31 @@ final class AiCopilotServiceForContextIntegrationTest extends MysqlIntegrationTe
         Assert::instanceOf(AiCopilotService::class, $service);
     }
 
+    /** Pendências 8B T-13: forContext registers the 7 clinical and the 5 management tools, each only in its family. */
+    public function testForContextRegistersTheSevenClinicalAndTheFiveManagementTools(): void
+    {
+        putenv('AI_PROVIDER=stub');
+        putenv('APP_ENV=testing');
+
+        $service = AiCopilotService::forContext(TenantContext::authenticated(1, 1, 1), $this->pdo, 'pt');
+        $registry = (new \ReflectionProperty(AiCopilotService::class, 'registry'))->getValue($service);
+        Assert::instanceOf(ToolRegistry::class, $registry);
+
+        foreach (['consultar_agenda', 'verificar_horarios', 'consultar_estoque', 'listar_debitos', 'indicadores_clinica'] as $name) {
+            Assert::notNull($registry->registered('management', $name), "management tool {$name} is registered");
+        }
+
+        $clinical = [
+            'buscar_paciente', 'obter_paciente', 'obter_historico_atendimentos', 'obter_prontuario',
+            'obter_prescricoes', 'obter_exames', 'consultar_vacinacao',
+        ];
+        foreach ($clinical as $name) {
+            Assert::notNull($registry->registered('clinical', $name), "clinical tool {$name} is registered");
+        }
+
+        Assert::null($registry->registered('clinical', 'listar_debitos'), 'a management tool is not registered in the clinical family');
+    }
+
     public function testAskRecordsTheConversationTwoMessagesAndOneAnsweredInteraction(): void
     {
         $out = $this->runAdianti(
