@@ -52,20 +52,26 @@ WHERE tc.table_schema = DATABASE()
   AND tc.constraint_type = 'CHECK'
 ORDER BY tc.table_name, tc.constraint_name;
 
--- Indexes of the new tables (expected: ai_conversation_owner_idx (tenant_id,
--- system_user_id, updated_at), ai_conversation_updated_idx (updated_at),
--- ai_conversation_message_conversation_idx (conversation_id, id) and the 4 indexes of
--- mcp_tool_call on (tenant_id, created_at), (system_user_id, created_at),
--- (tool_name, created_at) and (correlation_id))
+-- Indexes of the new tables (expected: 12 indexes, 18 rows: ai_conversation_owner_idx
+-- (tenant_id, system_user_id, updated_at), ai_conversation_updated_idx (updated_at),
+-- ai_conversation_unit_idx (system_unit_id), ai_conversation_user_idx (system_user_id),
+-- ai_conversation_anchor_patient_idx (anchor_patient_id),
+-- ai_conversation_message_conversation_idx (conversation_id, id),
+-- ai_conversation_message_tenant_idx (tenant_id) and the 5 indexes of mcp_tool_call on
+-- (tenant_id, created_at), (system_user_id, created_at), (tool_name, created_at),
+-- (correlation_id) and mcp_tool_call_unit_idx (system_unit_id))
 SELECT table_name, index_name, seq_in_index, column_name
 FROM information_schema.statistics
 WHERE table_schema = DATABASE()
   AND table_name IN ('ai_conversation', 'ai_conversation_message', 'mcp_tool_call')
   AND index_name IN (
       'ai_conversation_owner_idx', 'ai_conversation_updated_idx',
-      'ai_conversation_message_conversation_idx',
+      'ai_conversation_unit_idx', 'ai_conversation_user_idx',
+      'ai_conversation_anchor_patient_idx',
+      'ai_conversation_message_conversation_idx', 'ai_conversation_message_tenant_idx',
       'mcp_tool_call_tenant_created_idx', 'mcp_tool_call_user_created_idx',
-      'mcp_tool_call_tool_created_idx', 'mcp_tool_call_correlation_idx'
+      'mcp_tool_call_tool_created_idx', 'mcp_tool_call_correlation_idx',
+      'mcp_tool_call_unit_idx'
   )
 ORDER BY table_name, index_name, seq_in_index;
 
