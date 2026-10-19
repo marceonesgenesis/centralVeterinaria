@@ -467,6 +467,54 @@ final class AnthropicMessagesGatewayTest
         Assert::same(10, $exception->usage()?->inputTokens);
     }
 
+    /** T-03 (pendências 8B): só o input do tool_use e input_schema.properties viram objeto; dados aninhados seguem como vieram. */
+    public function testNestedEmptyArraysInsideToolInputStayLists(): void
+    {
+        $messages = [
+            ['role' => 'user', 'content' => 'Agenda?'],
+            ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'toolu_0', 'name' => 'x', 'input' => ['filtro' => ['properties' => []]]]]],
+            ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'toolu_0', 'content' => 'ok']]],
+        ];
+        $tools = [['name' => 'x', 'description' => 'd', 'input_schema' => ['type' => 'object', 'properties' => []]]];
+
+        $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null])
+            ->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, $tools));
+
+        Assert::stringContains('"input":{"filtro":{"properties":[]}}', $this->calls[0]['body']);
+        Assert::stringContains('"input_schema":{"type":"object","properties":{}}', $this->calls[0]['body']);
+    }
+
+    /** T-03 (pendências 8B): conversa com mensagens, sem tools, e resposta tool_use = erro do provedor. */
+    public function testToolUseAnswerToMessagesWithoutToolsIsProviderError(): void
+    {
+        $body = (string) json_encode([
+            'model' => 'claude-sonnet-5-5',
+            'stop_reason' => 'tool_use',
+            'content' => [['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'buscar_paciente', 'input' => ['query' => 'Rex']]],
+            'usage' => ['input_tokens' => 12, 'output_tokens' => 4],
+        ]);
+        $messages = [
+            ['role' => 'user', 'content' => 'Quem é o Rex?'],
+            ['role' => 'assistant', 'content' => [['type' => 'text', 'text' => 'Um paciente.']]],
+            ['role' => 'user', 'content' => 'E a agenda dele?'],
+        ];
+        $exception = null;
+
+        try {
+            $this->gateway(['status' => 200, 'body' => $body, 'request_id' => null, 'error' => null])
+                ->complete(new AiCompletionRequest(AiPurpose::PATIENT_SUMMARY, '1', 's', '', $messages, []));
+        } catch (AiProviderException $caught) {
+            $exception = $caught;
+        }
+
+        Assert::true($exception instanceof AiProviderException, 'tool_use without tools must fail');
+        Assert::same('ai_provider_error', $exception->reason());
+        Assert::same(12, $exception->usage()?->inputTokens);
+        $sent = json_decode($this->calls[0]['body'], true);
+        Assert::false(array_key_exists('tools', $sent), 'no tools sent');
+        Assert::count(3, $sent['messages']);
+    }
+
     public function testEndTurnAnswerCarriesItsContentBlocks(): void
     {
         $result = $this->gateway(['status' => 200, 'body' => $this->okBody(), 'request_id' => null, 'error' => null])->complete($this->request());
