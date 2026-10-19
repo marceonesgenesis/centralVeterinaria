@@ -27,10 +27,10 @@ Comandos usados em Validação (rodar de `/var/www/html/centralvet`):
 | T-17 | qa | CopilotTranslationsTest: toda entrada tem só en/pt | — | sim | simples | Levi | [x] |
 | T-18 | qa | Flag ai_copilot_management gravada pelo FeatureFlagRepository real | — | sim | simples | Levi | [x] |
 | T-19 | database | 0015 .verify.sql confere os 5 índices auxiliares de FK | — | sim | simples | Levi | [x] |
-| T-20 | backend | ToolPolicy nega ToolContext de outro contexto; ToolResult exige excerptLengths ⊆ freeTextFields; docblock de knownNames | T-02, T-05, T-06 | sim | média | Spock | [ ] |
-| T-21 | frontend | AiToolCallList: Motivo traduzido, negação e XSS testados | T-16 | sim | média | Hegel | [ ] |
-| T-22 | frontend | Painel: foco vai para a resposta nova após o envio | T-16 | sim | média | Aang | [ ] |
-| T-23 | frontend | AiCopilotPanel::hostLink único para PatientForm e EncounterView; docblock de resolveTenantContext | T-22 | sim | simples | Aang | [ ] |
+| T-20 | backend | ToolPolicy nega ToolContext de outro contexto; ToolResult exige excerptLengths ⊆ freeTextFields; docblock de knownNames | T-02, T-05, T-06 | sim | média | Spock | [x] |
+| T-21 | frontend | AiToolCallList: Motivo traduzido, negação e XSS testados | T-16 | sim | média | Hegel | [x] |
+| T-22 | frontend | Painel: foco vai para a resposta nova após o envio | T-16 | sim | média | Aang | [x] |
+| T-23 | frontend | AiCopilotPanel::hostLink único para PatientForm e EncounterView; docblock de resolveTenantContext | T-22 | sim | simples | Aang | [x] |
 | T-24 | docs | Runbooks: 0015 no 5.7, códigos ai_*, flag de gestão, débitos, ticket médio, retenção, seed, âncora RESTRICT, motivos | T-08, T-09, T-15, T-21 | sim | simples | Gandalf | [ ] |
 
 ## Detalhamento

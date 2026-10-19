@@ -21,6 +21,7 @@
 - 2026-10-19 · T-08 · onda 1 — validador apontou RED inválido (3175920 tocou também FakeCopilotAgendaQuery.php, dentro dos Arquivos prováveis); aceito pelo orquestrador; revisor confirmou o RED.
 - 2026-10-19 · T-16 · onda 1 — desvios aceitos pelo revisor: RuntimeException na montagem vira AiUnavailableException('ai_provider_error'); parâmetro $fallbackReason de load removido.
 - 2026-10-19 · plano · onda 1 — linha "Branch base" de plan.md reformatada pelo orquestrador (repos.py exige só o nome); ponto de partida 14139af movido para linha própria.
+- 2026-10-19 · T-21 · onda 2 — reuso da chave existente `Record not found` (6 chaves novas, não 7) e vínculo tenant_user no teste de XSS com limpeza no tearDown; aceitos pelo revisor.
 
 ## Bloqueios
 - nenhum
@@ -38,6 +39,7 @@
 - [T-05] BuscarPacienteTool/ObterHistoricoAtendimentosTool pedem $limit+1 à consulta e marcam truncated real.
 - [T-14] AiConversationRepository::insert e McpToolCallRepository::insert agora lançam TenantBoundaryViolation se unidade/usuário divergem do contexto (e, no mcp_tool_call, conversation_id inexistente no tenant): fixtures que gravam linha de outro usuário/unidade precisam de repositório com o contexto desse usuário/unidade.
 - [T-15] AiConversationRetention::forConnection($pdo, $clock, $batchSize, $maxBatches) (>= 1); bin imprime {"skipped":"locked"} e sai 0 quando travado (flock em sys_get_temp_dir()/centralvet-ai-conversation-retention-<md5(__DIR__)>.lock) — para o runbook (T-24).
+
 
 ## Pendências
 - Fora deste plano, só com autorização SQL expressa do usuário (skill `sql-write-approval`): aplicar `20261015_0015_phase8b_copilot.sql` (+ `.verify.sql`) e a DML do bloco 8B de `initial-application-programs.sql` no `centralvet` (dev) e, depois, em produção (pendências "Onda 5–10 SQL dev" e "0015 no dev" da 8B). Sem isso o smoke manual das telas reais não roda.
@@ -61,6 +63,9 @@
 - T-16: sem teste do RuntimeException na montagem → ai_provider_error nem de ai_quota_exceeded no pré-check; pergunta acima de MAX_QUESTION_CHARS ainda perde o rascunho (AiCopilotPanel.php:262).
 - T-17: relatório cita 1444 entradas e o arquivo tem 1445 (sem violação; sem impacto).
 - Validador: contagem no dev (SELECT COUNT somente-leitura) ai_interaction=0; mcp_tool_call inexistente (0015 não aplicada no dev); referência sem baseline anterior.
+- T-20: com o repositório real, a linha `denied` do ToolContext divergente não é gravada (McpToolCallRepository::insert lança TenantBoundaryViolation); ToolResultTest não confere a mensagem; RED não prova "sem validar" e tenant/unit divergentes só cobertos em ToolRegistryTest::sameContext (ToolPolicyTest.php:172-188).
+- T-21: só `not_found` tem a coluna Motivo asserida (faltam os outros 6 códigos e o fallback); `Permissão negada` também aparece no 403 do framework, a asserção não distingue as negações.
+- T-22: falta teste de onAsk em conversa com resposta anterior (AiCopilotPanelIntegrationTest.php:375-400); foco real e anel visível no navegador não verificados (container sem node, Playwright proibido): conferência manual do `div[tabindex="-1"]` e do re-exec do script a cada `.html()`/`.append()` do Adianti.
 
 ## Riscos
 - T-14 pode quebrar fixtures que gravam conversa de outro usuário pelo repositório com o contexto errado → validação inclui as suítes de painel, listas, serviço e retenção; falha em arquivo alheio vai ao board.
@@ -74,5 +79,6 @@
 - BASE da onda 1: 14139af
 - Commits por onda:
   - Onda 1: BASE 14139af → HEAD 04ed023 (04ed023,ac80931,fd94ccc,3398e66,ffea790,cd8b614,1189d25,c1a5b4c,57f2c51,ebf8ede,dc2862d,7fcd26a,9a58512,d469fbb,efc0f18,91c83c9,ea33874,db330c4,be0025f,fcce474,d4e8e1f,be5f03d,970d815,b360d08,d740c20,1430b40,b8e4e6c,86031be,e3d147f,82c75f6,3175920,361a20b,0b0da3f)
-- Último status conhecido: onda 1 concluída; T-01..T-19 [x] (SUITE 1750/1750, lint ok, revisões sem bloqueantes); T-20..T-24 [ ]
-- Próxima onda recomendada: onda 2 — T-20, T-21 (T-16 pronta), T-22; depois T-23 e T-24
+  - Onda 2: BASE 6d1db9e → HEAD 02d4e80 (02d4e80,984b2fe,a9e8638,5db05fa,4d895fd,517f81c)
+- Último status conhecido: onda 2 concluída; T-01..T-22 [x] (SUITE 1758/1758, lint ok, revisões sem bloqueantes); T-23, T-24 [ ]
+- Próxima onda recomendada: onda 3 — T-23 e T-24
