@@ -128,37 +128,44 @@ class AiCopilotPanel extends TPage
 
         $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $locale) use ($family, $anchor, $conversationId, $question, $repeated): array
         {
-            // AiUnavailableException (montagem ou pré-check do ask) sobe a perform, que
-            // mostra o motivo com a pergunta digitada, como na negação
+            // AiUnavailableException (montagem ou pré-check do ask) fica aqui: a cortina abre pelo
+            // histórico, como no onOpen sem IA, com o motivo e a pergunta digitada (T-26)
             try
             {
-                $service = static::makeService($context, $locale, $connection);
-            }
-            catch (\CentralVet\Domain\Exception\AiUnavailableException | \CentralVet\Authorization\Exception\AuthorizationDenied | \CentralVet\Tenancy\Exception\MissingTenantContext | \CentralVet\Tenancy\Exception\TenantBoundaryViolation | PDOException $e)
-            {
-                throw $e;
-            }
-            catch (RuntimeException $e)
-            {
-                // só a montagem: rate limiter sem backend (Redis fora do ar) = copiloto indisponível
-                error_log(__METHOD__ . ': ' . get_class($e));
-                throw new \CentralVet\Domain\Exception\AiUnavailableException('ai_provider_error');
-            }
+                try
+                {
+                    $service = static::makeService($context, $locale, $connection);
+                }
+                catch (\CentralVet\Domain\Exception\AiUnavailableException | \CentralVet\Authorization\Exception\AuthorizationDenied | \CentralVet\Tenancy\Exception\MissingTenantContext | \CentralVet\Tenancy\Exception\TenantBoundaryViolation | PDOException $e)
+                {
+                    throw $e;
+                }
+                catch (RuntimeException $e)
+                {
+                    // só a montagem: rate limiter sem backend (Redis fora do ar) = copiloto indisponível
+                    error_log(__METHOD__ . ': ' . get_class($e));
+                    throw new \CentralVet\Domain\Exception\AiUnavailableException('ai_provider_error');
+                }
 
-            if ($anchor !== null)
-            {
-                $service->assertAnchor($anchor);
-            }
+                if ($anchor !== null)
+                {
+                    $service->assertAnchor($anchor);
+                }
 
-            if (!$repeated)
-            {
-                $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
+                if (!$repeated)
+                {
+                    $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
+                }
+                elseif ($conversationId === null)
+                {
+                    // envio repetido da primeira pergunta: a conversa mais recente
+                    $latest = $service->conversations($family, $anchor, 1);
+                    $conversationId = $latest !== [] ? $latest[0]->id() : null;
+                }
             }
-            elseif ($conversationId === null)
+            catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
             {
-                // envio repetido da primeira pergunta: a conversa mais recente
-                $latest = $service->conversations($family, $anchor, 1);
-                $conversationId = $latest !== [] ? $latest[0]->id() : null;
+                return ['draft' => $question] + self::load($connection, $context, $family, $anchor, $conversationId, $e->reason());
             }
 
             // a conversa é renderizada pelo id devolvido; o motivo (ex.: cota esgotada nesta resposta) vem de load;
@@ -245,15 +252,8 @@ class AiCopilotPanel extends TPage
         }
         catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
         {
-            if ($draft !== null)
-            {
-                // onAsk: o motivo e a pergunta digitada, pelo mesmo caminho da negação
-                $reason = CvFormat::userMessage('AI assistant is unavailable: ' . $e->reason());
-                $this->renderMessageOnly($family, html_entity_decode($reason, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $draft);
-                return;
-            }
-
-            $this->renderPanel(['family' => $family, 'anchor' => $anchor, 'reason' => $e->reason(), 'current' => null, 'messages' => [], 'conversations' => []]);
+            // onAsk trata a sua (T-26); aqui só o que escapar, com a pergunta digitada se houver
+            $this->renderPanel(['family' => $family, 'anchor' => $anchor, 'reason' => $e->reason(), 'current' => null, 'messages' => [], 'conversations' => [], 'draft' => $draft]);
             return;
         }
         catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
@@ -293,10 +293,12 @@ class AiCopilotPanel extends TPage
     /**
      * Estado da cortina pelo histórico (sem IA): conversa atual, lista das
      * anteriores e o motivo de indisponibilidade, que só tira o formulário.
+     * `$fallbackReason` (onAsk com AiUnavailableException) vale quando a
+     * disponibilidade da 8A não aponta motivo (ex.: falha na montagem).
      *
      * @return array{family: string, anchor: ?int, reason: ?string, current: ?\CentralVet\Domain\AiConversation, messages: list<\CentralVet\Domain\AiConversationMessage>, conversations: list<\CentralVet\Domain\AiConversation>}
      */
-    private static function load(PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $family, ?int $anchor, ?int $conversationId): array
+    private static function load(PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $family, ?int $anchor, ?int $conversationId, ?string $fallbackReason = null): array
     {
         $history = static::makeHistory($context, $connection);
 
@@ -321,7 +323,7 @@ class AiCopilotPanel extends TPage
             $state['messages'] = $found['messages'];
         }
 
-        $state['reason'] = \CentralVet\Application\AiCopilotAvailability::forContext($context, $connection)->reason($family);
+        $state['reason'] = \CentralVet\Application\AiCopilotAvailability::forContext($context, $connection)->reason($family) ?? $fallbackReason;
 
         return $state;
     }
@@ -373,6 +375,12 @@ class AiCopilotPanel extends TPage
             $notice->{'role'} = 'status';
             $notice->add(TElement::tag('p', CvFormat::userMessage('AI assistant is unavailable: ' . $state['reason']), ['class' => 'cv-state__title']));
             $panel->add($notice);
+
+            if (($state['draft'] ?? null) !== null && $state['draft'] !== '')
+            {
+                // onAsk sem IA: a pergunta digitada fica somente leitura para o usuário copiar
+                $panel->add(self::draftField((string) $state['draft']));
+            }
         }
         else
         {
@@ -401,14 +409,23 @@ class AiCopilotPanel extends TPage
 
         if ($draft !== null && $draft !== '')
         {
-            $field = new TElement('div');
-            $field->{'class'} = 'cv-ai-copilot__field';
-            $field->add(TElement::tag('label', CvFormat::e(_t('Your question')), ['for' => 'cv_ai_copilot_draft', 'class' => 'cv-ai-copilot__label']));
-            $field->add(TElement::tag('textarea', CvFormat::e($draft), ['id' => 'cv_ai_copilot_draft', 'class' => 'form-control', 'readonly' => 'readonly', 'rows' => '4']));
-            $panel->add($field);
+            $panel->add(self::draftField($draft));
         }
 
         parent::add($panel);
+    }
+
+    /**
+     * Pergunta digitada que não foi enviada, num campo somente leitura.
+     */
+    private static function draftField(string $draft): TElement
+    {
+        $field = new TElement('div');
+        $field->{'class'} = 'cv-ai-copilot__field';
+        $field->add(TElement::tag('label', CvFormat::e(_t('Your question')), ['for' => 'cv_ai_copilot_draft', 'class' => 'cv-ai-copilot__label']));
+        $field->add(TElement::tag('textarea', CvFormat::e($draft), ['id' => 'cv_ai_copilot_draft', 'class' => 'form-control', 'readonly' => 'readonly', 'rows' => '4']));
+
+        return $field;
     }
 
     /**
