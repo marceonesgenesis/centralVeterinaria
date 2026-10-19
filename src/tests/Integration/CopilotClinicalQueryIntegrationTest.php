@@ -9,6 +9,7 @@ use CentralVet\Persistence\CopilotClinicalQuery;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\MysqlIntegrationTestCase;
+use CentralVet\Tests\Support\TestDatabase;
 
 /**
  * Fase 8B, T-06: clinical reads of the copilot scoped by tenant AND unit.
@@ -17,7 +18,8 @@ use CentralVet\Tests\Support\MysqlIntegrationTestCase;
  * unit. Every row lives in throwaway tenants created inside the test
  * transaction (rolled back in tearDown()).
  *
- * Tenant A, unit A = context unit, unit B = any other system_unit:
+ * Tenant A owns units A (context unit) and B, both created in the test
+ * transaction (system_unit.id = MAX(id)+1 and +2):
  * - "only_b": patient with an encounter only in unit B;
  * - "both": patient with encounters in A and B, prescriptions, exams and
  *   vaccinations in both units;
@@ -50,13 +52,13 @@ final class CopilotClinicalQueryIntegrationTest extends MysqlIntegrationTestCase
         parent::setUp();
 
         $this->userId = (int) $this->pdo->query('SELECT id FROM system_users ORDER BY id LIMIT 1')->fetchColumn();
-        $this->unitA = (int) $this->pdo->query('SELECT id FROM system_unit ORDER BY id LIMIT 1')->fetchColumn();
-        Assert::true($this->userId > 0 && $this->unitA > 0, 'Fixture requires a system_users and a system_unit row');
+        Assert::true($this->userId > 0, 'Fixture requires a system_users row');
 
+        $this->token = 'F8Bq' . bin2hex(random_bytes(4));
         $this->tenantA = $this->createTenant('f8b-copilot-a');
         $this->tenantB = $this->createTenant('f8b-copilot-b');
-        $this->unitB = $this->otherUnitId();
-        $this->token = 'F8Bq' . bin2hex(random_bytes(4));
+        $this->unitA = $this->createUnit($this->tenantA, 'A');
+        $this->unitB = $this->createUnit($this->tenantA, 'B');
 
         $this->seed();
     }
@@ -64,6 +66,34 @@ final class CopilotClinicalQueryIntegrationTest extends MysqlIntegrationTestCase
     public function testImplementsTheContract(): void
     {
         Assert::instanceOf(CopilotClinicalQueryInterface::class, $this->query($this->tenantA));
+    }
+
+    public function testUnitsAAndBBelongToTenantAAndVanishOnRollback(): void
+    {
+        $statement = $this->pdo->prepare('SELECT id, tenant_id FROM system_unit WHERE id IN (?, ?) ORDER BY id');
+        $statement->execute([$this->unitA, $this->unitB]);
+        $rows = $statement->fetchAll(\PDO::FETCH_KEY_PAIR);
+
+        Assert::true($this->unitA !== $this->unitB, 'units A and B are distinct');
+        Assert::same($this->tenantA, (int) ($rows[$this->unitA] ?? 0), 'unit A belongs to tenant A');
+        Assert::same($this->tenantA, (int) ($rows[$this->unitB] ?? 0), 'unit B belongs to tenant A');
+
+        // A second connection sees only committed rows: the fixture units live
+        // only inside the test transaction and disappear on rollback.
+        $outside = new \PDO(
+            sprintf(
+                'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+                getenv('DB_HOST') ?: '127.0.0.1',
+                getenv('DB_PORT') ?: '3306',
+                TestDatabase::resolveName(getenv()),
+            ),
+            (string) (getenv('DB_USERNAME') ?: 'centralvet'),
+            (string) (getenv('DB_PASSWORD') ?: ''),
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
+        );
+        $count = $outside->prepare('SELECT COUNT(*) FROM system_unit WHERE name IN (?, ?)');
+        $count->execute([$this->unitName('A'), $this->unitName('B')]);
+        Assert::same(0, (int) $count->fetchColumn(), 'fixture units are not visible outside the transaction');
     }
 
     public function testPatientOnlyInAnotherUnitIsNotFound(): void
@@ -483,25 +513,21 @@ final class CopilotClinicalQueryIntegrationTest extends MysqlIntegrationTestCase
     }
 
     /**
-     * Second system_unit (any other than unit A); when the test database has
-     * only one, creates one inside the test transaction (rolled back).
-     * system_unit.id is not AUTO_INCREMENT (Adianti).
+     * New system_unit of the given tenant, inside the test transaction
+     * (rolled back). system_unit.id is not AUTO_INCREMENT (Adianti): MAX(id)+1.
      */
-    private function otherUnitId(): int
+    private function createUnit(int $tenantId, string $label): int
     {
-        $statement = $this->pdo->prepare('SELECT id FROM system_unit WHERE id <> ? ORDER BY id LIMIT 1');
-        $statement->execute([$this->unitA]);
-        $id = (int) $statement->fetchColumn();
-
-        if ($id > 0) {
-            return $id;
-        }
-
         $id = (int) $this->pdo->query('SELECT COALESCE(MAX(id), 0) + 1 FROM system_unit')->fetchColumn();
         $this->pdo->prepare('INSERT INTO system_unit (id, tenant_id, name) VALUES (:id, :tenant_id, :name)')
-            ->execute(['id' => $id, 'tenant_id' => $this->tenantA, 'name' => 'F8B teste outra unidade']);
+            ->execute(['id' => $id, 'tenant_id' => $tenantId, 'name' => $this->unitName($label)]);
 
         return $id;
+    }
+
+    private function unitName(string $label): string
+    {
+        return 'F8B teste unidade ' . $label . ' ' . $this->token;
     }
 
     private function createTenant(string $slugPrefix): int
