@@ -176,6 +176,41 @@ final class CopilotAgendaQueryIntegrationTest extends MysqlIntegrationTestCase
         Assert::throws(MissingTenantContext::class, fn () => $none->schedulableProfessionals($this->day()));
     }
 
+    /** Pendências 8B, T-08: an inactive member exists only when asked to include inactive users. */
+    public function testProfessionalExistsIncludesInactiveMembersOnlyWhenAsked(): void
+    {
+        $query = $this->query($this->tenantA);
+
+        Assert::false($query->professionalExists($this->ids['inactive']));
+        Assert::true($query->professionalExists($this->ids['inactive'], true));
+        Assert::true($query->professionalExists($this->ids['pro'], true));
+        Assert::false($query->professionalExists($this->ids['outsider'], true), 'member of another tenant only');
+    }
+
+    /**
+     * Pendências 8B, T-08: the 90-day window is [day - 90 days 00:00,
+     * day + 1 00:00); a user of another tenant with an appointment in the
+     * unit is never schedulable.
+     */
+    public function testSchedulableProfessionalsWindowBoundariesAndOtherTenant(): void
+    {
+        $edge = $this->insertUser('F8B Hugo Fronteira', 'Y', $this->tenantA);
+        $tomorrow = $this->insertUser('F8B Iris Amanha', 'Y', $this->tenantA);
+
+        $patient = (int) $this->pdo->query("SELECT id FROM patient WHERE name = 'F8B Rex Agenda' ORDER BY id DESC LIMIT 1")->fetchColumn();
+        $service = $this->insertService($this->tenantA, 'F8B Servico T08', 30);
+        $this->insertAppointment($this->tenantA, $this->unitA, $patient, $service, $edge, '2031-06-27 00:00:00', 'atendido');
+        $this->insertAppointment($this->tenantA, $this->unitA, $patient, $service, $tomorrow, '2031-09-26 00:00:00', 'agendado');
+        $this->insertAppointment($this->tenantA, $this->unitA, $patient, $service, $this->ids['outsider'], '2031-09-25 16:00:00', 'agendado');
+
+        $ids = array_column($this->query($this->tenantA)->schedulableProfessionals($this->day()), 'id');
+
+        Assert::true(in_array($edge, $ids, true), 'appointment exactly at day - 90 days 00:00 is inside the window');
+        Assert::false(in_array($tomorrow, $ids, true), 'appointment at the next day 00:00 is outside the window');
+        Assert::false(in_array($this->ids['outsider'], $ids, true), 'user of another tenant with an appointment in the unit');
+        Assert::true(in_array($this->ids['pro'], $ids, true));
+    }
+
     public function testRequiresAnActiveUnit(): void
     {
         $query = new CopilotAgendaQuery(TenantContext::authenticated($this->tenantA, $this->userId, null), $this->pdo);

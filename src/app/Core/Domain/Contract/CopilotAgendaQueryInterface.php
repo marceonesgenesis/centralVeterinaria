@@ -49,5 +49,11 @@ interface CopilotAgendaQueryInterface
      */
     public function schedulableProfessionals(DateTimeImmutable $day): array;
 
-    public function professionalExists(int $id): bool;
+    /**
+     * Whether $id is a member of the tenant. By default only active users
+     * count (the ones the copilot offers slots for); with $includeInactive
+     * any member counts, whatever `active` (an inactive professional may
+     * still have appointments to look up).
+     */
+    public function professionalExists(int $id, bool $includeInactive = false): bool;
 }

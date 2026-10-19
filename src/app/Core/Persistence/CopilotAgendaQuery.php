@@ -169,12 +169,14 @@ final class CopilotAgendaQuery implements CopilotAgendaQueryInterface
         ], $rows);
     }
 
-    public function professionalExists(int $id): bool
+    public function professionalExists(int $id, bool $includeInactive = false): bool
     {
+        $active = $includeInactive ? '' : " AND u.active = 'Y'";
+
         return $this->fetchAll(
             "SELECT /*+ MAX_EXECUTION_TIME(5000) */ 1 AS found
                FROM system_users u
-              WHERE u.id = :professional_id AND u.active = 'Y'{$this->tenantMemberSql('u')}
+              WHERE u.id = :professional_id{$active}{$this->tenantMemberSql('u')}
               LIMIT 1",
             [':professional_id' => $id, ':member_tenant_id' => $this->context->tenantId()],
         ) !== [];

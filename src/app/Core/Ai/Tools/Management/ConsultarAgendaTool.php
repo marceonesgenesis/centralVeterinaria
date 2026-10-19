@@ -76,7 +76,8 @@ final class ConsultarAgendaTool implements AiTool
 
     public function assertInScope(ToolContext $context, array $input): void
     {
-        if (isset($input['profissional_id']) && !$this->query->professionalExists((int) $input['profissional_id'])) {
+        // An inactive member may still have appointments to look up.
+        if (isset($input['profissional_id']) && !$this->query->professionalExists((int) $input['profissional_id'], true)) {
             throw new ToolEntityNotFoundException('Professional not found');
         }
     }
