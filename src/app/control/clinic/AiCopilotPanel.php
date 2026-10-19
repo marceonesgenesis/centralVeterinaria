@@ -87,6 +87,18 @@ class AiCopilotPanel extends TPage
     {
         [$family, $anchor, $conversationId] = self::readParams($param);
         $question = trim((string) ($param['question'] ?? ''));
+
+        if ($question === '')
+        {
+            // pergunta em branco não chega ao serviço: o formulário volta com o aviso
+            $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context) use ($family, $anchor, $conversationId): array
+            {
+                return ['warning' => _t('Type a question before sending')] + self::load($connection, $context, $family, $anchor, $conversationId);
+            }, $family, $anchor);
+
+            return;
+        }
+
         $token = (string) ($param['submit_token'] ?? '');
         $repeated = $token !== '' && hash_equals((string) TSession::getValue(self::TOKEN_KEY), $token);
 
@@ -97,18 +109,13 @@ class AiCopilotPanel extends TPage
 
         $this->perform(static function (PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $locale) use ($family, $anchor, $conversationId, $question, $repeated): array
         {
-            $unavailable = null;
-            $service = null;
-
+            // AiUnavailableException (montagem ou pré-check do ask) sobe a perform, que
+            // mostra o motivo com a pergunta digitada, como na negação
             try
             {
                 $service = static::makeService($context, $locale, $connection);
             }
-            catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
-            {
-                $unavailable = $e->reason();
-            }
-            catch (\CentralVet\Authorization\Exception\AuthorizationDenied | \CentralVet\Tenancy\Exception\MissingTenantContext | \CentralVet\Tenancy\Exception\TenantBoundaryViolation | PDOException $e)
+            catch (\CentralVet\Domain\Exception\AiUnavailableException | \CentralVet\Authorization\Exception\AuthorizationDenied | \CentralVet\Tenancy\Exception\MissingTenantContext | \CentralVet\Tenancy\Exception\TenantBoundaryViolation | PDOException $e)
             {
                 throw $e;
             }
@@ -116,38 +123,27 @@ class AiCopilotPanel extends TPage
             {
                 // só a montagem: rate limiter sem backend (Redis fora do ar) = copiloto indisponível
                 error_log(__METHOD__ . ': ' . get_class($e));
-                $unavailable = 'ai_provider_error';
+                throw new \CentralVet\Domain\Exception\AiUnavailableException('ai_provider_error');
             }
 
-            if ($service !== null)
+            if ($anchor !== null)
             {
-                try
-                {
-                    if ($anchor !== null)
-                    {
-                        $service->assertAnchor($anchor);
-                    }
-
-                    if (!$repeated)
-                    {
-                        $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
-                    }
-                    elseif ($conversationId === null)
-                    {
-                        // envio repetido da primeira pergunta: a conversa mais recente
-                        $latest = $service->conversations($family, $anchor, 1);
-                        $conversationId = $latest !== [] ? $latest[0]->id() : null;
-                    }
-                }
-                catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
-                {
-                    // negação, contexto e demais falhas sobem ao tratamento padrão de perform
-                    $unavailable = $e->reason();
-                }
+                $service->assertAnchor($anchor);
             }
 
-            // a conversa é renderizada pelo id devolvido, qualquer que seja a disponibilidade
-            return self::load($connection, $context, $family, $anchor, $conversationId, $unavailable);
+            if (!$repeated)
+            {
+                $conversationId = $service->ask($family, $conversationId, $anchor, $question)->conversationId;
+            }
+            elseif ($conversationId === null)
+            {
+                // envio repetido da primeira pergunta: a conversa mais recente
+                $latest = $service->conversations($family, $anchor, 1);
+                $conversationId = $latest !== [] ? $latest[0]->id() : null;
+            }
+
+            // a conversa é renderizada pelo id devolvido; o motivo (ex.: cota esgotada nesta resposta) vem de load
+            return self::load($connection, $context, $family, $anchor, $conversationId);
         }, $family, $anchor, true, $question);
     }
 
@@ -171,6 +167,8 @@ class AiCopilotPanel extends TPage
         {
             if ($conversationId !== null)
             {
+                // âncora fora da unidade → AiSubjectNotFoundException antes de apagar: a conversa fica
+                self::assertAnchorInUnit($connection, $context, $anchor);
                 $deleted = static::makeHistory($context, $connection)->deleteConversation($conversationId);
             }
 
@@ -227,6 +225,14 @@ class AiCopilotPanel extends TPage
         }
         catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
         {
+            if ($draft !== null)
+            {
+                // onAsk: o motivo e a pergunta digitada, pelo mesmo caminho da negação
+                $reason = CvFormat::userMessage('AI assistant is unavailable: ' . $e->reason());
+                $this->renderMessageOnly($family, html_entity_decode($reason, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $draft);
+                return;
+            }
+
             $this->renderPanel(['family' => $family, 'anchor' => $anchor, 'reason' => $e->reason(), 'current' => null, 'messages' => [], 'conversations' => []]);
             return;
         }
@@ -267,22 +273,17 @@ class AiCopilotPanel extends TPage
     /**
      * Estado da cortina pelo histórico (sem IA): conversa atual, lista das
      * anteriores e o motivo de indisponibilidade, que só tira o formulário.
-     * `$fallbackReason` vale quando a disponibilidade não aponta motivo
-     * (ex.: falha ao montar o serviço em onAsk).
      *
      * @return array{family: string, anchor: ?int, reason: ?string, current: ?\CentralVet\Domain\AiConversation, messages: list<\CentralVet\Domain\AiConversationMessage>, conversations: list<\CentralVet\Domain\AiConversation>}
      */
-    private static function load(PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $family, ?int $anchor, ?int $conversationId, ?string $fallbackReason = null): array
+    private static function load(PDO $connection, \CentralVet\Tenancy\TenantContext $context, string $family, ?int $anchor, ?int $conversationId): array
     {
         $history = static::makeHistory($context, $connection);
 
         // RBAC AiCopilotPanel::onOpen antes de olhar o paciente âncora
         $conversations = $history->conversations(self::LIST_LIMIT, $family, $anchor);
 
-        if ($anchor !== null && !(new \CentralVet\Persistence\CopilotClinicalQuery($context, $connection))->patientInUnit($anchor))
-        {
-            throw new \CentralVet\Domain\Exception\AiSubjectNotFoundException();
-        }
+        self::assertAnchorInUnit($connection, $context, $anchor);
 
         $state = ['family' => $family, 'anchor' => $anchor, 'reason' => null, 'current' => null, 'messages' => [], 'conversations' => $conversations];
 
@@ -300,9 +301,21 @@ class AiCopilotPanel extends TPage
             $state['messages'] = $found['messages'];
         }
 
-        $state['reason'] = \CentralVet\Application\AiCopilotAvailability::forContext($context, $connection)->reason($family) ?? $fallbackReason;
+        $state['reason'] = \CentralVet\Application\AiCopilotAvailability::forContext($context, $connection)->reason($family);
 
         return $state;
+    }
+
+    /**
+     * Paciente âncora na unidade ativa (a mesma checagem de load e de
+     * onDelete); fora dela → AiSubjectNotFoundException.
+     */
+    private static function assertAnchorInUnit(PDO $connection, \CentralVet\Tenancy\TenantContext $context, ?int $anchor): void
+    {
+        if ($anchor !== null && !(new \CentralVet\Persistence\CopilotClinicalQuery($context, $connection))->patientInUnit($anchor))
+        {
+            throw new \CentralVet\Domain\Exception\AiSubjectNotFoundException();
+        }
     }
 
     /** @param array<string, mixed> $state */
@@ -319,6 +332,11 @@ class AiCopilotPanel extends TPage
         if ($state['reason'] === null || $state['messages'] !== [])
         {
             $panel->add(self::conversationView($state['messages']));
+        }
+
+        if (isset($state['warning']))
+        {
+            $panel->add(TElement::tag('p', CvFormat::e((string) $state['warning']), ['class' => 'cv-ai-copilot__notice', 'role' => 'alert']));
         }
 
         if ($state['reason'] !== null)
