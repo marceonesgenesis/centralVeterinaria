@@ -76,13 +76,13 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
             'max_tokens' => $this->config->maxOutputTokens(),
             'system' => [['type' => 'text', 'text' => $request->system]],
             'messages' => $request->messages !== []
-                ? self::jsonObjects($request->messages)
+                ? self::toolUseInputsAsObjects($request->messages)
                 : [['role' => 'user', 'content' => $request->userContent]],
             'output_config' => ['effort' => $this->config->effort()],
         ];
 
         if ($request->tools !== []) {
-            $payload['tools'] = self::jsonObjects($request->tools);
+            $payload['tools'] = self::schemaPropertiesAsObjects($request->tools);
         }
 
         if ($request->toolChoice !== null) {
@@ -112,28 +112,47 @@ final class AnthropicMessagesGateway implements AiGatewayInterface
     }
 
     /**
-     * PHP encodes an empty array as `[]`; the API wants `{}` for a tool_use
-     * `input` and a schema's `properties`. Lists stay lists.
+     * PHP encodes an empty array as `[]`; the API wants `{}` for the `input`
+     * of a tool_use block. Only that top-level `input` is touched: anything
+     * nested inside it is data and goes as it came.
      *
-     * @param array<mixed> $value
+     * @param array<mixed> $messages
      * @return array<mixed>
      */
-    private static function jsonObjects(array $value): array
+    private static function toolUseInputsAsObjects(array $messages): array
     {
-        foreach ($value as $key => $item) {
-            if (!is_array($item)) {
+        foreach ($messages as $i => $message) {
+            if (!is_array($message) || !isset($message['content']) || !is_array($message['content'])) {
                 continue;
             }
 
-            if (in_array($key, ['input', 'properties'], true) && $item === []) {
-                $value[$key] = new \stdClass();
-                continue;
+            foreach ($message['content'] as $j => $block) {
+                if (is_array($block) && ($block['type'] ?? null) === 'tool_use' && ($block['input'] ?? null) === []) {
+                    $messages[$i]['content'][$j]['input'] = new \stdClass();
+                }
             }
-
-            $value[$key] = self::jsonObjects($item);
         }
 
-        return $value;
+        return $messages;
+    }
+
+    /**
+     * An empty `input_schema.properties` must go as `{}`; the rest of each
+     * tool definition goes as it came.
+     *
+     * @param array<mixed> $tools
+     * @return array<mixed>
+     */
+    private static function schemaPropertiesAsObjects(array $tools): array
+    {
+        foreach ($tools as $k => $tool) {
+            if (is_array($tool) && isset($tool['input_schema']) && is_array($tool['input_schema'])
+                && ($tool['input_schema']['properties'] ?? null) === []) {
+                $tools[$k]['input_schema']['properties'] = new \stdClass();
+            }
+        }
+
+        return $tools;
     }
 
     /**
