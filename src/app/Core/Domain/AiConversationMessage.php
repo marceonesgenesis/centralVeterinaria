@@ -80,7 +80,7 @@ final class AiConversationMessage
 
         if (isset($row['tool_summary']) && $row['tool_summary'] !== '') {
             $decoded = json_decode((string) $row['tool_summary'], true);
-            $summary = is_array($decoded) ? self::fitSummary($decoded) : [];
+            $summary = is_array($decoded) ? self::fitSummary(array_values(array_filter($decoded, self::isSummaryEntry(...)))) : [];
         }
 
         $message = new self(
@@ -173,6 +173,12 @@ final class AiConversationMessage
         return $this->createdAt;
     }
 
+    /** A stored row may be corrupted: reconstitute keeps only entries with tool and label. */
+    private static function isSummaryEntry(mixed $entry): bool
+    {
+        return is_array($entry) && isset($entry['tool'], $entry['label']);
+    }
+
     /**
      * Normalizes the entries and drops the tail until the JSON fits.
      *
@@ -184,7 +190,7 @@ final class AiConversationMessage
         $entries = [];
 
         foreach ($summary as $entry) {
-            if (!is_array($entry) || !isset($entry['tool'], $entry['label'])) {
+            if (!self::isSummaryEntry($entry)) {
                 throw new InvalidArgumentException('Tool summary entry needs tool, label and count');
             }
 
