@@ -10,6 +10,7 @@ Corrige as ferramentas clínicas do copiloto (truncamento real, minimização de
 - T-05: truncated por limit+1 em buscar_paciente/histórico
 - T-06: freeTextFields da prescrição, trait patientId, fixtures de exame
 - T-07: fixture de unidades do mesmo tenant
+- T-27: knownNames dos tutores em obter_prescricoes (Onda 4 — correção)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/tasks.md`. Não leia as demais seções.
 

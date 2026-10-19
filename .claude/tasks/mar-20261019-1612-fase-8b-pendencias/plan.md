@@ -37,6 +37,7 @@ Triagem (cada item `[aberta]` da Rodada 2 e cada `[sugestão]` aberta dos Achado
 - 8B T-15 Motivo cru, teste de negação fraco, sem XSS → corrigir, T-21.
 - 8B T-16 markup duplicado e docblock órfão; duplicação `copilotLink` (Achados) → T-23.
 - 8B T-18 runbook 5.7 ambíguo e referência `ai_*`; 8B T-24 runbook da flag; 8B T-17 seed só no grupo 1 → documentar, T-24.
+- Onda 4 — correção (code-review), achados do `/code-review` da branch: negação cross-context da T-20 não auditada por causa da guarda da T-14 → T-25; `onAsk` com `AiUnavailableException` perde conversa/lista/ações → T-26; `obter_prescricoes` sem `knownNames` → T-27; falha do `fopen` da trava da retenção tratada como sobreposição → T-28.
 
 ### Excluído
 - Ondas 5–10 "SQL dev" e "0015 no dev": aplicar a 0015 e a DML do bloco 8B no `centralvet` (dev) ou produção — exige autorização SQL expressa (pendência à parte).
@@ -77,7 +78,7 @@ Triagem (cada item `[aberta]` da Rodada 2 e cada `[sugestão]` aberta dos Achado
 |---|---|---|---|
 | src/app/Core/Domain/AiInteraction.php | guardas de finalidade em recordAnswer/recordSuggestion | modificar | T-01 |
 | src/tests/Unit/AiDomainTest.php | testes das guardas e de decide inválido em answered | modificar | T-01 |
-| src/app/Core/Ai/Tools/ToolRegistry.php | nome duplicado lança; `sameContext` | modificar | T-02 |
+| src/app/Core/Ai/Tools/ToolRegistry.php | ⚠ nome duplicado lança; `sameContext` (T-02); `contextFor` para auditar a negação cross-context (T-25) | modificar | T-02, T-25 |
 | src/app/Core/Ai/Tools/JsonSchemaValidator.php | erro de chave extra sem o nome | modificar | T-02 |
 | src/tests/Unit/ToolRegistryTest.php | duplicado, sameContext, allowlist exata | modificar | T-02 |
 | src/tests/Unit/JsonSchemaValidatorTest.php | mensagem genérica de chave extra | modificar | T-02 |
@@ -89,10 +90,10 @@ Triagem (cada item `[aberta]` da Rodada 2 e cada `[sugestão]` aberta dos Achado
 | src/app/Core/Ai/Tools/Clinical/ObterHistoricoAtendimentosTool.php | truncated por limit+1 | modificar | T-05 |
 | src/tests/Unit/ClinicalToolsPatientTest.php | truncamento e histórico fora da unidade | modificar | T-05 |
 | src/app/Core/Ai/Tools/Clinical/ResolvesPatientInUnit.php | trait `patientId()` das ferramentas de registros | criar | T-06 |
-| src/app/Core/Ai/Tools/Clinical/ObterPrescricoesTool.php | freeTextFields via/posologia/duracao; usa a trait | modificar | T-06 |
+| src/app/Core/Ai/Tools/Clinical/ObterPrescricoesTool.php | ⚠ freeTextFields via/posologia/duracao; usa a trait (T-06); knownNames dos tutores (T-27) | modificar | T-06, T-27 |
 | src/app/Core/Ai/Tools/Clinical/ObterExamesTool.php | usa a trait | modificar | T-06 |
 | src/app/Core/Ai/Tools/Clinical/ConsultarVacinacaoTool.php | usa a trait | modificar | T-06 |
-| src/tests/Unit/ClinicalToolsRecordsTest.php | freeTextFields, fixtures de status, casos requested/âncora fora | modificar | T-06 |
+| src/tests/Unit/ClinicalToolsRecordsTest.php | ⚠ freeTextFields, fixtures de status, casos requested/âncora fora (T-06); nome do tutor mascarado (T-27) | modificar | T-06, T-27 |
 | src/tests/Integration/CopilotClinicalQueryIntegrationTest.php | unidades A e B do tenant A | modificar | T-07 |
 | src/app/Core/Domain/Contract/CopilotAgendaQueryInterface.php | `professionalExists(int, bool $includeInactive = false)` | modificar | T-08 |
 | src/app/Core/Persistence/CopilotAgendaQuery.php | filtro de ativo opcional | modificar | T-08 |
@@ -115,15 +116,15 @@ Triagem (cada item `[aberta]` da Rodada 2 e cada `[sugestão]` aberta dos Achado
 | src/app/Core/Persistence/McpToolCallRepository.php | insert confere unidade/usuário e conversation_id | modificar | T-14 |
 | src/tests/Integration/CopilotRepositoryIntegrationTest.php | fronteiras e lacunas | modificar | T-14 |
 | src/app/Core/Application/AiConversationRetention.php | lote e teto injetáveis | modificar | T-15 |
-| src/bin/ai-conversation-retention.php | trava `flock` | modificar | T-15 |
+| src/bin/ai-conversation-retention.php | ⚠ trava `flock` (T-15); falha do `fopen` sai 1 com log (T-28) | modificar | T-15, T-28 |
 | src/tests/Integration/AiConversationRetentionIntegrationTest.php | laço, teto, updated_at × created_at | modificar | T-15 |
-| src/app/control/clinic/AiCopilotPanel.php | ⚠ pergunta em branco, rascunho, âncora antes de apagar (T-16); foco na resposta (T-22); `hostLink` (T-23) | modificar | T-16, T-22, T-23 |
+| src/app/control/clinic/AiCopilotPanel.php | ⚠ pergunta em branco, rascunho, âncora antes de apagar (T-16); foco na resposta (T-22); `hostLink` (T-23); onAsk indisponível renderiza a conversa (T-26) | modificar | T-16, T-22, T-23, T-26 |
 | src/app/config/translations.json | ⚠ aviso de pergunta em branco (T-16); rótulos de Motivo (T-21) | modificar | T-16, T-21 |
-| src/tests/Integration/AiCopilotPanelIntegrationTest.php | ⚠ pergunta em branco, rascunho, âncora, RBAC negado (T-16); foco (T-22) | modificar | T-16, T-22 |
+| src/tests/Integration/AiCopilotPanelIntegrationTest.php | ⚠ pergunta em branco, rascunho, âncora, RBAC negado (T-16); foco (T-22); conversa + motivo + rascunho no onAsk (T-26) | modificar | T-16, T-22, T-26 |
 | src/tests/Unit/CopilotTranslationsTest.php | forma en/pt de todas as entradas | modificar | T-17 |
 | src/tests/Integration/AiCopilotManagementFlagIntegrationTest.php | flag de gestão no FeatureFlagRepository real | criar | T-18 |
 | src/app/database/migrations/20261015_0015_phase8b_copilot.verify.sql | 12 índices conferidos | modificar | T-19 |
-| src/app/Core/Ai/Tools/ToolPolicy.php | nega ToolContext de outro contexto | modificar | T-20 |
+| src/app/Core/Ai/Tools/ToolPolicy.php | ⚠ nega ToolContext de outro contexto (T-20); audita a negação com o contexto do registry (T-25) | modificar | T-20, T-25 |
 | src/app/Core/Ai/Tools/ToolResult.php | excerptLengths ⊆ freeTextFields; docblock | modificar | T-20 |
 | src/tests/Unit/ToolPolicyTest.php | contexto divergente | modificar | T-20 |
 | src/tests/Unit/ToolResultTest.php | validação de excerptLengths | criar | T-20 |
@@ -134,6 +135,8 @@ Triagem (cada item `[aberta]` da Rodada 2 e cada `[sugestão]` aberta dos Achado
 | src/app/control/clinic/EncounterView.php | usa `hostLink` | modificar | T-23 |
 | docs/runbooks/ia-assistente.md | códigos ai_*, flag, débitos, ticket médio, retenção, seed, âncora, motivos | modificar | T-24 |
 | docs/runbooks/shared-hosting-mysql57.md | § 0015 no 5.7 | modificar | T-24 |
+| src/tests/Integration/ToolPolicyCrossContextIntegrationTest.php | negação cross-context gravada em mcp_tool_call | criar | T-25 |
+| src/tests/Integration/AiConversationRetentionBinTest.php | bin: falha da trava × sobreposição | criar | T-28 |
 
 Arquivo tocado por mais de uma task leva ⚠ na linha e a resolução (serializar em ondas diferentes, worktree por agente ou escritor único) fica em "Estratégia de execução"; caminho exclusivo não resolve arquivo compartilhado na mesma onda.
 
@@ -162,6 +165,7 @@ T-02, T-05, T-06 → T-20
 T-16 → T-21
 T-16 → T-22 → T-23
 T-08, T-09, T-15, T-21 → T-24
+T-02, T-20 → T-25; T-23 → T-26; T-06 → T-27; T-15 → T-28
 ```
 
 ## Estratégia de execução
@@ -169,7 +173,7 @@ T-08, T-09, T-15, T-21 → T-24
 - Branch base: `feat/fase-8b-copiloto-mcp`
 - Ponto de partida: `14139af` (a 8B não está em `main` — decisão do usuário em 2026-10-19, notes.md).
 - Commits da onda: cada implementador commita os próprios caminhos (`git commit -- <caminhos>`); com `worktree por agente` eles chegam pelos merges de `wave<N>/T-XX`. O fechador usa a skill `new-commit --auto` só se sobrou algo sem commit e sempre registra o estado das tasks num `chore(tasks): registra commits da onda N`. Esses commits são internos: a entrega da Fase 5 (`entrega.py`) os desfaz e deixa o código staged para o desenvolvedor revisar; commit final e push só a pedido dele.
-- Isolamento em ondas com edições paralelas: caminho exclusivo — o Mapa não tem arquivo compartilhado dentro de uma onda; os ⚠ (`AiCopilotPanel.php`, `AiCopilotPanelIntegrationTest.php`, `translations.json`) estão serializados nas Ondas 1 → 2 → 3. Cada agente roda só a SUITE filtrada pelas próprias classes; `FAIL` alheio, Redis ou deadlock com outras SUITEs no ar é ruído.
+- Isolamento em ondas com edições paralelas: caminho exclusivo — o Mapa não tem arquivo compartilhado dentro de uma onda; os ⚠ (`AiCopilotPanel.php`, `AiCopilotPanelIntegrationTest.php`, `translations.json`) estão serializados nas Ondas 1 → 2 → 3, e os da Onda 4 (`ToolRegistry.php`, `ToolPolicy.php`, `ObterPrescricoesTool.php`, `ClinicalToolsRecordsTest.php`, `ai-conversation-retention.php`, painel) têm a task original em onda anterior; as 4 tasks da Onda 4 têm arquivos disjuntos entre si. Cada agente roda só a SUITE filtrada pelas próprias classes; `FAIL` alheio, Redis ou deadlock com outras SUITEs no ar é ruído.
 
 ## Ondas de execução
 
@@ -191,6 +195,12 @@ T-08, T-09, T-15, T-21 → T-24
 - T-23 (Aang — `hostLink`)
 - T-24 (Gandalf — runbooks)
 
+### Onda 4 — correção (code-review)
+- T-25 (Spock — auditoria da negação cross-context)
+- T-26 (Aang — onAsk indisponível com a conversa)
+- T-27 (Darwin — knownNames em obter_prescricoes)
+- T-28 (Jaspion — falha da trava da retenção)
+
 Validação e revisão: gate do validador ao fim de cada onda (SUITE completa sem filtro, 0 `FAIL`, total ≥ 1704 + testes novos) e revisão final da Fase 5.
 
 ## Agentes
@@ -199,13 +209,13 @@ Validação e revisão: gate do validador ao fim de cada onda (SUITE completa se
 |---|---|---|---|
 | Sun Tzu — orquestrador | — | — | todas |
 | Platão | general-purpose | inherit | T-01, T-02, T-03, T-04 |
-| Darwin | general-purpose | inherit | T-05, T-06, T-07 |
+| Darwin | general-purpose | inherit | T-05, T-06, T-07, T-27 |
 | Arquimedes | general-purpose | inherit | T-08, T-09, T-10 |
 | Yoda | general-purpose | inherit | T-11, T-12, T-13 |
-| Jaspion | general-purpose | inherit | T-14, T-15 |
-| Aang | general-purpose | inherit | T-16, T-22, T-23 |
+| Jaspion | general-purpose | inherit | T-14, T-15, T-28 |
+| Aang | general-purpose | inherit | T-16, T-22, T-23, T-26 |
 | Levi | general-purpose | inherit | T-17, T-18, T-19 |
-| Spock | general-purpose | inherit | T-20 |
+| Spock | general-purpose | inherit | T-20, T-25 |
 | Hegel | general-purpose | inherit | T-21 |
 | Gandalf | geduc:documentador | sonnet | T-24 |
 

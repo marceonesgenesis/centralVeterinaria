@@ -8,6 +8,7 @@ Fecha a defesa em profundidade da `ToolPolicy` (ToolContext conferido contra o c
 
 ## Tasks atribuídas
 - T-20: ToolPolicy com sameContext; ToolResult excerptLengths ⊆ freeTextFields
+- T-25: auditoria da negação cross-context (Onda 4 — correção)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/tasks.md`. Não leia as demais seções.
 

@@ -10,6 +10,7 @@ Corrige o painel do copiloto (pergunta em branco, rascunho preservado, âncora a
 - T-16: painel: pergunta em branco, rascunho, âncora, RBAC (Onda 1)
 - T-22: foco na resposta nova (Onda 2)
 - T-23: AiCopilotPanel::hostLink e docblock (Onda 3)
+- T-26: onAsk indisponível renderiza a conversa com motivo e rascunho (Onda 4 — correção)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/tasks.md`. Não leia as demais seções.
 

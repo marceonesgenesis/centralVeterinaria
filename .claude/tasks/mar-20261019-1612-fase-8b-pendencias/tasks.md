@@ -32,6 +32,10 @@ Comandos usados em Validação (rodar de `/var/www/html/centralvet`):
 | T-22 | frontend | Painel: foco vai para a resposta nova após o envio | T-16 | sim | média | Aang | [x] |
 | T-23 | frontend | AiCopilotPanel::hostLink único para PatientForm e EncounterView; docblock de resolveTenantContext | T-22 | sim | simples | Aang | [x] |
 | T-24 | docs | Runbooks: 0015 no 5.7, códigos ai_*, flag de gestão, débitos, ticket médio, retenção, seed, âncora RESTRICT, motivos | T-08, T-09, T-15, T-21 | sim | simples | Gandalf | [x] |
+| T-25 | backend | Negação de ToolContext de outro contexto auditada em mcp_tool_call | T-02, T-20 | sim | média | Spock | [x] |
+| T-26 | frontend | onAsk com IA indisponível renderiza a conversa com o motivo e o rascunho | T-23 | sim | média | Aang | [x] |
+| T-27 | backend | obter_prescricoes passa os nomes dos tutores à minimização | T-06 | sim | simples | Darwin | [x] |
+| T-28 | backend | Retenção distingue falha ao abrir a trava de execução sobreposta | T-15 | sim | simples | Jaspion | [x] |
 
 ## Detalhamento
 
@@ -725,6 +729,119 @@ Origem: 8B T-18 ([aberta]: shared-hosting-mysql57.md:363-376 — "rode o `.verif
 - `/usr/bin/grep -nE 'ai_assistant|ticket_medio|skipped|EncounterView|RESTRICT|Registro não encontrado|inativ|vencid' docs/runbooks/ia-assistente.md` (evidência: uma linha por tema)
 - `/usr/bin/grep -c 'da tabela acima' docs/runbooks/ia-assistente.md` (evidência: `0`)
 - `/usr/bin/grep -rnE 'text-align:\s*(right|center)' docs/runbooks/ia-assistente.md` (evidência: sem saída)
+
+### T-25 — Negação de ToolContext de outro contexto auditada em mcp_tool_call
+
+**Camada:** backend
+**Dependências:** T-02, T-20
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Spock
+
+Origem: `/code-review` da branch (Onda 4 — correção). Achado: a negação `forbidden` da T-20 chama `deny($context, ...)` com o `ToolContext` estrangeiro; a guarda da T-14 em `McpToolCallRepository::insert` compara unidade/usuário com o contexto do repositório e lança `TenantBoundaryViolation`, que o `catch` de `deny` (ToolPolicy.php:204-208) só loga — o evento cross-context nunca é auditado. Reprodução exigida: teste de integração com `McpToolCallRepository` real em que `execute` recebe `ToolContext` de outro usuário e uma linha `denied`/`forbidden` aparece em `mcp_tool_call`. Veredito: corrigir.
+
+**Arquivos prováveis**
+- `src/app/Core/Ai/Tools/ToolRegistry.php`
+- `src/app/Core/Ai/Tools/ToolPolicy.php`
+- `src/tests/Integration/ToolPolicyCrossContextIntegrationTest.php`
+
+**Interface**
+- Produz: `ToolRegistry::contextFor(ToolContext $foreign): ToolContext` — `ToolContext::create($this->context, $foreign->correlationId, null, $foreign->purpose, null)` (tenant/unidade/usuário do registry; sem conversa nem âncora, que podem ser alheias); na negação por `!sameContext`, `ToolPolicy` audita com `$this->registry->contextFor($context)` e `deny_reason` `forbidden`; o `ToolOutcome` devolvido não muda.
+- Consome: T-02 `ToolRegistry::sameContext(ToolContext $context): bool`
+
+**Teste RED**
+- `src/tests/Integration/ToolPolicyCrossContextIntegrationTest.php` — `ToolPolicy` com `McpToolCallRepository` real e registry do usuário da fixture, `execute` com `ToolContext` de outro `userId` → 1 linha em `mcp_tool_call` com `decision = 'denied'`, `deny_reason = 'forbidden'`, `system_user_id` do contexto do registry, `conversation_id` NULL e o `correlation_id` da chamada (hoje 0 linhas) (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php 2>&1 | /usr/bin/grep -E 'ToolPolicyCrossContextIntegrationTest|Failed:'`)
+
+**Critério de aceite**
+- SUITE: `PASS` no teste RED; a ferramenta fake não é executada (contador 0); `ToolPolicyTest`, `ToolRegistryTest`, `CopilotRepositoryIntegrationTest` e `AiCopilotServiceTest` com 0 `FAIL`.
+
+**Validação**
+- SUITE com `/usr/bin/grep -E 'ToolPolicyCrossContextIntegrationTest|ToolPolicyTest|ToolRegistryTest|CopilotRepositoryIntegrationTest|AiCopilotServiceTest|Failed:'` (evidência: teste novo em `PASS`, nenhum `FAIL`; a linha gravada some no rollback da fixture)
+- LINT de `app/Core/Ai/Tools/ToolRegistry.php` e `app/Core/Ai/Tools/ToolPolicy.php` (evidência: `No syntax errors detected`)
+
+### T-26 — onAsk com IA indisponível renderiza a conversa com o motivo e o rascunho
+
+**Camada:** frontend
+**Dependências:** T-23
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Aang
+
+Origem: `/code-review` da branch (Onda 4 — correção). Achado: `AiCopilotPanel::onAsk` (catch :137 e relançamento :145) deixa `AiUnavailableException` chegar a `perform()` (:246), que chama `renderMessageOnly` — somem a conversa aberta, a lista de conversas anteriores e as ações, contra o ruling T-15 · onda 4 da 8B ("abrir não depende da IA"). Reprodução exigida: conversa com mensagens, IA ficando indisponível no envio → HTML ainda traz as mensagens, a lista e o motivo, com a pergunta digitada. Veredito: corrigir.
+
+**Arquivos prováveis**
+- `src/app/control/clinic/AiCopilotPanel.php`
+- `src/tests/Integration/AiCopilotPanelIntegrationTest.php`
+
+**Interface**
+- Produz: `AiUnavailableException` no `onAsk` (montagem do serviço ou pré-check) é tratada dentro do `onAsk`, que renderiza `renderPanel(load(..., $fallbackReason = <código do motivo>))` como o `onOpen` com IA indisponível: mensagens da conversa, conversas anteriores, ações e o motivo no lugar do formulário, mais a pergunta digitada num textarea `readonly` (o mesmo markup do rascunho da T-16). `AuthorizationDenied`, `MissingTenantContext`, `TenantBoundaryViolation` e `PDOException` seguem para `perform` como hoje.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Integration/AiCopilotPanelIntegrationTest.php` — conversa com 2 mensagens e flag `ai_assistant` desligada no envio: `onAsk` devolve HTML com as 2 mensagens, a lista de conversas anteriores, o motivo e um textarea `readonly` com a pergunta digitada (hoje só o motivo e o rascunho) (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php 2>&1 | /usr/bin/grep -E 'AiCopilotPanelIntegrationTest|Failed:'`)
+
+**Critério de aceite**
+- SUITE: `PASS` no teste RED; o teste da T-16 de indisponibilidade sem conversa segue `PASS` (motivo + rascunho `readonly`); negação RBAC no `onAsk` segue mostrando "Permissão negada"; `AiCopilotPanelIntegrationTest` e `CopilotHostButtonsIntegrationTest` com 0 `FAIL`.
+
+**Validação**
+- SUITE com `/usr/bin/grep -E 'AiCopilotPanelIntegrationTest|CopilotHostButtonsIntegrationTest|Failed:'` (evidência: teste novo em `PASS`, nenhum `FAIL`)
+- LINT de `app/control/clinic/AiCopilotPanel.php` (evidência: `No syntax errors detected`)
+
+### T-27 — obter_prescricoes passa os nomes dos tutores à minimização
+
+**Camada:** backend
+**Dependências:** T-06
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Darwin
+
+Origem: `/code-review` da branch (Onda 4 — correção). Achado: `ObterPrescricoesTool` (:103) devolve `new ToolResult($data, $truncated, ['via', 'posologia', 'duracao'])` sem `knownNames`; o nome do tutor digitado na posologia não é mascarado, ao contrário de `ObterExamesTool` (:106) e `ObterHistoricoAtendimentosTool` (:112), que passam `$this->query->tutorNames($patientId)`. Reprodução exigida: posologia com o nome do tutor sai mascarada. Veredito: corrigir.
+
+**Arquivos prováveis**
+- `src/app/Core/Ai/Tools/Clinical/ObterPrescricoesTool.php`
+- `src/tests/Unit/ClinicalToolsRecordsTest.php`
+
+**Interface**
+- Produz: `ObterPrescricoesTool::execute` devolve `new ToolResult($data, $truncated, ['via', 'posologia', 'duracao'], array_values(array_unique($this->query->tutorNames($patientId))))`.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Unit/ClinicalToolsRecordsTest.php` — com o tutor semeado no `FakeCopilotClinicalQuery` e posologia contendo o nome dele, `ToolResult->knownNames` contém o nome e `PiiMinimizer::minimize(<posologia>, $result->knownNames)` não contém o nome (hoje `knownNames === []` e o nome passa) (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php 2>&1 | /usr/bin/grep -E 'ClinicalToolsRecordsTest|Failed:'`)
+
+**Critério de aceite**
+- SUITE: `PASS` no teste RED; `ClinicalToolsRecordsTest`, `ToolPolicyTest` e `ToolResultTest` com 0 `FAIL`.
+
+**Validação**
+- SUITE com `/usr/bin/grep -E 'ClinicalToolsRecordsTest|ToolPolicyTest|ToolResultTest|Failed:'` (evidência: teste novo em `PASS`, nenhum `FAIL`)
+- LINT de `app/Core/Ai/Tools/Clinical/ObterPrescricoesTool.php` (evidência: `No syntax errors detected`)
+
+### T-28 — Retenção distingue falha ao abrir a trava de execução sobreposta
+
+**Camada:** backend
+**Dependências:** T-15
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Jaspion
+
+Origem: `/code-review` da branch (Onda 4 — correção). Achado: em `src/bin/ai-conversation-retention.php` (:24-27), `fopen` da trava devolvendo `false` (diretório temporário sem escrita) cai no mesmo ramo do `flock` ocupado e imprime `{"skipped":"locked"}` com exit 0 — o cron nunca mais apaga e ninguém fica sabendo. Reprodução exigida: bin com `sys_temp_dir` inexistente sai ≠ 0 e loga. Veredito: corrigir.
+
+**Arquivos prováveis**
+- `src/bin/ai-conversation-retention.php`
+- `src/tests/Integration/AiConversationRetentionBinTest.php`
+
+**Interface**
+- Produz: `fopen` da trava devolvendo `false` → `error_log('ai-conversation-retention: lock file unavailable')` e `exit(1)`, sem saída em stdout; `flock` ocupado → `{"skipped":"locked"}` e `exit(0)`, como hoje. Os dois ramos saem antes de abrir a conexão.
+- Consome: nada
+
+**Teste RED**
+- `src/tests/Integration/AiConversationRetentionBinTest.php` — subprocesso `php -d sys_temp_dir=<dir inexistente> -d error_log=<arquivo temporário> bin/ai-conversation-retention.php` sai com código 1, stdout sem `skipped` e o log com `lock file unavailable` (hoje sai 0 com `{"skipped":"locked"}`) (comando: `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php tests/run.php 2>&1 | /usr/bin/grep -E 'AiConversationRetentionBinTest|Failed:'`)
+
+**Critério de aceite**
+- SUITE: `PASS` no teste RED e no caso de sobreposição (o teste segura `flock` no arquivo `<sys_temp_dir temporário>/centralvet-ai-conversation-retention-<md5 do dir do bin>.lock` e o subprocesso imprime `{"skipped":"locked"}` com código 0); nenhum caso do teste roda o bin com a trava livre (o ramo livre abre a conexão do ambiente, que não é o `centralvet_test`); `AiConversationRetentionIntegrationTest` com 0 `FAIL`.
+
+**Validação**
+- SUITE com `/usr/bin/grep -E 'AiConversationRetentionBinTest|AiConversationRetentionIntegrationTest|Failed:'` (evidência: dois casos novos em `PASS`, nenhum `FAIL`)
+- LINT de `bin/ai-conversation-retention.php` (evidência: `No syntax errors detected`)
 
 ## Legenda
 

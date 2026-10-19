@@ -24,6 +24,12 @@
 - 2026-10-19 · T-21 · onda 2 — reuso da chave existente `Record not found` (6 chaves novas, não 7) e vínculo tenant_user no teste de XSS com limpeza no tearDown; aceitos pelo revisor.
 - 2026-10-19 · T-23 · onda 3 — wrapper copilotLink da EncounterView removido; render chama AiCopilotPanel::hostLink direto dentro do if de disponibilidade; aceito pelo revisor.
 - 2026-10-19 · T-24 · onda 3 — sugestão de estilo (linha longa da trava de sobreposição) não aplicada; segue como pendência.
+- 2026-10-19 · plano · onda 4 — Onda 4 — correção (code-review), aprovada pelo usuário: achados do `/code-review` da branch viram T-25 (negação `forbidden` da T-20 com `ToolContext` estrangeiro não auditada — a guarda de unidade/usuário da T-14 em `McpToolCallRepository::insert` lança `TenantBoundaryViolation`; auditar com o contexto do registry, sem conversa nem âncora), T-26 (`onAsk` com `AiUnavailableException` chega a `perform` e `renderMessageOnly` perde conversa/lista/ações; renderizar `load` com o motivo e o rascunho), T-27 (`obter_prescricoes` sem `knownNames`; passar `tutorNames`) e T-28 (falha do `fopen` da trava da retenção saía como `{"skipped":"locked"}`/exit 0; logar e sair 1). Arquivos disjuntos entre as 4; os compartilhados com tasks originais levam ⚠ no Mapa.
+- 2026-10-19 · T-28 · onda 4 — O teste do bin só exercita os ramos que saem antes da conexão (trava indisponível e trava ocupada): com a trava livre o bin abre `PdoConnectionFactory::fromEnvironment()`, que não é o `centralvet_test`, e apagaria conversas do banco do ambiente.
+- 2026-10-19 · usuário · onda 4 — onda de correção dos 4 achados do /code-review aprovada pelo usuário; os outros 6 achados (CURDATE vs relógio no estoque, fuso por ferramenta, SELECT extra por chamada no McpToolCallRepository, isSummaryEntry frouxo, providerConfigured duplicado, patientInUnit repetido no onDelete) ficam como pendências.
+- 2026-10-19 · T-25 · onda 4 — contextFor dentro do try da auditoria (closure); aceito pelo revisor.
+- 2026-10-19 · T-26 · onda 4 — load volta a ter ?string $fallbackReason = null; aceito pelo revisor.
+- 2026-10-19 · T-28 · onda 4 — @fopen e DB_HOST inválido no teste; aceitos pelo revisor.
 
 ## Bloqueios
 - nenhum
@@ -43,6 +49,9 @@
 - [T-05] BuscarPacienteTool/ObterHistoricoAtendimentosTool pedem $limit+1 à consulta e marcam truncated real.
 - [T-14] AiConversationRepository::insert e McpToolCallRepository::insert agora lançam TenantBoundaryViolation se unidade/usuário divergem do contexto (e, no mcp_tool_call, conversation_id inexistente no tenant): fixtures que gravam linha de outro usuário/unidade precisam de repositório com o contexto desse usuário/unidade.
 - [T-15] AiConversationRetention::forConnection($pdo, $clock, $batchSize, $maxBatches) (>= 1); bin imprime {"skipped":"locked"} e sai 0 quando travado (flock em sys_get_temp_dir()/centralvet-ai-conversation-retention-<md5(__DIR__)>.lock) — para o runbook (T-24).
+- [T-25] ToolRegistry::contextFor(ToolContext $foreign): ToolContext (tenant/unidade/usuário do registry, correlation_id e purpose da chamada, sem conversa nem âncora); ToolPolicy audita a negação forbidden por !sameContext com esse contexto — a linha de mcp_tool_call sai com o usuário do registry e conversation_id NULL (6700d92).
+- [T-26] AiCopilotPanel: onAsk trata AiUnavailableException (montagem/pré-check) e renderiza load(..., $fallbackReason) com 'draft' (textarea readonly via helper draftField); load voltou a ter ?string $fallbackReason = null (usado quando a 8A não aponta motivo); perform não usa mais renderMessageOnly para AiUnavailableException.
+
 
 
 ## Pendências
@@ -72,6 +81,11 @@
 - T-22: falta teste de onAsk em conversa com resposta anterior (AiCopilotPanelIntegrationTest.php:375-400); foco real e anel visível no navegador não verificados (container sem node, Playwright proibido): conferência manual do `div[tabindex="-1"]` e do re-exec do script a cada `.html()`/`.append()` do Adianti.
 - T-23: `CopilotHostButtonsIntegrationTest::assertCopilotLink` não afirma `fa:comments` nem o `<span>` "Copilot" (CopilotHostButtonsIntegrationTest.php:155-164).
 - T-24: trecho da trava de execução sobreposta com linha longa/quebra irregular (ia-assistente.md:346-350).
+- Code-review da branch (fora da onda 4, 6 achados): CURDATE() do MySQL × relógio da app no estoque; fuso por ferramenta; SELECT extra por chamada em McpToolCallRepository; isSummaryEntry frouxo; providerConfigured duplicado; patientInUnit repetido no onDelete.
+- T-25: sem teste do registry sem unidade ativa (forbidden + log "audit failed", ToolPolicy.php:205-210); integração cobre só divergência de usuário, não de unidade.
+- T-26: try aninhado em AiCopilotPanel.php:133-147 só para relançar AiUnavailableException; precedência 8A × motivo da exceção sem teste; catch de perform (:253-257) sem teste próprio.
+- T-27: teste minimiza a literal $posologia, não $result->data[0]['posologia'] (ClinicalToolsRecordsTest.php:217).
+- T-28: mesmo defeito (fopen false → "ocupado", exit 0) em src/bin/worker.php:131-135.
 
 ## Riscos
 - T-14 pode quebrar fixtures que gravam conversa de outro usuário pelo repositório com o contexto errado → validação inclui as suítes de painel, listas, serviço e retenção; falha em arquivo alheio vai ao board.
@@ -87,5 +101,6 @@
   - Onda 1: BASE 14139af → HEAD 04ed023 (04ed023,ac80931,fd94ccc,3398e66,ffea790,cd8b614,1189d25,c1a5b4c,57f2c51,ebf8ede,dc2862d,7fcd26a,9a58512,d469fbb,efc0f18,91c83c9,ea33874,db330c4,be0025f,fcce474,d4e8e1f,be5f03d,970d815,b360d08,d740c20,1430b40,b8e4e6c,86031be,e3d147f,82c75f6,3175920,361a20b,0b0da3f)
   - Onda 2: BASE 6d1db9e → HEAD 02d4e80 (02d4e80,984b2fe,a9e8638,5db05fa,4d895fd,517f81c)
   - Onda 3: BASE f30ca6a → HEAD 7f3b9f5 (7f3b9f5,b5ac8ca,c943ac7)
-- Último status conhecido: onda 3 concluída; T-01..T-24 [x] (SUITE 1758/1758, revisões sem bloqueantes)
+  - Onda 4: BASE c1046a5 → HEAD bad05f5 (bad05f5,6700d92,ed64189,84ab554,4ba3e8d,7a518d0,fc03dcf,b0b06a4)
+- Último status conhecido: onda 4 concluída; T-01..T-28 [x] (SUITE 1763/1763, revisões sem bloqueantes)
 - Próxima onda recomendada: nenhuma (revisão final)

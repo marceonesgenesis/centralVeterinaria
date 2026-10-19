@@ -9,6 +9,7 @@ Endurece os repositórios do copiloto (unidade, usuário e conversa conferidos n
 ## Tasks atribuídas
 - T-14: insert confere unidade/usuário e conversation_id
 - T-15: retenção com lote/teto injetáveis e trava flock
+- T-28: falha do fopen da trava da retenção sai 1 com log (Onda 4 — correção)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/tasks.md`. Não leia as demais seções.
 
@@ -23,6 +24,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Notas: `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/notes.md` — leia § Decisões tomadas e § Descobertas antes de começar (rulings de ondas anteriores vivem ali, não no board).
 
 ## Ambiente
+- T-28: nunca rode `bin/ai-conversation-retention.php` com a trava livre (abre a conexão do ambiente, não o `centralvet_test`); o teste só exercita trava indisponível e trava ocupada.
 - Repositório único `/var/www/html/centralvet` (raiz do projeto, checkout compartilhado com os outros agentes da onda): commite com `git -C /var/www/html/centralvet`.
 - Branch `task/fase-8b-pendencias` (criada pelo orquestrador a partir de `feat/fase-8b-copiloto-mcp` @ `14139af`, já em checkout; não troque de branch).
 - LINT = `docker compose run --rm --no-deps -T -v /var/www/html/centralvet/src:/var/www/html/src:ro app php -l <arquivo relativo a src/>` (baseline `/var/www/html/centralvet/.claude/tasks/mar-20261019-1612-fase-8b-pendencias/baseline/php-lint.txt`, 0 linhas: todo PHP tocado imprime `No syntax errors detected`).
