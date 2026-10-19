@@ -12,7 +12,8 @@ use Closure;
 
 /**
  * Fail-closed gate in front of every copilot tool (Fase 8B spec § 3.1).
- * Checks, in order: offered + registered (`not_offered`), input schema
+ * Checks, in order: ToolContext matching the registry's TenantContext
+ * (`forbidden`), offered + registered (`not_offered`), input schema
  * (`invalid_input`), RBAC of the tool's screen permission (`forbidden`, read
  * from the ToolRegistry cache: the policy never asks the RBAC policy again,
  * so each tool gets one decision per request), entity scope (`not_found`) and the per-user
@@ -74,6 +75,13 @@ final class ToolPolicy
 
         try {
             $inputMinimized = $this->minimizeInput($input);
+
+            // Defense in depth: RBAC was decided for the registry's
+            // TenantContext, so a ToolContext of another tenant, unit or
+            // user is denied before the tool is even looked up.
+            if (!$this->registry->sameContext($context)) {
+                return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started);
+            }
 
             $offered = in_array($toolName, $offeredNames, true);
             $denial = $offered ? $this->registry->denialReason($family, $toolName) : ToolRegistry::NOT_OFFERED;

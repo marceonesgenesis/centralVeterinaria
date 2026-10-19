@@ -8,10 +8,12 @@ namespace CentralVet\Ai\Tools;
  * Rows returned by a tool: a list of flat records with scalar values.
  * $freeTextFields names the columns holding clinical free text (minimized
  * before going to the provider); $knownNames lists names already shown to
- * the user that PII minimization may keep. $excerptLengths maps a column to
- * its maximum length in characters: tools return the full text and
- * ToolPolicy cuts it only after minimizing, so a cut never leaves a
- * fragment of a phone, CPF or name that the minimizer cannot recognize.
+ * the user, which PII minimization masks inside those free-text fields.
+ * $excerptLengths maps a free-text column (it must be listed in
+ * $freeTextFields) to its maximum length in characters: tools return the
+ * full text and ToolPolicy cuts it only after minimizing, so a cut never
+ * leaves a fragment of a phone, CPF or name that the minimizer cannot
+ * recognize, and no column is cut without being minimized.
  */
 final class ToolResult
 {
@@ -38,6 +40,9 @@ final class ToolResult
         foreach ($excerptLengths as $field => $max) {
             if (!is_string($field) || !is_int($max) || $max <= 0) {
                 throw new \InvalidArgumentException('Excerpt lengths must map field names to positive lengths');
+            }
+            if (!in_array($field, $freeTextFields, true)) {
+                throw new \InvalidArgumentException('Excerpt lengths must name free-text fields');
             }
         }
 
