@@ -275,6 +275,31 @@ final class AiCopilotPanelIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(0, $out['conversations'], 'nothing stored');
     }
 
+    /** T-26: IA desligada no envio de uma conversa aberta → a conversa, a lista, as ações, o motivo e a pergunta digitada. */
+    public function testAskWithAiTurnedOffKeepsTheOpenConversationTheListAndTheQuestion(): void
+    {
+        $out = $this->runPanel(
+            '$conversationId = $seedConversation();'
+            . '$pdo->prepare("UPDATE feature_flag SET enabled = 0 WHERE tenant_id = :t AND flag_key = \'ai_assistant\'")->execute(["t" => $tenantId]);'
+            . '$page = new AiCopilotPanelT14(["method" => "onAsk"]);'
+            . '$page->onAsk(["family" => "clinical", "anchor_patient_id" => (string) $patientId, "conversation_id" => (string) $conversationId,'
+            . ' "question" => "Pergunta na conversa aberta", "submit_token" => str_repeat("k", 32)]); $page->show();'
+            . '$out["reason"] = _t("The AI assistant is turned off for this clinic.");'
+            . '$out["messages"] = $count("SELECT COUNT(*) FROM ai_conversation_message WHERE tenant_id = :t");'
+        );
+
+        $html = (string) $out['html'];
+
+        Assert::stringContains(self::STORED_QUESTION, $html, 'stored question of the open conversation is shown');
+        Assert::stringContains(self::STORED_ANSWER, $html, 'stored answer of the open conversation is shown');
+        Assert::stringContains('Conversas anteriores', $html, 'previous conversations are still listed');
+        Assert::stringContains('Apagar conversa', $html, 'conversation actions are still shown');
+        Assert::stringContains((string) $out['reason'], $html, 'the 8A reason is shown');
+        Assert::true(preg_match('/<textarea[^>]*readonly[^>]*>Pergunta na conversa aberta<\/textarea>/', $html) === 1, 'typed question kept in a readonly textarea');
+        Assert::false(str_contains($html, 'name="question"'), 'no question form while unavailable');
+        Assert::same(2, $out['messages'], 'nothing new stored');
+    }
+
     /** Pendências 8B T-16: AiUnavailableException ao montar o serviço → motivo e a pergunta digitada preservada. */
     public function testAskWithServiceUnavailableAtBuildKeepsTheQuestion(): void
     {
