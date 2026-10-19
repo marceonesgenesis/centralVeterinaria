@@ -100,7 +100,7 @@ final class ObterPrescricoesTool implements AiTool
             ];
         }
 
-        return new ToolResult($data, $truncated, ['via', 'posologia', 'duracao']);
+        return new ToolResult($data, $truncated, ['via', 'posologia', 'duracao'], array_values(array_unique($this->query->tutorNames($patientId))));
     }
 
     private static function date(?string $value): ?string
