@@ -31,7 +31,7 @@ Comandos usados em Validação (rodar de `/var/www/html/centralvet`):
 | T-21 | frontend | AiToolCallList: Motivo traduzido, negação e XSS testados | T-16 | sim | média | Hegel | [x] |
 | T-22 | frontend | Painel: foco vai para a resposta nova após o envio | T-16 | sim | média | Aang | [x] |
 | T-23 | frontend | AiCopilotPanel::hostLink único para PatientForm e EncounterView; docblock de resolveTenantContext | T-22 | sim | simples | Aang | [x] |
-| T-24 | docs | Runbooks: 0015 no 5.7, códigos ai_*, flag de gestão, débitos, ticket médio, retenção, seed, âncora RESTRICT, motivos | T-08, T-09, T-15, T-21 | sim | simples | Gandalf | [ ] |
+| T-24 | docs | Runbooks: 0015 no 5.7, códigos ai_*, flag de gestão, débitos, ticket médio, retenção, seed, âncora RESTRICT, motivos | T-08, T-09, T-15, T-21 | sim | simples | Gandalf | [x] |
 
 ## Detalhamento
 

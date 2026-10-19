@@ -22,6 +22,8 @@
 - 2026-10-19 · T-16 · onda 1 — desvios aceitos pelo revisor: RuntimeException na montagem vira AiUnavailableException('ai_provider_error'); parâmetro $fallbackReason de load removido.
 - 2026-10-19 · plano · onda 1 — linha "Branch base" de plan.md reformatada pelo orquestrador (repos.py exige só o nome); ponto de partida 14139af movido para linha própria.
 - 2026-10-19 · T-21 · onda 2 — reuso da chave existente `Record not found` (6 chaves novas, não 7) e vínculo tenant_user no teste de XSS com limpeza no tearDown; aceitos pelo revisor.
+- 2026-10-19 · T-23 · onda 3 — wrapper copilotLink da EncounterView removido; render chama AiCopilotPanel::hostLink direto dentro do if de disponibilidade; aceito pelo revisor.
+- 2026-10-19 · T-24 · onda 3 — sugestão de estilo (linha longa da trava de sobreposição) não aplicada; segue como pendência.
 
 ## Bloqueios
 - nenhum
@@ -31,6 +33,8 @@
 - O erro de chave extra do `JsonSchemaValidator` não sai do processo hoje (`ToolPolicy.php:85` só testa `!== []`); a T-02 o torna genérico por defesa.
 - O `error_log` "copilot link hidden" de PatientForm/EncounterView só ocorre em exceção (sem tenant, erro de banco); a configuração inválida é logada pela closure de `AiCopilotAvailability::forContext`.
 - [T-NN] <fato>
+- [T-23] AiCopilotPanel::hostLink(string $family, ?int $anchorPatientId): TElement monta o link "Copiloto" das telas hospedeiras; EncounterView::copilotLink removido (b5ac8ca).
+- [T-24] Runbooks ia-assistente.md e shared-hosting-mysql57.md atualizados; a FK RESTRICT barra só DELETE de paciente, UPDATE/anonimização não é barrado (7f3b9f5).
 - [T-16] AiCopilotPanel: onAsk deixa AiUnavailableException subir a perform (com $draft → renderMessageOnly com motivo e rascunho); load perdeu o parâmetro $fallbackReason; helper privado assertAnchorInUnit usado por load e onDelete; teste ganhou T14::$historyAllow e T14::$buildReason (d469fbb).
 - [T-02] ToolRegistry::sameContext(ToolContext $context): bool disponível (compara tenantId, userId e unitId com o TenantContext do registry; unitId null no registry dá false). Construtor lança \LogicException('Duplicate tool name: <name>'). Erro de chave extra do JsonSchemaValidator agora é 'unexpected property: not allowed'.
 - [T-12] FakeAiInteractionRepository ganhou failNextInsert(\Throwable $e) (lança uma vez, sem gravar); AiCopilotService::recordInteraction loga "interaction not recorded after the answer" com correlation_id antes de relançar (9a58512).
@@ -66,6 +70,8 @@
 - T-20: com o repositório real, a linha `denied` do ToolContext divergente não é gravada (McpToolCallRepository::insert lança TenantBoundaryViolation); ToolResultTest não confere a mensagem; RED não prova "sem validar" e tenant/unit divergentes só cobertos em ToolRegistryTest::sameContext (ToolPolicyTest.php:172-188).
 - T-21: só `not_found` tem a coluna Motivo asserida (faltam os outros 6 códigos e o fallback); `Permissão negada` também aparece no 403 do framework, a asserção não distingue as negações.
 - T-22: falta teste de onAsk em conversa com resposta anterior (AiCopilotPanelIntegrationTest.php:375-400); foco real e anel visível no navegador não verificados (container sem node, Playwright proibido): conferência manual do `div[tabindex="-1"]` e do re-exec do script a cada `.html()`/`.append()` do Adianti.
+- T-23: `CopilotHostButtonsIntegrationTest::assertCopilotLink` não afirma `fa:comments` nem o `<span>` "Copilot" (CopilotHostButtonsIntegrationTest.php:155-164).
+- T-24: trecho da trava de execução sobreposta com linha longa/quebra irregular (ia-assistente.md:346-350).
 
 ## Riscos
 - T-14 pode quebrar fixtures que gravam conversa de outro usuário pelo repositório com o contexto errado → validação inclui as suítes de painel, listas, serviço e retenção; falha em arquivo alheio vai ao board.
@@ -80,5 +86,6 @@
 - Commits por onda:
   - Onda 1: BASE 14139af → HEAD 04ed023 (04ed023,ac80931,fd94ccc,3398e66,ffea790,cd8b614,1189d25,c1a5b4c,57f2c51,ebf8ede,dc2862d,7fcd26a,9a58512,d469fbb,efc0f18,91c83c9,ea33874,db330c4,be0025f,fcce474,d4e8e1f,be5f03d,970d815,b360d08,d740c20,1430b40,b8e4e6c,86031be,e3d147f,82c75f6,3175920,361a20b,0b0da3f)
   - Onda 2: BASE 6d1db9e → HEAD 02d4e80 (02d4e80,984b2fe,a9e8638,5db05fa,4d895fd,517f81c)
-- Último status conhecido: onda 2 concluída; T-01..T-22 [x] (SUITE 1758/1758, lint ok, revisões sem bloqueantes); T-23, T-24 [ ]
-- Próxima onda recomendada: onda 3 — T-23 e T-24
+  - Onda 3: BASE f30ca6a → HEAD 7f3b9f5 (7f3b9f5,b5ac8ca,c943ac7)
+- Último status conhecido: onda 3 concluída; T-01..T-24 [x] (SUITE 1758/1758, revisões sem bloqueantes)
+- Próxima onda recomendada: nenhuma (revisão final)
