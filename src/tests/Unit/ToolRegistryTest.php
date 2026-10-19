@@ -63,7 +63,7 @@ final class ToolRegistryTest
             $this->context(),
         );
 
-        Assert::false(in_array('apagar_paciente', $this->names($registry->visible('clinical')), true));
+        Assert::same(['buscar_paciente'], $this->names($registry->visible('clinical')));
         Assert::null($registry->find('clinical', 'apagar_paciente'));
     }
 
@@ -267,5 +267,42 @@ final class ToolRegistryTest
         $registry->denialReason('clinical', 'obter_paciente');
 
         Assert::count(2, $policy->requests);
+    }
+
+    /** T-02 (pendências 8B): nome duplicado é erro de programação, não escolha silenciosa. */
+    public function testDuplicateToolNameIsRejected(): void
+    {
+        $error = null;
+        try {
+            new ToolRegistry(
+                [
+                    new FakeAiTool('buscar_paciente', 'clinical', 'GlobalSearchController::onSearch'),
+                    new FakeAiTool('buscar_paciente', 'clinical', 'PatientList::onReload'),
+                ],
+                new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
+                new FakeAuthorizationPolicy(true),
+                $this->context(),
+            );
+        } catch (\LogicException $e) {
+            $error = $e->getMessage();
+        }
+
+        Assert::same('Duplicate tool name: buscar_paciente', $error);
+    }
+
+    /** T-02 (pendências 8B): ToolContext do mesmo tenant, usuário e unidade do registry. */
+    public function testSameContextMatchesTenantUserAndUnit(): void
+    {
+        $registry = new ToolRegistry(
+            $this->tools(),
+            new FakeFeatureFlagRepository([FeatureFlagRepositoryInterface::AI_ASSISTANT]),
+            new FakeAuthorizationPolicy(true),
+            $this->context(),
+        );
+
+        Assert::true($registry->sameContext(ToolContext::create($this->context(), 'corr-1', null, 'copilot_clinical', null)));
+        Assert::false($registry->sameContext(ToolContext::create(TenantContext::authenticated(7, 12, 3), 'corr-1', null, 'copilot_clinical', null)));
+        Assert::false($registry->sameContext(ToolContext::create(TenantContext::authenticated(8, 11, 3), 'corr-1', null, 'copilot_clinical', null)));
+        Assert::false($registry->sameContext(ToolContext::create(TenantContext::authenticated(7, 11, 4), 'corr-1', null, 'copilot_clinical', null)));
     }
 }

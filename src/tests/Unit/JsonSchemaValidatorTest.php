@@ -84,6 +84,18 @@ final class JsonSchemaValidatorTest
         Assert::count(1, $this->validate(['patient_id' => 5, 'tenant_id' => 2]));
     }
 
+    /** T-02 (pendências 8B): a chave vem do modelo e pode ser dado pessoal; o erro não a ecoa. */
+    public function testExtraKeyErrorNeverEchoesTheKey(): void
+    {
+        $errors = (new JsonSchemaValidator())->validate(
+            ['type' => 'object', 'properties' => ['patient_id' => ['type' => 'integer']]],
+            ['123.456.789-09' => 1],
+        );
+
+        Assert::same(['unexpected property: not allowed'], $errors);
+        Assert::false(str_contains(implode('|', $errors), '123.456.789-09'));
+    }
+
     public function testUnsupportedKeywordThrows(): void
     {
         Assert::throws(\LogicException::class, static fn () => (new JsonSchemaValidator())->validate(
