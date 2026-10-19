@@ -94,16 +94,16 @@ final class ClinicalToolsRecordsTest
         ];
     }
 
-    private function exam(?bool $pendingReview, ?string $text = 'Hemograma sem alterações'): array
+    private function exam(?bool $pendingReview, ?string $text = 'Hemograma sem alterações', string $status = 'result_available'): array
     {
         return [
             'exam_request_id' => 5,
             'exam_name' => 'Hemograma',
             'requested_at' => '2026-10-12 10:00:00',
-            'status' => 'received',
+            'status' => $status,
             'pending_review' => $pendingReview,
             'structured_result_text' => $text,
-            'received_at' => '2026-10-13 08:00:00',
+            'received_at' => $status === 'requested' ? null : '2026-10-13 08:00:00',
         ];
     }
 
@@ -192,6 +192,18 @@ final class ClinicalToolsRecordsTest
         Assert::same([self::PATIENT, true, '2026-10-15'], array_slice($call['args'], 0, 3));
     }
 
+    public function testPrescriptionFreeTextFieldsAreMarkedForMinimization(): void
+    {
+        $query = $this->query();
+        $query->seed('prescriptions', [$this->prescription('issued')]);
+
+        $result = $this->run(new ObterPrescricoesTool($query, $this->clock()), []);
+
+        foreach (['via', 'posologia', 'duracao'] as $field) {
+            Assert::true(in_array($field, $result->freeTextFields, true), $field . ' must be a free-text field');
+        }
+    }
+
     public function testPrescriptionsAllPassesOnlyActiveFalse(): void
     {
         $query = $this->query();
@@ -217,11 +229,23 @@ final class ClinicalToolsRecordsTest
         Assert::null($result->data[2]['resultado']);
         Assert::same('Hemograma', $result->data[1]['exame']);
         Assert::same('2026-10-12', $result->data[1]['data']);
-        Assert::same('received', $result->data[1]['status']);
+        Assert::same('result_available', $result->data[1]['status']);
         Assert::same(['resultado'], $result->freeTextFields);
 
         $call = $this->lastCall($query, 'exams');
         Assert::same([self::PATIENT, 'pendentes'], array_slice($call['args'], 0, 2));
+    }
+
+    public function testRequestedExamWithoutReviewKeepsRequestedStatus(): void
+    {
+        $query = $this->query();
+        $query->seed('exams', [$this->exam(null, null, 'requested')]);
+
+        $result = $this->run(new ObterExamesTool($query, $this->clock()), []);
+
+        Assert::same('requested', $result->data[0]['status']);
+        Assert::same(false, $result->data[0]['provisorio']);
+        Assert::null($result->data[0]['resultado']);
     }
 
     public function testExamsDefaultToTodos(): void
@@ -241,6 +265,18 @@ final class ClinicalToolsRecordsTest
         foreach ($this->tools($query) as $tool) {
             Assert::throws(ToolEntityNotFoundException::class, fn () => $tool->assertInScope($this->context(), ['patient_id' => 99]));
             Assert::throws(ToolEntityNotFoundException::class, fn () => $tool->execute($this->context(), ['patient_id' => 99]));
+        }
+    }
+
+    public function testAnchorOutsideUnitIsNotFound(): void
+    {
+        $query = $this->query();
+        $query->setInUnit('patient', 99, false);
+        $context = $this->context(99);
+
+        foreach ([new ObterExamesTool($query, $this->clock()), new ObterPrescricoesTool($query, $this->clock())] as $tool) {
+            Assert::throws(ToolEntityNotFoundException::class, fn () => $tool->assertInScope($context, []));
+            Assert::throws(ToolEntityNotFoundException::class, fn () => $tool->execute($context, []));
         }
     }
 
