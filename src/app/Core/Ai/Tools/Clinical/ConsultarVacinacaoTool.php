@@ -6,9 +6,7 @@ namespace CentralVet\Ai\Tools\Clinical;
 
 use CentralVet\Ai\Tools\AiTool;
 use CentralVet\Ai\Tools\ToolContext;
-use CentralVet\Ai\Tools\ToolEntityNotFoundException;
 use CentralVet\Ai\Tools\ToolFamily;
-use CentralVet\Ai\Tools\ToolInputException;
 use CentralVet\Ai\Tools\ToolResult;
 use CentralVet\Domain\Contract\CopilotClinicalQueryInterface;
 use Closure;
@@ -21,6 +19,8 @@ use DateTimeImmutable;
  */
 final class ConsultarVacinacaoTool implements AiTool
 {
+    use ResolvesPatientInUnit;
+
     private readonly Closure $clock;
 
     public function __construct(
@@ -91,20 +91,6 @@ final class ConsultarVacinacaoTool implements AiTool
         }
 
         return new ToolResult($data, $truncated);
-    }
-
-    /** @param array<string, mixed> $input */
-    private function patientId(ToolContext $context, array $input): int
-    {
-        $patientId = $input['patient_id'] ?? $context->anchorPatientId;
-        if (!is_int($patientId) || $patientId <= 0) {
-            throw new ToolInputException('patient_id: required (no patient in the conversation)');
-        }
-        if (!$this->query->patientInUnit($patientId)) {
-            throw new ToolEntityNotFoundException('Patient not found');
-        }
-
-        return $patientId;
     }
 
     private static function date(?string $value): ?string
