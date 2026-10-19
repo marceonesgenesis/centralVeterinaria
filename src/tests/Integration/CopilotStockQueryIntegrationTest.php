@@ -122,6 +122,71 @@ final class CopilotStockQueryIntegrationTest extends MysqlIntegrationTestCase
         Assert::same([], $this->query()->search('100%', 10), 'LIKE wildcards are escaped');
     }
 
+    /**
+     * Pendências 8B, T-09: a batch already expired (MySQL CURDATE(), the
+     * date of the writes) is not shown as the next expiry/lot; with only
+     * expired batches, both are null. The balance still counts them.
+     */
+    public function testBelowMinimumSkipsExpiredBatchForNextExpiry(): void
+    {
+        $a = $this->tenantA;
+        $mixed = $this->product($a, 'F8B Seringa', 10);
+        $expiredOnly = $this->product($a, 'F8B Agulha', 10);
+        $this->batch($a, $this->unitA, $mixed, 2, 'VENC', $this->sqlDate('CURDATE() - INTERVAL 1 DAY'));
+        $this->batch($a, $this->unitA, $mixed, 3, 'OK60', $this->sqlDate('CURDATE() + INTERVAL 60 DAY'));
+        $this->batch($a, $this->unitA, $expiredOnly, 1, 'VENC2', $this->sqlDate('CURDATE() - INTERVAL 1 DAY'));
+
+        $rows = [];
+        foreach ($this->query()->belowMinimum(50) as $row) {
+            $rows[$row['product_id']] = $row;
+        }
+
+        Assert::same('5', $rows[$mixed]['balance']);
+        Assert::same($this->sqlDate('CURDATE() + INTERVAL 60 DAY'), $rows[$mixed]['next_expiry'], 'next valid batch, not the one expired yesterday');
+        Assert::same('OK60', $rows[$mixed]['lot']);
+        Assert::null($rows[$expiredOnly]['next_expiry'], 'only an expired batch: no expiry shown');
+        Assert::null($rows[$expiredOnly]['lot']);
+
+        $search = $this->query()->search('Seringa', 10);
+        Assert::same('OK60', $search[0]['lot'], 'search follows the same rule');
+    }
+
+    /** Pendências 8B, T-09: `_` is a literal in the search, not a one-character wildcard. */
+    public function testSearchEscapesUnderscore(): void
+    {
+        $exact = $this->product($this->tenantA, 'F8B Gaze_A', 0);
+        $this->product($this->tenantA, 'F8B GazeXA', 0);
+
+        Assert::same([$exact], array_column($this->query()->search('Gaze_A', 10), 'product_id'));
+    }
+
+    /** Pendências 8B, T-09: expiring is [today, today + N] inclusive; expired and inactive products are left out. */
+    public function testExpiringBoundaries(): void
+    {
+        $a = $this->tenantA;
+        $today = new DateTimeImmutable($this->sqlDate('CURDATE()'));
+        $edgeToday = $this->product($a, 'F8B Borda Hoje', 0);
+        $edgeThirty = $this->product($a, 'F8B Borda Trinta', 0);
+        $expired = $this->product($a, 'F8B Borda Ontem', 0);
+        $inactive = $this->product($a, 'F8B Borda Inativo', 0, null, false);
+        $this->batch($a, $this->unitA, $edgeToday, 1, 'H0', $today->format('Y-m-d'));
+        $this->batch($a, $this->unitA, $edgeThirty, 1, 'H30', $today->modify('+30 days')->format('Y-m-d'));
+        $this->batch($a, $this->unitA, $expired, 1, 'H-1', $today->modify('-1 day')->format('Y-m-d'));
+        $this->batch($a, $this->unitA, $inactive, 1, 'HI', $today->modify('+5 days')->format('Y-m-d'));
+
+        $ids = array_column($this->query()->expiring($today, 30, 50), 'product_id');
+
+        Assert::true(in_array($edgeToday, $ids, true), 'expiring today');
+        Assert::true(in_array($edgeThirty, $ids, true), 'expiring at today + 30');
+        Assert::false(in_array($expired, $ids, true), 'expired yesterday');
+        Assert::false(in_array($inactive, $ids, true), 'inactive product');
+    }
+
+    private function sqlDate(string $expression): string
+    {
+        return (string) $this->pdo->query('SELECT DATE_FORMAT(' . $expression . ", '%Y-%m-%d')")->fetchColumn();
+    }
+
     private function query(?int $unitId = null): CopilotStockQuery
     {
         return new CopilotStockQuery(
