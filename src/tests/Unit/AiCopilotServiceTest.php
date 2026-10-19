@@ -629,6 +629,37 @@ final class AiCopilotServiceTest
         Assert::same($interactions[0]->correlationId(), $calls[0]->correlationId());
     }
 
+    /** Pendências 8B T-12: the answer is stored but the interaction insert fails → logged with the correlation id, rethrown. */
+    public function testFailedInteractionInsertAfterTheAnswerIsLoggedWithTheCorrelationIdAndRethrown(): void
+    {
+        $gateway = StubAiGateway::scripted([
+            self::toolUse([['tu_1', 'obter_paciente', ['patient_id' => self::PATIENT_ID]]], 100, 10),
+            self::text('Resposta sigilosa do teste', 200, 30),
+        ]);
+        $this->interactions->failNextInsert(new RuntimeException('insert failed'));
+
+        $logFile = tempnam(sys_get_temp_dir(), 'cv-copilot-interaction-');
+        $previousLog = ini_set('error_log', $logFile);
+        try {
+            Assert::throws(RuntimeException::class, fn () => $this->service($gateway)->ask('clinical', null, self::PATIENT_ID, 'Pergunta sigilosa do teste'));
+            $logged = (string) file_get_contents($logFile);
+        } finally {
+            ini_set('error_log', $previousLog === false ? '' : $previousLog);
+            @unlink($logFile);
+        }
+
+        Assert::count(0, $this->interactions->all());
+        $calls = $this->calls->all();
+        Assert::count(1, $calls);
+        $correlationId = $calls[0]->correlationId();
+        Assert::true($correlationId !== '');
+
+        Assert::stringContains('interaction not recorded after the answer', $logged);
+        Assert::stringContains('correlation_id=' . $correlationId, $logged);
+        Assert::false(str_contains($logged, 'Pergunta sigilosa'), 'the question is not logged');
+        Assert::false(str_contains($logged, 'Resposta sigilosa'), 'the answer is not logged');
+    }
+
     /** T-28: reading an existing conversation does not depend on the AI availability. */
     public function testConversationOpensWithTheAiDisabled(): void
     {

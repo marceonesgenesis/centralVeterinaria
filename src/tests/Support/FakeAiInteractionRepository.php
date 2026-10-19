@@ -27,6 +27,7 @@ final class FakeAiInteractionRepository implements AiInteractionRepositoryInterf
     private array $rows = [];
     private int $nextId = 1;
     private int $extraMonthlyTokens = 0;
+    private ?\Throwable $nextInsertFailure = null;
 
     public function __construct(private readonly int $tenantId)
     {
@@ -50,6 +51,13 @@ final class FakeAiInteractionRepository implements AiInteractionRepositoryInterf
 
     public function insert(AiInteraction $interaction): AiInteraction
     {
+        if ($this->nextInsertFailure !== null) {
+            $failure = $this->nextInsertFailure;
+            $this->nextInsertFailure = null;
+
+            throw $failure;
+        }
+
         if ($interaction->tenantId() !== $this->tenantId) {
             throw new InvalidArgumentException('AI interaction belongs to another tenant');
         }
@@ -153,6 +161,12 @@ final class FakeAiInteractionRepository implements AiInteractionRepositoryInterf
         ksort($this->rows);
 
         return array_values(array_map(static fn (array $row): AiInteraction => AiInteraction::reconstitute($row), $this->rows));
+    }
+
+    /** The next insert() throws $e (once) without storing the interaction. */
+    public function failNextInsert(\Throwable $e): void
+    {
+        $this->nextInsertFailure = $e;
     }
 
     /** Tokens already used this month by interactions the fake does not hold. */
