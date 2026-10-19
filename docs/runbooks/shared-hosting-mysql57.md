@@ -379,6 +379,9 @@ grep -n "TRIGGER IF EXISTS .*ai_interaction\|CREATE TRIGGER .*ai_interaction" \
   "$d/out/19-20261015_0015_phase8b_copilot.sql"
 ```
 
+Esperado: 12 `DROP TRIGGER IF EXISTS` e 12 `CREATE TRIGGER` (um par `_bi`/`_bu`
+por CHECK), cada drop antes do create do mesmo nome.
+
 Aplique só com autorização SQL específica. Antes, anote
 `SELECT COUNT(*) FROM ai_interaction`; depois, rode o mesmo comando e exija o
 **mesmo número** (a migration só amplia CHECKs, não apaga linhas).

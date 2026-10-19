@@ -353,8 +353,11 @@ resposta no log.
 `anchor_patient_id` com FK `ai_conversation_anchor_patient_fk` em `patient`,
 `ON DELETE RESTRICT`: um paciente com conversa não pode ser excluído
 fisicamente até o purge de 90 dias apagar a conversa (ou o autor apagá-la em
-"Minhas conversas"). Quem exclui ou anonimiza paciente por script deve apagar
-antes as conversas dele; o erro de FK é o sintoma esperado.
+"Minhas conversas"). A FK barra só o `DELETE` da linha de `patient`: quem
+exclui fisicamente um paciente por script deve apagar antes as conversas dele
+(o erro de FK é o sintoma esperado). Alteração por `UPDATE` (inclusive
+anonimizar campos) não é barrada, e o texto das conversas continua nelas até o
+purge ou o apagamento pelo autor.
 
 ### Motivos de recusa de ferramenta
 
