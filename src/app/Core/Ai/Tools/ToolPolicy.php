@@ -78,9 +78,11 @@ final class ToolPolicy
 
             // Defense in depth: RBAC was decided for the registry's
             // TenantContext, so a ToolContext of another tenant, unit or
-            // user is denied before the tool is even looked up.
+            // user is denied before the tool is even looked up. The denial is
+            // audited under the registry's own scope (the repository rejects
+            // rows of another unit or user), without the foreign conversation.
             if (!$this->registry->sameContext($context)) {
-                return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started);
+                return $this->deny($context, $toolName, $inputMinimized, 'forbidden', $started, $this->registry->contextFor(...));
             }
 
             $offered = in_array($toolName, $offeredNames, true);
@@ -199,10 +201,11 @@ final class ToolPolicy
         return is_string($json) ? $json : (string) json_encode(['rows' => [], 'row_count' => 0, 'truncated' => true]);
     }
 
-    private function deny(ToolContext $context, string $toolName, string $inputMinimized, string $reason, int $started): ToolOutcome
+    /** @param (Closure(ToolContext): ToolContext)|null $auditContext scope the audit row is written under */
+    private function deny(ToolContext $context, string $toolName, string $inputMinimized, string $reason, int $started, ?Closure $auditContext = null): ToolOutcome
     {
         try {
-            $this->audit($context, $toolName, $inputMinimized, McpToolCall::DECISION_DENIED, $reason, 0, false, $started);
+            $this->audit($auditContext === null ? $context : $auditContext($context), $toolName, $inputMinimized, McpToolCall::DECISION_DENIED, $reason, 0, false, $started);
         } catch (\Throwable $failure) {
             $this->log($toolName, $failure, $context->correlationId, 'audit failed');
         }

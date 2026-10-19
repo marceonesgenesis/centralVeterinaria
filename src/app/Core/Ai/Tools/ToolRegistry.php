@@ -66,6 +66,19 @@ final class ToolRegistry
             && $context->unitId === $this->context->unitId();
     }
 
+    /**
+     * Audit scope for a call denied by !sameContext(): tenant, unit and user
+     * of this registry's session, keeping the call's correlation_id and
+     * purpose. Conversation and anchor are dropped (they may belong to the
+     * foreign context).
+     *
+     * @throws \CentralVet\Tenancy\Exception\MissingTenantContext when the registry has no active unit
+     */
+    public function contextFor(ToolContext $foreign): ToolContext
+    {
+        return ToolContext::create($this->context, $foreign->correlationId, null, $foreign->purpose, null);
+    }
+
     /** @return list<AiTool> */
     public function visible(string $family): array
     {
