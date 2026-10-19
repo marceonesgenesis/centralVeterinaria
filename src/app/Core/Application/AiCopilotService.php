@@ -511,6 +511,9 @@ final class AiCopilotService
             $this->interactions->insert($interaction);
         } catch (Throwable $e) {
             if ($completed) {
+                // The answer is already stored: leave a trace of the usage that left the quota.
+                error_log('AiCopilotService: interaction not recorded after the answer (' . $e::class . ', correlation_id=' . $correlationId . ')');
+
                 throw $e;
             }
 
