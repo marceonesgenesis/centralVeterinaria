@@ -102,7 +102,7 @@ final class AiCopilotListsIntegrationTest
             return;
         }
 
-        foreach (['mcp_tool_call', 'ai_conversation_message', 'ai_interaction', 'ai_conversation', 'audit_log', 'feature_flag', 'ai_tenant_setting'] as $table) {
+        foreach (['mcp_tool_call', 'ai_conversation_message', 'ai_interaction', 'ai_conversation', 'audit_log', 'feature_flag', 'ai_tenant_setting', 'tenant_user'] as $table) {
             $this->pdo->prepare("DELETE FROM {$table} WHERE tenant_id = :tenant_id")->execute(['tenant_id' => $this->tenantId]);
         }
 
@@ -277,7 +277,51 @@ final class AiCopilotListsIntegrationTest
         Assert::false(str_contains($html, 'Thor'), 'input_minimized is never shown');
         Assert::false(str_contains($html, '&quot;termo&quot;') || str_contains($html, '"termo"'), 'input_minimized is never shown');
         Assert::false(str_contains($html, self::MESSAGE), 'conversation content is never shown');
-        Assert::stringContains('not_found', $html, 'deny reason column');
+        Assert::stringContains('Registro não encontrado', $html, 'deny reason column is translated');
+    }
+
+    /** T-21: a coluna Motivo mostra o rótulo em pt, nunca o código cru de deny_reason. */
+    public function testToolCallListShowsTranslatedDenyReason(): void
+    {
+        $result = $this->run('AiToolCallList', [], ['decision' => 'denied', 'user_id' => (string) $this->userU]);
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::stringContains('f8b-corr-denied', $html, 'denied call is listed');
+        Assert::stringContains('<td>Registro não encontrado</td>', $html, 'not_found is shown as "Registro não encontrado"');
+        Assert::false(str_contains($html, '<td>not_found</td>'), 'raw deny reason code is never shown');
+    }
+
+    /** T-21: título de conversa com marcação aparece escapado. */
+    public function testConversationListEscapesTheTitle(): void
+    {
+        $this->pdo->prepare('UPDATE ai_conversation SET title = :title WHERE id = :id')
+            ->execute(['title' => '<script>alert(1)</script>', 'id' => $this->conversationU]);
+
+        $result = $this->run('AiConversationList', []);
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::stringContains('&lt;script&gt;alert(1)&lt;/script&gt;', $html, 'title is escaped');
+        Assert::false(str_contains($html, '<script>alert(1)</script>'), 'raw script tag is never rendered');
+    }
+
+    /** T-21: nome de usuário com marcação aparece escapado na auditoria. */
+    public function testToolCallListEscapesTheUserName(): void
+    {
+        $this->pdo->prepare('UPDATE system_users SET name = :name WHERE id = :id')
+            ->execute(['name' => '<img src=x onerror=alert(1)>', 'id' => $this->userV]);
+        // o nome só vem de usuários vinculados ao tenant (tenant_user)
+        $this->pdo->prepare('INSERT INTO tenant_user (tenant_id, system_user_id, status) VALUES (:tenant_id, :user_id, :status)')
+            ->execute(['tenant_id' => $this->tenantId, 'user_id' => $this->userV, 'status' => 'active']);
+
+        $result = $this->run('AiToolCallList', [], ['decision' => 'denied']);
+        $html = (string) $result['html'];
+
+        Assert::true(!isset($result['error']), 'render threw: ' . (string) ($result['error'] ?? ''));
+        Assert::stringContains('f8b-corr-user-v', $html, 'call of the user is listed');
+        Assert::stringContains('&lt;img src=x onerror=alert(1)&gt;', $html, 'user name is escaped');
+        Assert::false(str_contains($html, '<img src=x onerror=alert(1)>'), 'raw img tag is never rendered');
     }
 
     public function testToolCallListFiltersByUserToolAndPeriod(): void
@@ -302,6 +346,7 @@ final class AiCopilotListsIntegrationTest
     {
         $result = $this->run('AiToolCallList', [], [], ['AiCopilotPanel' => true]);
 
+        Assert::stringContains('Permissão negada', (string) $result['html'], 'denial is explicit and translated');
         Assert::false(str_contains((string) $result['html'], 'f8b-corr-denied'), 'denied manager sees no call');
     }
 
