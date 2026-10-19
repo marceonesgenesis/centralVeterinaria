@@ -88,3 +88,75 @@ Não verificado: SUITE não rodada nesta revisão (vale o gate da onda 7, 1676/1
 - [sugestão] ToolRegistry::find refaz visible() (RBAC + auditoria de decisão) a cada chamada e no countTool → ToolRegistry.php find; AiCopilotService.php:514
 - [sugestão] Botões das telas hospedeiras montam forContext completo (gateway, Redis, registry) a cada render → PatientForm.php:732, EncounterView.php copilotAvailable
 - [sugestão] Duplicações: patientId() nas 7 ferramentas, copilotLink em PatientForm/EncounterView, conversas em AiCopilotService e AiConversationHistoryService
+
+# Revisão final — Rodada 2
+Escopo: bc35d6d..HEAD (e3198f0); correção = b2464f4..38b459f (ondas 8–10, T-25..T-29). Verificado por leitura do diff: ToolPolicy/ToolResult/ToolRegistry, ObterExames/ObterHistoricoAtendimentos, AiCopilotPanel, AiConversationList, AiConversationHistoryService, AiCopilotAvailability (estrutura), AiCopilotService (resposta minimizada, finally), CopilotAgendaQuery::schedulableProfessionals, PatientForm/EncounterView; nomes dos testes novos. `grep ToolFormat::excerpt src/app/Core/Ai/Tools` = só ToolPolicy.php:171 (depois do minimize).
+Não verificado: SUITE não rodada nesta rodada (vale o gate da onda 10, 1704/1704); AiCopilotAvailability linha a linha; FreeSlotFinder::spread; VerificarHorariosTool; JS do confirm.
+
+## Verificação dos itens da Rodada 1
+- [resolvida] (promovida T-14 / Achado 1) histórico inacessível com IA indisponível → AiCopilotPanel::load lê pelo AiConversationHistoryService (RBAC onOpen, findOwned por autor/unidade/tenant) e só depois consulta AiCopilotAvailability, que apenas troca o formulário pelo motivo (renderPanel mostra conversationView quando há mensagens); onAsk que estoura a cota renderiza a conversa pelo id devolvido; testes testDisabledAiOpensTheConversationWithTheReasonInPlaceOfTheForm, testAskThatReachesTheQuotaShowsTheStoredAnswerAndTheQuotaReason, testConversationOpensWithTheAiDisabled
+- [resolvida] (bloqueante Achado 2) PII cortada antes do minimizador → ferramentas devolvem texto integral e ToolResult::$excerptLengths; ToolPolicy::content minimiza e só então corta (ToolPolicy.php:161-174); testFreeTextIsMinimizedBeforeTheExcerptCut
+
+## Triagem
+- [resolvida] T-19..T-21 marcação [x] espúria → corrigida na onda 1
+- [resolvida] T-14 onDelete com painel indisponível mostra "Conversa não encontrada" → load não depende mais da disponibilidade
+- [resolvida] Onda 4 menu/permissões → T-17
+- [resolvida] T-19 verificar_horarios corta em 50 com todo usuário do tenant → T-27 schedulableProfessionals (tenant + unidade ativa, CopilotAgendaQuery.php) e limite repartido
+- [resolvida] Onda 9 AiCopilotPanel.php:168 transação em volta do ask → onAsk em connection() autocommit (perform $autocommit)
+- [resolvida] Fechamento: 29 tasks [x], bloqueantes da rodada 1 fechados (confirmado acima)
+- [resolvida] Rodada 1 Achado 2 (PII antes do corte) → ver acima
+- [aberta] T-03 recordAnswer/recordSuggestion sem guarda isCopilot; decide() em answered sem teste
+- [aberta] T-04 chave extra ecoa o nome; nome duplicado agora ignorado em silêncio no ToolRegistry::entry (isset($tools[$name]))
+- [aberta] T-07 contagem 32/33 e formato en/pt sem teste
+- [aberta] T-02 jsonObjects em qualquer profundidade
+- [aberta] T-01 .verify.sql sem índices auxiliares; RESTRICT da âncora
+- [aberta] T-05 teste com + e reconstitute frágil
+- [aberta] T-06 superseded estreito; fixture otherUnitId
+- [aberta] 0015 no dev depende de aprovação SQL; "nenhum push" não verificável
+- [aberta] T-08 rate limit depois do escopo (spec)
+- [aberta] T-09 insert não confere unidade/usuário; search tenant-wide intencional
+- [aberta] T-10 truncated sempre false em buscar_paciente/histórico
+- [aberta] T-11 via/posologia/duracao fora de freeTextFields
+- [aberta] T-12 updated_at×created_at, MAX_BATCHES sem teste, sem trava de sobreposição
+- [aberta] T-13 10º parâmetro ?PiiMinimizer (ruling)
+- [aberta] T-14 demais: pergunta só com espaços, foco/live region, asserção do JS por str_contains; exclusão agora só por POST, ainda sem token CSRF (padrão do projeto)
+- [aberta] T-15 teste de negação fraco; Motivo com código cru; sem teste de XSS
+- [aberta] T-16 link sem RBAC de onOpen; docblock órfão; markup duplicado (excluído das ondas 8–10)
+- [aberta] T-17 seed só no grupo 1; 5.7 por inspeção
+- [aberta] T-18 runbook 5.7 ambíguo; referência ai_*
+- [aberta] Onda 5 SQL dev
+- [aberta] T-19 profissional inativo vira not found em consultar_agenda
+- [aberta] T-20 escape LIKE/expiring/lote vencido
+- [aberta] T-21 fuso, vencimento no dia, ticket_medio
+- [aberta] T-22 trilho do switch; flag provada por fake
+- [aberta] Onda 6 SQL dev
+- [aberta] T-23 nenhum teste falha se ManagementToolset sair de forContext
+- [aberta] T-24 runbook linha 391
+- [aberta] Onda 7 SQL dev
+- [aberta] T-25 excerptLengths ⊆ freeTextFields não validado; ToolPolicy não confere ToolContext contra o contexto do registry (mesmo TenantContext em forContext); forbidden×not_offered
+- [aberta] T-26 AiCopilotAvailability::reason duplica availability (AiCopilotService agora delega a ela)
+- [aberta] T-27 fronteira de 90 dias/dia seguinte; outro tenant sem asserção
+- [aberta] Onda 8 SQL dev
+- [aberta] T-28 ai_interaction inserida depois de appendMessage+touch
+- [aberta] T-28 RED do cenário 3 já passava
+- [aberta] Onda 9 SQL dev
+- [aberta] T-29 RBAC real do painel não exercido; pergunta perdida quando makeService lança AiUnavailableException antes de gravar (AiCopilotPanel onAsk → load sem conversa); onDelete apaga antes de checar âncora (só conversa do próprio autor: sem vazamento)
+- [aberta] Onda 10 SQL dev
+## Rulings
+- Rulings da Rodada 1 (plano · onda 0 até T-24 · onda 7) mantidos; T-15 · onda 4 (histórico independente de IA) agora cumprido no painel
+- plano · onda 8 — ondas de correção 8–10: T-25 PII antes do corte e visibilidade em cache, T-26 disponibilidade leve, T-27 horários livres, T-28 histórico sem IA/resposta minimizada/finally, T-29 painel sem IA/autocommit/POST; duplicações patientId/copilotLink fora
+- plano · onda 8 — T-27 elegível = usuário ativo do tenant com appointment na unidade em 90 dias ou no dia; fallback à lista da agenda; 50 repartidos
+- usuário · onda 8 — regra de horários livres confirmada
+- T-25 · onda 8 — wiring em AiCopilotPanelIntegrationTest aceito; ?PiiMinimizer=null; registered(); sem RBAC em offeredNames → forbidden; RED sem Co-Authored-By
+- T-25 · onda 8 — teste de minimização antes do corte fortalecido (plano-mandou)
+- T-28 · onda 9 — fixture ANSWER do painel ajustada pela T-28
+- T-28 · onda 9 — interação em finally após a mensagem; uso sempre contado
+- T-28 · onda 9 — conversations() com filtros family/anchor
+- T-29 · onda 10 — window.confirm no lugar de TQuestion
+- T-29 · onda 10 — makeService com ?PDO; teste de autocommit por "2 mensagens gravadas"
+- T-29 · onda 10 — onAsk relança AuthorizationDenied/MissingTenantContext/TenantBoundaryViolation/PDO; pergunta preservada em campo somente leitura
+## Achados
+- [sugestão] Sugestões da Rodada 1 resolvidas: transação longa (autocommit), resposta sem PiiMinimizer (AiCopilotService minimiza antes de gravar), correlation_id na integração (testToolCallsAndTheInteractionShareTheCorrelationId), find refazendo RBAC (cache no ToolRegistry), forContext nos botões (AiCopilotAvailability); abertas: duplicações (excluídas pelo plano), CSRF sem token
+- [sugestão] Docblock de ToolResult diz que knownNames são nomes que a minimização "may keep", mas PiiMinimizer::minimize os mascara → ToolResult.php:9-14, PiiMinimizer.php:136-139
+- [sugestão] Painel com IA indisponível e conversa sem mensagens esconde também a área de conversa; ok, mas onAsk com AiUnavailableException na montagem perde o texto digitado (difere do caminho de negação, que preserva) → AiCopilotPanel.php onAsk
+- nenhum bloqueante
