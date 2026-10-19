@@ -79,6 +79,44 @@ final class CopilotTranslationsTest
         }
     }
 
+    public function testEveryEntryHasExactlyNonEmptyEnAndPt(): void
+    {
+        $violations = self::shapeViolations(self::entries());
+
+        Assert::same([], $violations, 'translations.json entries must have exactly en and pt, both non-empty strings');
+    }
+
+    /**
+     * ApplicationTranslator indexa pt/en por posição: uma entrada fora da forma
+     * {en, pt} desalinha todas as seguintes.
+     *
+     * @param array<mixed> $entries
+     * @return list<string>
+     */
+    public static function shapeViolations(array $entries): array
+    {
+        $violations = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                $violations[] = "{$index}: not an object";
+                continue;
+            }
+            $keys = array_keys($entry);
+            sort($keys);
+            if ($keys !== ['en', 'pt']) {
+                $violations[] = "{$index}: keys " . implode(',', $keys);
+                continue;
+            }
+            foreach (['en', 'pt'] as $lang) {
+                if (!is_string($entry[$lang]) || trim($entry[$lang]) === '') {
+                    $violations[] = "{$index}: empty or non-string {$lang}";
+                }
+            }
+        }
+
+        return $violations;
+    }
+
     /**
      * @return list<array{en: string, pt: string}>
      */
