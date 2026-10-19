@@ -69,7 +69,9 @@ final class AiConversationDomainTest
         $summary = [['tool' => 'obter_paciente', 'label' => 'Paciente', 'count' => 1]];
         $assistant = AiConversationMessage::assistant(10, '12 kg', $summary, self::now());
         Assert::same($summary, $assistant->toolSummary());
-        Assert::same($summary, AiConversationMessage::reconstitute($assistant->toRow() + ['id' => 5])->toolSummary());
+        $copy = AiConversationMessage::reconstitute(array_merge($assistant->toRow(), ['id' => 5]));
+        Assert::same(5, $copy->id());
+        Assert::same($summary, $copy->toolSummary());
 
         $failed = AiConversationMessage::failed(10, 'ai_timeout', self::now());
         Assert::same('assistant', $failed->role());
@@ -86,6 +88,20 @@ final class AiConversationDomainTest
         $row = AiConversationMessage::assistant(10, 'ok', $big, self::now())->toRow();
         Assert::true(strlen((string) $row['tool_summary']) <= 2000);
         Assert::notNull(json_decode((string) $row['tool_summary'], true));
+    }
+
+    /** T-04 (pendências 8B): linha com tool_summary corrompido não derruba a leitura; a entrada inválida some. */
+    public function testReconstituteDropsInvalidToolSummaryEntries(): void
+    {
+        $message = AiConversationMessage::reconstitute([
+            'id' => 8, 'conversation_id' => 10, 'role' => 'assistant', 'content' => 'ok', 'failed' => 0,
+            'tool_summary' => '[{"tool":"obter_exames","label":"Exames","count":2},{"foo":1}]',
+            'created_at' => '2026-10-15 10:00:00.000000',
+        ]);
+
+        Assert::same([['tool' => 'obter_exames', 'label' => 'Exames', 'count' => 2]], $message->toolSummary());
+        Assert::same(8, $message->id());
+        Assert::throws(InvalidArgumentException::class, fn () => AiConversationMessage::assistant(10, 'ok', [['foo' => 1]], self::now()));
     }
 
     public function testToolCallDecisionInvariants(): void
