@@ -676,6 +676,10 @@
     "pt": "Por telefone"
   },
   {
+    "en": "Call limit reached",
+    "pt": "Limite de chamadas atingido"
+  },
+  {
     "en": "Cancel surgery",
     "pt": "Cancelar cirurgia"
   },
@@ -2366,6 +2370,10 @@
   {
     "en": "Invalid surgery",
     "pt": "Cirurgia inválida"
+  },
+  {
+    "en": "Invalid tool input",
+    "pt": "Entrada inválida"
   },
   {
     "en": "Issued",
@@ -5168,6 +5176,10 @@
     "pt": "Hora"
   },
   {
+    "en": "Time limit exceeded",
+    "pt": "Tempo limite excedido"
+  },
+  {
     "en": "Timeline",
     "pt": "Linha do tempo"
   },
@@ -5226,6 +5238,14 @@
   {
     "en": "Tool audit",
     "pt": "Auditoria de ferramentas"
+  },
+  {
+    "en": "Tool not allowed",
+    "pt": "Ferramenta sem permissão"
+  },
+  {
+    "en": "Tool not offered",
+    "pt": "Ferramenta não oferecida"
   },
   {
     "en": "Topical",
@@ -5298,6 +5318,10 @@
   {
     "en": "Type a question before sending",
     "pt": "Digite uma pergunta antes de enviar"
+  },
+  {
+    "en": "Unexpected failure",
+    "pt": "Falha inesperada"
   },
   {
     "en": "Unit",

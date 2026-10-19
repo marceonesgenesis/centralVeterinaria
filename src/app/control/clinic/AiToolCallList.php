@@ -100,6 +100,23 @@ class AiToolCallList extends TPage
         };
     }
 
+    /** Rótulo do motivo da negação; código desconhecido sai como veio (escapado por quem chama). */
+    private static function denyReasonLabel(?string $reason): string
+    {
+        return match ($reason)
+        {
+            null            => '—',
+            'not_offered'   => _t('Tool not offered'),
+            'invalid_input' => _t('Invalid tool input'),
+            'forbidden'     => _t('Tool not allowed'),
+            'not_found'     => _t('Record not found'),
+            'rate_limited'  => _t('Call limit reached'),
+            'error'         => _t('Unexpected failure'),
+            'timeout'       => _t('Time limit exceeded'),
+            default         => $reason,
+        };
+    }
+
     /**
      * @return array<string, string>
      */
@@ -236,7 +253,7 @@ class AiToolCallList extends TPage
             $tr->add(TElement::tag('td', CvFormat::e($users[$userId] ?? _t('User') . ' #' . $userId)));
             $tr->add(TElement::tag('td', CvFormat::e($call->toolName())));
             $tr->add(TElement::tag('td', CvFormat::e(self::decisionLabel($call->decision()))));
-            $tr->add(TElement::tag('td', CvFormat::e($call->denyReason() ?? '—')));
+            $tr->add(TElement::tag('td', CvFormat::e(self::denyReasonLabel($call->denyReason()))));
             $tr->add(TElement::tag('td', CvFormat::e((string) $call->rowCount())));
             $tr->add(TElement::tag('td', CvFormat::e($call->truncated() ? _t('Yes') : _t('No'))));
             $tr->add(TElement::tag('td', CvFormat::e((string) $call->durationMs())));
