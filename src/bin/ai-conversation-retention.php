@@ -9,6 +9,9 @@ declare(strict_types=1);
  * (`mcp_tool_call`, `ai_interaction`) stays.
  *
  * Prints one JSON line `{"deleted":n,"batches":b}` on stdout and exits 0.
+ * Overlapping runs are skipped (same flock pattern as `bin/worker.php
+ * --once`): when another run holds the lock, prints `{"skipped":"locked"}`
+ * and exits 0 without deleting anything.
  * On any exception, only the exception class goes to error_log (never its
  * message) and the exit code is 1.
  */
@@ -17,6 +20,12 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use CentralVet\Application\AiConversationRetention;
 use CentralVet\Persistence\PdoConnectionFactory;
+
+$lockHandle = fopen(sys_get_temp_dir() . '/centralvet-ai-conversation-retention-' . md5(__DIR__) . '.lock', 'c');
+if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fwrite(STDOUT, json_encode(['skipped' => 'locked']) . PHP_EOL);
+    exit(0);
+}
 
 try {
     $result = AiConversationRetention::forConnection(PdoConnectionFactory::fromEnvironment())->runOnce();
