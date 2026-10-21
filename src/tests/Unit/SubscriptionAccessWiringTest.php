@@ -67,7 +67,7 @@ final class SubscriptionAccessWiringTest
         Assert::stringContains('self::isFullPageRequest($_SERVER)', $deny);
         Assert::stringContains('echo self::subscriptionBlockedPage(', $deny);
         Assert::stringContains("_t('Subscription')", $deny);
-        Assert::stringContains("_t('Logout')", $deny);
+        Assert::stringContains("_t('Exit')", $deny);
         Assert::stringContains('index.php?class=LoginForm&method=onLogout', $deny);
         Assert::stringContains("new TMessage('error', \$message)", $deny, 'engine.php/AJAX mantém o TMessage');
         Assert::stringContains("_t('The request could not be verified. Reload the page and try again.')", $deny);

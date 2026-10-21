@@ -197,7 +197,7 @@ class ApplicationAuthenticationService
         }
         catch (\Throwable $e)
         {
-            TTransaction::rollbackAll();
+            TTransaction::rollback();
             error_log('[tenant-user] activation failed: ' . $e->getMessage());
         }
         
@@ -460,13 +460,89 @@ class ApplicationAuthenticationService
         $message = $messageKey !== null
             ? _t($messageKey)
             : _t('The request could not be verified. Reload the page and try again.');
+        
+        // GET de página inteira (index.php): checkMultiSession roda antes do
+        // layout, sem adianti.js, e o TMessage viraria só um <script> numa
+        // tela em branco. Vai uma página HTML autônoma com os links.
+        if ($link !== null && self::isFullPageRequest($_SERVER))
+        {
+            if (!headers_sent())
+            {
+                header('Content-Type: text/html; charset=utf-8');
+            }
+            
+            echo self::subscriptionBlockedPage(
+                $message,
+                _t('Subscription'),
+                $link,
+                _t('Exit'),
+                'index.php?class=LoginForm&method=onLogout'
+            );
+            exit;
+        }
+        
+        $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
         if ($link !== null)
         {
-            $message .= '<br><a href="' . htmlspecialchars($link, ENT_QUOTES) . '" generator="adianti">' . _t('Subscription') . '</a>';
+            $message .= '<br><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" generator="adianti">' . htmlspecialchars(_t('Subscription'), ENT_QUOTES, 'UTF-8') . '</a>';
         }
         
         new TMessage('error', $message);
         exit;
+    }
+    
+    /**
+     * Requisição de página inteira (index.php), e não de engine.php/AJAX.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function isFullPageRequest(array $server): bool
+    {
+        return basename((string) ($server['SCRIPT_NAME'] ?? '')) === 'index.php';
+    }
+    
+    /**
+     * Página HTML autônoma do 403 de assinatura/plano (sem adianti.js nem
+     * layout): mensagem e links para a assinatura e para sair, todo texto
+     * escapado, rótulos à esquerda e alvos de toque de 44 px.
+     */
+    public static function subscriptionBlockedPage(string $message, string $statusLabel, string $statusUrl, string $logoutLabel, string $logoutUrl): string
+    {
+        $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        
+        return '<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>' . $e($statusLabel) . '</title>
+<style>
+:root { --cv-touch-target: 44px; color-scheme: light dark; }
+body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f5f6f8; color: #1f2937; text-align: left; }
+main { max-width: 560px; margin: 48px auto; padding: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; text-align: left; }
+p { margin: 0 0 24px; font-size: 1.05rem; line-height: 1.5; text-align: left; }
+nav { display: flex; flex-wrap: wrap; gap: 12px; }
+a { display: inline-flex; align-items: center; min-height: 44px; min-height: var(--cv-touch-target); padding: 0 16px; border-radius: 6px; text-decoration: none; text-align: left; }
+a.primary { background: #1d4ed8; color: #fff; }
+a.secondary { border: 1px solid #9ca3af; color: #1f2937; }
+@media (prefers-color-scheme: dark) {
+  body { background: #111827; color: #e5e7eb; }
+  main { background: #1f2937; border-color: #374151; }
+  a.secondary { color: #e5e7eb; border-color: #6b7280; }
+}
+</style>
+</head>
+<body>
+<main role="alert">
+<p>' . $e($message) . '</p>
+<nav>
+<a class="primary" href="' . $e($statusUrl) . '">' . $e($statusLabel) . '</a>
+<a class="secondary" href="' . $e($logoutUrl) . '">' . $e($logoutLabel) . '</a>
+</nav>
+</main>
+</body>
+</html>
+';
     }
     
     private static function isHttps(): bool
