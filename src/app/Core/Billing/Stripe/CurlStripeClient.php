@@ -14,6 +14,7 @@ final class CurlStripeClient implements StripeClientInterface
 {
     private const BASE_URL = 'https://api.stripe.com';
     private const TIMEOUT_SECONDS = 30;
+    private const SECRET_KEY_PATTERN = '/^sk_(test|live)_[A-Za-z0-9]+$/';
 
     private readonly \Closure $transport;
 
@@ -27,6 +28,17 @@ final class CurlStripeClient implements StripeClientInterface
     public function request(string $method, string $path, array $params = [], ?string $idempotencyKey = null): array
     {
         $method = strtoupper($method);
+
+        // Fail closed before building the URL or the body: a missing or
+        // malformed key must never send customer data to the network.
+        if (preg_match(self::SECRET_KEY_PATTERN, $this->config->secretKey()) !== 1) {
+            throw new StripeApiException(sprintf(
+                'Stripe request %s %s refused: STRIPE_SECRET_KEY is empty or not a secret API key (test or live)',
+                $method,
+                $path,
+            ));
+        }
+
         $url = self::BASE_URL . '/' . ltrim($path, '/');
         $encoded = self::encode($params);
         $body = '';
