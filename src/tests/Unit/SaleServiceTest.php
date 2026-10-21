@@ -218,6 +218,49 @@ final class SaleServiceTest
         Assert::same(3500, $sale->totalAmountCents());
     }
 
+    /**
+     * Etapa 2 / T-09: stock is consumed in ascending product id (so two
+     * carts with the same products in opposite order lock the batches in
+     * the same order and cannot deadlock), stable for repeated lines of the
+     * same product. Cart [product 9 x1, product 3 x1, product 9 x2] writes
+     * the movements of product 3 first, then product 9 x1, then x2.
+     */
+    public function testCreateConsumesStockInAscendingProductIdOrder(): void
+    {
+        [$service, $products, , , $batches, $movements] = $this->makeService();
+
+        $ids = [];
+        for ($i = 0; $i < 9; $i++) {
+            $ids[] = $this->seedProductWithStock($products, $batches, 1000);
+        }
+        Assert::same(3, $ids[2]);
+        Assert::same(9, $ids[8]);
+
+        $sale = $service->create(
+            tenantId: self::TENANT_ID,
+            systemUnitId: self::SYSTEM_UNIT_ID,
+            tutorId: self::TUTOR_ID,
+            patientId: null,
+            encounterId: null,
+            systemUserId: self::SYSTEM_USER_ID,
+            items: [
+                ['type' => 'product', 'referenceId' => 9, 'quantity' => 1],
+                ['type' => 'product', 'referenceId' => 3, 'quantity' => 1],
+                ['type' => 'product', 'referenceId' => 9, 'quantity' => 2],
+            ],
+            action: 'SaleServiceTest::create',
+        );
+
+        $written = [];
+        foreach ([...$movements->listByProduct(3), ...$movements->listByProduct(9)] as $movement) {
+            $written[(int) $movement->id()] = $movement->productId() . 'x' . $movement->quantity();
+        }
+        ksort($written);
+
+        Assert::same(['3x1', '9x1', '9x2'], array_values($written), 'Movements follow ascending product id, stable per product');
+        Assert::same(4000, $sale->totalAmountCents());
+    }
+
     /** F1: a product without sale price (null) is refused before any write. */
     public function testCreateRefusesProductWithoutSalePriceAndWritesNothing(): void
     {
