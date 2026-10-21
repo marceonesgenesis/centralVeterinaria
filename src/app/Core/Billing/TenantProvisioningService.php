@@ -32,6 +32,8 @@ final class TenantProvisioningService
 {
     public const GROUP_NAME_PREFIX = 'Central Vet - Plano ';
 
+    private const SLUG_SUFFIX_ATTEMPTS = 8;
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly TransactionRunner $tx,
@@ -49,6 +51,13 @@ final class TenantProvisioningService
             $outcome = $this->tx->run(fn (): array => $this->provision($billingOrderId));
         } catch (Throwable $e) {
             $code = $e instanceof ProvisioningConflict ? $e->errorCode() : self::shortName($e);
+            error_log(sprintf(
+                '[TenantProvisioning] billing order %d failed: %s %s (code %s)',
+                $billingOrderId,
+                $e::class,
+                $code,
+                (string) $e->getCode(),
+            ));
             $this->tx->run(function () use ($billingOrderId, $code): void {
                 $order = $this->orders->findByIdForUpdate($billingOrderId);
                 if ($order !== null && in_array($order->status(), [BillingOrder::STATUS_PAID, BillingOrder::STATUS_PROVISIONING_FAILED], true)) {
@@ -135,10 +144,34 @@ final class TenantProvisioningService
 
         $this->execute(
             "INSERT INTO tenant (public_id, slug, legal_name, status) VALUES (?, ?, ?, 'active')",
-            [$order->publicId(), 'clinica-' . substr($order->publicId(), 0, 8), $order->clinicName()],
+            [$order->publicId(), $this->freeSlug($order->publicId()), $order->clinicName()],
         );
 
         return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * 'clinica-' + 8 first characters of public_id; if another tenant holds
+     * it (tenant_slug_uq), tries -2 .. -9 and then the whole public_id, so a
+     * slug never blocks a paid order. FOR UPDATE locks the index entry, so a
+     * concurrent provisioning waits instead of taking the same slug.
+     */
+    private function freeSlug(string $publicId): string
+    {
+        $base = 'clinica-' . substr($publicId, 0, 8);
+        $candidates = [$base];
+        for ($n = 2; $n <= self::SLUG_SUFFIX_ATTEMPTS + 1; $n++) {
+            $candidates[] = $base . '-' . $n;
+        }
+        $candidates[] = 'clinica-' . $publicId;
+
+        foreach ($candidates as $slug) {
+            if ($this->scalar('SELECT id FROM tenant WHERE slug = ? FOR UPDATE', [$slug]) === null) {
+                return $slug;
+            }
+        }
+
+        throw new \RuntimeException(sprintf('No free tenant slug for public id %s', $publicId));
     }
 
     private function ensureUnit(int $tenantId, BillingOrder $order): int

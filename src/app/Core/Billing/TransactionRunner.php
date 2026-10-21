@@ -16,7 +16,8 @@ use Throwable;
  */
 final class TransactionRunner
 {
-    private int $depth = 0;
+    /** Process-wide, so two runners nested on one PDO never reuse a savepoint name. */
+    private static int $sequence = 0;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -41,7 +42,7 @@ final class TransactionRunner
             }
         }
 
-        $savepoint = 'cv_tx_' . (++$this->depth);
+        $savepoint = 'cv_tx_' . (++self::$sequence);
         $this->pdo->exec('SAVEPOINT ' . $savepoint);
 
         try {
@@ -55,8 +56,6 @@ final class TransactionRunner
             }
 
             throw $e;
-        } finally {
-            $this->depth--;
         }
     }
 }
