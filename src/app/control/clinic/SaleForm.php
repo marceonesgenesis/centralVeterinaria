@@ -277,9 +277,9 @@ class SaleForm extends TPage
 
         $column_type = new TDataGridColumn('type_label', _t('Type'), 'left', 100);
         $column_description = new TDataGridColumn('description', _t('Description'), 'left');
-        $column_quantity = new TDataGridColumn('quantity', _t('Qty'), 'center', 60);
-        $column_unit_price = new TDataGridColumn('unit_price_label', _t('Unit price'), 'right', 110);
-        $column_total = new TDataGridColumn('total_label', _t('Total'), 'right', 110);
+        $column_quantity = new TDataGridColumn('quantity', _t('Qty'), 'left', 60);
+        $column_unit_price = new TDataGridColumn('unit_price_label', _t('Unit price'), 'left', 110);
+        $column_total = new TDataGridColumn('total_label', _t('Total'), 'left', 110);
 
         $this->datagrid->addColumn($column_type);
         $this->datagrid->addColumn($column_description);

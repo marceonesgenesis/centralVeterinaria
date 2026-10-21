@@ -77,6 +77,10 @@ final class SaleFormCheckoutWiringTest
 
         Assert::true((bool) preg_match("/\\\$saveBtn->class\s*=\s*'[^']*cv-touch-target/", $source), 'botão Finalizar sem cv-touch-target');
         Assert::false((bool) preg_match('/text-align\s*:\s*(right|center)/', $source), 'rótulo alinhado fora da esquerda');
+        Assert::false(
+            (bool) preg_match("/new TDataGridColumn\\([^;]*'(right|center)'/", $source),
+            'cabeçalho de grid alinhado fora da esquerda',
+        );
     }
 
     private function methodBody(string $method): string
