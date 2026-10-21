@@ -59,7 +59,7 @@ CREATE TABLE billing_order (
     responsible_phone varchar(30) NOT NULL,
     clinic_name varchar(190) NOT NULL,
     terms_version varchar(40) NOT NULL,
-    terms_accepted_at timestamp(6) NOT NULL,
+    terms_accepted_at timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     terms_ip varchar(45) NOT NULL,
     contact_consent tinyint(1) NOT NULL DEFAULT 0,
     status varchar(24) NOT NULL,

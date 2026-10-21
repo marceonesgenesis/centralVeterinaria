@@ -13,6 +13,8 @@ WHERE table_schema = DATABASE()
   AND table_name IN ('billing_order', 'subscription', 'subscription_invoice', 'billing_event')
 ORDER BY table_name;
 
+-- Columns (expected: 71 rows: billing_order 25, subscription 15, subscription_invoice 19,
+-- billing_event 12)
 SELECT table_name, column_name, is_nullable, column_type, column_default, extra
 FROM information_schema.columns
 WHERE table_schema = DATABASE()
@@ -72,6 +74,21 @@ WHERE tc.table_schema = DATABASE()
       'billing_event_status_ck'
   )
 ORDER BY tc.table_name, tc.constraint_name;
+
+-- Timestamp auto-update (expected: 0 in both columns). Only updated_at may carry
+-- ON UPDATE CURRENT_TIMESTAMP; a NOT NULL timestamp without an explicit DEFAULT would get
+-- one on MySQL 5.7 with explicit_defaults_for_timestamp=OFF (terms_accepted_at, paid_at...)
+SELECT (SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name IN ('billing_order', 'subscription', 'subscription_invoice', 'billing_event')
+          AND column_name <> 'updated_at'
+          AND LOWER(extra) LIKE '%on update%') AS unexpected_on_update_columns,
+       (SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name IN ('billing_order', 'subscription', 'subscription_invoice', 'billing_event')
+          AND data_type = 'timestamp'
+          AND is_nullable = 'NO'
+          AND column_default IS NULL) AS not_null_timestamps_without_default;
 
 -- Violations (expected: 0 in every column)
 SELECT (SELECT COUNT(*) FROM subscription_invoice
