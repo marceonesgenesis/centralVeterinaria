@@ -145,6 +145,34 @@ final class TenantProvisioningIntegrationTest extends MysqlIntegrationTestCase
         $this->assertProvisionedOnce($orderId, $publicId, $email, 'enterprise');
     }
 
+    public function testSlugCollisionWithAnotherTenantStillProvisionsAndStaysIdempotent(): void
+    {
+        [$orderId, $publicId, $email] = $this->paidOrder('pro');
+        $baseSlug = 'clinica-' . substr($publicId, 0, 8);
+        $this->pdo->prepare("INSERT INTO tenant (public_id, slug, legal_name, status) VALUES (UUID(), ?, 'Outra clínica', 'active')")
+            ->execute([$baseSlug]);
+        $tenantsBefore = $this->countTenants();
+
+        $result = $this->service()->fulfill($orderId, $this->now);
+
+        Assert::same('provisioned', $result->status(), 'a slug collision must not block a paid order');
+        Assert::same(BillingOrder::STATUS_PROVISIONED, $this->orders->findByIdForUpdate($orderId)?->status());
+        Assert::same($tenantsBefore + 1, $this->countTenants());
+        $statement = $this->pdo->prepare('SELECT slug FROM tenant WHERE id = ?');
+        $statement->execute([$result->tenantId()]);
+        $slug = (string) $statement->fetchColumn();
+        Assert::true($slug !== $baseSlug && str_starts_with($slug, 'clinica-'), "new tenant needs its own slug (got {$slug})");
+        $this->assertProvisionedOnce($orderId, $publicId, $email, 'pro');
+
+        $again = $this->service()->fulfill($orderId, $this->now);
+
+        Assert::same('already_provisioned', $again->status());
+        Assert::same($result->tenantId(), $again->tenantId());
+        Assert::same($tenantsBefore + 1, $this->countTenants());
+        $this->assertProvisionedOnce($orderId, $publicId, $email, 'pro');
+        Assert::count(1, $this->email->deliveries());
+    }
+
     public function testOrderNotPaidIsNotProvisioned(): void
     {
         $order = $this->placeOrder('starter');
