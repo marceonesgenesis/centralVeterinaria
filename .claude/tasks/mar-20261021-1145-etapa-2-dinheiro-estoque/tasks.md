@@ -24,8 +24,8 @@ Comandos usados em Teste RED e Validação:
 | T-12 | backend | PaymentReversalService: estorna recebimentos no caixa aberto e cancela o recebível | T-01, T-08 | sim | média | Hegel | [x] |
 | T-13 | backend | SaleCheckoutService: venda + recebível + recebimento à vista na mesma transação, com token | T-06, T-07, T-08, T-09, T-11 | sim | alta | Athena | [x] |
 | T-14 | backend | SaleCancellationService: devolve estoque, estorna e cancela, idempotente | T-06, T-08, T-09, T-12 | sim | alta | Batman | [x] |
-| T-15 | frontend | SaleForm: forma de pagamento, token, checkout e recibo dos dados gravados | T-01, T-10, T-13 | sim | alta | Tesla | [ ] |
-| T-16 | frontend | SaleList, SaleCancelForm (POST + token), aba, seed RBAC e inventário CSRF | T-01, T-03, T-10, T-14 | sim | média | Kratos | [ ] |
+| T-15 | frontend | SaleForm: forma de pagamento, token, checkout e recibo dos dados gravados | T-01, T-10, T-13 | sim | alta | Tesla | [x] |
+| T-16 | frontend | SaleList, SaleCancelForm (POST + token), aba, seed RBAC e inventário CSRF | T-01, T-03, T-10, T-14 | sim | média | Kratos | [x] |
 | T-17 | qa | Integração MySQL ponta a ponta: à vista, a prazo, corrida, rollback, repetição e cancelamento | T-13, T-14, T-15, T-16 | não | alta | Saitama | [ ] |
 
 ## Detalhamento

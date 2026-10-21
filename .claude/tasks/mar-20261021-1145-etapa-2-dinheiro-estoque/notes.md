@@ -34,6 +34,11 @@
 - 2026-10-21 · T-14 · onda 4 — Orquestrador repassou ao implementador (a) passar a unidade da venda ao cancelReceivable (contrato da T-12) e (b) action sem hífen (apontado pela T-13); ambos atendidos.
 - 2026-10-21 · T-14 · onda 4 — Sem caixa aberto, CashSessionRequiredException sai após reverseReferenceConsumption gravar o estoque; rollback fica com o chamador (TTransaction da T-16); T-16 deve garanti-lo e T-17 prová-lo com MySQL; aceito por validador e revisor.
 - 2026-10-21 · onda 4 · onda 4 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts (ruling vigente).
+- 2026-10-21 · T-15 · onda 5 — RED inválido do validador (commit RED 4c35afe tocou SaleFormCheckoutWiringTest.php além dos declarados) aceito no histórico; revisor julgou o teste e aprovou.
+- 2026-10-21 · T-15 · onda 5 — Colunas Qty, Unit price e Total do grid do carrinho (SaleForm.php:280-282) passaram a 'left' por ruling do orquestrador (CLAUDE.md), embora pré-existentes; fix 1606c82 com guard no teste de wiring; o total do carrinho mantém text-end por ser valor.
+- 2026-10-21 · T-16 · onda 5 — Runbook dizia 47 programas, mas o seed tem 80 INSERT de system_program; por ruling o runbook passou a usar grep e SELECT de conferência de SaleList e SaleCancelForm (grupo 1), sem número fixo (138e5e3).
+- 2026-10-21 · T-16 · onda 5 — Orquestrador repassou o contrato da T-14 (rollback no onCancel em CashSessionRequiredException); atendido e conferido pelo revisor.
+- 2026-10-21 · onda 5 · onda 5 — Seed tocado: validador rodou prepare-mysql57.py (6 checks and 12 triggers, No SQL executed) e só SELECT do .verify.sql no centralvet_test, 0 violações; nada aplicado no dev.
 
 ## Bloqueios
 - nenhum
@@ -54,6 +59,8 @@
 - T-11: PaymentService ganhou 7º parâmetro SubmissionKeyRepositoryInterface; register(..., ?string $submissionToken = null) lê com findByIdForUpdate (exige transação), com token faz claim antes de ler e attach('payment', token, paymentId) ao fim; PaymentForm/PendingReceivableList instanciam o repositório (4971ff6, bcfe53f).
 - T-13: SaleCheckoutService::checkout/SaleCheckoutResult(sale, receivable, ?payment) (0e5e318); assertTenant antes do claim; forma desconhecida lança InvalidArgumentException('Unknown payment method "<x>"'); exige transação no PDO real; T-15 deve restringir o combo a Payment::METHODS.
 - T-14: SaleCancellationService::cancel/SaleCancellationResult (fcffd4a); exige transação; autoriza na unidade da venda; sem caixa e com pagamento lança CashSessionRequiredException após devolver estoque, então o chamador (T-16) faz rollback.
+- T-15: SaleForm finaliza por SaleCheckoutService::checkout (combo payment_method vazio = a prazo; THidden submission_token); recibo via SaleReceiptHtml::render (5140236, fix 1606c82).
+- T-16: SaleList (aba stock/sale_history) e SaleCancelForm disponíveis (db36652); onCancel estático faz TTransaction::rollback em CashSessionRequiredException; seed ganhou os dois programas para o grupo 1.
 
 ## Pendências
 - T-02: prova de preservação de dados vazia (receivable e sale com 0 linhas no centralvet_test); ensaio com linhas ou a T-17 cobriria.
@@ -88,6 +95,12 @@
 - T-13: teste de sem caixa não confere FakeSaleItemRepository (SaleCheckoutServiceTest.php:139-141).
 - T-14: sem teste unitário do cancelamento pago sem caixa aberto (SaleCancellationService.php:73-97); T-16 onCancel deve dar TTransaction::rollback e mostrar a mensagem; T-17 cobrir.
 - T-14: RED de e5705be usava ACTION inválido (corrigido em fcffd4a; SaleCancellationServiceTest.php:46).
+- T-15: SaleFormCheckoutWiringTest assere pouco ('1205'/'1213' em qualquer ponto do fonte); é grep de fonte.
+- T-15: SaleReceiptHtml::METHOD_LABELS duplica CvFormat::paymentMethod, sem teste que compare os dois (SaleReceiptHtml).
+- T-15: recibo ainda imprime tutor e paciente pelo id (#), não pelo nome (SaleReceiptHtml.php:319-332).
+- T-16: 'Sale {id} not found' sem tradução em UserMessage (aparece em inglês).
+- T-16: botão de cancelar ativo em venda já cancelada (SaleCancelForm::onEdit).
+- T-16: sem fumaça manual no :8081 (seed ainda não aplicado no dev); rollback do onCancel com MySQL fica para a T-17.
 
 ## Riscos
 - Código novo sem a 0016 aplicada quebra o PDV e o recebimento no ambiente (INSERT de `sale_id`/`submission_key`). Mitigação: rebuild do dev só depois da migration autorizada; runbook da 0016 (T-02).
@@ -106,5 +119,6 @@
   - Onda 2: BASE 5cee1ca → HEAD d39d5c0 (df71f73, a4e7142, b059779, db4a30d, 5e93e5c, 4295ab3, b9a1cfb, 31a38f8, 7237261, d5318e5, e36c011, d39d5c0)
   - Onda 3: BASE fc5e50c → HEAD bcfe53f (23a73f4, 9815aa9, 94f6705, 4971ff6, bcfe53f)
   - Onda 4: BASE 7f1f77b → HEAD fcffd4a (e5705be, e7cbbdf, 0e5e318, fcffd4a)
-- Último status conhecido: onda 4 concluída (T-13, T-14 [x]); SUITE 1969/1969
-- Próxima onda recomendada: onda 5 (T-15, T-16)
+  - Onda 5: BASE 98f06d7 → HEAD 1606c82 (4c35afe, d4903d1, 5140236, db36652, 138e5e3, 1606c82)
+- Último status conhecido: onda 5 concluída (T-15, T-16 [x]); SUITE 1984/1984
+- Próxima onda recomendada: onda 6 (T-17)
