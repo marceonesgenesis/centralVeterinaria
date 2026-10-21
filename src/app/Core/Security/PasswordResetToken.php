@@ -32,11 +32,19 @@ final class PasswordResetToken
         }
     }
 
-    public function issue(string $login, string $passwordHash, int $now): string
+    /**
+     * $ttlSeconds defaults to the password reset lifetime (3 h); the first
+     * access invite passes a longer one (AccountInviteService::TTL_SECONDS).
+     */
+    public function issue(string $login, string $passwordHash, int $now, int $ttlSeconds = self::TTL_SECONDS): string
     {
+        if ($ttlSeconds <= 0) {
+            throw new \InvalidArgumentException('Token TTL must be positive');
+        }
+
         return JWT::encode([
             'user' => $login,
-            'expires' => $now + self::TTL_SECONDS,
+            'expires' => $now + $ttlSeconds,
             'pwd' => $this->fingerprint($passwordHash),
         ], $this->key, 'HS256');
     }
