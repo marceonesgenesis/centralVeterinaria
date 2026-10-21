@@ -95,10 +95,11 @@ final class BillingOrderRepository implements BillingOrderRepositoryInterface
             'SELECT id FROM billing_order '
             . "WHERE status = 'paid' "
             . "OR (status = 'provisioning_failed' AND provisioning_attempts < :max_attempts) "
-            . "OR (status = 'provisioned' AND invite_sent_at IS NULL) "
-            . 'ORDER BY id LIMIT :limit'
+            . "OR (status = 'provisioned' AND invite_sent_at IS NULL AND provisioning_attempts < :max_invite_attempts) "
+            . 'ORDER BY provisioning_attempts ASC, id ASC LIMIT :limit'
         );
         $statement->bindValue('max_attempts', self::MAX_PROVISIONING_ATTEMPTS, PDO::PARAM_INT);
+        $statement->bindValue('max_invite_attempts', self::MAX_PROVISIONING_ATTEMPTS, PDO::PARAM_INT);
         $statement->bindValue('limit', $limit, PDO::PARAM_INT);
         $statement->execute();
 

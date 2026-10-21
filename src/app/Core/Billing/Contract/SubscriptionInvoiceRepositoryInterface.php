@@ -35,7 +35,9 @@ interface SubscriptionInvoiceRepositoryInterface
     public function findByLocalKey(string $localKey): ?SubscriptionInvoice;
 
     /**
-     * @return list<int> faturas `open` com `local_key` e (`due_at <= now` ou
+     * @return list<int> faturas `open` com `local_key`, de assinatura `active`
+     *                   ou `past_due` (suspensa/cancelada fica de fora, para não
+     *                   ocupar o lote para sempre), e (`due_at <= now` ou
      *                   `pix_expires_at <= now` ou `stripe_payment_intent_id` nulo)
      */
     public function listOpenPix(DateTimeImmutable $now, int $limit): array;

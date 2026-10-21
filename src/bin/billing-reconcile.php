@@ -35,6 +35,13 @@ use CentralVet\Persistence\SubscriptionRepository;
 use CentralVet\Security\PasswordResetToken;
 use CentralVet\Security\PublicUrl;
 
+// Só por linha de comando: em hospedagem Apache sem bloqueio de bin/, um GET
+// anônimo dispararia a reconciliação (POST ao Stripe e e-mails).
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit(1);
+}
+
 chdir(dirname(__DIR__));
 
 $lockHandle = fopen(sys_get_temp_dir() . '/centralvet-billing-reconcile-' . md5(__DIR__) . '.lock', 'c');

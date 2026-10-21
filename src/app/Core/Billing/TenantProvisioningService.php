@@ -22,7 +22,8 @@ use Throwable;
  * rolls the whole step chain back and marks the order provisioning_failed
  * in a separate transaction, so the next call starts again from scratch.
  * The invite runs after the commit: if it fails the order stays
- * provisioned with invite_sent_at null and the next call only resends it.
+ * provisioned with invite_sent_at null and the next call only resends it;
+ * each failed invite adds one provisioning_attempts (the resend cap).
  *
  * Never talks to the payment provider. $faultInjector(string $step) runs
  * before each step (tenant, unit, user, memberships, subscription, invite)
@@ -261,8 +262,33 @@ final class TenantProvisioningService
             });
         } catch (Throwable $e) {
             // The order stays provisioned with invite_sent_at null; the next
-            // fulfill() (reconciler) only resends the invite.
+            // fulfill() (reconciler) only resends the invite, up to the
+            // attempt cap of listPendingFulfillment.
             error_log(sprintf('[TenantProvisioning] invite for billing order %d failed: %s', (int) $order->id(), self::shortName($e)));
+            $this->countInviteFailure((int) $order->id());
+        }
+    }
+
+    /**
+     * A failed invite counts one provisioning attempt, so an invite that
+     * always fails leaves listPendingFulfillment after the cap and sorts
+     * after new orders meanwhile.
+     */
+    private function countInviteFailure(int $billingOrderId): void
+    {
+        try {
+            $this->tx->run(function () use ($billingOrderId): void {
+                $locked = $this->orders->findByIdForUpdate($billingOrderId);
+                if ($locked === null || $locked->status() !== BillingOrder::STATUS_PROVISIONED || $locked->inviteSentAt() !== null) {
+                    return;
+                }
+
+                $row = $locked->toRow();
+                $row['provisioning_attempts'] = $locked->provisioningAttempts() + 1;
+                $this->orders->save(BillingOrder::fromRow($row));
+            });
+        } catch (Throwable $e) {
+            error_log(sprintf('[TenantProvisioning] invite attempt count for billing order %d failed: %s', $billingOrderId, self::shortName($e)));
         }
     }
 

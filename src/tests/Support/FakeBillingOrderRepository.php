@@ -88,15 +88,18 @@ final class FakeBillingOrderRepository implements BillingOrderRepositoryInterfac
     {
         $ids = [];
         ksort($this->rows);
+        $rows = $this->rows;
+        // provisioning_attempts ascending, then id (uasort is stable).
+        uasort($rows, static fn (array $a, array $b): int => (int) $a['provisioning_attempts'] <=> (int) $b['provisioning_attempts']);
 
-        foreach ($this->rows as $id => $row) {
+        foreach ($rows as $id => $row) {
             if (count($ids) >= $limit) {
                 break;
             }
 
             $pending = $row['status'] === BillingOrder::STATUS_PAID
                 || ($row['status'] === BillingOrder::STATUS_PROVISIONING_FAILED && (int) $row['provisioning_attempts'] < self::MAX_PROVISIONING_ATTEMPTS)
-                || ($row['status'] === BillingOrder::STATUS_PROVISIONED && $row['invite_sent_at'] === null);
+                || ($row['status'] === BillingOrder::STATUS_PROVISIONED && $row['invite_sent_at'] === null && (int) $row['provisioning_attempts'] < self::MAX_PROVISIONING_ATTEMPTS);
 
             if ($pending) {
                 $ids[] = (int) $id;

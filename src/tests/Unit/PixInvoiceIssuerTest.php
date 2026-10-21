@@ -28,6 +28,8 @@ final class PixInvoiceIssuerTest
 
         $invoice = $issuer->issueNext($this->subscription(Subscription::METHOD_PIX, $periodEnd), 9700, 'ana@clinica.test', $now);
 
+        Assert::count(0, $email->deliveries(), 'the e-mail waits for deliverPending() after the commit');
+        Assert::same(1, $issuer->deliverPending());
         Assert::same(3, PixInvoiceIssuer::ISSUE_DAYS_BEFORE);
         Assert::same(864000, PixInvoiceIssuer::PIX_EXPIRES_AFTER_SECONDS);
         Assert::notNull($invoice);
@@ -47,7 +49,7 @@ final class PixInvoiceIssuerTest
         $call = $stripe->calls[0];
         Assert::same('POST', $call['method']);
         Assert::same('/v1/payment_intents', $call['path']);
-        Assert::same('pix-invoice-' . $stored->id() . '-1', $call['idempotencyKey']);
+        Assert::same('pix-invoice-' . $localKey . '-1', $call['idempotencyKey']);
         $params = $call['params'];
         Assert::same(9700, $params['amount']);
         Assert::same('brl', $params['currency']);
@@ -89,6 +91,7 @@ final class PixInvoiceIssuerTest
         $subscription = $this->subscription(Subscription::METHOD_PIX, $now->modify('+2 days'));
         $stripe->queue('POST', '/v1/payment_intents', $this->paymentIntent('pi_1', $now->modify('+10 days')));
         Assert::notNull($issuer->issueNext($subscription, 9700, 'ana@clinica.test', $now));
+        $issuer->deliverPending();
 
         $second = $issuer->issueNext($subscription, 9700, 'ana@clinica.test', $now->modify('+1 hour'));
 
@@ -106,9 +109,10 @@ final class PixInvoiceIssuerTest
         $stripe->queue('POST', '/v1/payment_intents', $this->paymentIntent('pi_2', $now->modify('+10 days')));
 
         Assert::true($issuer->ensurePaymentIntent($invoice, 'cus_123', 'ana@clinica.test', $now));
+        $issuer->deliverPending();
 
         Assert::count(1, $stripe->calls);
-        Assert::same('pix-invoice-' . $invoice->id() . '-2', $stripe->calls[0]['idempotencyKey']);
+        Assert::same('pix-invoice-' . $invoice->localKey() . '-2', $stripe->calls[0]['idempotencyKey']);
         $stored = $invoices->findByLocalKey((string) $invoice->localKey());
         Assert::same('pi_2', $stored?->stripePaymentIntentId());
         Assert::same(2, $stored?->paymentIntentAttempts());
@@ -136,6 +140,7 @@ final class PixInvoiceIssuerTest
         $stripe->fail('POST', '/v1/payment_intents', new StripeApiException('boom', 500));
 
         Assert::throws(StripeApiException::class, fn () => $issuer->ensurePaymentIntent($invoice, 'cus_123', 'ana@clinica.test', $now));
+        $issuer->deliverPending();
 
         Assert::same($before, $invoices->rows);
         Assert::count(0, $email->deliveries());

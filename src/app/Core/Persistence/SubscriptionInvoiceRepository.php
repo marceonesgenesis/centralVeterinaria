@@ -6,6 +6,7 @@ namespace CentralVet\Persistence;
 
 use CentralVet\Billing\Contract\SubscriptionInvoiceRepositoryInterface;
 use CentralVet\Billing\DuplicateInvoice;
+use CentralVet\Billing\Subscription;
 use CentralVet\Billing\SubscriptionInvoice;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -131,13 +132,16 @@ final class SubscriptionInvoiceRepository implements SubscriptionInvoiceReposito
     public function listOpenPix(DateTimeImmutable $now, int $limit): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id FROM subscription_invoice WHERE status = :status AND local_key IS NOT NULL '
-            . 'AND (due_at <= :now_due OR pix_expires_at <= :now_pix OR stripe_payment_intent_id IS NULL) '
-            . 'ORDER BY id ASC LIMIT ' . self::limit($limit),
+            'SELECT i.id FROM subscription_invoice i JOIN subscription s ON s.id = i.subscription_id '
+            . 'WHERE i.status = :status AND i.local_key IS NOT NULL AND s.status IN (:active, :past_due) '
+            . 'AND (i.due_at <= :now_due OR i.pix_expires_at <= :now_pix OR i.stripe_payment_intent_id IS NULL) '
+            . 'ORDER BY i.id ASC LIMIT ' . self::limit($limit),
         );
         $formatted = $now->format(self::DATE_FORMAT);
         $statement->execute([
             'status' => SubscriptionInvoice::STATUS_OPEN,
+            'active' => Subscription::STATUS_ACTIVE,
+            'past_due' => Subscription::STATUS_PAST_DUE,
             'now_due' => $formatted,
             'now_pix' => $formatted,
         ]);

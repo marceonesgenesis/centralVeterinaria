@@ -158,9 +158,14 @@ final class BillingOrderRepositoryIntegrationTest extends MysqlIntegrationTestCa
         foreach ($ids as $listed) {
             Assert::true(is_int($listed), 'ids are ints');
         }
-        $sorted = $ids;
+        $attempts = [];
+        foreach ($ids as $listed) {
+            $attempts[] = [(int) $this->pdo->query('SELECT provisioning_attempts FROM billing_order WHERE id = ' . $listed)->fetchColumn(), $listed];
+        }
+        $sorted = $attempts;
         sort($sorted);
-        Assert::same($sorted, $ids, 'ids come ordered by id');
+        Assert::same($sorted, $attempts, 'ids come ordered by provisioning_attempts, then id');
+        Assert::true(array_search($paidId, $ids, true) < array_search($retryId, $ids, true), 'a new paid order comes before a retried one');
 
         Assert::true(in_array($paidId, $ids, true), 'paid order is listed');
         Assert::true(in_array($retryId, $ids, true), 'provisioning_failed below 10 attempts is listed');

@@ -26,6 +26,12 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
 
     public bool $inTransaction = true;
 
+    /**
+     * Opcional: com ele, listOpenPix ignora faturas de assinatura fora de
+     * active/past_due, como o JOIN do repositório real.
+     */
+    public ?FakeSubscriptionRepository $subscriptions = null;
+
     /** @var list<string> */
     public array $lockCalls = [];
 
@@ -118,6 +124,11 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
         foreach ($rows as $id => $row) {
             $invoice = SubscriptionInvoice::fromRow($row);
             if ($invoice->status() !== SubscriptionInvoice::STATUS_OPEN || $invoice->localKey() === null) {
+                continue;
+            }
+
+            $subscriptionStatus = $this->subscriptions?->rows[$invoice->subscriptionId()]['status'] ?? null;
+            if ($subscriptionStatus !== null && !in_array($subscriptionStatus, ['active', 'past_due'], true)) {
                 continue;
             }
 

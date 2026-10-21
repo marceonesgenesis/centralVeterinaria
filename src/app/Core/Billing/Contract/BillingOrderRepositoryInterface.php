@@ -27,9 +27,11 @@ interface BillingOrderRepositoryInterface
     public function findByCheckoutSessionIdForUpdate(string $checkoutSessionId): ?BillingOrder;
 
     /**
-     * Ids, by id, of orders that still need provisioning or the invite:
-     * `paid`, `provisioning_failed` with fewer than 10 attempts, or
-     * `provisioned` with `invite_sent_at` NULL.
+     * Ids of orders that still need provisioning or the invite: `paid`,
+     * `provisioning_failed` with fewer than 10 attempts, or `provisioned`
+     * with `invite_sent_at` NULL and fewer than 10 attempts (each failed
+     * invite counts one). Ordered by `provisioning_attempts`, then id, so
+     * items that keep failing never crowd out new ones.
      *
      * @return list<int>
      */

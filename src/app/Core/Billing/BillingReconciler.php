@@ -22,7 +22,10 @@ use Throwable;
  *    duplicado sai `duplicate` e não conta como ingerido).
  * 2. Pedidos pagos sem provisionamento, provisionamento falho ou convite não
  *    enviado: TenantProvisioningService::fulfill (abre a própria transação).
- * 3. Emissão Pix: assinatura e pedido travados (nessa ordem), issueNext.
+ * 3. Emissão Pix: assinatura e pedido travados (nessa ordem), issueNext
+ *    (falha do Stripe deixa a fatura sem PI, commitada, para a fase 4).
+ *    O e-mail do Pix sai depois do commit (PixInvoiceIssuer::deliverPending)
+ *    e é descartado no rollback; a falha dele não desfaz fatura nem PI.
  * 4. Faturas Pix abertas: fatura, assinatura e pedido travados (a ordem do
  *    BillingEventProcessor: fatura → assinatura); vencida → markOverdue;
  *    sem PaymentIntent ou com o Pix expirado → ensurePaymentIntent, só com a
@@ -30,10 +33,8 @@ use Throwable;
  * 5. Tolerância vencida: suspendIfGraceExpired com a assinatura travada.
  *
  * Cada item roda na sua transação (TransactionRunner), desfeita em
- * exceção — inclusive a StripeApiException do PaymentIntent depois do
- * insert da fatura em issueNext, que assim não deixa fatura sem PI —, e a
- * falha de um item só é logada (classe) e não interrompe os demais. Falha de
- * uma fase inteira (listagem no banco ou no Stripe) não impede as fases
+ * exceção, e a falha de um item só é logada (classe) e não interrompe os
+ * demais. Falha de uma fase inteira (listagem no banco ou no Stripe) não impede as fases
  * seguintes; depois da última, a primeira dessas falhas sobe.
  *
  * ingest() e fulfill() são chamados fora de transação aberta pelo
@@ -128,6 +129,10 @@ final class BillingReconciler
             if (($response['has_more'] ?? false) !== true || $startingAfter === null) {
                 break;
             }
+
+            if ($page === self::MAX_EVENT_PAGES - 1) {
+                self::log(sprintf('events page cap %d reached; older events of this window were not fetched', self::MAX_EVENT_PAGES));
+            }
         }
 
         $counters['events_fetched'] += count($fetched);
@@ -190,10 +195,13 @@ final class BillingReconciler
                     return $this->pixIssuer->issueNext($subscription, $order->priceCents(), $order->responsibleEmail(), $now) !== null;
                 });
             } catch (Throwable $e) {
+                $this->pixIssuer->discardPending();
                 self::log(sprintf('pix issue for subscription %d failed: %s', $subscriptionId, $e::class));
 
                 continue;
             }
+
+            $this->pixIssuer->deliverPending();
 
             if ($issued) {
                 $counters['pix_invoices_issued']++;
@@ -240,10 +248,13 @@ final class BillingReconciler
                     return $outcome;
                 });
             } catch (Throwable $e) {
+                $this->pixIssuer->discardPending();
                 self::log(sprintf('open pix invoice %d failed: %s', $invoiceId, $e::class));
 
                 continue;
             }
+
+            $this->pixIssuer->deliverPending();
 
             $counters['pix_invoices_overdue'] += $outcome['overdue'] ? 1 : 0;
             $counters['pix_intents_refreshed'] += $outcome['refreshed'] ? 1 : 0;

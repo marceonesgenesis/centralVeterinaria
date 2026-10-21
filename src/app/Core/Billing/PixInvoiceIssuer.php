@@ -18,8 +18,14 @@ use DateTimeZone;
  * fatura local (`pix:<assinatura>:<current_period_end Y-m-d>`) com um
  * PaymentIntent Pix avulso e o link de pagamento por e-mail.
  *
- * Não abre transação: o chamador abre. $translate é `_t` no endpoint:
- * fn (string $key, string ...$params): string.
+ * Não abre transação: o chamador abre. O e-mail com o link não sai dentro
+ * dela: ensurePaymentIntent o deixa pendente e o chamador chama
+ * deliverPending() depois do commit (ou discardPending() no rollback), para
+ * a falha do e-mail nunca desfazer a fatura com o PaymentIntent já criado e
+ * nenhum e-mail apontar para fatura desfeita. A Idempotency-Key do
+ * PaymentIntent deriva do local_key da fatura e do número da tentativa:
+ * repetir a mesma tentativa devolve o mesmo PaymentIntent no Stripe.
+ * $translate é `_t` no endpoint: fn (string $key, string ...$params): string.
  */
 final class PixInvoiceIssuer
 {
@@ -30,7 +36,13 @@ final class PixInvoiceIssuer
 
     public const REFERENCE = 'pix-invoice';
 
+    /** Envios do mesmo e-mail em deliverPending() antes de desistir (o link segue na tela da assinatura). */
+    public const DELIVERY_ATTEMPTS = 3;
+
     private const ISSUABLE_STATUSES = [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE];
+
+    /** @var list<OutgoingMessage> */
+    private array $pending = [];
 
     public function __construct(
         private readonly StripeClientInterface $stripe,
@@ -44,7 +56,10 @@ final class PixInvoiceIssuer
      * Emite a fatura do próximo período, ou null quando não cabe (não é Pix,
      * status fora de active/past_due, cedo demais ou fatura já emitida).
      *
-     * @throws StripeApiException do PaymentIntent (a fatura já inserida fica sem PI; o chamador desfaz ou o reconciliador refaz)
+     * Falha do Stripe no PaymentIntent não sobe: a fatura fica inserida sem
+     * PI (o chamador commita) e o reconciliador repete pela listOpenPix com a
+     * mesma Idempotency-Key, então um PI criado com resposta perdida é
+     * devolvido, não duplicado.
      */
     public function issueNext(Subscription $subscription, int $priceCents, string $recipientEmail, DateTimeImmutable $now): ?SubscriptionInvoice
     {
@@ -73,14 +88,19 @@ final class PixInvoiceIssuer
             return null;
         }
 
-        $this->ensurePaymentIntent($invoice, $subscription->stripeCustomerId(), $recipientEmail, $now);
+        try {
+            $this->ensurePaymentIntent($invoice, $subscription->stripeCustomerId(), $recipientEmail, $now);
+        } catch (StripeApiException $e) {
+            error_log(sprintf('[PixInvoiceIssuer] payment intent for invoice %d failed: %s', (int) $invoice->id(), $e::class));
+        }
 
         return $invoice;
     }
 
     /**
      * Cria o PaymentIntent Pix da fatura quando ela não tem um ou o dela
-     * expirou; grava e envia o link. StripeApiException sobe sem gravar nada.
+     * expirou; grava e deixa o e-mail com o link pendente (deliverPending).
+     * StripeApiException sobe sem gravar nada.
      */
     public function ensurePaymentIntent(SubscriptionInvoice $invoice, string $stripeCustomerId, string $recipientEmail, DateTimeImmutable $now): bool
     {
@@ -98,7 +118,7 @@ final class PixInvoiceIssuer
             'confirm' => true,
             'payment_method_options' => ['pix' => ['expires_after_seconds' => self::PIX_EXPIRES_AFTER_SECONDS]],
             'metadata' => ['subscription_invoice' => (string) $invoiceId],
-        ], sprintf('pix-invoice-%d-%d', $invoiceId, $invoice->paymentIntentAttempts() + 1));
+        ], sprintf('pix-invoice-%s-%d', (string) $invoice->localKey(), $invoice->paymentIntentAttempts() + 1));
 
         $qrCode = $paymentIntent['next_action']['pix_display_qr_code'] ?? [];
         $payUrl = isset($qrCode['hosted_instructions_url']) && $qrCode['hosted_instructions_url'] !== ''
@@ -113,7 +133,7 @@ final class PixInvoiceIssuer
         $this->invoices->save($invoice);
 
         $translate = $this->translate;
-        $this->email->deliver(new OutgoingMessage(
+        $this->pending[] = new OutgoingMessage(
             $recipientEmail,
             $translate('Central Vet Pro invoice'),
             $translate(
@@ -123,9 +143,45 @@ final class PixInvoiceIssuer
                 (string) $payUrl,
             ),
             self::REFERENCE,
-        ));
+        );
 
         return true;
+    }
+
+    /**
+     * Envia os e-mails pendentes (chamar depois do commit), cada um até
+     * DELIVERY_ATTEMPTS vezes; a falha só vai para o log (sem o destinatário).
+     *
+     * @return int e-mails enviados
+     */
+    public function deliverPending(): int
+    {
+        $messages = $this->pending;
+        $this->pending = [];
+        $sent = 0;
+
+        foreach ($messages as $message) {
+            for ($attempt = 1; $attempt <= self::DELIVERY_ATTEMPTS; $attempt++) {
+                try {
+                    $this->email->deliver($message);
+                    $sent++;
+
+                    break;
+                } catch (\Throwable $e) {
+                    if ($attempt === self::DELIVERY_ATTEMPTS) {
+                        error_log(sprintf('[PixInvoiceIssuer] invoice e-mail failed after %d attempts: %s', $attempt, $e::class));
+                    }
+                }
+            }
+        }
+
+        return $sent;
+    }
+
+    /** Descarta os e-mails pendentes (rollback da transação do chamador). */
+    public function discardPending(): void
+    {
+        $this->pending = [];
     }
 
     private static function money(int $cents): string
