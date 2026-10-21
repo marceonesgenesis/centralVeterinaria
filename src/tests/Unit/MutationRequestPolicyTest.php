@@ -111,7 +111,7 @@ final class MutationRequestPolicyTest
 
         Assert::same(
             MutationRequestPolicy::ALLOW,
-            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN)
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, [], [], self::resolver())
         );
     }
 
@@ -130,7 +130,7 @@ final class MutationRequestPolicyTest
 
         Assert::same(
             MutationRequestPolicy::ALLOW,
-            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN)
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, [], [], self::resolver())
         );
     }
 
@@ -141,7 +141,7 @@ final class MutationRequestPolicyTest
 
         Assert::same(
             MutationRequestPolicy::ALLOW,
-            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN)
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, [], [], self::resolver())
         );
     }
 
@@ -152,7 +152,7 @@ final class MutationRequestPolicyTest
 
         Assert::same(
             MutationRequestPolicy::DENY,
-            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN)
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, [], [], self::resolver())
         );
     }
 
@@ -170,5 +170,166 @@ final class MutationRequestPolicyTest
         Assert::same('X-CSRF-Token', MutationRequestPolicy::HEADER_NAME);
         Assert::same('HTTP_X_CSRF_TOKEN', MutationRequestPolicy::SERVER_HEADER_KEY);
         Assert::same('strip_method', MutationRequestPolicy::STRIP_METHOD);
+    }
+
+    /**
+     * Fake of the Reflection resolver: canonical names of the classes and
+     * methods that "exist", matched case-insensitively like PHP does.
+     */
+    private static function resolver(): \Closure
+    {
+        $classes = [
+            'PatientList' => ['onReload', 'onDelete', 'Delete'],
+            'AdiantiUploaderService' => ['show'],
+            'SaleForm' => ['onSave', 'onReload', 'onClearCart'],
+            'CashSessionForm' => ['onOpen', 'onReload'],
+            'LoginForm' => ['onLogout'],
+        ];
+
+        return static function (string $class, string $method) use ($classes): ?array {
+            foreach ($classes as $name => $methods) {
+                if (strcasecmp($name, $class) !== 0) {
+                    continue;
+                }
+                if ($method === '') {
+                    return [$name, ''];
+                }
+                foreach ($methods as $m) {
+                    if (strcasecmp($m, $method) === 0) {
+                        return [$name, $m];
+                    }
+                }
+                return null;
+            }
+            return null;
+        };
+    }
+
+    public function testMethodCaseVariantOfOverrideIsNotReadOnly(): void
+    {
+        Assert::false(MutationRequestPolicy::isReadOnly('SaleForm', 'onClearcart'));
+        Assert::false(MutationRequestPolicy::isReadOnly('SaleForm', 'onclearCart'));
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decide('engine.php', 'GET', 'SaleForm', 'onClearcart', null, self::TOKEN)
+        );
+        Assert::same(
+            MutationRequestPolicy::STRIP_METHOD,
+            MutationRequestPolicy::decide('index.php', 'GET', 'SaleForm', 'onclearCart', null, self::TOKEN)
+        );
+    }
+
+    public function testClassCaseVariantOfOverrideIsNotReadOnly(): void
+    {
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decide('engine.php', 'GET', 'cashsessionform', 'onOpen', null, self::TOKEN)
+        );
+    }
+
+    public function testDecideFromRequestDeniesNonCanonicalCase(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
+
+        foreach ([['SaleForm', 'onClearcart'], ['cashsessionform', 'onOpen'], ['patientlist', 'onReload'], ['LoginForm', 'onlogout']] as [$class, $method]) {
+            $request = ['class' => $class, 'method' => $method];
+            Assert::same(
+                MutationRequestPolicy::DENY,
+                MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $request, [], self::resolver()),
+                "{$class}::{$method} must be denied"
+            );
+        }
+    }
+
+    public function testDecideFromRequestDeniesUnknownClassOrMethod(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
+
+        foreach ([['NoSuchClass', 'onReload'], ['PatientList', 'onReloadMissing'], ['NoSuchClass', '']] as [$class, $method]) {
+            $request = ['class' => $class, 'method' => $method];
+            Assert::same(
+                MutationRequestPolicy::DENY,
+                MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $request, [], self::resolver()),
+                "{$class}::{$method} must be denied"
+            );
+        }
+    }
+
+    public function testDecideFromRequestDeniesBodyMethodDivergingFromQuery(): void
+    {
+        // $_REQUEST (EGPCS) takes the body, but the page dispatch runs $_GET.
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'POST'];
+        $query = ['class' => 'SaleForm', 'method' => 'onSave'];
+        $body = ['method' => 'onReload'];
+        $request = ['class' => 'SaleForm', 'method' => 'onReload'];
+
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $query, $body, self::resolver())
+        );
+    }
+
+    public function testDecideFromRequestDeniesBodyClassDivergingFromQuery(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'POST'];
+        $query = ['class' => 'SaleForm', 'method' => 'onReload'];
+        $body = ['class' => 'PatientList'];
+        $request = ['class' => 'PatientList', 'method' => 'onReload'];
+
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $query, $body, self::resolver())
+        );
+    }
+
+    public function testDecideFromRequestDeniesRequestMethodFromCookieOrBodyAbsentInQuery(): void
+    {
+        // method only in $_REQUEST (cookie/body) while the query names another one.
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
+        $query = ['class' => 'SaleForm', 'method' => 'onSave'];
+        $request = ['class' => 'SaleForm', 'method' => 'onReload'];
+
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $query, [], self::resolver())
+        );
+    }
+
+    public function testDecideFromRequestAllowsMatchingQueryAndBody(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'POST', 'HTTP_X_CSRF_TOKEN' => self::TOKEN];
+        $query = ['class' => 'SaleForm', 'method' => 'onSave'];
+        $request = ['class' => 'SaleForm', 'method' => 'onSave', 'x' => '1'];
+
+        Assert::same(
+            MutationRequestPolicy::ALLOW,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $query, ['class' => 'SaleForm'], self::resolver())
+        );
+    }
+
+    public function testSqlPanelGenerateRequiresToken(): void
+    {
+        Assert::false(MutationRequestPolicy::isReadOnly('SystemSQLPanel', 'onGenerate'));
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decide('engine.php', 'POST', 'SystemSQLPanel', 'onGenerate', null, self::TOKEN)
+        );
+    }
+
+    public function testAddedOverridesAndExemptions(): void
+    {
+        foreach (['CashSessionForm::onOpen', 'SystemMessageFormView::onView', 'SaleForm::onClearCart', 'PrescriptionForm::onClear'] as $action) {
+            [$class, $method] = explode('::', $action);
+            Assert::same(
+                MutationRequestPolicy::DENY,
+                MutationRequestPolicy::decide('engine.php', 'GET', $class, $method, null, self::TOKEN),
+                "{$action} must require POST + token"
+            );
+        }
+
+        Assert::same(
+            MutationRequestPolicy::ALLOW,
+            MutationRequestPolicy::decide('index.php', 'GET', 'LoginForm', 'reloadPermissions', null, self::TOKEN)
+        );
     }
 }
