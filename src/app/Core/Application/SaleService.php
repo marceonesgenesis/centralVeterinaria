@@ -306,14 +306,19 @@ final class SaleService
         }
 
         // Phase 4: consume stock last, one call per product-type item, in
-        // item order. See class docblock for the compensating delete below
-        // and its one documented limitation.
-        try {
-            foreach ($resolved as $entry) {
-                if ($entry['type'] !== self::ITEM_TYPE_PRODUCT) {
-                    continue;
-                }
+        // ascending product id (Etapa 2 / T-09): two carts with the same
+        // products in opposite order lock the batches in the same order and
+        // cannot deadlock. usort() is stable (PHP 8), so repeated lines of
+        // the same product keep their cart order. See class docblock for
+        // the compensating delete below and its one documented limitation.
+        $productEntries = array_values(array_filter(
+            $resolved,
+            static fn (array $entry): bool => $entry['type'] === self::ITEM_TYPE_PRODUCT,
+        ));
+        usort($productEntries, static fn (array $a, array $b): int => $a['referenceId'] <=> $b['referenceId']);
 
+        try {
+            foreach ($productEntries as $entry) {
                 $this->stock->consume(
                     tenantId: $tenantId,
                     systemUnitId: $systemUnitId,

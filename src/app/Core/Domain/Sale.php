@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Domain;
 
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -51,6 +52,9 @@ final class Sale
         private readonly int $totalAmountCents,
         private readonly DateTimeImmutable $soldAt,
         private readonly ?DateTimeImmutable $createdAt = null,
+        private ?DateTimeImmutable $cancelledAt = null,
+        private ?int $cancelledBySystemUserId = null,
+        private ?string $cancellationReason = null,
     ) {
     }
 
@@ -122,6 +126,9 @@ final class Sale
         int $totalAmountCents,
         DateTimeImmutable $soldAt,
         ?DateTimeImmutable $createdAt,
+        ?DateTimeImmutable $cancelledAt = null,
+        ?int $cancelledBySystemUserId = null,
+        ?string $cancellationReason = null,
     ): self {
         if (!in_array($status, self::STATUSES, true)) {
             throw new InvalidArgumentException('Invalid status');
@@ -139,6 +146,9 @@ final class Sale
             $totalAmountCents,
             $soldAt,
             $createdAt,
+            $cancelledAt,
+            $cancelledBySystemUserId,
+            $cancellationReason,
         );
     }
 
@@ -211,8 +221,52 @@ final class Sale
         return $this->createdAt;
     }
 
-    public function cancel(): void
+    public function isCancelled(): bool
     {
+        return $this->status === self::STATUS_CANCELLED;
+    }
+
+    public function cancelledAt(): ?DateTimeImmutable
+    {
+        return $this->cancelledAt;
+    }
+
+    public function cancelledBySystemUserId(): ?int
+    {
+        return $this->cancelledBySystemUserId;
+    }
+
+    public function cancellationReason(): ?string
+    {
+        return $this->cancellationReason;
+    }
+
+    /**
+     * Traceable cancellation (Etapa 2 / T-09): records the trimmed reason
+     * (1..500 characters), who cancelled and when. A sale is cancelled at
+     * most once; sale_cancellation_ck (0016) requires the three columns on
+     * every cancelled row. Returning stock and reversing payments is the
+     * caller's job (SaleCancellationService).
+     */
+    public function cancel(string $reason, int $cancelledBySystemUserId, DateTimeImmutable $cancelledAt): void
+    {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new InvalidArgumentException('A cancellation reason is required');
+        }
+
+        if (mb_strlen($reason) > 500) {
+            throw new InvalidArgumentException('The cancellation reason must have at most 500 characters');
+        }
+
+        if ($this->isCancelled()) {
+            throw new InvalidStatusTransitionException('Sale is already cancelled');
+        }
+
         $this->status = self::STATUS_CANCELLED;
+        $this->cancellationReason = $reason;
+        $this->cancelledBySystemUserId = $cancelledBySystemUserId;
+        $this->cancelledAt = $cancelledAt;
     }
 }
