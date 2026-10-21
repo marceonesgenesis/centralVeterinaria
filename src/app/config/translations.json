@@ -372,6 +372,10 @@
     "pt": "Saldo a receber"
   },
   {
+    "en": "Amount paid",
+    "pt": "Valor pago"
+  },
+  {
     "en": "Amount received",
     "pt": "Valor recebido"
   },
@@ -800,6 +804,14 @@
     "pt": "categoria muito longa (máx. 60 caracteres)"
   },
   {
+    "en": "Central Vet Pro invitation",
+    "pt": "Convite do Central Vet Pro"
+  },
+  {
+    "en": "Central Vet Pro invoice",
+    "pt": "Fatura do Central Vet Pro"
+  },
+  {
     "en": "Change Log",
     "pt": "Log de alterações"
   },
@@ -1186,6 +1198,10 @@
   {
     "en": "Current Frequency",
     "pt": "Frequência atual"
+  },
+  {
+    "en": "Current period",
+    "pt": "Período atual"
   },
   {
     "en": "Current status",
@@ -2036,6 +2052,10 @@
     "pt": "Busca global"
   },
   {
+    "en": "Grace period until",
+    "pt": "Tolerância até"
+  },
+  {
     "en": "Grand total",
     "pt": "Total geral"
   },
@@ -2182,6 +2202,10 @@
   {
     "en": "Income",
     "pt": "Receita"
+  },
+  {
+    "en": "Incomplete",
+    "pt": "Incompleta"
   },
   {
     "en": "Inform the procedure id",
@@ -2414,6 +2438,10 @@
   {
     "en": "Invalid tool input",
     "pt": "Entrada inválida"
+  },
+  {
+    "en": "Invoices",
+    "pt": "Faturas"
   },
   {
     "en": "Issued",
@@ -3024,6 +3052,10 @@
     "pt": "Sem resultado estruturado (somente anexo)"
   },
   {
+    "en": "No subscription registered for this clinic",
+    "pt": "Esta clínica não tem assinatura registrada"
+  },
+  {
     "en": "No suggestions at the moment",
     "pt": "Nenhuma sugestão no momento"
   },
@@ -3398,6 +3430,10 @@
   {
     "en": "Pay",
     "pt": "Pagar"
+  },
+  {
+    "en": "Pay invoice",
+    "pt": "Pagar fatura"
   },
   {
     "en": "Payable",
@@ -3968,6 +4004,10 @@
     "pt": "Atualizar"
   },
   {
+    "en": "Refunded",
+    "pt": "Estornado"
+  },
+  {
     "en": "Register payment",
     "pt": "Registrar pagamento"
   },
@@ -4194,6 +4234,10 @@
   {
     "en": "Sale history",
     "pt": "Histórico de vendas"
+  },
+  {
+    "en": "Sale not found",
+    "pt": "Venda não encontrada"
   },
   {
     "en": "Sale price",
@@ -4642,6 +4686,10 @@
   {
     "en": "Submission date",
     "pt": "Data de envio"
+  },
+  {
+    "en": "Subscription",
+    "pt": "Assinatura"
   },
   {
     "en": "Subtotal",
@@ -5152,6 +5200,10 @@
     "pt": "Esta internação não está mais ativa"
   },
   {
+    "en": "This link expires in ^1 hours",
+    "pt": "Este link expira em ^1 horas"
+  },
+  {
     "en": "This material was already removed",
     "pt": "Este material já foi removido"
   },
@@ -5478,6 +5530,10 @@
   {
     "en": "Unknown document kind",
     "pt": "Tipo de documento desconhecido"
+  },
+  {
+    "en": "Unknown payment method \"^1\"",
+    "pt": "Forma de pagamento desconhecida: \"^1\""
   },
   {
     "en": "Unknown placeholder \"^1\" in template",
@@ -5920,11 +5976,35 @@
     "pt": "Você precisa ler e concordar com os termos de uso e política de privacidade"
   },
   {
+    "en": "Your Central Vet Pro invoice of ^1 is available. Pay with Pix by ^2: ^3",
+    "pt": "Sua fatura do Central Vet Pro de ^1 está disponível. Pague com Pix até ^2: ^3"
+  },
+  {
+    "en": "Your clinic ^1 is ready. Set your password to access Central Vet Pro: ^2",
+    "pt": "Sua clínica ^1 está pronta. Defina sua senha para acessar o Central Vet Pro: ^2"
+  },
+  {
+    "en": "Your plan allows up to ^1 units",
+    "pt": "Seu plano permite até ^1 unidades"
+  },
+  {
+    "en": "Your plan allows up to ^1 users",
+    "pt": "Seu plano permite até ^1 usuários"
+  },
+  {
+    "en": "Your plan does not include this feature",
+    "pt": "Seu plano não inclui este recurso"
+  },
+  {
     "en": "Your question",
     "pt": "Sua pergunta"
   },
   {
     "en": "Your session does not have an active tenant. Please log in again",
     "pt": "Sua sessão não possui um tenant ativo. Faça login novamente"
+  },
+  {
+    "en": "Your subscription is suspended. Regularize the payment to continue",
+    "pt": "Sua assinatura está suspensa. Regularize o pagamento para continuar"
   }
 ]

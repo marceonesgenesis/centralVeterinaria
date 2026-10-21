@@ -111,6 +111,9 @@ final class UserMessage
         'This receivable is cancelled and cannot receive payments' => 'This receivable is cancelled and cannot receive payments',
         'A cancellation reason is required' => 'A cancellation reason is required',
         'The cancellation reason must have at most 500 characters' => 'The cancellation reason must have at most 500 characters',
+        'Your plan does not include this feature' => 'Your plan does not include this feature',
+        'Your subscription is suspended. Regularize the payment to continue' => 'Your subscription is suspended. Regularize the payment to continue',
+        'No subscription registered for this clinic' => 'No subscription registered for this clinic',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -221,6 +224,10 @@ final class UserMessage
         '/^AI assistant is unavailable: ai_provider_error$/D' => 'The AI service returned an error. Continue manually and try again later.',
         '/^AI assistant is unavailable: ai_empty_input$/D' => 'There is no text for the AI to work on. Type or dictate it first.',
         '/^AI assistant is unavailable: ai_input_too_long$/D' => 'The text is too long for the AI. Shorten it and try again.',
+        '/^Sale \d+ not found$/D' => 'Sale not found',
+        '/^Unknown payment[ _]method "(.+)"$/D' => 'Unknown payment method "^1"',
+        '/^Your plan allows up to (\d+) users$/D' => 'Your plan allows up to ^1 users',
+        '/^Your plan allows up to (\d+) units$/D' => 'Your plan allows up to ^1 units',
         // Genéricos por último: STATIC é consultado antes e os padrões específicos vêm primeiro.
         '/^([a-z_]+) must have at most (\d+) characters$/D' => '^1 must have at most ^2 characters',
         '/^([a-z_]+) is required$/D' => '^1 is required',

@@ -119,8 +119,8 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(89, UserMessage::STATIC); // Etapa 2, T-01: +7 mensagens de domínio.
-        Assert::count(106, UserMessage::PATTERNS);
+        Assert::count(92, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano.
+        Assert::count(110, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas).
 
         // Etapa 1, T-01: a mensagem crua cita campos técnicos; a chave é o texto para o usuário.
         $renamed = ['patient_id is required when encounter_id is informed' => 'Select the patient of the encounter'];
