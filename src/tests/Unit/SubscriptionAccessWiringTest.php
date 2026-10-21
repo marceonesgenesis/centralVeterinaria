@@ -44,7 +44,8 @@ final class SubscriptionAccessWiringTest
         Assert::stringContains('self::SUBSCRIPTION_ACCESS_SESSION_KEY', $source);
         Assert::stringContains('TSession::setValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY', $source);
         Assert::stringContains('self::denyRequest(', $source);
-        Assert::stringContains('index.php?class=SubscriptionStatusView', $this->service());
+        Assert::stringContains('(string) $entry[\'message_key\']', $source, 'o 403 usa a chave da decisão');
+        Assert::stringContains("'index.php?class=SubscriptionStatusView'", $source, 'o 403 leva o link da assinatura');
         Assert::stringContains("public const SUBSCRIPTION_ACCESS_SESSION_KEY = 'cv_subscription_access';", $this->service());
         Assert::stringContains('public const SUBSCRIPTION_ACCESS_TTL = 60;', $this->service());
 
@@ -53,12 +54,67 @@ final class SubscriptionAccessWiringTest
         Assert::stringContains('exit;', $deny);
     }
 
+    /**
+     * Correção 1: em GET de página inteira (index.php) o denyRequest sai
+     * antes do layout, sem adianti.js; o TMessage viraria só um <script>
+     * e a tela ficaria em branco. Lá vai uma página HTML autônoma; no
+     * engine.php (AJAX) segue o TMessage.
+     */
+    public function testDenyRequestRendersAStandalonePageOnFullPageRequestsAndTMessageOtherwise(): void
+    {
+        $deny = $this->method('denyRequest');
+
+        Assert::stringContains('self::isFullPageRequest($_SERVER)', $deny);
+        Assert::stringContains('echo self::subscriptionBlockedPage(', $deny);
+        Assert::stringContains("_t('Subscription')", $deny);
+        Assert::stringContains("_t('Logout')", $deny);
+        Assert::stringContains('index.php?class=LoginForm&method=onLogout', $deny);
+        Assert::stringContains("new TMessage('error', \$message)", $deny, 'engine.php/AJAX mantém o TMessage');
+        Assert::stringContains("_t('The request could not be verified. Reload the page and try again.')", $deny);
+    }
+
+    public function testFullPageRequestIsOnlyIndexPhp(): void
+    {
+        $this->loadService();
+
+        Assert::true(\ApplicationAuthenticationService::isFullPageRequest(['SCRIPT_NAME' => '/index.php']));
+        Assert::true(\ApplicationAuthenticationService::isFullPageRequest(['SCRIPT_NAME' => '/centralvet/index.php']));
+        Assert::false(\ApplicationAuthenticationService::isFullPageRequest(['SCRIPT_NAME' => '/engine.php']));
+        Assert::false(\ApplicationAuthenticationService::isFullPageRequest([]));
+    }
+
+    public function testBlockedPageIsEscapedHtmlWithTheMessageAndBothLinks(): void
+    {
+        $this->loadService();
+
+        $html = \ApplicationAuthenticationService::subscriptionBlockedPage(
+            'Sua assinatura está suspensa <b>"x"</b>',
+            'Assinatura & plano',
+            'index.php?class=SubscriptionStatusView',
+            'Sair',
+            'index.php?class=LoginForm&method=onLogout'
+        );
+
+        Assert::stringContains('<!DOCTYPE html>', $html);
+        Assert::stringContains('<meta charset="utf-8">', $html);
+        Assert::stringContains('Sua assinatura está suspensa &lt;b&gt;&quot;x&quot;&lt;/b&gt;', $html, 'mensagem escapada');
+        Assert::stringContains('href="index.php?class=SubscriptionStatusView">Assinatura &amp; plano</a>', $html);
+        Assert::stringContains('href="index.php?class=LoginForm&amp;method=onLogout">Sair</a>', $html);
+        Assert::false(str_contains($html, '__adianti'), 'a página não depende do adianti.js');
+        Assert::false(str_contains($html, '<b>'), 'nenhum HTML da mensagem passa sem escape');
+        Assert::stringContains('min-height: 44px', $html, 'alvo de toque de 44 px');
+        Assert::stringContains('text-align: left', $html, 'rótulos à esquerda');
+        Assert::false(str_contains($html, 'text-align: center') || str_contains($html, 'text-align: right'));
+    }
+
     public function testOnAfterLoginActivatesTheInvitedLink(): void
     {
         $source = $this->method('onAfterLogin');
 
         Assert::stringContains('TenantUserActivation::activateInvited(', $source);
         Assert::stringContains("TSession::getValue('userid')", $source);
+        Assert::stringContains('TTransaction::rollback();', $source, 'rollback() só da transação aberta aqui');
+        Assert::false(str_contains($source, 'rollbackAll'), 'rollbackAll desfaria uma transação externa');
     }
 
     public function testCachedDecisionIsKeyedByTenantAndController(): void
