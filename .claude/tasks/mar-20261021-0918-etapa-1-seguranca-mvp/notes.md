@@ -27,7 +27,10 @@
 - 2026-10-21 · T-11 · onda 2 — Fixture extra multisearch-tenant-7-active-criteria.txt no commit RED 0653fa5 aceita (RED inválido/escopo por ruling; caso real do StockBatchForm).
 - 2026-10-21 · T-11 · onda 2 — Filtros extras `campo = inteiro` unidos por AND após tenant_id aceitos (OR/aninhamento/não-identificador são negados).
 - 2026-10-21 · T-11 · onda 2 — criteria só aceito em forma canônica (serialize(obj) === raw) com chaves privadas exatas.
-
+- 2026-10-21 · T-06 · onda 3 — A busca de tutor (AdiantiMultiSearchService, class_alias do framework) é aceita por um resolvedor passado pelo guard que só aceita o alias com nome idêntico; caixa e query×corpo divergentes seguem negados. Levar a regra do alias para a MutationRequestPolicy (T-02) fica como pendência.
+- 2026-10-21 · T-06 · onda 3 — cv_csrf retirado dos parâmetros de dispatch (request_order vazio → $_REQUEST inclui cookies e o Adianti os copia para URLs).
+- 2026-10-21 · T-06 · onda 3 — template=iframe não carrega cv-shell.js; nenhuma tela usa hoje (validador); risco latente, pendência.
+- 2026-10-21 · T-06 · onda 3 — Usuário autorizou rebuild/up do app local e dados de teste ZZ- no banco de dev (todos excluídos, SELECT confirmou 0 linhas ZZ-%) e buscar credenciais nos arquivos: sessão de dev (admin, unidade 1) aberta por curl com CENTRALVET_ADMIN_PASSWORD do .env sem imprimir; validador recebeu só o cookie-jar; senha não resetada.
 ## Bloqueios
 - nenhum
 
@@ -42,6 +45,8 @@
 - T-05: SaleService::__construct ganhou TutorRepositoryInterface, PatientRepositoryInterface e EncounterRepositoryInterface no fim; produto sem sale_price_cents lança ProductWithoutSalePriceException.
 - T-07: APP_PUBLIC_URL entrou no environment compartilhado (&app-environment) do compose (app e worker); .env.example traz a linha ativa.
 - T-11: SearchParameterGuard::check(string $class, array $request, ?int $tenantId): ?string (null = permite); aceita filtros extras AND `campo = inteiro` após tenant_id e nega criteria com properties não vazias.
+- T-06 (b76086b): checkMultiSession() chama enforceMutationGuard(); resolveDispatchTarget aceita class_alias só com nome curto exato; withoutCsrfCookie tira cv_csrf de $_REQUEST; cv-shell.js converte $.ajax para engine.php em POST com X-CSRF-Token.
+- T-06: hashes de engine.php/index.php já divergiam de framework_hashes.php desde 9efef4e (anterior à branch).
 
 ## Pendências
 - Revogação de sessões após reset: com `concurrent_sessions = '1'` e o driver de sessão em arquivos não há como derrubar as sessões de um usuário; com Redis, `SessionRegistry` guarda só a sessão corrente para o bloqueio de sessão concorrente. Revogar exige um marcador por usuário (ex.: `system_users.password_changed_at` comparado a cada requisição no mesmo `checkMultiSession`), com migration. Decisão do desenvolvedor (2026-10-21): fica para depois da Etapa 1.
@@ -54,7 +59,10 @@
 - T-07: SMTP síncrono distingue login ativo de inexistente por timing; enfileirar o e-mail no worker em etapa seguinte. PublicUrl::fromEnvironment() lançando antes de handle() não registra a tentativa no limitador.
 - T-11: faltam testes dos ramos negativos do AND extra (OR, valor não inteiro, tenant_id repetido, TCriteria aninhado, properties com order/group, variável não identificador); IDENTIFIER/MASK terminam em `$` (aceita \n final; usar `\z` ou modificador D); normalizar ltrim($class, '\\') em SearchParameterGuard.php:57-61.
 - T-11: T-06 precisa invocar o guard para AdiantiMultiSearchService/AdiantiAutocompleteService.
-- Estado intermediário: SaleForm monta SaleService com assinatura antiga (ArgumentCountError em runtime) até a T-08 (onda 3).
+- T-06/geral: PHPSESSID vaza para URLs pelo mesmo mecanismo de request_order (anterior à branch); correção natural request_order="GP" no php.ini — levar ao usuário na entrega.
+- T-06: levar a regra do class_alias para MutationRequestPolicy::resolveCanonical (T-02); template=iframe sem cv-shell.js (risco latente, cobrir quando alguma tela usar abas).
+- T-06: sugestões da revisão: cv_csrf antigo ainda chega a $param em requisição não logada (ApplicationAuthenticationService.php:268-271); isHttps confia em X-Forwarded-Proto (derivar Secure de APP_PUBLIC_URL); error_log de negação sem sanitizar class/method (linhas 286,305); fixture do RED alterada no GREEN (registro de processo).
+- T-08: sugestões da revisão: teste de wiring não fixa a ordem tutors/patients/encounters (SaleFormPricingTest.php:39-46); teste do catch específico não verifica a ordem antes de catch (Exception) (:28-37); recibo lê o snapshot do carrinho e pode divergir do sale_item com rascunho antigo ou preço alterado (SaleForm.php:685-701).
 
 ## Riscos
 - S7: o pré-filtro pode negar uma busca legítima que use parâmetros fora das listas (por exemplo, `setOperator` novo ou máscara composta). Mitigação: o Teste RED de T-11 cobre a busca real do `SaleForm` e de `SystemUser`, a Validação de T-11 confere os 11 usos e o teste de fumaça de T-06 inclui a busca de tutor. Uma sessão sem tenant resolvido (`MissingTenantContext`) passa a ter as buscas de models de tenant negadas.
@@ -73,5 +81,6 @@
 - Commits por onda:
   - Onda 1: BASE aba0e82 → HEAD 8dd9f54 (8dd9f54 cca1efc 6454f50 d2ae72f 82fba32 1cbe9a4 dd6049d f9094ab 0deda83 9a8b170 456f743 bdb8eac aa40daf 1c0a05e 9cf70ae)
   - Onda 2: BASE 24876ac → HEAD 7bd0e6c (7bd0e6c 069eb63 9411ffb 75d4646 072b81e d3ad5b5 0653fa5 19015f3)
-- Último status conhecido: onda 2 concluída (T-05, T-07, T-11 [x]); HEAD 7bd0e6c antes do chore(tasks)
-- Próxima onda recomendada: onda 3 (T-06, T-08)
+  - Onda 3: BASE 1983b78 → HEAD b76086b (b76086b e04aff9 32e7c0c fc0edc2 d809b58 b00ff4c)
+- Último status conhecido: onda 3 concluída (T-06, T-08 [x])
+- Próxima onda recomendada: onda 4 (T-09, T-10)
