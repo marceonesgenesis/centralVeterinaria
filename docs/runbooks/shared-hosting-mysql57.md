@@ -68,6 +68,26 @@ redirecionamentos da landing usam caminhos relativos, compatíveis com
 instalação na raiz do domínio ou em um subdiretório. Sessões autenticadas e
 pedidos com query string seguem para `index.php` no mesmo diretório.
 
+### request_order (cookies fora de $_REQUEST)
+
+Com o `request_order` padrão de algumas hospedagens (vazio, caindo em
+`variables_order` = `EGPCS`), os cookies entram em `$_REQUEST`, e o Adianti
+copia `$_REQUEST` ao montar links de paginação, ordenação e filtros. Sintoma:
+`PHPSESSID=` aparece nas URLs das listas paginadas (ex.:
+`index.php?class=SystemUserList&...&PHPSESSID=...`), expondo a sessão em
+histórico, logs e cabeçalho `Referer`. Fixe só GET e POST no `.user.ini` da
+raiz da aplicação (ou no `php.ini`, pelo painel do provedor):
+
+```ini
+request_order = "GP"
+```
+
+A imagem Docker já aplica a mesma linha (`docker/php/conf.d/app.ini`). Como
+conferir: um script temporário com `<?php echo ini_get('request_order');`
+deve imprimir `GP` (apague-o depois; o `.user.ini` pode levar até
+`user_ini.cache_ttl`, 300 s por padrão, para valer), e a lista paginada não
+deve conter `PHPSESSID` no HTML.
+
 ### IP do visitante e limite de envios da landing
 
 O `lead.php` usa só `REMOTE_ADDR` e conta 10 envios por IP por hora. Atrás de
