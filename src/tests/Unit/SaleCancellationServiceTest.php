@@ -43,7 +43,7 @@ use InvalidArgumentException;
  */
 final class SaleCancellationServiceTest
 {
-    private const ACTION = 'test::sale-cancel';
+    private const ACTION = 'test::cancel';
     private const TENANT_ID = 1;
     private const CONTEXT_UNIT_ID = 1;
     private const SALE_UNIT_ID = 5;
