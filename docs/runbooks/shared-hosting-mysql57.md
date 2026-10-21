@@ -419,3 +419,42 @@ pessoal; sai com 1 em erro):
 
 Sem a variável `RATE_LIMIT_DRIVER=files`, o limitador de chamadas do copiloto
 exige Redis acessível. Detalhes: [`ia-assistente.md`](./ia-assistente.md).
+
+## Migration 0016 (venda e financeiro)
+
+A `20261021_0016_etapa2_sale_finance.sql` liga a venda ao financeiro e torna o
+cancelamento rastreável: `receivable.encounter_account_id` passa a aceitar
+NULL e ganha a coluna `sale_id` (UNIQUE `receivable_sale_uq`, FK para `sale` e
+o CHECK `receivable_origin_ck`: o recebível vem de uma conta de atendimento
+**ou** de uma venda); `sale` ganha `cancelled_at`,
+`cancelled_by_system_user_id` e `cancellation_reason` (CHECK
+`sale_cancellation_ck`); cria `payment_reversal` (estorno de um recebimento,
+UNIQUE por `payment_id`) e `submission_key` (token de envio de formulário,
+UNIQUE por tenant/escopo/token); e **amplia `stock_movement_reason_ck`** com
+`sale_cancellation`, em DROP CHECK seguido de ADD CONSTRAINT. São 5 CHECKs
+novos e 1 ampliado (12 triggers no 5.7). Não semeia dados; os `ALTER TABLE` em
+`receivable` e `sale` reconstroem as tabelas, então aplique em janela curta,
+com backup. Antes, confira que nenhuma venda está `cancelled`
+(`SELECT COUNT(*) FROM sale WHERE status = 'cancelled'` deve dar 0), senão o
+`sale_cancellation_ck` recusa a migration.
+
+Copie a migration com o prefixo `20-` (depois do `19-` da 0015) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261021_0016_etapa2_sale_finance.sql \
+  "$d/20-20261021_0016_etapa2_sale_finance.sql"
+cp src/app/database/migrations/20261021_0016_etapa2_sale_finance.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 6 checks and 12 triggers`. No arquivo preparado,
+os `DROP TRIGGER IF EXISTS` de `stock_movement_reason_ck_bi`/`_bu` vêm antes
+dos `CREATE TRIGGER` do mesmo nome.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM receivable` e `SELECT COUNT(*) FROM sale` e exija os
+**mesmos números**. Na conferência, use o verify adaptado de
+`$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
+CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0.
