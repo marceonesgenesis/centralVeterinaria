@@ -168,7 +168,7 @@ final class BillingWebhookIntegrationTest extends MysqlIntegrationTestCase
         $failed = $this->post($body);
 
         $this->assertJson(500, ['error' => 'processing_failed'], $failed);
-        Assert::same(BillingOrder::STATUS_PENDING, $this->orders->findByIdForUpdate($orderId)?->status(), 'markPaid must be rolled back');
+        Assert::same(BillingOrder::STATUS_CHECKOUT_OPEN, $this->orders->findByIdForUpdate($orderId)?->status(), 'markPaid must be rolled back');
         Assert::null($this->subscriptions->findByBillingOrderId($orderId));
         Assert::same('failed', $this->eventStatus($body));
         Assert::same($tenantsBefore, $this->countTenants());
@@ -219,7 +219,7 @@ final class BillingWebhookIntegrationTest extends MysqlIntegrationTestCase
         $response = $this->post($body);
 
         $this->assertJson(200, ['received' => true, 'result' => 'duplicate'], $response);
-        Assert::same(BillingOrder::STATUS_PENDING, $this->orders->findByIdForUpdate($orderId)?->status());
+        Assert::same(BillingOrder::STATUS_CHECKOUT_OPEN, $this->orders->findByIdForUpdate($orderId)?->status());
         Assert::count(0, $this->stripe->calls, 'the processor must not run for an event already finished');
     }
 

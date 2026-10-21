@@ -172,6 +172,7 @@ O guard roda em `checkMultiSession()`, chamado por `engine.php` e `index.php`. F
 - `download.php`: só lê arquivo de `files/` com sessão logada (`realpath` restrito).
 - `lead.php`: POST público da landing com `LeadFormToken` próprio e limitador (`LeadSubmissionHandler`).
 - `checkout.php`: POST público da compra pela landing com `LeadFormToken` (`form_token` no corpo, uso único), same-origin (`LeadSubmissionHandler::precheck`) e limitador por IP `checkout|` (`CheckoutStartHandler`); o preço vem do servidor.
+- `billing-webhook.php`: POST do Stripe, exceção ao CSRF autenticada só pela `Stripe-Signature` (HMAC-SHA256 do segredo do webhook, tolerância 300 s, `StripeSignatureVerifier`), sem cookie, sessão nem token CSRF; assinatura ausente ou inválida → 400 sem escrita no banco (`BillingWebhookHandler`).
 - `landing.php`: página pública de leitura.
 - `cmd.php`: só CLI (`PHP_SAPI !== 'cli'` encerra).
 
