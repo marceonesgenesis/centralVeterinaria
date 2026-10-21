@@ -4,18 +4,24 @@ subagent_type: general-purpose
 model: inherit
 
 ## Contexto
-Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Aplica as regras de acesso: endpoint genérico de download fechado e bloqueio por plano e estado da assinatura.
+Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Aplica as regras de acesso: endpoint genérico de download fechado, bloqueio por plano e estado da assinatura e, na Onda 4, a gestão da equipe por clínica (T-24), com isolamento entre tenants, só o grupo do plano e a única aplicação da quota de usuários.
 
 ## Tasks atribuídas
 - T-05: S6: download.php desabilitado
 - T-15: Guardas de acesso e de quota
+- T-24: Equipe da clínica
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
 ## Caminhos relevantes
 - `src/download.php`
 - src/lib/adianti/widget/form/TFile.php (só leitura)
-- src/app/Core/Billing/ (T-07, T-10)
+- src/app/Core/Billing/ (T-07, T-10, T-12, T-13, T-15)
+- `src/app/control/admin/SystemUserForm.php` (só leitura: como o app grava usuário e o defeito de tenant que a T-24 evita)
+- `src/app/Core/Tenancy/TenantContext.php`
+- `src/app/Core/Tenancy/AdiantiSessionContextSource.php`
+- `src/app/Core/Security/MutationRequestPolicy.php` (`onSave`/`onDeactivate`/`onReactivate` são mutações por padrão)
+- `.docs/design-system.md` § Alinhamento de rótulos
 - Board: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/board.md`
 - Relatórios: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reports/` (modelo em `_template.md`)
 - Notas: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/notes.md` — leia § Decisões tomadas e § Descobertas antes de começar (rulings de ondas anteriores vivem ali, não no board).
@@ -26,6 +32,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Comandos de validação e baseline: LINT, SUITE e MYSQLTEST no cabeçalho de `tasks.md`; baseline `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/baseline/php-lint.txt` (0 linhas). Testes rodam no container `app` (PHP 8.4) com `src/` somente leitura; erro `class not found` = autoload quebrado.
 - Proibido: editar `src/lib/adianti`, `src/engine.php`, `src/index.php`, `src/init.php`, `src/composer.json`, `src/app/config/framework_hashes.php` ou qualquer arquivo listado nele (única exceção, autorizada pelo usuário: T-04 edita `src/composer.json`, `src/composer.lock` e a linha `composer.json` de `framework_hashes.php`); `composer update` sem pacote nomeado; SQL de escrita contra o banco `centralvet` (dev) sem autorização expressa; escrever no `.env`; colocar chave real (`sk_live_`, `sk_test_`, `whsec_`) em código, teste, log, relatório ou prompt; `git add -A`, `git stash`, `git checkout`, `git reset`, `git restore`.
 - Regras do projeto: rótulos e cabeçalhos de grid à esquerda; alvos de toque ≥ 44 px (`--cv-touch-target`); mensagens ao usuário só por `_t()` com as chaves de T-01 (`^1..^4`); toda mutação nova passa pela `MutationRequestPolicy` (exceção: `billing-webhook.php`, autenticado por `Stripe-Signature`).
+- T-24: pré-requisito: a 0017 no `centralvet_test`; os grupos de plano e os tenants A/B entram como fixture do teste. Não edite `SystemUserForm`, `SystemUnitForm`, o seed nem o `menu.xml` (seed, menu e inventário CSRF são da T-25).
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 

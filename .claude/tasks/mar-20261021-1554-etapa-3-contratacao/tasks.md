@@ -21,21 +21,23 @@ Comandos usados em Teste RED e Validação:
 | T-06 | frontend | Pendência (d): cortina de cancelamento sem botão em venda cancelada, nomes no recibo, rótulos de forma de pagamento unificados | — | sim | média | Levi | [x] |
 | T-07 | backend | Domínio de cobrança: PlanEntitlements, Subscription, SubscriptionInvoice, BillingOrder | — | sim | alta | Platão | [x] |
 | T-08 | backend | Cliente Stripe próprio (interface, cURL, config, verificador de Stripe-Signature, fake) e placeholders de ambiente | — | sim | média | Tesla | [x] |
-| T-09 | backend | Repositórios de pedido e de evento (BillingOrderRepository, BillingEventRepository) e fakes | T-02, T-07 | sim | média | Arquimedes | [ ] |
-| T-10 | backend | Repositórios de assinatura e fatura (SubscriptionRepository, SubscriptionInvoiceRepository) e fakes | T-02, T-07 | sim | média | Spock | [ ] |
-| T-11 | database | Seed dos 4 grupos de plano com os programas de cada plano | T-07 | sim | média | Darwin | [ ] |
-| T-12 | backend | AccountInviteService: convite por e-mail com PasswordResetToken de 72 h e PublicUrl | T-01, T-04 | sim | média | Gandalf | [ ] |
+| T-09 | backend | Repositórios de pedido e de evento (BillingOrderRepository, BillingEventRepository) e fakes | T-02, T-07 | sim | média | Arquimedes | [x] |
+| T-10 | backend | Repositórios de assinatura e fatura (SubscriptionRepository, SubscriptionInvoiceRepository) e fakes | T-02, T-07 | sim | média | Spock | [x] |
+| T-11 | database | Seed dos 4 grupos de plano com os programas de cada plano | T-07 | sim | média | Darwin | [x] |
+| T-12 | backend | AccountInviteService: convite por e-mail com PasswordResetToken de 72 h e PublicUrl | T-01, T-04 | sim | média | Gandalf | [x] |
 | T-13 | backend | TenantProvisioningService: provisionamento idempotente e retomável de tenant, unidade, administrador, permissões e assinatura, com convite | T-02, T-07, T-09, T-10, T-11, T-12 | sim | alta | Thanos | [ ] |
 | T-14 | backend | BillingEventProcessor: eventos Stripe (cartão e PaymentIntent Pix) → pedido, assinatura e fatura, com guarda contra evento antigo | T-07, T-08, T-09, T-10 | sim | alta | Hegel | [ ] |
 | T-15 | backend | SubscriptionAccessGuard, QuotaGuard e TenantUsageReader | T-07, T-10 | sim | média | Jaspion | [ ] |
 | T-16 | backend | CheckoutStartHandler e src/checkout.php: pedido com valor do servidor, aceite dos termos e Checkout Stripe (cartão em assinatura, Pix no 1º mês) | T-01, T-07, T-08, T-09 | sim | alta | Batman | [ ] |
 | T-17 | backend | Webhook autenticado: src/billing-webhook.php, BillingWebhookHandler e BillingEventIngestor | T-08, T-09, T-13, T-14, T-16 | sim | alta | Kratos | [ ] |
 | T-18 | backend | BillingReconciler e bin/billing-reconcile.php: eventos perdidos, provisionamento pendente, faturas Pix, vencimento e fim da tolerância | T-08, T-09, T-10, T-13, T-17, T-23 | não | alta | Naruto | [ ] |
-| T-19 | backend | Bloqueio por assinatura e plano no checkMultiSession, quotas nos formulários de usuário e unidade, primeiro acesso | T-01, T-15 | sim | alta | Aang | [ ] |
+| T-19 | backend | Bloqueio por assinatura e plano no checkMultiSession e primeiro acesso (quotas ficam em T-24 e T-25) | T-01, T-15 | sim | alta | Aang | [ ] |
 | T-20 | frontend | Landing: escolha do plano, responsável, termos, forma de pagamento e retorno do checkout | T-16 | sim | média | Saitama | [ ] |
 | T-21 | frontend | SubscriptionStatusView: plano, estado, período, tolerância e faturas com link de pagamento | T-01, T-07, T-10, T-11, T-15 | sim | média | Athena | [ ] |
-| T-22 | qa | Integração ponta a ponta dos cenários de aquisição da auditoria e fumaça no navegador (condicional à autorização do dev) | T-17, T-18, T-19, T-20, T-21 | não | alta | Goku | [ ] |
+| T-22 | qa | Integração ponta a ponta dos cenários de aquisição da auditoria e fumaça no navegador (condicional à autorização do dev) | T-17, T-18, T-19, T-20, T-21, T-24, T-25 | não | alta | Goku | [ ] |
 | T-23 | backend | PixInvoiceIssuer: fatura local e PaymentIntent Pix por período, com e-mail do link | T-01, T-07, T-08, T-10 | sim | média | Tesla | [ ] |
+| T-24 | backend | Equipe da clínica: ClinicTeamService, ClinicUserList e ClinicUserForm (listar, convidar, editar, desativar) por tenant, com quota, assinatura e grupos do plano | T-01, T-07, T-10, T-11, T-12, T-13, T-15 | sim | alta | Jaspion | [ ] |
+| T-25 | backend | Unidades da clínica: ClinicUnitService, ClinicUnitList e ClinicUnitForm por tenant; programas de equipe e unidades no seed, menu e inventário CSRF | T-07, T-11, T-13, T-15, T-21, T-24 | não | alta | Darwin | [ ] |
 
 ## Detalhamento
 
@@ -650,7 +652,7 @@ Comandos usados em Teste RED e Validação:
 - `grep -n "billing-reconcile.php" docs/runbooks/shared-hosting-mysql57.md` (evidência: a linha `*/15 * * * *`)
 - LINT de `app/Core/Billing/BillingReconciler.php`, `bin/billing-reconcile.php` e do teste (evidência: `No syntax errors detected`)
 
-### T-19 — Bloqueio por assinatura, quotas e primeiro acesso
+### T-19 — Bloqueio por assinatura e primeiro acesso
 
 **Camada:** backend
 **Dependências:** T-01, T-15
@@ -660,28 +662,28 @@ Comandos usados em Teste RED e Validação:
 
 **Arquivos prováveis**
 - `src/app/service/auth/ApplicationAuthenticationService.php`
-- `src/app/control/admin/SystemUserForm.php`
-- `src/app/control/admin/SystemUnitForm.php`
 - `src/app/Core/Tenancy/TenantUserActivation.php`
 - `src/tests/Unit/SubscriptionAccessWiringTest.php`
 - `src/tests/Integration/TenantUserActivationIntegrationTest.php`
 
 **Interface**
 - Produz: `ApplicationAuthenticationService::enforceSubscriptionAccess(): void`, chamado em `checkMultiSession` logo depois de `self::enforceMutationGuard();` e só com sessão logada: monta `SubscriptionAccessGuard` com `SubscriptionRepository(PdoConnectionFactory::fromEnvironment())`, guarda a decisão em `TSession` (`cv_subscription_access`, 60 s, por tenant e controller); `blocked_status`/`blocked_plan` → HTTP 403 com `_t(<messageKey>)` e link `index.php?class=SubscriptionStatusView`, sem executar o controller (mesmo caminho de `denyRequest`)
-- Produz: `SystemUserForm::onSave` chama `QuotaGuard::assertCanAddUser(<tenant>)` só na criação (sem id) e antes de gravar; `SystemUnitForm::onSave` chama `QuotaGuard::assertCanAddUnit(<tenant>)` na criação; a `QuotaExceededException` é mostrada pelo tratamento de erro existente, traduzida pela chave de T-01
+- Produz: nada em `SystemUserForm` nem em `SystemUnitForm`. Depois da correção da T-11 (e9915bf), as telas de sistema estão só no grupo 1 e não nos grupos de plano; as quotas de usuários e unidades valem só na gestão por clínica (`ClinicTeamService::invite`/`reactivate` em T-24, `ClinicUnitService::create` em T-25), sem duplicar
 - Produz: `CentralVet\Tenancy\TenantUserActivation::activateInvited(\PDO $pdo, int $systemUserId): int` (`UPDATE tenant_user SET status = 'active' WHERE system_user_id = ? AND status = 'invited'`, devolve linhas afetadas), chamado em `ApplicationAuthenticationService::onAfterLogin`
-- Consome: T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`, T-15 `messageKey(): ?string`, T-15 `assertCanAddUser(int $tenantId): void`, T-15 `assertCanAddUnit(int $tenantId): void`, T-01 `Your subscription is suspended. Regularize the payment to continue`, T-01 `Your plan does not include this feature`
+- Consome: T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`, T-15 `messageKey(): ?string`, T-01 `Your subscription is suspended. Regularize the payment to continue`, T-01 `Your plan does not include this feature`
 
 **Teste RED**
-- `src/tests/Unit/SubscriptionAccessWiringTest.php`, `src/tests/Integration/TenantUserActivationIntegrationTest.php` — `checkMultiSession` chama `self::enforceSubscriptionAccess();` depois de `self::enforceMutationGuard();`; `SystemUserForm::onSave` chama `assertCanAddUser` antes de `->store()` no ramo sem id e `SystemUnitForm::onSave` chama `assertCanAddUnit`; `onAfterLogin` chama `TenantUserActivation::activateInvited`; no MySQL, `activateInvited` muda 1 linha `invited` para `active` e devolve 0 na segunda chamada (comando: `SUITE com <Classe> = SubscriptionAccessWiringTest|TenantUserActivationIntegrationTest`)
+- `src/tests/Unit/SubscriptionAccessWiringTest.php`, `src/tests/Integration/TenantUserActivationIntegrationTest.php` — `checkMultiSession` chama `self::enforceSubscriptionAccess();` depois de `self::enforceMutationGuard();`; `onAfterLogin` chama `TenantUserActivation::activateInvited`; no MySQL, `activateInvited` muda 1 linha `invited` para `active` e devolve 0 na segunda chamada (comando: `SUITE com <Classe> = SubscriptionAccessWiringTest|TenantUserActivationIntegrationTest`)
 
 **Critério de aceite**
 - SUITE com `SubscriptionAccessWiringTest|TenantUserActivationIntegrationTest|MutationGuardWiringTest|PasswordResetFormsWiringTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `git diff task/etapa-2-dinheiro-estoque -- src/app/control/admin/SystemUserForm.php src/app/control/admin/SystemUnitForm.php` sem linhas: as quotas não entram nas telas de sistema.
 - Na fumaça de T-22, o administrador de uma clínica ZZ-E3- em Starter abrindo `index.php?class=SaleList` recebe 403 com "Seu plano não inclui este recurso", e na mesma clínica com a assinatura `suspended`, `index.php?class=TutorList` recebe 403 com "Sua assinatura está suspensa" e `index.php?class=SubscriptionStatusView` abre.
 
 **Validação**
 - SUITE com a `<Classe>` acima (evidência: `Failed: 0`)
-- LINT de `app/service/auth/ApplicationAuthenticationService.php`, `app/control/admin/SystemUserForm.php`, `app/control/admin/SystemUnitForm.php`, `app/Core/Tenancy/TenantUserActivation.php` e dos 2 testes (evidência: `No syntax errors detected`; nada novo em `baseline/php-lint.txt`)
+- `git diff task/etapa-2-dinheiro-estoque -- src/app/control/admin/SystemUserForm.php src/app/control/admin/SystemUnitForm.php` (evidência: saída vazia)
+- LINT de `app/service/auth/ApplicationAuthenticationService.php`, `app/Core/Tenancy/TenantUserActivation.php` e dos 2 testes (evidência: `No syntax errors detected`; nada novo em `baseline/php-lint.txt`)
 - Review Focus: no `SubscriptionAccessWiringTest`, um caso que confirma que a decisão em cache é por tenant e controller (a chave de `cv_subscription_access` inclui os dois), para que um 403 de `SaleList` não bloqueie `TutorList`
 
 ### T-20 — Landing: compra
@@ -750,7 +752,7 @@ Comandos usados em Teste RED e Validação:
 ### T-22 — Cenários de aquisição ponta a ponta
 
 **Camada:** qa
-**Dependências:** T-17, T-18, T-19, T-20, T-21
+**Dependências:** T-17, T-18, T-19, T-20, T-21, T-24, T-25
 **Paralelizável:** não
 **Complexidade:** alta
 **Agente:** Goku
@@ -760,14 +762,14 @@ Comandos usados em Teste RED e Validação:
 
 **Interface**
 - Produz: nada (teste de regressão; `MysqlIntegrationTestCase`, banco `centralvet_test`, `FakeStripeClient`, eventos assinados com `whsec_test_etapa3`, serviços montados como em `src/billing-webhook.php` e `src/checkout.php`)
-- Consome: T-16 `handle(string $method, array $headers, string $body, string $ip, \DateTimeImmutable $now): LeadResponse`, T-17 `ingest(array $event, string $rawPayload, \DateTimeImmutable $now): string`, T-18 `run(\DateTimeImmutable $now): array`, T-23 `issueNext(Subscription $subscription, int $priceCents, string $recipientEmail, \DateTimeImmutable $now): ?SubscriptionInvoice`, T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`
+- Consome: T-16 `handle(string $method, array $headers, string $body, string $ip, \DateTimeImmutable $now): LeadResponse`, T-17 `ingest(array $event, string $rawPayload, \DateTimeImmutable $now): string`, T-18 `run(\DateTimeImmutable $now): array`, T-23 `issueNext(Subscription $subscription, int $priceCents, string $recipientEmail, \DateTimeImmutable $now): ?SubscriptionInvoice`, T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`, T-24 `invite(string $name, string $email, int $groupId, int $unitId, \DateTimeImmutable $now): int`, T-25 `create(string $name, \DateTimeImmutable $now): int`
 
 **Teste RED**
 - sem teste: teste de regressão de integração sobre comportamento entregue por T-07 a T-21 nesta branch; não há implementação nesta task para o teste preceder
 
 **Critério de aceite**
-- No `centralvet_test`, `PASS` em cada cenário da auditoria: (a) pagamento aprovado (cartão) → pedido `provisioned`, 1 tenant, 1 convite; (b) recusado (`checkout.session.async_payment_failed`) → pedido `expired`, 0 tenant; (c) pendente (Pix com checkout aberto, sem evento) → `checkout_open`, 0 tenant, acesso inexistente; (d) webhook inválido → 400, 0 `billing_event`; (e) evento duplicado → `duplicate`, contagens iguais; (f) fora de ordem (`invoice.paid` antes do checkout, depois reenvio) → `active`; (g) falha do gateway no checkout → 502, pedido `pending`, 0 cobrança no fake; (h) aprovado com provisionamento interrompido → `provisioning_failed`, depois o reconciliador conclui sem nova chamada `POST` ao Stripe; (i) renovação aprovada (`invoice.paid` do 2º período) → `current_period_end` avança; (j) renovação recusada → `past_due`, `grace` até 7 dias, depois `suspended` pelo reconciliador e `blocked_status`; (k) cancelamento (`customer.subscription.deleted`) → `cancelled` e `blocked_status`; (n) renovação Pix: o reconciliador emite a fatura com PaymentIntent e `payment_intent.succeeded` avança `current_period_end`; (o) renovação Pix sem pagamento: vencida → `past_due`, `grace` até 7 dias, depois `suspended`, e o pagamento tardio volta a `active`; (l) estorno (`charge.refunded` total) → fatura `refunded`; (m) recurso de outro plano (Starter em `SaleList`) → `blocked_plan`; recurso de outro tenant (assinatura de B suspensa) → A continua `full`.
-- Fumaça no navegador (validador), condicional: só roda se o usuário autorizar, quando chegar a Onda 6, aplicar a 0017 e os seeds no banco de dev `centralvet` (o orquestrador pergunta antes da onda; sem autorização, a fumaça vira pendência registrada e o critério de T-22 é só a integração no `centralvet_test`). Com autorização: 0017 e seeds aplicados, rebuild de `app` e `worker`, login, reset e PDF (regressão do S5), compra pela landing até a chamada ao `checkout.php` com `STRIPE_*` de teste vazios devolvendo 502 e a mensagem em pt-BR (sem Stripe real), depois webhook local assinado com o segredo de teste simulando o pagamento, convite no log (`COMMUNICATION_EMAIL_DRIVER=log`), definição de senha pelo link e primeiro acesso, os 403 de T-19, a tela de T-21 e os 404 de T-05; dados `ZZ-E3-` criados e excluídos, `SELECT COUNT(*) ... LIKE 'ZZ-E3-%'` = 0 ao fim.
+- No `centralvet_test`, `PASS` em cada cenário da auditoria: (a) pagamento aprovado (cartão) → pedido `provisioned`, 1 tenant, 1 convite; (b) recusado (`checkout.session.async_payment_failed`) → pedido `expired`, 0 tenant; (c) pendente (Pix com checkout aberto, sem evento) → `checkout_open`, 0 tenant, acesso inexistente; (d) webhook inválido → 400, 0 `billing_event`; (e) evento duplicado → `duplicate`, contagens iguais; (f) fora de ordem (`invoice.paid` antes do checkout, depois reenvio) → `active`; (g) falha do gateway no checkout → 502, pedido `pending`, 0 cobrança no fake; (h) aprovado com provisionamento interrompido → `provisioning_failed`, depois o reconciliador conclui sem nova chamada `POST` ao Stripe; (i) renovação aprovada (`invoice.paid` do 2º período) → `current_period_end` avança; (j) renovação recusada → `past_due`, `grace` até 7 dias, depois `suspended` pelo reconciliador e `blocked_status`; (k) cancelamento (`customer.subscription.deleted`) → `cancelled` e `blocked_status`; (n) renovação Pix: o reconciliador emite a fatura com PaymentIntent e `payment_intent.succeeded` avança `current_period_end`; (o) renovação Pix sem pagamento: vencida → `past_due`, `grace` até 7 dias, depois `suspended`, e o pagamento tardio volta a `active`; (l) estorno (`charge.refunded` total) → fatura `refunded`; (m) recurso de outro plano (Starter em `SaleList`) → `blocked_plan`; recurso de outro tenant (assinatura de B suspensa) → A continua `full`; (p) o administrador da clínica A provisionada em Starter convida 1 usuário pelo `ClinicTeamService` (convite no `FakeEmailProvider`) e o 2º convite além da quota lança `Your plan allows up to 2 users`; `listUsers`/`listUnits` de A não trazem nada de B, e `update`/`deactivate` de usuário de B e `rename` de unidade de B lançam `TenantBoundaryViolation` sem alterar linha; `allowedGroups` de A só traz `Central Vet - Plano Starter`.
+- Fumaça no navegador (validador), condicional: só roda se o usuário autorizar, quando chegar a Onda 6, aplicar a 0017 e os seeds no banco de dev `centralvet` (o orquestrador pergunta antes da onda; sem autorização, a fumaça vira pendência registrada e o critério de T-22 é só a integração no `centralvet_test`). Com autorização: 0017 e seeds aplicados, rebuild de `app` e `worker`, login, reset e PDF (regressão do S5), compra pela landing até a chamada ao `checkout.php` com `STRIPE_*` de teste vazios devolvendo 502 e a mensagem em pt-BR (sem Stripe real), depois webhook local assinado com o segredo de teste simulando o pagamento, convite no log (`COMMUNICATION_EMAIL_DRIVER=log`), definição de senha pelo link e primeiro acesso, os 403 de T-19, a tela de T-21, os 404 de T-05 e a gestão da equipe e das unidades (T-24, T-25): o administrador da clínica ZZ-E3- A abre `ClinicUserList` e `ClinicUnitList`, convida um usuário (convite no log), edita e desativa, cria uma unidade até a quota e vê a mensagem de quota na seguinte; o combo de grupo só mostra o grupo do plano; `index.php?class=ClinicUserForm&method=onEdit&id=<usuário de B>` e `ClinicUnitForm&method=onEdit&id=<unidade de B>` recusam; `SystemUserList`, `SystemUserForm`, `SystemUnitForm` e `SystemGroupForm` dão permissão negada; rótulos à esquerda e botões com 44 px ou mais; dados `ZZ-E3-` criados e excluídos, `SELECT COUNT(*) ... LIKE 'ZZ-E3-%'` = 0 ao fim.
 
 **Validação**
 - SUITE completo com `<Classe>` = `BillingAcquisitionFlowIntegrationTest|MysqlIsolationGuardIntegrationTest` e a linha final (evidência: `PASS` nos cenários (a)–(o), sem `SKIP`, `Failed: 0` no total)
@@ -801,6 +803,89 @@ Comandos usados em Teste RED e Validação:
 **Validação**
 - SUITE com `<Classe>` = `PixInvoiceIssuerTest` (evidência: `PASS` nos casos de emissão, repetição e regeneração, `Failed: 0`)
 - LINT de `app/Core/Billing/PixInvoiceIssuer.php` e do teste (evidência: `No syntax errors detected`)
+
+### T-24 — Equipe da clínica
+
+**Camada:** backend
+**Dependências:** T-01, T-07, T-10, T-11, T-12, T-13, T-15
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Jaspion
+
+Origem: revisão da T-11. `SystemUserForm` e `SystemUnitForm` não respeitam o tenant (listam o grupo 1 e dados de outras clínicas, salvam sem `tenant_id`) e saíram do seed dos planos. Por decisão do usuário, a gestão por clínica entra nesta etapa; as telas de sistema ficam só para o grupo 1 (T-11 corrigida no e9915bf: os grupos de plano têm só `SystemProfileView`, `SystemProfileForm` e `SystemProfile2FAForm` entre os programas de sistema). As quotas de usuários são aplicadas aqui e só aqui: `invite` e `reactivate` (a T-19 não as coloca nas telas de sistema).
+
+**Arquivos prováveis**
+- `src/app/Core/Tenancy/ClinicTeamService.php`
+- `src/app/control/admin/ClinicUserList.php`
+- `src/app/control/admin/ClinicUserForm.php`
+- `src/app/config/translations.json`
+- `src/app/Core/Presentation/UserMessage.php`
+- `src/tests/Integration/ClinicTeamServiceIntegrationTest.php`
+- `src/tests/Unit/ClinicTeamScreensWiringTest.php`
+- `src/tests/Unit/Etapa3TeamMessagesTest.php`
+
+**Interface**
+- Produz: `CentralVet\Tenancy\ClinicTeamService::__construct(\PDO $pdo, TransactionRunner $tx, TenantContext $context, SubscriptionRepositoryInterface $subscriptions, QuotaGuard $quota, SubscriptionAccessGuard $access, AccountInviteService $invites)`; toda leitura e escrita filtra por `$context->tenantId()` através de `tenant_user` (usuário) e `system_unit.tenant_id` (unidade)
+- Produz: `listUsers(): array` → list de `['id' => int, 'name' => string, 'email' => string, 'status' => 'invited'|'active'|'inactive', 'group' => ?string, 'unit_id' => ?int]`, só de usuários com `tenant_user.tenant_id` = tenant da sessão, por nome
+- Produz: `allowedGroups(): array` → `array<int, string>` (id → nome) só com o grupo `TenantProvisioningService::GROUP_NAME_PREFIX . PlanEntitlements::forPlan(<plano da assinatura>)->name()`, e só se ele estiver ligado ao tenant em `tenant_group`; tenant sem assinatura → `[]`; nunca o grupo 1 nem grupo de outro plano
+- Produz: `invite(string $name, string $email, int $groupId, int $unitId, \DateTimeImmutable $now): int` numa transação do `TransactionRunner`, nesta ordem: `SubscriptionAccessGuard::decide(<tenant>, 'ClinicUserForm', $now)` não permitido → `RuntimeException(<messageKey>)`; `QuotaGuard::assertCanAddUser(<tenant>)`; `$groupId` fora de `allowedGroups()` → `TenantBoundaryViolation('Group not allowed for this clinic')`; unidade de outro tenant → `TenantBoundaryViolation('Resource does not belong to the authenticated tenant')`; `system_users.login` igual a `$email` → `InvalidArgumentException('A user with this e-mail already exists')`; e-mail inválido → `InvalidArgumentException('Invalid e-mail')`; grava `system_users` (login e e-mail = `$email`, `active = 'Y'`, `system_unit_id`, senha `password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)`, id por `COALESCE(MAX(id),0)+1` com `FOR UPDATE`), `system_user_unit`, `system_user_group` e `tenant_user` (`invited`); depois do commit, `AccountInviteService::send(<login>, <email>, <hash>, <nome da clínica>, <now>)`; devolve o id do usuário
+- Produz: `update(int $userId, string $name, int $groupId, int $unitId): void` (usuário fora do tenant → `TenantBoundaryViolation('Resource does not belong to the authenticated tenant')`, sem escrita; troca o vínculo de grupo do usuário só entre os grupos de `allowedGroups()`; o e-mail/login não muda); `deactivate(int $userId): void` (`tenant_user.status = 'inactive'` e `system_users.active = 'N'`; o próprio usuário → `InvalidArgumentException('You cannot deactivate your own user')`); `reactivate(int $userId, \DateTimeImmutable $now): void` (passa por `assertCanAddUser`, volta a `active`)
+- Produz: `ClinicUserList` (grid só de `listUsers()`: nome, e-mail, situação, grupo; ações Editar, Desativar e Reativar, e botão "Convidar usuário") e `ClinicUserForm` (`onEdit`, `onSave`, `onDeactivate`, `onReactivate`; combo de grupo alimentado só por `allowedGroups()`, combo de unidade só pelas unidades do tenant; e-mail somente leitura na edição); mutações pela `MutationRequestPolicy` central (métodos `onSave`, `onDeactivate`, `onReactivate`, não listados como leitura); erros por `CvFormat::userError`; rótulos e cabeçalhos à esquerda, ações com `.cv-touch-target`
+- Produz: chaves en→pt em `translations.json`, no formato de T-01 e sem duplicar chave existente: `Team` → `Equipe`; `Invite user` → `Convidar usuário`; `Deactivate` → `Desativar`; `Reactivate` → `Reativar`; `Invited` → `Convidado`; `Inactive` → `Inativo`; `Clinic units` → `Unidades da clínica`; `New unit` → `Nova unidade`; `Group not allowed for this clinic` → `Grupo não permitido para esta clínica`; `A user with this e-mail already exists` → `Já existe um usuário com este e-mail`; `Invalid e-mail` → `E-mail inválido`; `You cannot deactivate your own user` → `Você não pode desativar o próprio usuário`; `No plan group available for this clinic` → `Nenhum grupo do plano disponível para esta clínica`; `Unit name is required` → `Informe o nome da unidade`; `Unit name must have at most 120 characters` → `O nome da unidade deve ter no máximo 120 caracteres`; e as mesmas mensagens cruas em `UserMessage::STATIC` (chave = texto)
+- Consome: T-15 `assertCanAddUser(int $tenantId): void`, T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`, T-15 `messageKey(): ?string`, T-12 `send(string $login, string $email, string $passwordHash, string $clinicName, int $now): ?string`, T-13 `TenantProvisioningService::GROUP_NAME_PREFIX = 'Central Vet - Plano '`, T-13 `run(\Closure $work): mixed`, T-10 `findByTenantId(int $tenantId): ?Subscription`, T-07 `PlanEntitlements::forPlan(string $planId): PlanEntitlements`, T-07 `name(): string`, T-11 `Central Vet - Plano Starter`
+
+**Teste RED**
+- `src/tests/Integration/ClinicTeamServiceIntegrationTest.php`, `src/tests/Unit/ClinicTeamScreensWiringTest.php`, `src/tests/Unit/Etapa3TeamMessagesTest.php` — no MySQL, com os tenants A (Starter, `active`) e B (Pro) e os 4 grupos de plano como fixture: `listUsers()` de A não traz usuário de B; `update`, `deactivate` e `reactivate` de usuário de B lançam `TenantBoundaryViolation` e `system_users`/`tenant_user` de B ficam iguais; `allowedGroups()` de A é só `Central Vet - Plano Starter`; `invite` com o grupo 1 e com o grupo `Central Vet - Plano Pro` lança `Group not allowed for this clinic`; `invite` com unidade de B lança `TenantBoundaryViolation`; `invite` válido cria 1 `system_users`, 1 `system_user_unit`, 1 `system_user_group`, 1 `tenant_user` `invited` e 1 e-mail no `FakeEmailProvider` com o link de `SystemPasswordResetForm`; com A já em 2 usuários, `invite` lança `Your plan allows up to 2 users` sem gravar; assinatura de A `suspended` faz `invite` lançar `Your subscription is suspended. Regularize the payment to continue`; `deactivate` do próprio usuário lança `You cannot deactivate your own user`. Wiring: os combos de `ClinicUserForm` só leem `allowedGroups()` e as unidades do tenant (o fonte não usa `SystemGroup::getObjects`/`SystemUnit::getObjects` sem filtro); nenhum `text-align: right`/`center` em rótulo; as chaves novas existem com o `pt` listado (comando: `SUITE com <Classe> = ClinicTeamServiceIntegrationTest|ClinicTeamScreensWiringTest|Etapa3TeamMessagesTest`)
+
+**Critério de aceite**
+- Com a 0017 no `centralvet_test`, SUITE com `ClinicTeamServiceIntegrationTest|ClinicTeamScreensWiringTest|Etapa3TeamMessagesTest|Etapa3MessagesTest|UserMessageTest|MysqlIsolationGuardIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `python3 -c "import json;d=json.load(open('src/app/config/translations.json'));e=[x['en'] for x in d];print(e==sorted(e), len(e)==len(set(e)), all(set(x)=={'en','pt'} for x in d))"` imprime `True True True`.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos de isolamento, grupo recusado e quota; `Failed: 0`)
+- o comando python acima (evidência: `True True True`)
+- LINT de `app/Core/Tenancy/ClinicTeamService.php`, `app/control/admin/ClinicUserList.php`, `app/control/admin/ClinicUserForm.php`, `app/Core/Presentation/UserMessage.php` e dos 3 testes (evidência: `No syntax errors detected`)
+
+### T-25 — Unidades da clínica, seed, menu e inventário
+
+**Camada:** backend
+**Dependências:** T-07, T-11, T-13, T-15, T-21, T-24
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Darwin
+
+**Arquivos prováveis**
+- `src/app/Core/Tenancy/ClinicUnitService.php`
+- `src/app/control/admin/ClinicUnitList.php`
+- `src/app/control/admin/ClinicUnitForm.php`
+- `src/app/database/seeds/plan-groups.sql`
+- `src/app/database/seeds/initial-application-programs.sql`
+- `src/menu.xml`
+- `docs/security/csrf-inventario.md`
+- `src/tests/Integration/ClinicUnitServiceIntegrationTest.php`
+- `src/tests/Unit/ClinicUnitScreensWiringTest.php`
+- `src/tests/Unit/PlanGroupsSeedTest.php`
+
+**Interface**
+- Produz: aplicação única da quota de unidades (`create`); `SystemUnitForm` fica sem quota (só grupo 1). Como `ClinicUnitList`/`ClinicUnitForm` não estão em `PlanEntitlements::gatedPrograms()`, os 4 planos têm a tela; o limite vem de `maxUnits()` (Starter e Pro: 1 unidade, Business: 5, Enterprise: sem limite)
+- Produz: `CentralVet\Tenancy\ClinicUnitService::__construct(\PDO $pdo, TransactionRunner $tx, TenantContext $context, QuotaGuard $quota, SubscriptionAccessGuard $access)`; `listUnits(): array` → list de `['id' => int, 'name' => string, 'users' => int]` só com `system_unit.tenant_id` = tenant da sessão, por nome; `create(string $name, \DateTimeImmutable $now): int` numa transação: `decide(<tenant>, 'ClinicUnitForm', $now)` não permitido → `RuntimeException(<messageKey>)`; `assertCanAddUnit(<tenant>)`; nome aparado vazio → `InvalidArgumentException('Unit name is required')`, mais de 120 caracteres → `InvalidArgumentException('Unit name must have at most 120 characters')`; grava `system_unit` com `tenant_id` = tenant da sessão e id por `COALESCE(MAX(id),0)+1` com `FOR UPDATE`; devolve o id; `rename(int $unitId, string $name): void` (unidade de outro tenant → `TenantBoundaryViolation('Resource does not belong to the authenticated tenant')`, sem escrita; mesmas regras do nome); sem exclusão de unidade
+- Produz: `ClinicUnitList` (grid de `listUnits()`; ação Editar; botão "Nova unidade") e `ClinicUnitForm` (`onEdit`, `onSave`); mutação `onSave` pela `MutationRequestPolicy` central; rótulos e cabeçalhos à esquerda, ações com `.cv-touch-target`
+- Produz: programas `ClinicUserList`, `ClinicUserForm`, `ClinicUnitList` e `ClinicUnitForm` acrescentados ao fim de `initial-application-programs.sql` (grupo 1) e ligados, em `plan-groups.sql`, aos 4 grupos de plano, só com `INSERT ... WHERE NOT EXISTS` no padrão do arquivo, sem `DELETE`, `UPDATE` nem alteração das linhas existentes; itens "Equipe" (`ClinicUserList`) e "Unidades da clínica" (`ClinicUnitList`) em `src/menu.xml`, no formato do item de `SubscriptionStatusView` (T-21); linhas `ClinicUserForm` (`onSave`, `onDeactivate`, `onReactivate`) e `ClinicUnitForm` (`onSave`) em `docs/security/csrf-inventario.md`, cobertas pelo token central da `MutationRequestPolicy`
+- Produz: `PlanGroupsSeedTest` muda só se o conjunto esperado de T-11 não derivar de `initial-application-programs.sql`: nesse caso, os 4 programas entram no conjunto esperado de todos os planos, e as asserções de T-11 (só `SystemProfileView`, `SystemProfileForm` e `SystemProfile2FAForm` entre os programas de sistema; Business igual ao Pro em programas) continuam, com o total de cada grupo acrescido dos 4 programas
+- Consome: T-15 `assertCanAddUnit(int $tenantId): void`, T-15 `decide(int $tenantId, string $controller, \DateTimeImmutable $now): AccessDecision`, T-13 `run(\Closure $work): mixed`, T-24 `Unit name is required`, T-24 `Unit name must have at most 120 characters`, T-24 `Clinic units`, T-24 `New unit`, T-24 `Team`, T-11 `Central Vet - Plano Starter`
+
+**Teste RED**
+- `src/tests/Integration/ClinicUnitServiceIntegrationTest.php`, `src/tests/Unit/ClinicUnitScreensWiringTest.php`, `src/tests/Unit/PlanGroupsSeedTest.php` — no MySQL, com os tenants A (Starter, 1 unidade) e B (Business): `listUnits()` de A não traz unidade de B; `rename` de unidade de B lança `TenantBoundaryViolation` e o nome fica igual; `create` em A lança `Your plan allows up to 1 units` sem gravar; em B, `create` grava `system_unit.tenant_id` = id de B e a unidade aparece em `listUnits()` de B e não na de A; nome vazio lança `Unit name is required`; assinatura `suspended` faz `create` lançar a mensagem de suspensão. Seed: os 4 grupos de plano ligam `ClinicUserList`, `ClinicUserForm`, `ClinicUnitList` e `ClinicUnitForm`; nenhum grupo de plano liga `SystemUserList`, `SystemUserForm`, `SystemUnitForm`, `SystemUnitList` nem `SystemGroupForm`; os programas de sistema dos grupos de plano continuam só `SystemProfileView`, `SystemProfileForm` e `SystemProfile2FAForm`; `plan-groups.sql` não tem `DELETE` nem `UPDATE`. Wiring: `menu.xml` tem `ClinicUserList` e `ClinicUnitList`; `csrf-inventario.md` cita `ClinicUserForm` e `ClinicUnitForm`; nenhum `text-align: right`/`center` em rótulo (comando: `SUITE com <Classe> = ClinicUnitServiceIntegrationTest|ClinicUnitScreensWiringTest|PlanGroupsSeedTest`)
+
+**Critério de aceite**
+- Com a 0017 no `centralvet_test`, SUITE com `ClinicUnitServiceIntegrationTest|ClinicUnitScreensWiringTest|PlanGroupsSeedTest|SubscriptionStatusPresenterTest|ClinicTeamServiceIntegrationTest|MysqlIsolationGuardIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `git diff task/etapa-2-dinheiro-estoque -- src/app/database/seeds/plan-groups.sql src/app/database/seeds/initial-application-programs.sql | grep -c '^-[^-]'` imprime `0`: só linhas acrescentadas.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos de isolamento, quota e seed; `Failed: 0`)
+- o `git diff ... | grep -c '^-[^-]'` acima (evidência: `0`)
+- `grep -cE "^(DELETE|UPDATE)" src/app/database/seeds/plan-groups.sql` (evidência: `0`)
+- LINT de `app/Core/Tenancy/ClinicUnitService.php`, `app/control/admin/ClinicUnitList.php`, `app/control/admin/ClinicUnitForm.php` e dos 3 testes (evidência: `No syntax errors detected`)
 
 ## Legenda
 

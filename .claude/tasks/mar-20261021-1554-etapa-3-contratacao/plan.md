@@ -6,7 +6,8 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 ## Premissas
 - Branch base `task/etapa-2-dinheiro-estoque` (HEAD `49ada48`, no origin), por pedido explícito do desenvolvedor; produção é `main` (fonte `padrão` do `branches.py`).
 - A entrega preserva os commits por onda: a Fase 5 não roda o `entrega.py`.
-- Execução das 23 tasks de uma vez, sem sub-etapas (decisão do usuário).
+- As telas de sistema (`SystemUserList`, `SystemUserForm`, `SystemUnitForm`, `SystemGroupForm`) não respeitam o tenant e ficam só no grupo 1; a clínica usa `ClinicUserList`/`ClinicUserForm`/`ClinicUnitList`/`ClinicUnitForm` (T-24, T-25).
+- Execução das 25 tasks de uma vez, sem sub-etapas (decisão do usuário).
 - Stripe sem SDK, mesmo com o `composer.json` liberado para o S5: cliente HTTP próprio sobre `ext-curl` (T-08), API fixada em `2024-06-20` (motivo em `notes.md`).
 - Cartão: Checkout `mode=subscription`, com a Subscription em `collection_method=charge_automatically`. Pix (fallback decidido pelo usuário): 1º mês por Checkout `mode=payment`; a cada período, uma fatura local com PaymentIntent Pix avulso (T-23), emitida pelo reconciliador 3 dias antes do vencimento. O Pix não tem Subscription no Stripe.
 - Nenhuma chamada de rede ao Stripe nos testes (`FakeStripeClient`); webhook validado com o segredo local `whsec_test_etapa3`.
@@ -32,8 +33,9 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 - F5 renovação, atraso, tolerância de 7 dias, recuperação, cancelamento e estorno (T-07, T-14, T-18, T-23).
 - F5 renovação Pix: fatura local com PaymentIntent Pix por período, e-mail com o link, vencimento local e regeneração do Pix expirado (T-07, T-10, T-23, T-18).
 - F5 guarda contra evento antigo sobrescrevendo um mais recente (T-07, T-14).
-- Direitos por plano: quotas de usuários e unidades, recursos por programa, bloqueio por estado (ativa, em tolerância, suspensa), isolamento entre tenants (T-07, T-11, T-15, T-19, T-21).
+- Direitos por plano: quotas de usuários e unidades, recursos por programa, bloqueio por estado (ativa, em tolerância, suspensa), isolamento entre tenants (T-07, T-11, T-15, T-19, T-21, T-24, T-25); quotas aplicadas só na gestão por clínica (T-24, T-25).
 - Pendência (a): `FOR UPDATE` no `cash_session` no fechamento e nos lançamentos, teste em duas conexões (T-03).
+- Gestão de equipe e unidades por clínica (decisão do usuário depois da revisão da T-11): listar, convidar, editar, desativar e reativar usuários da própria clínica; atribuir só o grupo do plano; criar e renomear unidades com `tenant_id`; quotas, estado da assinatura, CSRF central e RBAC; isolamento entre clínicas (T-24, T-25).
 - Pendência (b) S5: dompdf ≥ 3.1.6 e php-jwt ^7 no `composer.json` e no lock, hash regenerado, código JWT na API 7, regressão de PDFs, login por token e reset (T-04).
 - Pendência (c) S6: `download.php` desabilitado, usos mapeados (T-05).
 - Pendência (d): botão de cancelar escondido em venda cancelada, nomes no recibo, mensagens traduzidas, rótulos de pagamento unificados (T-01, T-06).
@@ -68,8 +70,8 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 
 | Arquivo | Responsabilidade | Ação | Tasks que tocam |
 |---|---|---|---|
-| `src/app/config/translations.json` | Textos pt-BR das chaves novas | modificar | T-01 |
-| `src/app/Core/Presentation/UserMessage.php` | Mensagem crua → chave | modificar | T-01 |
+| `src/app/config/translations.json` ⚠ | Textos pt-BR da Etapa 3 (T-01, Onda 1) e da equipe e unidades (T-24, Onda 4) | modificar | T-01, T-24 |
+| `src/app/Core/Presentation/UserMessage.php` ⚠ | Mensagem crua → chave (T-01, Onda 1; T-24, Onda 4) | modificar | T-01, T-24 |
 | `src/tests/Unit/Etapa3MessagesTest.php` | Chaves e mapeamentos da Etapa 3 | criar | T-01 |
 | `src/app/database/migrations/20261021_0017_etapa3_billing.sql` | Schema de cobrança | criar | T-02 |
 | `src/app/database/migrations/20261021_0017_etapa3_billing.verify.sql` | Conferência só com SELECT | criar | T-02 |
@@ -138,8 +140,8 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/tests/Support/FakeSubscriptionInvoiceRepository.php` | Fake | criar | T-10 |
 | `src/tests/Integration/SubscriptionRepositoryIntegrationTest.php` | Ida e volta, tenant e bloqueio | criar | T-10 |
 | `src/app/Core/Billing/DuplicateInvoice.php` | `local_key` repetido | criar | T-10 |
-| `src/app/database/seeds/plan-groups.sql` ⚠ | Grupos dos 4 planos (T-11, Onda 2); `SubscriptionStatusView` (T-21, Onda 4) | criar | T-11, T-21 |
-| `src/tests/Unit/PlanGroupsSeedTest.php` | Seed = PlanEntitlements | criar | T-11 |
+| `src/app/database/seeds/plan-groups.sql` ⚠ | Grupos dos 4 planos (T-11, Onda 2); `SubscriptionStatusView` (T-21, Onda 4); programas de equipe e unidades (T-25, Onda 5) | criar | T-11, T-21, T-25 |
+| `src/tests/Unit/PlanGroupsSeedTest.php` ⚠ | Seed = PlanEntitlements (T-11, Onda 2); programas de equipe e unidades, se o conjunto esperado não derivar do seed inicial (T-25, Onda 5) | criar | T-11, T-25 |
 | `src/app/Core/Billing/AccountInviteService.php` | Convite por e-mail | criar | T-12 |
 | `src/tests/Unit/AccountInviteServiceTest.php` | Link, TTL e uso único | criar | T-12 |
 | `src/app/Core/Billing/TenantProvisioningService.php` | Provisionamento retomável | criar | T-13 |
@@ -167,7 +169,7 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/app/Core/Landing/LandingCatalog.php` | Termos e formas de pagamento | modificar | T-16 |
 | `src/tests/Unit/LandingCatalogTest.php` | `publicJson` com termos | modificar | T-16 |
 | `src/tests/Unit/CheckoutStartHandlerTest.php` | Validação e preço do servidor | criar | T-16 |
-| `docs/security/csrf-inventario.md` ⚠ | `checkout.php` (T-16, Onda 3); `billing-webhook.php` (T-17, Onda 4) | modificar | T-16, T-17 |
+| `docs/security/csrf-inventario.md` ⚠ | `checkout.php` (T-16, Onda 3); `billing-webhook.php` (T-17, Onda 4); `ClinicUserForm` e `ClinicUnitForm` (T-25, Onda 5) | modificar | T-16, T-17, T-25 |
 | `src/app/Core/Billing/BillingEventIngestor.php` | Claim, processo e provisionamento | criar | T-17 |
 | `src/app/Core/Billing/BillingWebhookHandler.php` | Webhook HTTP | criar | T-17 |
 | `src/billing-webhook.php` | POST público do webhook | criar | T-17 |
@@ -176,10 +178,8 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/bin/billing-reconcile.php` | Cron | criar | T-18 |
 | `src/tests/Integration/BillingReconcilerIntegrationTest.php` | Eventos perdidos e retomada | criar | T-18 |
 | `src/app/service/auth/ApplicationAuthenticationService.php` ⚠ | `fromToken` na API 7 (T-04, Onda 1); bloqueio e primeiro acesso (T-19, Onda 4) | modificar | T-04, T-19 |
-| `src/app/control/admin/SystemUserForm.php` | Quota de usuários | modificar | T-19 |
-| `src/app/control/admin/SystemUnitForm.php` | Quota de unidades | modificar | T-19 |
 | `src/app/Core/Tenancy/TenantUserActivation.php` | `invited` → `active` | criar | T-19 |
-| `src/tests/Unit/SubscriptionAccessWiringTest.php` | Wiring do bloqueio e das quotas | criar | T-19 |
+| `src/tests/Unit/SubscriptionAccessWiringTest.php` | Wiring do bloqueio e do primeiro acesso | criar | T-19 |
 | `src/tests/Integration/TenantUserActivationIntegrationTest.php` | Ativação | criar | T-19 |
 | `src/app/view/landing/landing.html` | Seção de compra | modificar | T-20 |
 | `src/landing/landing.js` | Envio ao checkout | modificar | T-20 |
@@ -188,14 +188,25 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/tests/Unit/LandingCheckoutWiringTest.php` | Wiring da landing | criar | T-20 |
 | `src/app/control/admin/SubscriptionStatusView.php` | Tela da assinatura | criar | T-21 |
 | `src/app/Core/Presentation/SubscriptionStatusPresenter.php` | Dados da tela | criar | T-21 |
-| `src/app/database/seeds/initial-application-programs.sql` | Programa `SubscriptionStatusView` | modificar | T-21 |
-| `src/menu.xml` | Item "Assinatura" | modificar | T-21 |
+| `src/app/database/seeds/initial-application-programs.sql` ⚠ | Programa `SubscriptionStatusView` (T-21, Onda 4); programas de equipe e unidades (T-25, Onda 5) | modificar | T-21, T-25 |
+| `src/menu.xml` ⚠ | Item "Assinatura" (T-21, Onda 4); "Equipe" e "Unidades da clínica" (T-25, Onda 5) | modificar | T-21, T-25 |
 | `src/tests/Unit/SubscriptionStatusPresenterTest.php` | Resumo e faturas | criar | T-21 |
 | `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` | Cenários (a)–(o) | criar | T-22 |
 | `src/app/Core/Billing/PixInvoiceIssuer.php` | Fatura Pix e PaymentIntent por período | criar | T-23 |
 | `src/tests/Unit/PixInvoiceIssuerTest.php` | Emissão, repetição e regeneração | criar | T-23 |
+| `src/app/Core/Tenancy/ClinicTeamService.php` | Equipe por tenant, grupos do plano, quota e convite | criar | T-24 |
+| `src/app/control/admin/ClinicUserList.php` | Lista da equipe | criar | T-24 |
+| `src/app/control/admin/ClinicUserForm.php` | Convite, edição, desativação | criar | T-24 |
+| `src/tests/Integration/ClinicTeamServiceIntegrationTest.php` | Isolamento, grupos, quota, convite | criar | T-24 |
+| `src/tests/Unit/ClinicTeamScreensWiringTest.php` | Combos filtrados e rótulos | criar | T-24 |
+| `src/tests/Unit/Etapa3TeamMessagesTest.php` | Chaves da equipe e das unidades | criar | T-24 |
+| `src/app/Core/Tenancy/ClinicUnitService.php` | Unidades por tenant com quota | criar | T-25 |
+| `src/app/control/admin/ClinicUnitList.php` | Lista de unidades | criar | T-25 |
+| `src/app/control/admin/ClinicUnitForm.php` | Criação e edição de unidade | criar | T-25 |
+| `src/tests/Integration/ClinicUnitServiceIntegrationTest.php` | Isolamento, quota, `tenant_id` | criar | T-25 |
+| `src/tests/Unit/ClinicUnitScreensWiringTest.php` | Seed, menu, inventário e rótulos | criar | T-25 |
 
-Os cinco arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas 1 e 5, o `PasswordResetToken` nas Ondas 1 e 2, o `ApplicationAuthenticationService` nas Ondas 1 e 4, o `plan-groups.sql` nas Ondas 2 e 4 e o inventário CSRF nas Ondas 3 e 4.
+Os arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas 1 e 5; o `PasswordResetToken` nas Ondas 1 e 2; o `ApplicationAuthenticationService` nas Ondas 1 e 4; `translations.json` e `UserMessage.php` nas Ondas 1 e 4; `plan-groups.sql` nas Ondas 2, 4 e 5; `PlanGroupsSeedTest` nas Ondas 2 e 5; o inventário CSRF nas Ondas 3, 4 e 5; `initial-application-programs.sql` e `menu.xml` nas Ondas 4 e 5.
 
 ## Decisões de arquitetura
 
@@ -210,6 +221,7 @@ Os cinco arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas
 | Assinatura criada no checkout com `tenant_id` nulo e ligada no provisionamento | Criar só no provisionamento | Faturas e eventos de renovação têm onde cair mesmo com o provisionamento atrasado |
 | Grupos por plano (`plan-groups.sql`) + `SubscriptionAccessGuard` no `checkMultiSession` | Só RBAC; só guard | O RBAC esconde o que o plano não tem; o guard é a barreira do servidor e cobre estado da assinatura; o grupo 1 (plataforma) nunca vai para a clínica |
 | Pix: 1º mês por Checkout `mode=payment`; renovação por fatura local com PaymentIntent Pix avulso (T-23), emitida pelo reconciliador e paga por `payment_intent.succeeded` | Subscription `send_invoice` com Pix; Pix em `mode=subscription` | Decisão do usuário: não se sabe se a conta aceita Pix em `send_invoice`. O PaymentIntent Pix avulso funciona em qualquer conta com Pix; o ciclo, o vencimento e a tolerância ficam no domínio, iguais aos do cartão |
+| Gestão por clínica em telas próprias (`ClinicTeamService`, `ClinicUnitService`) | Corrigir `SystemUserForm`/`SystemUnitForm` para filtrar por tenant | As telas de sistema servem o grupo 1 (plataforma) e listam grupos e unidades de todas as clínicas; telas novas com serviço no Core filtram tudo pelo `TenantContext`, aceitam só o grupo do plano e são testáveis no MySQL sem o Adianti. Decisão do usuário depois da revisão da T-11 |
 | `download.php` desabilitado (404) | Resolver arquivo por id com checagem de tenant | Nenhum fluxo do app serve arquivo por ele hoje; documentos clínicos têm mecanismo próprio |
 | php-jwt `^7.0` e dompdf `^3.1.6` no `composer.json`, com o hash regenerado no mesmo commit | Ficar em `^6.0` com mitigação | Autorizado pelo usuário; fecha os avisos de fato. O `PasswordResetToken` recusa chave < 32 bytes com mensagem clara antes do php-jwt 7 |
 
@@ -229,7 +241,9 @@ T-16 → T-20
 T-01, T-07, T-10, T-11, T-15 → T-21
 T-01, T-07, T-08, T-10 → T-23
 T-08, T-09, T-10, T-13, T-17, T-23 → T-18
-T-17, T-18, T-19, T-20, T-21 → T-22
+T-01, T-07, T-10, T-11, T-12, T-13, T-15 → T-24
+T-07, T-11, T-13, T-15, T-21, T-24 → T-25
+T-17, T-18, T-19, T-20, T-21, T-24, T-25 → T-22
 T-03, T-05, T-06 (sem dependentes)
 ```
 
@@ -254,10 +268,10 @@ T-03, T-05, T-06 (sem dependentes)
 - T-13, T-14, T-15, T-16, T-23
 
 ### Onda 4
-- T-17, T-19, T-20, T-21
+- T-17, T-19, T-20, T-21, T-24
 
 ### Onda 5
-- T-18
+- T-18, T-25
 
 ### Onda 6
 - T-22
@@ -268,10 +282,10 @@ T-03, T-05, T-06 (sem dependentes)
 |---|---|---|---|
 | Sun Tzu — orquestrador | — | — | todas |
 | Maquiavel | general-purpose | inherit | T-01 |
-| Darwin | general-purpose | inherit | T-02, T-11 |
+| Darwin | general-purpose | inherit | T-02, T-11, T-25 |
 | Sherlock | general-purpose | inherit | T-03 |
 | Yoda | general-purpose | inherit | T-04 |
-| Jaspion | general-purpose | inherit | T-05, T-15 |
+| Jaspion | general-purpose | inherit | T-05, T-15, T-24 |
 | Levi | general-purpose | inherit | T-06 |
 | Platão | general-purpose | inherit | T-07 |
 | Tesla | general-purpose | inherit | T-08, T-23 |

@@ -4,18 +4,16 @@ subagent_type: general-purpose
 model: inherit
 
 ## Contexto
-Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Liga os guardas de acesso e quota ao fluxo do Adianti sem tocar arquivos protegidos.
+Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Liga o guarda de acesso por assinatura e plano ao fluxo do Adianti e ativa o primeiro acesso, sem tocar arquivos protegidos. As quotas ficam em T-24/T-25: não edite `SystemUserForm` nem `SystemUnitForm`.
 
 ## Tasks atribuídas
-- T-19: Bloqueio por assinatura, quotas e primeiro acesso
+- T-19: Bloqueio por assinatura e primeiro acesso
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
 ## Caminhos relevantes
 - `src/app/service/auth/ApplicationAuthenticationService.php`
 - `src/tests/Unit/MutationGuardWiringTest.php`
-- `src/app/control/admin/SystemUserForm.php`
-- `src/app/control/admin/SystemUnitForm.php`
 - Board: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/board.md`
 - Relatórios: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reports/` (modelo em `_template.md`)
 - Notas: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/notes.md` — leia § Decisões tomadas e § Descobertas antes de começar (rulings de ondas anteriores vivem ali, não no board).

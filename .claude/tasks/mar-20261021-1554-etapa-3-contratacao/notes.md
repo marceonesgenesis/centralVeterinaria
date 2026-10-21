@@ -12,8 +12,13 @@
 - 2026-10-21 · T-07 · onda 1 — Quotas: Starter 2 usuários/1 unidade, Pro 10/1, Business 30/5, Enterprise sem limite. Recursos: `inventory_pos`, `finance_full` e `communication` do Pro em diante; `multi_unit` do Business em diante; `hospital` e `ai_advanced` só no Enterprise. Caixa, recebimento e contas de atendimento ficam em todos os planos, porque o `PaymentService` exige caixa aberto. Valores derivados de `LandingCatalog::plans()`/`compareRows()` e confirmados pelo usuário (resposta 3: internação e cirurgia só no Enterprise).
 - 2026-10-21 · T-07 · onda 1 — Tolerância de 7 dias a partir do primeiro `invoice.payment_failed`; `accessLevel`: `active` → `full`; `past_due` dentro da tolerância → `grace`; demais → `blocked`. Estorno registra a fatura como `refunded` e não muda o acesso.
 - 2026-10-21 · T-14/T-16/T-23 · ondas 3 — Resposta 4 do usuário: não se sabe se a conta aceita Pix em `send_invoice`, então vale o fallback. O cartão usa Subscription em `charge_automatically` (Checkout `mode=subscription`). O Pix usa um PaymentIntent avulso por fatura, sem Subscription no Stripe: o 1º mês sai por Checkout `mode=payment`; a cada período, T-23 emite, 3 dias antes do fim, uma fatura local (`local_key` `pix:<assinatura>:<data>`) com PaymentIntent Pix (`expires_after_seconds=864000` = 3 dias até o vencimento + 7 de tolerância, `Idempotency-Key` `pix-invoice-<id>-<n>`) e envia o link por e-mail. O `payment_intent.succeeded` com `metadata[subscription_invoice]` paga a fatura e avança o período (T-14). Fatura vencida sem pagamento → `markOverdue` (`past_due`, 7 dias de tolerância), sem mexer em `last_event_created`, para não descartar o pagamento que chegar depois. Pix expirado é regenerado pelo reconciliador (T-18).
+- 2026-10-21 · T-24/T-25 · ondas 4 e 5 — A revisão da T-11 achou que `SystemUserForm` e `SystemUnitForm` não respeitam o tenant: listam o grupo 1 e dados de outras clínicas e salvam sem `tenant_id`. Liberá-las no seed dos planos deixaria uma clínica virar super admin. Decisão do usuário: essas telas de sistema saem do seed dos planos (a correção da T-11 também inclui perfil, senha e 2FA), e a gestão de equipe e de unidades por clínica entra nesta etapa como T-24 (equipe, Onda 4) e T-25 (unidades, seed, menu e inventário CSRF, Onda 5). As chaves de tradução das duas ficam na T-24, para `translations.json` não ser editado em duas tasks da mesma onda. A T-11 foi corrigida no e9915bf: os grupos de plano não têm `SystemUser*`, `SystemUnit*` nem `SystemGroup*`, só `SystemProfileView`, `SystemProfileForm` e `SystemProfile2FAForm` além dos programas clínicos, e o Business ficou igual ao Pro em programas (60). Por isso a T-19 não aplica mais quota em `SystemUserForm`/`SystemUnitForm`: as quotas valem só em `ClinicTeamService::invite`/`reactivate` (T-24) e `ClinicUnitService::create` (T-25), e a diferença de unidades entre Pro e Business vem só de `maxUnits()`.
 - 2026-10-21 · T-13 · onda 3 — Administrador da clínica vai para o grupo do plano (`Central Vet - Plano <Nome>`, T-11), nunca para o grupo 1 (administração da plataforma, com `LandingLeadList`, `SystemDatabaseExplorer` etc.).
 - 2026-10-21 · T-19 · onda 4 — Tenant sem linha em `subscription` (os de hoje, inclusive o da plataforma) mantém o acesso (`legacy`), para o dev e os testes continuarem como estão.
+- 2026-10-21 · T-11 · onda 2 — Reprovada na rodada 1 (3 achados plano-mandou: SystemUserForm/SystemUnitForm sem tenant expunham o grupo 1 e outras clínicas; admin sem perfil, senha e 2FA). Usuário decidiu "Tela nova por clínica": telas System* de administração global fora do seed, gestão de equipe e unidades por clínica em T-24/T-25. Corrigida em e9915bf e aprovada na rodada 2.
+- 2026-10-21 · T-10 · onda 2 — Reprovada na rodada 1: fakes FakeSubscription*Repository não exigiam transação nos *ForUpdate. Corrigida em 8f70d96, aprovada na rodada 2. Escopo aceito: src/tests/Unit/SubscriptionFakesTest.php fora de Arquivos prováveis (prova a recusa, pedido do orquestrador).
+- 2026-10-21 · T-10 · onda 2 — DuplicateInvoice em qualquer 1062 não mascara outra violação (só há as UNIQUE local_key, stripe_invoice_id e stripe_payment_intent_id); a mensagem agora informa a chave que colidiu.
+- 2026-10-21 · T-09 · onda 2 — findByCheckoutSessionIdForUpdate exige transação; claim() de evento novo grava attempts=1.
 - 2026-10-21 · T-01 · onda 1 — Escopo aceito: 50b41ba tocou UserMessageTest.php para atualizar a contagem (STATIC=92, PATTERNS=110); "Amount due" e "Overdue" mantêm o pt antigo.
 - 2026-10-21 · T-06 · onda 1 — Escopo aceito: 65ca55e tocou SaleFinanceReaderIntegrationTest.php (chaves tutor_name/patient_name no array exato).
 - 2026-10-21 · T-03 · onda 1 — Escopo aceito: o RED 191021b tocou FakeCashSessionRepository.php fora do bloco Teste RED.
@@ -37,6 +42,10 @@
 - [T-08] Cliente Stripe em CentralVet\Billing\Stripe (interface, cURL, config, verificador de assinatura) e FakeStripeClient em tests/Support.
 - [T-03] CashSessionRepositoryInterface ganhou findByIdForUpdate e findOpenBySystemUnitForUpdate (exigem transação aberta); novos implementadores da interface precisam dos dois.
 - [T-07] toRow() de BillingOrder, Subscription e SubscriptionInvoice omite created_at/updated_at; extras (constantes METHOD_*/ACCESS_*, getters) só acrescentam; status Stripe desconhecido e transição inválida lançam exceção.
+- [T-09] Repositórios de pedido e evento (Billing\Contract e Persistence, fakes em tests/Support): findByCheckoutSessionIdForUpdate exige transação; claim() novo grava attempts=1; markDone mantém last_error; latestEventCreated é MAX(event_created) de todos os status.
+- [T-10] Repositórios de assinatura e fatura com DuplicateInvoice (qualquer 1062, mensagem traz key=); todo *ForUpdate exige transação; insert() devolve o id e não muda a entidade; fakes têm $inTransaction=true, $rows e $lockCalls.
+- [T-11] seeds/plan-groups.sql (não aplicado): grupos 'Central Vet - Plano <Nome>' sem SystemUser*/SystemUnit*/SystemGroup*; Starter 41, Pro 60, Business 60, Enterprise 82 programas; exige permission.sql e initial-application-programs.sql antes.
+- [T-12] AccountInviteService::send devolve o id do deliver e propaga MessageDeliveryFailed; PasswordResetToken::issue ganhou $ttlSeconds opcional (padrão 10800; <= 0 lança).
 
 ## Pendências
 - T-01: sugestões da revisão (chave própria "Invoice amount due" na T-21; relatório devia rodar só as 3 classes do critério).
@@ -47,7 +56,11 @@
 - T-06: selo "Cancelled" duplicado na venda cancelada; sem teste de mesmo tenant nos JOINs de tutor/paciente; testes por texto-fonte frágeis.
 - T-07: regras sem teste (exceção de status desconhecido, attachCheckout, markInvoicePaid em cancelled); applyProviderStatus('active') reativa cancelled; suspended mantém grace vencido; markPaidByPaymentIntent aceita fatura void/uncollectible/draft; needsPaymentIntent com expiresAt nulo.
 - T-08: sem teste da redação de sk_/rk_/pk_ na mensagem de erro HTTP; vários t= no cabeçalho vale o último.
-- ExamResultAiIntegrationTest não falhou nesta onda.
+@@ nesta onda.
+- T-09: teste do LogicException de findByCheckoutSessionIdForUpdate; FakeBillingOrderRepository::save sem unicidade de stripe_checkout_session_id; deadlock 1213 possível em claim concorrente (tratar em T-17 ou SELECT FOR UPDATE antes do INSERT); claim devolve evento received, então T-14 deve garantir idempotência do processador.
+- T-10: ficaram de fora os ramos extras de listOpenPix/listPixDueForIssue (due_at <= now com PI vivo; past_due incluída, suspended/cancelled excluídas), teste da guarda dos outros 4 *ForUpdate reais e o tipo da exceção do save() dos fakes.
+- T-11: até a T-24 e a T-25, o admin da clínica não tem gestão de usuários nem de unidades; sem asserção fixa de Hospitalization/Surgery/Bed/Ai só no Enterprise; idempotência do seed só conferida no texto (aplicar 2x no centralvet_test com autorização); citar no cabeçalho o risco de MAX+1 com nome/controller duplicado.
+- T-12: sem teste de issue() com TTL <= 0 nem de send() propagando MessageDeliveryFailed.
 
 ## Riscos
 - RISCO Pix: o limite de `payment_method_options[pix][expires_after_seconds]` do PaymentIntent no Stripe precisa aceitar 864000 s (10 dias). Se a API recusar, T-23 usa o máximo aceito, e o reconciliador regenera o Pix expirado, o que já está previsto. A renovação Pix depende do cron do reconciliador (a cada 15 min): sem o cron, nenhuma fatura de renovação é emitida.
@@ -57,7 +70,7 @@
 - Provisionamento grava em `system_*` com MAX+1 sob `FOR UPDATE`: dois provisionamentos simultâneos serializam no bloqueio do índice; o teste de T-13 cobre a retomada, não a corrida entre pedidos diferentes.
 - O guard de T-19 lê `subscription` a cada 60 s por sessão: sem a 0017 aplicada no banco, o login quebra. Aplicar a 0017 antes de subir o código em qualquer ambiente.
 - Testes de bloqueio com fixture não commitada pegam o lock implícito do INSERT (pendência da Etapa 2): T-03 complementa com o teste unitário da ordem bloqueio → escrita.
-- Escopo grande (23 tasks, 6 ondas), executado de uma vez por decisão do usuário.
+- Escopo grande (25 tasks, 6 ondas), executado de uma vez por decisão do usuário.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20261021-1554-etapa-3-contratacao/`
@@ -66,5 +79,6 @@
 - BASE da onda 1: 49ada48
 - Commits por onda:
   - Onda 1: BASE 49ada48 → HEAD 85e3ec7 (987537b, 7ab22ba, ae00071, 7415ce2, 7c864ba, 5964a0a, 95c4c4a, e736ac6, 1a877e7, 65ca55e, 191021b, db59257, 50b41ba, d74868c, d833d45, 576d8da, ca64082, 85e3ec7)
-- Último status conhecido: onda 1 concluída (T-01 a T-08 [x], SUITE 2075/2075); tasks T-09 a T-23 pendentes
-- Próxima onda recomendada: onda 2
+  - Onda 2: BASE df3992e → HEAD e9915bf (13374df, c2b4cc1, fb2558c, 99e580c, 8f70d96, 3d7d4ab, 55a1cac, 33e4972, b07c578, e9915bf)
+- Último status conhecido: onda 2 concluída (T-09 a T-12 [x], SUITE 2110/2110); T-13 a T-25 pendentes
+- Próxima onda recomendada: onda 3

@@ -4,11 +4,12 @@ subagent_type: general-purpose
 model: inherit
 
 ## Contexto
-Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Cria o schema de cobrança compatível com MySQL 5.7 e os grupos de permissão por plano.
+Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com webhook autenticado, provisionamento e direitos por plano, mais as pendências S5, S6, caixa e Etapa 2. Cria o schema de cobrança compatível com MySQL 5.7 e os grupos de permissão por plano e, na Onda 5, as unidades por clínica (T-25), com `tenant_id`, a única aplicação da quota de unidades e os programas de equipe e unidades no seed, no menu e no inventário CSRF.
 
 ## Tasks atribuídas
 - T-02: Migration 0017 e banco de teste
 - T-11: Seed dos grupos de plano
+- T-25: Unidades da clínica, seed, menu e inventário
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
@@ -30,6 +31,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Regras do projeto: rótulos e cabeçalhos de grid à esquerda; alvos de toque ≥ 44 px (`--cv-touch-target`); mensagens ao usuário só por `_t()` com as chaves de T-01 (`^1..^4`); toda mutação nova passa pela `MutationRequestPolicy` (exceção: `billing-webhook.php`, autenticado por `Stripe-Signature`).
 - Pré-requisito de T-02: MySQL no ar (`docker compose up -d mysql`). DDL no `centralvet_test` pelo MYSQLTEST (root do container mysql), autorizado no padrão da Etapa 2; nunca no `centralvet`.
 - T-11 não aplica o seed em banco nenhum: é arquivo preparado.
+- T-25: o seed só recebe `INSERT ... WHERE NOT EXISTS` no fim, sem `DELETE`/`UPDATE` nem mudança das linhas de T-11 (e9915bf) e de T-21; ninguém aplica em banco. Pré-requisito do teste: a 0017 no `centralvet_test`. Leia `src/app/Core/Tenancy/ClinicTeamService.php` (T-24) como modelo; não edite `SystemUnitForm`.
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 
