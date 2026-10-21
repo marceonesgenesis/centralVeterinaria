@@ -17,8 +17,8 @@ Comandos usados em Teste RED e Validação:
 | T-06 | frontend | Guard central ligado em checkMultiSession, cookie cv_csrf e cabeçalho/POST no cv-shell.js | T-01, T-02, T-11 | sim | alta | Aang | [x] |
 | T-07 | backend | Formulários de reset usam o núcleo de T-03; APP_PUBLIC_URL no .env.example e no compose | T-01, T-03 | sim | média | Jaspion | [x] |
 | T-08 | frontend | SaleForm: carrinho pelo preço de venda, recusa sem preço e wiring dos repositórios no SaleService | T-05 | sim | média | Arquimedes | [x] |
-| T-09 | docs | Runbooks: APP_PUBLIC_URL, limite de reset, proteção CSRF e hospedagem compartilhada | T-02, T-06, T-07 | sim | simples | Gandalf | [ ] |
-| T-10 | qa | Integração MySQL: venda com referência de outra clínica não grava venda nem estoque | T-05, T-08 | não | média | Yoda | [ ] |
+| T-09 | docs | Runbooks: APP_PUBLIC_URL, limite de reset, proteção CSRF e hospedagem compartilhada | T-02, T-06, T-07 | sim | simples | Gandalf | [x] |
+| T-10 | qa | Integração MySQL: venda com referência de outra clínica não grava venda nem estoque | T-05, T-08 | não | média | Yoda | [x] |
 | T-11 | backend | S7: SearchParameterGuard para AdiantiMultiSearchService e AdiantiAutocompleteService | T-02 | sim | alta | Spock | [x] |
 
 ## Detalhamento
