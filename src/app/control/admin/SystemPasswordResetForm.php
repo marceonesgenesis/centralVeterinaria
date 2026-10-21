@@ -1,6 +1,6 @@
 <?php
-use \Firebase\JWT\JWT;
-use \Firebase\JWT\Key;
+use CentralVet\Security\InvalidPasswordResetToken;
+use CentralVet\Security\PasswordResetToken;
 
 /**
  * SystemPasswordResetForm
@@ -101,38 +101,36 @@ class SystemPasswordResetForm extends TPage
                 throw new Exception(_t('A new seed is required in the application.ini for security reasons'));
             }
             
-            $key = APPLICATION_NAME . $ini['general']['seed'];
+            $tokens = new PasswordResetToken(APPLICATION_NAME . $ini['general']['seed']);
             
-            $token = (array) JWT::decode($param['jwt'], new Key($key, 'HS256'));
-            
-            $login = $token['user'];
-            $expires = $token['expires'];
-            
-            if ($expires < strtotime('now'))
-            {
-                throw new Exception('Token expired. This operation is not allowed');
-            }
+            // malformed, badly signed or expired link → InvalidPasswordResetToken
+            $claims = $tokens->verify((string) ($param['jwt'] ?? ''), time());
             
             TTransaction::open('permission');
-            $user  = SystemUser::newFromLogin($login);
+            $user  = SystemUser::newFromLogin($claims['user']);
             
-            if ($user instanceof SystemUser)
+            // single use: the claim pwd is bound to the current password hash,
+            // so the link stops working once the password changes
+            if (!$user instanceof SystemUser
+                || $user->active !== 'Y'
+                || !$tokens->matchesPassword($claims, (string) $user->password))
             {
-                if ($user->active == 'N')
-                {
-                    throw new Exception(_t('Inactive user'));
-                }
-                else
-                {
-                    SystemUserOldPassword::validate($user->id, $param['password1']);
-                    SystemUserOldPassword::register($user->id, $param['password1']);
-                    $user->password = SystemUser::passwordHash($param['password1']);
-                    $user->store();
-                    
-                    new TMessage('info', _t('The password has been changed'));
-                }
+                throw new InvalidPasswordResetToken('Password reset token does not match the current user');
             }
+            
+            SystemUserOldPassword::validate($user->id, $param['password1']);
+            SystemUserOldPassword::register($user->id, $param['password1']);
+            $user->password = SystemUser::passwordHash($param['password1']);
+            $user->store();
+            
             TTransaction::close();
+            
+            new TMessage('info', _t('The password has been changed'));
+        }
+        catch (InvalidPasswordResetToken $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('This password reset link is invalid, expired or has already been used.'));
         }
         catch (Exception $e)
         {

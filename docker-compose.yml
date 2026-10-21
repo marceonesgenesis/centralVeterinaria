@@ -11,6 +11,7 @@ x-php-service: &php-service
     APP_DEBUG: ${APP_DEBUG:-false}
     APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
     APP_SEED: ${APP_SEED:?APP_SEED must be set}
+    APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8081}
     DB_HOST: ${DB_HOST:-mysql}
     DB_PORT: ${DB_PORT:-3306}
     DB_DATABASE: ${MYSQL_DATABASE:-centralvet}
