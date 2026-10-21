@@ -27,7 +27,8 @@ use Throwable;
  *    O e-mail do Pix sai depois do commit (PixInvoiceIssuer::deliverPending)
  *    e é descartado no rollback; a falha dele não desfaz fatura nem PI.
  * 4. Faturas Pix abertas: fatura, assinatura e pedido travados (a ordem do
- *    BillingEventProcessor: fatura → assinatura); vencida → markOverdue;
+ *    BillingEventProcessor: fatura → assinatura); vencida → markOverdue,
+ *    numa transação própria antes de qualquer chamada ao Stripe;
  *    sem PaymentIntent ou com o Pix expirado → ensurePaymentIntent, só com a
  *    assinatura active/past_due (suspensa/cancelada não recebe Pix novo).
  * 5. Tolerância vencida: suspendIfGraceExpired com a assinatura travada.
@@ -209,55 +210,65 @@ final class BillingReconciler
         }
     }
 
-    /** @param array<string, int> $counters */
+    /**
+     * Duas transações por fatura: primeiro o vencimento (markOverdue, sem
+     * Stripe), commitado; depois o PaymentIntent. Stripe fora do ar ou mal
+     * configurado não impede past_due nem, depois, a suspensão.
+     *
+     * @param array<string, int> $counters
+     */
     private function refreshOpenPix(DateTimeImmutable $now, array &$counters): void
     {
         foreach ($this->invoices->listOpenPix($now, self::PIX_BATCH) as $invoiceId) {
             try {
-                /** @var array{overdue: bool, refreshed: bool} $outcome */
-                $outcome = $this->tx->run(function () use ($invoiceId, $now): array {
-                    $outcome = ['overdue' => false, 'refreshed' => false];
-
+                $overdue = $this->tx->run(function () use ($invoiceId, $now): bool {
                     $invoice = $this->invoices->findByIdForUpdate($invoiceId);
-                    if ($invoice === null) {
-                        return $outcome;
+                    if ($invoice === null || !$invoice->isOverdue($now)) {
+                        return false;
                     }
 
                     $subscription = $this->subscriptions->findByIdForUpdate($invoice->subscriptionId());
-                    if ($subscription === null) {
-                        return $outcome;
+                    if ($subscription === null || !$subscription->markOverdue($now)) {
+                        return false;
                     }
 
-                    if ($invoice->isOverdue($now) && $subscription->markOverdue($now)) {
-                        $this->subscriptions->save($subscription);
-                        $outcome['overdue'] = true;
+                    $this->subscriptions->save($subscription);
+
+                    return true;
+                });
+                $counters['pix_invoices_overdue'] += $overdue ? 1 : 0;
+            } catch (Throwable $e) {
+                self::log(sprintf('overdue check of pix invoice %d failed: %s', $invoiceId, $e::class));
+            }
+
+            try {
+                $refreshed = $this->tx->run(function () use ($invoiceId, $now): bool {
+                    $invoice = $this->invoices->findByIdForUpdate($invoiceId);
+                    if ($invoice === null || !$invoice->needsPaymentIntent($now)) {
+                        return false;
                     }
 
-                    if ($invoice->needsPaymentIntent($now) && in_array($subscription->status(), self::REFRESHABLE_STATUSES, true)) {
-                        $order = $this->orders->findByIdForUpdate($subscription->billingOrderId());
-                        if ($order !== null) {
-                            $outcome['refreshed'] = $this->pixIssuer->ensurePaymentIntent(
-                                $invoice,
-                                $subscription->stripeCustomerId(),
-                                $order->responsibleEmail(),
-                                $now,
-                            );
-                        }
+                    $subscription = $this->subscriptions->findByIdForUpdate($invoice->subscriptionId());
+                    if ($subscription === null || !in_array($subscription->status(), self::REFRESHABLE_STATUSES, true)) {
+                        return false;
                     }
 
-                    return $outcome;
+                    $order = $this->orders->findByIdForUpdate($subscription->billingOrderId());
+                    if ($order === null) {
+                        return false;
+                    }
+
+                    return $this->pixIssuer->ensurePaymentIntent($invoice, $subscription->stripeCustomerId(), $order->responsibleEmail(), $now);
                 });
             } catch (Throwable $e) {
                 $this->pixIssuer->discardPending();
-                self::log(sprintf('open pix invoice %d failed: %s', $invoiceId, $e::class));
+                self::log(sprintf('payment intent of pix invoice %d failed: %s', $invoiceId, $e::class));
 
                 continue;
             }
 
             $this->pixIssuer->deliverPending();
-
-            $counters['pix_invoices_overdue'] += $outcome['overdue'] ? 1 : 0;
-            $counters['pix_intents_refreshed'] += $outcome['refreshed'] ? 1 : 0;
+            $counters['pix_intents_refreshed'] += $refreshed ? 1 : 0;
         }
     }
 
