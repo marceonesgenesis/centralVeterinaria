@@ -48,6 +48,62 @@ final class SecurityMvpMessagesTest
         }
     }
 
+    /**
+     * T-12: _t() só substitui ^1..^4 (ApplicationTranslator::translate); com
+     * %s o usuário via "Tente novamente em %s segundos." no reset e, no login,
+     * "Message not found" (a chave nem existia em translations.json).
+     */
+    private const RATE_LIMIT = [
+        'app/control/admin/SystemRequestPasswordResetForm.php' => [
+            'Too many password reset attempts. Try again in ^1 seconds.',
+            'Muitas tentativas de redefinição de senha. Tente novamente em 120 segundos.',
+        ],
+        'app/control/admin/LoginForm.php' => [
+            'Too many login attempts. Try again in ^1 seconds.',
+            'Muitas tentativas de login. Tente novamente em 120 segundos.',
+        ],
+    ];
+
+    public function testRateLimitMessagesRenderTheSecondsThroughT(): void
+    {
+        $src = dirname(__DIR__, 2);
+        $decoded = json_decode((string) file_get_contents($src . '/app/config/translations.json'), true);
+        $english = array_column($decoded, 'en');
+
+        foreach (self::RATE_LIMIT as $file => [$key, $expectedPt]) {
+            Assert::true(in_array($key, $english, true), "Missing translation for rate limit key: {$key}");
+            Assert::true(
+                str_contains((string) file_get_contents($src . '/' . $file), "_t('{$key}', "),
+                "{$file} must call _t with the ^1 key: {$key}"
+            );
+        }
+
+        $previousCwd = getcwd();
+        chdir($src);
+        try {
+            if (!function_exists('_t')) {
+                require_once $src . '/app/lib/util/ApplicationTranslator.php';
+            }
+            $previousLanguage = \ApplicationTranslator::getLanguage();
+
+            foreach (self::RATE_LIMIT as [$key, $expectedPt]) {
+                \ApplicationTranslator::setLanguage('pt', false);
+                Assert::same($expectedPt, _t($key, 120), "Wrong pt rendering for: {$key}");
+
+                \ApplicationTranslator::setLanguage('en', false);
+                $en = _t($key, 120);
+                Assert::same(str_replace('^1', '120', $key), $en, "Wrong en rendering for: {$key}");
+                Assert::true(!str_contains($en, '%s') && !str_contains($en, '^1'), "Unreplaced marker in: {$en}");
+            }
+
+            if ($previousLanguage !== null) {
+                \ApplicationTranslator::setLanguage($previousLanguage, false);
+            }
+        } finally {
+            chdir((string) $previousCwd);
+        }
+    }
+
     public function testDomainMessagesResolveToTheirKeysWithoutParams(): void
     {
         foreach (self::DOMAIN as $message => $key) {
