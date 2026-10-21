@@ -123,8 +123,11 @@ final class CashSessionService
         int $closedBySystemUserId,
         string $action,
     ): CashSession {
+        // FOR UPDATE (Etapa 3, T-03): a payment or reversal in flight on this
+        // till finishes first; one that arrives later waits and then sees
+        // the session closed. The caller owns the transaction.
         /** @var CashSession|null $session */
-        $session = $this->sessions->findById($cashSessionId);
+        $session = $this->sessions->findByIdForUpdate($cashSessionId);
 
         if ($session === null) {
             throw new InvalidArgumentException("Cash session {$cashSessionId} not found");

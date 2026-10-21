@@ -94,7 +94,9 @@ final class PaymentReversalService
 
         if ($pending !== []) {
             /** @var CashSession|null $openSession */
-            $openSession = $this->cashSessions->findOpenBySystemUnit($systemUnitId);
+            // FOR UPDATE (Etapa 3, T-03): closing this till waits until the
+            // reversals below are committed or rolled back.
+            $openSession = $this->cashSessions->findOpenBySystemUnitForUpdate($systemUnitId);
 
             if ($openSession === null) {
                 throw CashSessionRequiredException::forReversal();

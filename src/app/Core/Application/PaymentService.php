@@ -11,8 +11,8 @@ use CentralVet\Domain\Contract\CashSessionRepositoryInterface;
 use CentralVet\Domain\Contract\PaymentRepositoryInterface;
 use CentralVet\Domain\Contract\ReceivableRepositoryInterface;
 use CentralVet\Domain\Contract\SubmissionKeyRepositoryInterface;
+use CentralVet\Domain\Exception\CashSessionRequiredException;
 use CentralVet\Domain\Exception\DuplicateSubmissionException;
-use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\OverpaymentException;
 use CentralVet\Domain\Payment;
 use CentralVet\Domain\Receivable;
@@ -31,8 +31,8 @@ use InvalidArgumentException;
  * findById()) and authorizes against the CashSession's own real
  * system_unit_id — NEVER a caller-supplied unit id, exactly the pattern
  * PayableService::pay() already uses for its own resourceUnitId. A closed
- * cash session refuses the payment (InvalidStatusTransitionException,
- * thrown before any mutation) and an amount that would push
+ * cash session refuses the payment (CashSessionRequiredException since
+ * Etapa 3 T-03, thrown before any mutation; the session is read FOR UPDATE) and an amount that would push
  * Receivable::paidCents() past Receivable::totalCents() refuses it too
  * (OverpaymentException, thrown by Receivable::recordPayment() itself
  * before any field on the Receivable is mutated) — in both cases nothing is
@@ -88,8 +88,8 @@ final class PaymentService
      *
      * @throws InvalidArgumentException when $receivableId or $cashSessionId
      *         does not resolve to a row in the current tenant.
-     * @throws InvalidStatusTransitionException when the loaded cash session
-     *         is not `status='open'`. Nothing is written.
+     * @throws CashSessionRequiredException when the cash session (read FOR
+     *         UPDATE) is not `status='open'`. Nothing is written.
      * @throws OverpaymentException when `receivable.paid_cents +
      *         $amountCents` would exceed `receivable.total_cents`. Nothing
      *         is written.
@@ -127,8 +127,11 @@ final class PaymentService
             throw new InvalidArgumentException("Receivable {$receivableId} not found");
         }
 
+        // FOR UPDATE (Etapa 3, T-03): a concurrent close of this till waits
+        // until this payment's transaction ends, and a payment arriving
+        // after a close sees status 'closed' below.
         /** @var CashSession|null $cashSession */
-        $cashSession = $this->cashSessions->findById($cashSessionId);
+        $cashSession = $this->cashSessions->findByIdForUpdate($cashSessionId);
 
         if ($cashSession === null) {
             throw new InvalidArgumentException("Cash session {$cashSessionId} not found");
@@ -149,9 +152,7 @@ final class PaymentService
         ))->assertAllowed();
 
         if (!$cashSession->isOpen()) {
-            throw new InvalidStatusTransitionException(
-                "Cash session {$cashSessionId} is not open (status '{$cashSession->status()}'); cannot register payment"
-            );
+            throw CashSessionRequiredException::forPayment();
         }
 
         // Mutates only the in-memory Receivable. Throws OverpaymentException
