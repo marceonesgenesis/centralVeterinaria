@@ -16,12 +16,19 @@
  *   (inclui csrf_token e labels traduzidos; nenhum texto fixo aqui — T-26).
  * Troca de unidade: POST em CvShellController::onSwitchUnit com unit_id e
  *   csrf_token; resposta JSON {switched:true} ou {error}.
+ *
+ * Guard de mutação (T-06/S2): toda requisição jQuery para engine.php do mesmo
+ * host sai como POST (a query continua na URL) com o cabeçalho X-CSRF-Token,
+ * lido do cookie cv_csrf que ApplicationAuthenticationService grava com o
+ * token da sessão. O servidor valida contra a sessão, não contra o cookie.
  */
 var CvShell = (function () {
     'use strict';
 
     var CONTEXT_URL = 'engine.php?class=CvShellController&method=onContext&static=1';
     var SWITCH_URL = 'engine.php?class=CvShellController&method=onSwitchUnit';
+    var CSRF_COOKIE = 'cv_csrf';
+    var CSRF_HEADER = 'X-CSRF-Token';
     var contextPromise = null;
     var observer = null;
     var initialized = false;
@@ -43,6 +50,52 @@ var CvShell = (function () {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    function readCsrfToken() {
+        var parts = document.cookie ? document.cookie.split(';') : [];
+        for (var i = 0; i < parts.length; i++) {
+            var pair = parts[i].replace(/^\s+/, '');
+            if (pair.indexOf(CSRF_COOKIE + '=') === 0) {
+                try {
+                    return decodeURIComponent(pair.slice(CSRF_COOKIE.length + 1));
+                } catch (e) {
+                    return '';
+                }
+            }
+        }
+        return '';
+    }
+
+    function isSameHostEngine(url) {
+        var link = document.createElement('a');
+        link.href = url || window.location.href;
+        return link.protocol === window.location.protocol
+            && link.host === window.location.host
+            && /(^|\/)engine\.php$/.test(link.pathname);
+    }
+
+    function installAjaxPrefilter() {
+        if (typeof window.jQuery === 'undefined' || typeof window.jQuery.ajaxPrefilter !== 'function') {
+            return;
+        }
+        window.jQuery.ajaxPrefilter(function (options, originalOptions, jqXHR) {
+            if (!isSameHostEngine(options.url)) {
+                return;
+            }
+            var type = String(options.type || 'GET').toUpperCase();
+            if (type === 'GET') {
+                // Mantém os parâmetros na query: o despacho lê class/method de $_GET.
+                if (typeof options.data === 'string' && options.data !== '') {
+                    options.url += (options.url.indexOf('?') === -1 ? '?' : '&') + options.data;
+                }
+                options.data = '';
+                options.type = 'POST';
+            }
+            jqXHR.setRequestHeader(CSRF_HEADER, readCsrfToken());
+        });
+    }
+
+    installAjaxPrefilter();
 
     function parseJson(text) {
         var start = text.indexOf('{');
@@ -117,7 +170,13 @@ var CvShell = (function () {
         body.append('unit_id', unitId);
         body.append('csrf_token', context.csrf_token || '');
 
-        fetch(SWITCH_URL, { method: 'POST', credentials: 'same-origin', cache: 'no-store', body: body })
+        fetch(SWITCH_URL, {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'X-CSRF-Token': readCsrfToken() },
+            body: body
+        })
             .then(function (response) {
                 return response.text();
             })

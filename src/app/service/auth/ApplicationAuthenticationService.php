@@ -1,6 +1,12 @@
 <?php
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
+use CentralVet\Security\CsrfToken;
+use CentralVet\Security\MutationRequestPolicy;
+use CentralVet\Security\SearchParameterGuard;
+use CentralVet\Tenancy\AdiantiSessionContextSource;
+use CentralVet\Tenancy\Exception\MissingTenantContext;
+use CentralVet\Tenancy\TenantContext;
 
 class ApplicationAuthenticationService
 {
@@ -235,6 +241,83 @@ class ApplicationAuthenticationService
     }
     
     /**
+     * Guard central de mutação (S2) e das buscas do Adianti (S7), antes do
+     * despacho de engine.php/index.php: garante o token CSRF da sessão,
+     * espelha-o no cookie cv_csrf (lido pelo cv-shell.js para o cabeçalho
+     * X-CSRF-Token) e aplica a decisão da MutationRequestPolicy.
+     */
+    public static function enforceMutationGuard(): void
+    {
+        $token = TSession::getValue(MutationRequestPolicy::SESSION_KEY);
+        if (!is_string($token) || $token === '')
+        {
+            $token = CsrfToken::generate();
+            TSession::setValue(MutationRequestPolicy::SESSION_KEY, $token);
+        }
+        
+        if (($_COOKIE[MutationRequestPolicy::COOKIE_NAME] ?? null) !== $token && !headers_sent())
+        {
+            setcookie(MutationRequestPolicy::COOKIE_NAME, $token, [
+                'path'     => '/',
+                'secure'   => self::isHttps(),
+                'httponly' => false,
+                'samesite' => 'Strict',
+            ]);
+        }
+        
+        $class = (string) ($_REQUEST['class'] ?? '');
+        
+        try
+        {
+            $tenantId = TenantContext::fromAuthenticatedSession(new AdiantiSessionContextSource())->tenantId();
+        }
+        catch (MissingTenantContext $e)
+        {
+            $tenantId = null;
+        }
+        
+        $searchDenial = SearchParameterGuard::check($class, $_REQUEST, $tenantId);
+        if ($searchDenial !== null)
+        {
+            self::denyRequest('[search-guard] denied ' . $class . ': ' . $searchDenial);
+        }
+        
+        $decision = MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token);
+        
+        if ($decision === MutationRequestPolicy::STRIP_METHOD)
+        {
+            unset($_REQUEST['method'], $_GET['method'], $_POST['method']);
+        }
+        else if ($decision === MutationRequestPolicy::DENY)
+        {
+            self::denyRequest('[csrf] denied ' . $class . '::' . (string) ($_REQUEST['method'] ?? ''));
+        }
+    }
+    
+    /**
+     * Responde 403 com a mensagem de T-01 e encerra a requisição.
+     */
+    private static function denyRequest(string $logLine): void
+    {
+        ApplicationTranslator::setLanguage(TSession::getValue('user_language'), true);
+        http_response_code(403);
+        error_log($logLine);
+        new TMessage('error', _t('The request could not be verified. Reload the page and try again.'));
+        exit;
+    }
+    
+    private static function isHttps(): bool
+    {
+        $https = $_SERVER['HTTPS'] ?? '';
+        if (is_string($https) && $https !== '' && strtolower($https) !== 'off')
+        {
+            return true;
+        }
+        
+        return strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    }
+    
+    /**
      * Check multi session
      */
     public static function checkMultiSession()
@@ -245,6 +328,8 @@ class ApplicationAuthenticationService
         {
             return;
         }
+        
+        self::enforceMutationGuard();
         
         if (!isset($ini['general']['concurrent_sessions']))
         {
