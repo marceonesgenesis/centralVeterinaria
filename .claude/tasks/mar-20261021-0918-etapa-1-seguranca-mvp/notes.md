@@ -33,6 +33,9 @@
 - 2026-10-21 · T-06 · onda 3 — Usuário autorizou rebuild/up do app local e dados de teste ZZ- no banco de dev (todos excluídos, SELECT confirmou 0 linhas ZZ-%) e buscar credenciais nos arquivos: sessão de dev (admin, unidade 1) aberta por curl com CENTRALVET_ADMIN_PASSWORD do .env sem imprimir; validador recebeu só o cookie-jar; senha não resetada.
 - 2026-10-21 · T-09 · onda 4 — Commits extras de relatório (e92d833, d851710) após erro de shell aceitos (escopo dentro de DIR, trailers corretos).
 - 2026-10-21 · T-10 · onda 4 — FakeAuthorizationPolicy no teste de integração aceita (o critério é a fronteira de tenant com repositórios reais, não RBAC).
+- 2026-10-21 · T-12 · onda 5 — (plano-mandou) Revisão final: `%s` literal na mensagem de limite (`_t` só substitui ^1..^4) corrigido com ^1; LoginForm, que nem tinha a chave ("Message not found"), ganhou entrada en/pt com ^1.
+- 2026-10-21 · processo · onda 5 — Commits chore(tasks) sem trailer Task: (24876ac, 1983b78, fa140e2, a3d3275) são do fechamento e só tocam .claude/tasks: aceitos.
+- 2026-10-21 · processo · onda 5 — Usuário (memória do projeto): a entrega preserva os commits por onda; não rodar entrega.py nem desfazer commits.
 
 ## Bloqueios
 - nenhum
@@ -67,6 +70,8 @@
 - T-06: sugestões da revisão: cv_csrf antigo ainda chega a $param em requisição não logada (ApplicationAuthenticationService.php:268-271); isHttps confia em X-Forwarded-Proto (derivar Secure de APP_PUBLIC_URL); error_log de negação sem sanitizar class/method (linhas 286,305); fixture do RED alterada no GREEN (registro de processo).
 - T-08: sugestões da revisão: teste de wiring não fixa a ordem tutors/patients/encounters (SaleFormPricingTest.php:39-46); teste do catch específico não verifica a ordem antes de catch (Exception) (:28-37); recibo lê o snapshot do carrinho e pode divergir do sale_item com rascunho antigo ou preço alterado (SaleForm.php:685-701).
 - T-10: sugestões da revisão: afirmar também stock_batch.quantity (10 na rejeição, 8 no caso válido) (SaleServiceTenantReferencesIntegrationTest.php:148); Assert::throws não confere a mensagem da CrossTenantReferenceException (:140).
+- T-12: sugestões da revisão final: orderColumn só precisa ser identificador, sem estar entre as colunas pesquisadas (SystemUser ordenável por `password`, oráculo de ordenação) (SearchParameterGuard.php:81-85).
+- T-12: eficiencia.py avisou "onda 5 sem tasks em plan.md" (T-12 é task de correção fora do plano); sem registro em eficiencia/tasks.jsonl para a onda 5.
 
 ## Riscos
 - S7: o pré-filtro pode negar uma busca legítima que use parâmetros fora das listas (por exemplo, `setOperator` novo ou máscara composta). Mitigação: o Teste RED de T-11 cobre a busca real do `SaleForm` e de `SystemUser`, a Validação de T-11 confere os 11 usos e o teste de fumaça de T-06 inclui a busca de tutor. Uma sessão sem tenant resolvido (`MissingTenantContext`) passa a ter as buscas de models de tenant negadas.
@@ -87,5 +92,6 @@
   - Onda 2: BASE 24876ac → HEAD 7bd0e6c (7bd0e6c 069eb63 9411ffb 75d4646 072b81e d3ad5b5 0653fa5 19015f3)
   - Onda 3: BASE 1983b78 → HEAD b76086b (b76086b e04aff9 32e7c0c fc0edc2 d809b58 b00ff4c)
   - Onda 4: BASE fa140e2 → HEAD 46f508c (e92d833 de2b382 d851710 46f508c)
-- Último status conhecido: onda 4 concluída (T-09, T-10 [x]); todas as tasks [x]
+  - Onda 5: BASE a3d3275 → HEAD e6d8980 (5bf3771 e6d8980)
+- Último status conhecido: onda 5 (correção da revisão final) concluída (T-12 [x]); todas as tasks [x]
 - Próxima onda recomendada: nenhuma (revisão final)

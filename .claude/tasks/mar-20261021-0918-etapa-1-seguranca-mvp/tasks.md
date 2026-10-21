@@ -20,6 +20,7 @@ Comandos usados em Teste RED e Validação:
 | T-09 | docs | Runbooks: APP_PUBLIC_URL, limite de reset, proteção CSRF e hospedagem compartilhada | T-02, T-06, T-07 | sim | simples | Gandalf | [x] |
 | T-10 | qa | Integração MySQL: venda com referência de outra clínica não grava venda nem estoque | T-05, T-08 | não | média | Yoda | [x] |
 | T-11 | backend | S7: SearchParameterGuard para AdiantiMultiSearchService e AdiantiAutocompleteService | T-02 | sim | alta | Spock | [x] |
+| T-12 | backend | Mensagens de limite (reset e login) com ^1 no _t() (origem: revisão final) | T-01, T-07 | não | simples | — | [x] |
 
 ## Detalhamento
 
@@ -386,6 +387,9 @@ Comandos usados em Teste RED e Validação:
 - SUITE com `SearchParameterGuardTest` (evidência: só linhas `PASS` dessa classe e `Failed: 0`)
 - LINT de `app/Core/Security/SearchParameterGuard.php` (evidência: `No syntax errors detected`)
 - `/usr/bin/grep -rn "new TDBUniqueSearch\|new TDBMultiSearch\|new TDBEntry" src/app` (evidência: todo `model` listado está em `TENANT_MODELS` ou `GLOBAL_MODELS`; os de tenant passam `$tenant_criteria`; nenhum `TDBEntry`)
+
+### T-12 — Mensagens de limite (reset e login) com ^1 no _t()
+Onda de correção 5, origem `reviews/final.md` (bloqueante plano-mandou: `%s` literal, `_t()` só substitui ^1..^4). Commits 5bf3771 (RED) e e6d8980. Arquivos: `translations.json`, `SystemRequestPasswordResetForm.php`, `LoginForm.php`, `SecurityMvpMessagesTest.php`.
 
 ## Legenda
 
