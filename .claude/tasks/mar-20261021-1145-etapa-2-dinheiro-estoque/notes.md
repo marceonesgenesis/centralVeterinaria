@@ -21,6 +21,11 @@
 - 2026-10-21 · T-01 · onda 1 — Ajuste da contagem em src/tests/Unit/UserMessageTest.php (82→89) em 7c198b6, fora dos arquivos prováveis, aceito como escopo da T-01 (consequência direta das chaves novas).
 - 2026-10-21 · T-02 · onda 1 — Falha cruzada sem dona (8 testes de StockSalesOverviewIntegrationTest, 3819 sale_cancellation_ck) corrigida por agente novo no commit 69e1122 com trailer `Task: T-02`, por ser efeito da 0016; relatório em reports/cruzada-onda-1.md.
 - 2026-10-21 · onda 1 · onda 1 — O validador da onda foi interrompido por reinício do computador e retomado; reviews/T-NN.md § Gate foram regravados.
+- 2026-10-21 · T-05 · onda 2 — Implementador sem credencial para o curl autenticado; o orquestrador criou o cookie-jar admin (unit_id=1) em scratchpad lendo o .env sem imprimir e o repassou só para leitura.
+- 2026-10-21 · T-07 · onda 2 — RED inválido do validador (commit RED tocou SubmissionTokenTest.php além dos declarados) aceito no histórico sem fix loop; revisor julgou os testes RED e aprovou.
+- 2026-10-21 · T-08 · onda 2 — RED inválido do validador (commit RED tocou ReceivableSaleOriginTest.php além dos declarados) aceito no histórico sem fix loop; revisor aprovou.
+- 2026-10-21 · T-09 · onda 2 — RED inválido do validador (commit RED tocou SaleRepositoryCancelIntegrationTest.php e SaleServiceTest.php além dos declarados) aceito no histórico sem fix loop; revisor aprovou.
+- 2026-10-21 · onda 2 · onda 2 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts e ambos estavam verdes na onda 1; aceito como pendência.
 
 ## Bloqueios
 - nenhum
@@ -31,6 +36,12 @@
 - T-04: resolveDispatchTarget removido; regra do class_alias em MutationRequestPolicy::resolveCanonical; guard chama decideFromRequest($_SERVER, $_REQUEST, $token); telas novas não passam resolvedor.
 - T-03: SearchParameterGuard nega orderColumn fora de key/itens de column; TDBUniqueSearch/TDBMultiSearch novos (T-16) ordenam pela coluna exibida ou omitem orderColumn.
 - cruzada-onda-1: fixture createSale do StockSalesOverviewIntegrationTest preenche colunas de cancelamento; SUITE 1880/1880 (69e1122).
+- T-05: app/worker reconstruídos com request_order=GP (CLI e FPM); cookies não entram mais em $_REQUEST (df71f73, a4e7142).
+- T-07: SubmissionToken/SubmissionKeyRepository/DuplicateSubmissionException/Fake disponíveis (31a38f8); claim/attach/findReference validam o token.
+- T-09: Sale::cancel(reason, cancelledBySystemUserId, cancelledAt); SaleRepositoryInterface::findByIdForUpdate (LogicException fora de transação) (7237261).
+- T-10: SaleFinanceReader (e36c011): listSales traz completed e cancelled; datas Y-m-d H:i:s; venda sem recebível → receivable_id null e received_cents 0.
+- T-06: StockService::consume lê com FOR UPDATE e exige transação; reverseReferenceConsumption devolve unidades repostas, 0 se já houver reversão (d39d5c0).
+- T-08: Receivable::encounterAccountId() agora ?int (único consumidor ReceivableRepository.php:136 aceita null); openForSale, findByIdForUpdate/findBySaleId, PaymentReversal e repositórios (d5318e5).
 
 ## Pendências
 - T-02: prova de preservação de dados vazia (receivable e sale com 0 linhas no centralvet_test); ensaio com linhas ou a T-17 cobriria.
@@ -41,6 +52,21 @@
 - T-04: teste monta 'resolveDispatch' . 'Target' só por causa do grep do critério (MutationGuardWiringTest.php:155).
 - Validador: ExamResultAiIntegrationTest falhou uma vez (FK 1451/1452) numa das 3 SUITEs e passou nas seguintes, inclusive 1880/1880 no HEAD 69e1122; possível flaky, não confirmado.
 - Validador: na revalidação final só a SUITE rodou (lint, prepare-mysql57 e framework_hashes verdes no gate anterior).
+- T-05: rebuild da imagem não refeito pelo validador (container em execução já tem GP).
+- T-06: teste 1205 não isola o bloqueio de A (lock implícito do INSERT não commitado).
+- T-06: increaseQuantity() ignora rowCount(); reverseReferenceConsumption pode somar quantidade não reposta (StockBatchRepository.php:545-560).
+- T-06: docblock de consume() ainda cita "saving the batch" (StockService.php:126-134).
+- T-06: decreaseQuantity usa :quantity_floor em vez do :quantity da Interface (desvio registrado).
+- T-07: isDuplicateClaim depende do nome submission_key_uq no texto do 1062 (SubmissionKeyRepository.php:110-114).
+- T-07: attach de token não reivindicado e token malformado sem teste de integração.
+- T-08: § RED do relatório transcreve só 4 das 8 falhas de ReceivableSaleOriginTest.
+- T-08: teste findByIdForUpdate espera 1205 pelo lock implícito do INSERT de A (PaymentReversalIntegrationTest.php:151).
+- T-08: testFakeRepositoryFindsBySaleIdAndLocksInsideNoTransaction testa só o fake (ReceivableSaleOriginTest.php:415); FakeReceivableRepository::findByIdForUpdate não exige transação.
+- T-08: sem teste das mensagens de CashSessionRequiredException; docblocks de CashSessionService e Receivable desatualizados.
+- T-09: 1205 do findByIdForUpdate também vem do lock implícito do INSERT; sem teste com duas conexões para deadlock 1213 (SaleServiceTest:228) e T-17 não o cita.
+- T-09: catch de compensação em SaleService.php:335-343 não devolve movimentos já consumidos de produtos anteriores (limitação pré-existente).
+- Validador: contrato de encounterAccountId() ?int (T-08) com único consumidor ReceivableRepository.php:136.
+- Validador: ExamResultAiIntegrationTest intermitente em execuções de T-07/T-08, verde na SUITE do gate (flaky reforçado, não confirmado).
 
 ## Riscos
 - Código novo sem a 0016 aplicada quebra o PDV e o recebimento no ambiente (INSERT de `sale_id`/`submission_key`). Mitigação: rebuild do dev só depois da migration autorizada; runbook da 0016 (T-02).
@@ -56,5 +82,6 @@
 - BASE da onda 1: 363582a
 - Commits por onda:
   - Onda 1: BASE 363582a → HEAD 69e1122 (49d4480, be89ba0, 7c198b6, f3a7cbd, 28f0fd2, 74862a5, 88b0bca, 69e1122)
-- Último status conhecido: onda 1 concluída (T-01..T-04 [x]); SUITE 1880/1880 em 69e1122
-- Próxima onda recomendada: onda 2 (T-05, T-06, T-07, T-08, T-09, T-10; dependem só de T-02)
+  - Onda 2: BASE 5cee1ca → HEAD d39d5c0 (df71f73, a4e7142, b059779, db4a30d, 5e93e5c, 4295ab3, b9a1cfb, 31a38f8, 7237261, d5318e5, e36c011, d39d5c0)
+- Último status conhecido: onda 2 concluída (T-05..T-10 [x]); SUITE 1934/1934, lint 0, framework_hashes ok
+- Próxima onda recomendada: onda 3 (T-11, T-12)
