@@ -29,6 +29,11 @@
 - 2026-10-21 · T-11 · onda 3 — Achado [plano-mandou] da rodada 1 (1205 do teste vinha do claim/FK de tenant, não de findByIdForUpdate) decidido como corrigir; B chama register sem token (caminho interno do checkout), pois COMMIT de dados de base é proibido pelo MysqlIntegrationTestCase; sensibilidade provada (com findById o teste falha). Desvio em reports/T-11.md § Correção 1 (bcfe53f).
 - 2026-10-21 · T-12 · onda 3 — Commit 94f6705 ajustou 1 linha do teste RED (ACTION 'test::payment-reversal' → 'test::reversal'), sem mudar asserções; aceito, validador confirmou RED por classe inexistente.
 - 2026-10-21 · onda 3 · onda 3 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts (ruling vigente desde a onda 2).
+- 2026-10-21 · T-13 · onda 4 — Desvios aceitos (revisor, rodada 1): assertTenant antes do claim do token; forma de pagamento desconhecida lança InvalidArgumentException sem chave da T-01 (0e5e318).
+- 2026-10-21 · T-14 · onda 4 — Commit fcffd4a trocou 1 linha do teste RED (ACTION 'test::sale-cancel' → 'test::cancel', formato sem hífen), sem mudar asserções; aceito, validador confirmou RED por classe inexistente.
+- 2026-10-21 · T-14 · onda 4 — Orquestrador repassou ao implementador (a) passar a unidade da venda ao cancelReceivable (contrato da T-12) e (b) action sem hífen (apontado pela T-13); ambos atendidos.
+- 2026-10-21 · T-14 · onda 4 — Sem caixa aberto, CashSessionRequiredException sai após reverseReferenceConsumption gravar o estoque; rollback fica com o chamador (TTransaction da T-16); T-16 deve garanti-lo e T-17 prová-lo com MySQL; aceito por validador e revisor.
+- 2026-10-21 · onda 4 · onda 4 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts (ruling vigente).
 
 ## Bloqueios
 - nenhum
@@ -47,6 +52,8 @@
 - T-08: Receivable::encounterAccountId() agora ?int (único consumidor ReceivableRepository.php:136 aceita null); openForSale, findByIdForUpdate/findBySaleId, PaymentReversal e repositórios (d5318e5).
 - T-12: PaymentReversalService::cancelReceivable (94f6705): autoriza antes de ler; estorna só pagamentos sem existsForPayment; ordem das gravações = reversal → financial_entry expense, por pagamento; Receivable::cancel()+save por último; exige transação no PDO real.
 - T-11: PaymentService ganhou 7º parâmetro SubmissionKeyRepositoryInterface; register(..., ?string $submissionToken = null) lê com findByIdForUpdate (exige transação), com token faz claim antes de ler e attach('payment', token, paymentId) ao fim; PaymentForm/PendingReceivableList instanciam o repositório (4971ff6, bcfe53f).
+- T-13: SaleCheckoutService::checkout/SaleCheckoutResult(sale, receivable, ?payment) (0e5e318); assertTenant antes do claim; forma desconhecida lança InvalidArgumentException('Unknown payment method "<x>"'); exige transação no PDO real; T-15 deve restringir o combo a Payment::METHODS.
+- T-14: SaleCancellationService::cancel/SaleCancellationResult (fcffd4a); exige transação; autoriza na unidade da venda; sem caixa e com pagamento lança CashSessionRequiredException após devolver estoque, então o chamador (T-16) faz rollback.
 
 ## Pendências
 - T-02: prova de preservação de dados vazia (receivable e sale com 0 linhas no centralvet_test); ensaio com linhas ou a T-17 cobriria.
@@ -77,6 +84,10 @@
 - T-12: unidade autorizada é a informada pelo chamador (receivable sem system_unit_id); T-14 deve passar a unidade da venda, não a da sessão (PaymentReversalService.php:67).
 - T-12: ACTION certo ('test::reversal') não estava no commit RED 23a73f4.
 - Pendência T-06/T-08/T-09 (1205 sem isolar o lock) resolvida para T-11; continua para as demais.
+- T-13: texto 'Unknown payment method "x"' diverge do domínio ('Unknown payment_method "x"', Payment.php:83/122) e cai na mensagem genérica (SaleCheckoutService.php:88).
+- T-13: teste de sem caixa não confere FakeSaleItemRepository (SaleCheckoutServiceTest.php:139-141).
+- T-14: sem teste unitário do cancelamento pago sem caixa aberto (SaleCancellationService.php:73-97); T-16 onCancel deve dar TTransaction::rollback e mostrar a mensagem; T-17 cobrir.
+- T-14: RED de e5705be usava ACTION inválido (corrigido em fcffd4a; SaleCancellationServiceTest.php:46).
 
 ## Riscos
 - Código novo sem a 0016 aplicada quebra o PDV e o recebimento no ambiente (INSERT de `sale_id`/`submission_key`). Mitigação: rebuild do dev só depois da migration autorizada; runbook da 0016 (T-02).
@@ -94,5 +105,6 @@
   - Onda 1: BASE 363582a → HEAD 69e1122 (49d4480, be89ba0, 7c198b6, f3a7cbd, 28f0fd2, 74862a5, 88b0bca, 69e1122)
   - Onda 2: BASE 5cee1ca → HEAD d39d5c0 (df71f73, a4e7142, b059779, db4a30d, 5e93e5c, 4295ab3, b9a1cfb, 31a38f8, 7237261, d5318e5, e36c011, d39d5c0)
   - Onda 3: BASE fc5e50c → HEAD bcfe53f (23a73f4, 9815aa9, 94f6705, 4971ff6, bcfe53f)
-- Último status conhecido: onda 3 concluída (T-11, T-12 [x]); SUITE 1955/1955
-- Próxima onda recomendada: onda 4 (T-13, T-14)
+  - Onda 4: BASE 7f1f77b → HEAD fcffd4a (e5705be, e7cbbdf, 0e5e318, fcffd4a)
+- Último status conhecido: onda 4 concluída (T-13, T-14 [x]); SUITE 1969/1969
+- Próxima onda recomendada: onda 5 (T-15, T-16)
