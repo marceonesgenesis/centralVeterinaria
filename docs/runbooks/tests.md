@@ -233,7 +233,8 @@ Isso é esperado e não indica falha do provisionamento.
 
 **Migration nova num banco já provisionado.** O `provision.sh` recusa um
 `centralvet_test` existente; uma migration posterior ao provisionamento (ex.:
-a `20261021_0016_etapa2_sale_finance.sql`, já listada no script) é aplicada
+a `20261021_0016_etapa2_sale_finance.sql` ou a
+`20261021_0017_etapa3_billing.sql`, já listadas no script) é aplicada
 só ela, com autorização SQL específica do usuário e o root do container
 `mysql`, seguida do `.verify.sql` dela pelo mesmo cliente. Sem a migration, os
 testes MySQL que dependem dela saem `FAIL` por coluna ou tabela ausente (falha
@@ -241,6 +242,7 @@ de ambiente, não do código):
 
 ```bash
 m=src/app/database/migrations/20261021_0016_etapa2_sale_finance
+# ou: m=src/app/database/migrations/20261021_0017_etapa3_billing
 docker compose exec -T mysql sh -ceu 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 centralvet_test' < "$m.sql"
 docker compose exec -T mysql sh -ceu 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -t centralvet_test' < "$m.verify.sql"
 ```

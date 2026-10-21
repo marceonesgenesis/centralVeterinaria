@@ -493,3 +493,38 @@ Aplique só com autorização SQL específica. Antes e depois, anote
 **mesmos números**. Na conferência, use o verify adaptado de
 `$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
 CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0.
+
+## Migration 0017 (cobrança da assinatura)
+
+A `20261021_0017_etapa3_billing.sql` cria as 4 tabelas da contratação:
+`billing_order` (pedido feito na landing, com plano, preço do servidor,
+responsável, aceite dos termos e progresso do provisionamento),
+`subscription` (uma por pedido e no máximo uma por tenant; `stripe_subscription_id`
+nulo no Pix), `subscription_invoice` (fatura Stripe no cartão ou fatura local
+com `local_key` `pix:<assinatura>:<data>` no Pix; CHECK
+`subscription_invoice_ref_ck`) e `billing_event` (evento Stripe recebido, único
+por `provider`/`event_id`). São 9 CHECKs novos (18 triggers no 5.7), 9 UNIQUEs e
+4 FKs. Não altera tabela existente nem semeia dados; os tenants de hoje ficam
+sem assinatura (acesso `legacy`). **Aplique a 0017 antes de subir o código da
+Etapa 3**: a guarda de login lê `subscription`. `billing_order` e
+`billing_event.payload` guardam dado pessoal (LGPD).
+
+Copie a migration com o prefixo `21-` (depois do `20-` da 0016) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261021_0017_etapa3_billing.sql \
+  "$d/21-20261021_0017_etapa3_billing.sql"
+cp src/app/database/migrations/20261021_0017_etapa3_billing.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 9 checks and 18 triggers`.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM tenant` e `SELECT COUNT(*) FROM system_users` e exija os
+**mesmos números**. Na conferência, use o verify adaptado de
+`$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
+CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0 e
+as 4 tabelas novas, 0 linhas.
