@@ -222,6 +222,12 @@ Achado fora do alcance do CSRF: `AdiantiAutocompleteService::onSearch` e `Adiant
 (framework protegido, usados por `TDBEntry`/`TDBMultiSearch` em `SystemUserForm`, `AppointmentForm`,
 `SaleForm`, `PatientForm`, `StockBatchForm`, `VaccinationCardView` e `SystemMessageForm`) assinam
 `database`/`column`/`model` com hash, mas `operator` e `orderColumn` ficam fora do hash e entram no SQL
-(`TFilter` concatena o operador; `order` só passa por `addslashes`). É injeção de SQL para qualquer usuário
-logado, com ou sem token. Marcar como mutação quebraria o autocomplete por GET. Aguarda decisão.
+(`TFilter` concatena o operador; `order` só passa por `addslashes`). Marcar como mutação quebraria o
+autocomplete por GET; em vez disso, `CentralVet\Security\SearchParameterGuard::check` (chamado por
+`ApplicationAuthenticationService::enforceMutationGuard` antes do despacho) nega `AdiantiAutocompleteService`
+e só aceita no `AdiantiMultiSearchService` os formatos que os widgets do app produzem: `operator` vazio,
+`like`, `ilike` ou `=`; `key`, `column` e `orderColumn` como identificadores; `orderColumn` vazio, igual a
+`key` ou a um dos itens de `column` (todos os widgets ordenam pela coluna exibida, e o omitido vira `column`
+em `TDBMultiSearch`), senão `orderColumn is not a searched column`; `mask` restrita a uma coluna buscada;
+`criteria` dos modelos com tenant igual ao `$tenant_criteria` da sessão.
 

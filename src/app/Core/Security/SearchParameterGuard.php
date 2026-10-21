@@ -91,6 +91,14 @@ final class SearchParameterGuard
             }
         }
 
+        // Every app widget orders by the displayed column (an omitted
+        // orderColumn becomes column in TDBMultiSearch); any other column
+        // would sort by, and so leak, a value the search does not expose.
+        if ($param['orderColumn'] !== '' && $param['orderColumn'] !== $param['key']
+            && !in_array($param['orderColumn'], $columns, true)) {
+            return 'orderColumn is not a searched column';
+        }
+
         if (preg_match(self::MASK, $param['mask'], $match) !== 1) {
             return 'mask not allowed';
         }
