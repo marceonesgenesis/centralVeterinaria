@@ -64,7 +64,7 @@ resto era ruído de widget (`->clear()`, `->add()`, `TScript::create`).
 | `onOpen` | `AiCopilotPanel::onOpen` (link do painel), `SystemDriveList::onOpen`, `SystemProgramList::onOpen`; `CashSessionForm::onOpen` abre caixa e está em `MUTATING_OVERRIDES`. |
 | `onClear` | Limpa formulário (`ProductForm`, `ServiceForm`, `SystemPostForm`, `SystemMessageForm`, `SystemRegistrationForm`); `SaleForm::onClearCart` e `PrescriptionForm::onClear` apagam rascunho da sessão e estão em `MUTATING_OVERRIDES`. |
 | `onChangeLimit` | Tamanho de página do grid em sessão. |
-| `onExport` | `FinancialOverview::onExport`, `LandingLeadList::onExport`, `SystemDatabaseExplorer::onExportCSV/SQL` (tabelas vindas de `getDatabaseTables`): só leem; o `unlink` é do arquivo temporário. `SystemTableList::onExportCSV/SQL` estão em `MUTATING_OVERRIDES`. |
+| `onExport` | `FinancialOverview::onExport`, `LandingLeadList::onExport`, `SystemDatabaseExplorer::onExportCSV/SQL` (tabelas vindas de `getDatabaseTables`): só leem; o `unlink` é do arquivo temporário. `SystemTableList::onExportCSV/SQL` e `SystemSQLPanel::onExportCSV` estão em `MUTATING_OVERRIDES`. |
 | `onGenerate` | `PrescriptionForm::onGeneratePdf`, `SaleForm::onGenerateReceiptPdf` (links `engine.php`). `SystemSQLPanel::onGenerate` está em `MUTATING_OVERRIDES`. |
 | `onPrint` | Reservado para impressão; nenhum método atual. |
 | `onDisplay` | `SystemDriveList::onDisplay*`/`SystemDatabaseExplorer::onDisplay*`: só exibem confirmação ou menu; a ação vem depois em outro método. |
@@ -83,6 +83,7 @@ de cortina (`SystemUserForm::onClose`…) passam a exigir POST + token, sem prej
 | `SaleForm::onClearCart` | Apaga o rascunho do carrinho e o tutor da sessão (`TSession::setValue(..., null)`). |
 | `PrescriptionForm::onClear` | Descarta o rascunho e o cabeçalho da prescrição na sessão (mesmo efeito de `onClearCart`). |
 | `SystemSQLPanel::onGenerate` | Executa o SQL digitado (`$conn->query`) só com checagem de prefixo `SELECT`; com prepares emulados no MySQL admite `SELECT 1; DELETE ...` e `SELECT ... INTO OUTFILE`. |
+| `SystemSQLPanel::onExportCSV` | Executa o mesmo `$conn->query($data->select)` de `onGenerate` (só checa o prefixo `SELECT`) e gera CSV. |
 | `SystemDataBrowser::onLoad` | Monta `SELECT ... FROM {$table}` e `TFilter` com tabela e coluna vindas do request: SQL arbitrário por concatenação. |
 | `SystemTableList::onExportCSV` | Exporta `$param['table']` sem validação, interpolado no SQL. |
 | `SystemTableList::onExportSQL` | Idem, gerando `INSERT`s. |
@@ -138,7 +139,7 @@ onAskMarkSent/onAskRetry/onAskCheckIn`: POST + token.
 `SystemScheduleList::onTurnOnOff`, `SystemScheduleForm::onSave`, `SystemDatabaseExplorer::onConfirmImport`,
 `AiSettingsForm::onSave`, comunicação/drive (`SystemDocument*`, `SystemFolder*`, `SystemPost*`,
 `SystemWikiForm`, `SystemMessageForm::onSend`, `SystemSupportForm::onSend`): POST + token.
-`SystemSQLPanel::onGenerate`, `SystemDataBrowser::onLoad` e `SystemTableList::onExportCSV/SQL` executam SQL
+`SystemSQLPanel::onGenerate/onExportCSV`, `SystemDataBrowser::onLoad` e `SystemTableList::onExportCSV/SQL` executam SQL
 montado a partir do request e estão em `MUTATING_OVERRIDES`.
 
 ## Copiloto IA
@@ -199,3 +200,28 @@ O guard decide por método; construtores que gravam em GET ficam fora e não ent
 - `SystemMessageFormView::__construct` marca a mensagem como lida.
 - `EncounterView::__construct` com `patient_id` e sem `encounter_id` inicia o atendimento
   (`startEncounter`) e redireciona por `__adianti_goto_page`.
+
+## Varredura de SQL em métodos de leitura
+
+Rodada 2 (2026-10-21): para cada método público de `src/app/control`, `src/app/service` e
+`src/lib/adianti/service` que `MutationRequestPolicy::isReadOnly` classifica como leitura, busca por
+`->query(`, `->exec(`, `->prepare(`, `store`/`delete`, `unlink`, `file_put_contents` e
+`TSession::setValue`, com expansão de 4 níveis de `$this->`/`self::`/`static::`.
+
+- `->prepare(` com SQL literal e placeholders (resolução do tenant, repositórios, `IN (?,?)` montado só com
+  `?`): leitura, mantidos.
+- `SystemDatabaseExplorer::onExportCSV/onExportSQL`: o SQL vem de `TSqlSelect` sobre tabelas lidas de
+  `getDatabaseTables()` (metadados do banco, não do request); o `unlink` é do temporário. Mantidos em leitura.
+- Cobertos por `MUTATING_OVERRIDES`: `SystemSQLPanel::onGenerate`, `SystemSQLPanel::onExportCSV`,
+  `SystemDataBrowser::onLoad`, `SystemTableList::onExportCSV`, `SystemTableList::onExportSQL`.
+- Sem `->exec(` em método de leitura.
+- `TSession::setValue` em leitura: só filtro/paginação/contexto (`onSearch`, `onChangeLimit`,
+  `onReload`, `onContext`), sem efeito de negócio.
+
+Achado fora do alcance do CSRF: `AdiantiAutocompleteService::onSearch` e `AdiantiMultiSearchService::onSearch`
+(framework protegido, usados por `TDBEntry`/`TDBMultiSearch` em `SystemUserForm`, `AppointmentForm`,
+`SaleForm`, `PatientForm`, `StockBatchForm`, `VaccinationCardView` e `SystemMessageForm`) assinam
+`database`/`column`/`model` com hash, mas `operator` e `orderColumn` ficam fora do hash e entram no SQL
+(`TFilter` concatena o operador; `order` só passa por `addslashes`). É injeção de SQL para qualquer usuário
+logado, com ou sem token. Marcar como mutação quebraria o autocomplete por GET. Aguarda decisão.
+

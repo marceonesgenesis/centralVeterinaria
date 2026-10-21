@@ -61,6 +61,7 @@ final class MutationRequestPolicy
         'SaleForm::onClearCart',
         'PrescriptionForm::onClear',
         'SystemSQLPanel::onGenerate',
+        'SystemSQLPanel::onExportCSV',
         'SystemDataBrowser::onLoad',
         'SystemTableList::onExportCSV',
         'SystemTableList::onExportSQL',
