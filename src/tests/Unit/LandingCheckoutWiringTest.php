@@ -132,6 +132,21 @@ final class LandingCheckoutWiringTest
         }
     }
 
+    /** Versões em uso antes da T-20: quem já visitou a landing ficaria com o asset antigo. */
+    public function testChangedAssetsHaveNewCacheBusters(): void
+    {
+        $template = $this->read(self::TEMPLATE);
+
+        foreach ([
+            'landing/landing.css' => '20261005-a11y2',
+            'landing/translations.js' => '20261005-a11y',
+            'landing/landing.js' => '20261005-a11y2',
+        ] as $asset => $previous) {
+            Assert::same(1, preg_match('#"' . preg_quote($asset, '#') . '\?v=([^"]+)"#', $template, $match), "{$asset} needs ?v=");
+            Assert::false($match[1] === $previous, "{$asset} still has the pre-T-20 cache buster {$previous}");
+        }
+    }
+
     public function testCheckoutReturnOpensTheLanding(): void
     {
         $page = new LandingPage();

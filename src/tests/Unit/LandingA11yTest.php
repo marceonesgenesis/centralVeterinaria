@@ -33,12 +33,10 @@ final class LandingA11yTest
     {
         $template = $this->read(self::TEMPLATE);
 
-        foreach ([
-            'landing/landing.css?v=20261005-a11y2',
-            'landing/translations.js?v=20261005-a11y',
-            'landing/landing.js?v=20261005-a11y2',
-        ] as $marker) {
-            Assert::stringContains($marker, $template);
+        // Versão datada (AAAAMMDD-sufixo) em cada asset; a troca a cada mudança
+        // é conferida em LandingCheckoutWiringTest::testChangedAssetsHaveNewCacheBusters.
+        foreach (['landing/landing.css', 'landing/translations.js', 'landing/landing.js'] as $asset) {
+            Assert::same(1, preg_match('#"' . preg_quote($asset, '#') . '\?v=\d{8}-[a-z0-9-]+"#', $template), "{$asset} needs a dated ?v= cache buster");
         }
     }
 

@@ -303,7 +303,7 @@
   function focusFirstSubscribeError() {
     var first = document.querySelector("#subscribe-form .err:not(:empty)");
     if (!first) return;
-    var f = first.parentElement.querySelector("input"); if (f) f.focus();
+    var f = first.parentElement.querySelector("input,a[href]"); if (f) f.focus();
   }
   function chosenMethod() {
     var checked = document.querySelector('#sub-methods input[name="payment_method"]:checked');
@@ -427,6 +427,13 @@
     renderPlans(); renderCompare(); renderSubscribePlan();
     var button = $("submit-lead"), plan = planById(state.planId);
     if (button && plan && !button.disabled) button.textContent = submitLabel(plan);
+  });
+
+  /* Volta do Stripe pelo botão Voltar (bfcache): destrava o envio. */
+  window.addEventListener("pageshow", function (ev) {
+    var btn = $("submit-subscribe");
+    if (!ev.persisted || !btn || !btn.disabled) return;
+    btn.disabled = false; btn.textContent = "Ir para o pagamento"; I18N.translate(btn);
   });
 
   renderPlans(); renderCompare(); renderCount(); renderCart(); showCheckoutReturn();
