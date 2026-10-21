@@ -6,15 +6,22 @@ namespace CentralVet\Application;
 
 use CentralVet\Authorization\AuthorizationRequest;
 use CentralVet\Authorization\Contract\AuthorizationPolicyInterface;
+use CentralVet\Domain\Contract\EncounterRepositoryInterface;
+use CentralVet\Domain\Contract\PatientRepositoryInterface;
 use CentralVet\Domain\Contract\SaleItemRepositoryInterface;
 use CentralVet\Domain\Contract\SaleRepositoryInterface;
+use CentralVet\Domain\Contract\TutorRepositoryInterface;
+use CentralVet\Domain\Encounter;
 use CentralVet\Domain\Exception\CrossTenantReferenceException;
 use CentralVet\Domain\Exception\InsufficientStockException;
+use CentralVet\Domain\Exception\ProductWithoutSalePriceException;
+use CentralVet\Domain\Patient;
 use CentralVet\Domain\ProcedureCatalogItem;
 use CentralVet\Domain\Product;
 use CentralVet\Domain\Sale;
 use CentralVet\Domain\SaleItem;
 use CentralVet\Domain\StockMovement;
+use CentralVet\Domain\Tutor;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -40,13 +47,23 @@ use InvalidArgumentException;
  *
  * --- Ordering and "no partial sale" guarantee (T-06's acceptance criteria) ---
  *
- * create() runs in four phases, in this order:
+ * create() runs in four phases, in this order (plus the Etapa 1 / S4
+ * reference check between phases 1 and 2):
  *
  *   1. Unit-scope authorization against $systemUnitId, the caller-supplied
  *      parameter (no cross-aggregate resolution needed, unlike
  *      Vaccination/Appointment, since T-06's own Interface already takes
  *      the unit directly) — before any lookup or write. A denial throws
  *      AuthorizationDenied with nothing persisted.
+ *   1b. Header references are resolved in the authenticated tenant, read-
+ *      only (Etapa 1 / S4): tutor_id, patient_id (when informed) and
+ *      encounter_id (when informed) must exist in the tenant
+ *      (CrossTenantReferenceException otherwise — nonexistent and foreign
+ *      are indistinguishable, ADR 0002), the patient must belong to the
+ *      tutor, an encounter requires a patient, and the encounter must
+ *      belong to that patient and to $systemUnitId
+ *      (InvalidArgumentException, mapped in UserMessage). Same resolution
+ *      pattern as EncounterAccountService::openOrGet().
  *   2. Every item in $items is resolved against its catalog — a product
  *      item against ProductService::listActive()'s result (unknown or
  *      inactive product_id is rejected the same as a nonexistent one, since
@@ -55,7 +72,10 @@ use InvalidArgumentException;
  *      SaleItem or stock row is written during this phase. Any invalid item
  *      (unknown/inactive product, unknown procedure, bad shape) throws
  *      CrossTenantReferenceException/InvalidArgumentException here, before a
- *      single row exists. Sale::totalAmountCents is computed in this same
+ *      single row exists. A product line is priced by
+ *      Product::requireSalePriceCents() — the sale price, never the unit
+ *      cost (Etapa 1 / F1); a product without sale price throws
+ *      ProductWithoutSalePriceException here, also before any write. Sale::totalAmountCents is computed in this same
  *      phase as the exact sum of every resolved item's unit_price *
  *      quantity — the same numbers that become each SaleItem::totalCents()
  *      in phase 3, so the two can never drift.
@@ -111,6 +131,9 @@ final class SaleService
         private readonly ProcedureCatalogService $procedures,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly TutorRepositoryInterface $tutors,
+        private readonly PatientRepositoryInterface $patients,
+        private readonly EncounterRepositoryInterface $encounters,
     ) {
     }
 
@@ -123,6 +146,14 @@ final class SaleService
      *         the active unit is missing or does not match $systemUnitId, or
      *         the caller lacks permission for $action. Nothing is persisted
      *         when this is thrown.
+     * @throws CrossTenantReferenceException when tutor_id, patient_id or
+     *         encounter_id does not resolve in the authenticated tenant.
+     *         Nothing is persisted when this is thrown.
+     * @throws InvalidArgumentException when the patient does not belong to
+     *         the tutor, encounter_id is informed without patient_id, or the
+     *         encounter does not belong to the patient and $systemUnitId.
+     * @throws ProductWithoutSalePriceException when a product item has no
+     *         sale price. Nothing is persisted when this is thrown.
      * @throws CrossTenantReferenceException when a product/procedure item
      *         references a catalog entry that does not exist, is inactive
      *         (product) or belongs to another tenant. Nothing is persisted
@@ -179,6 +210,9 @@ final class SaleService
             entityId: null,
         ))->assertAllowed();
 
+        // Phase 1b: header references resolved in the tenant, read-only.
+        $this->assertReferences($tenantId, $systemUnitId, $tutorId, $patientId, $encounterId);
+
         // Phase 2: resolve + validate every item, read-only.
         $activeProducts = [];
 
@@ -205,7 +239,7 @@ final class SaleService
                 }
 
                 $description = $product->name();
-                $unitPriceCents = $product->unitCostCents();
+                $unitPriceCents = $product->requireSalePriceCents();
             } else {
                 $procedure = $this->procedures->findById($referenceId);
 
@@ -310,6 +344,61 @@ final class SaleService
         $sale = $this->sales->findById($id);
 
         return $sale;
+    }
+
+    /**
+     * Etapa 1 / S4: resolves tutor, patient and encounter in the
+     * authenticated tenant and checks they are coherent with each other and
+     * with $systemUnitId. Read-only; throws before any write.
+     */
+    private function assertReferences(
+        int $tenantId,
+        int $systemUnitId,
+        int $tutorId,
+        ?int $patientId,
+        ?int $encounterId,
+    ): void {
+        $tutor = $this->tutors->findById($tutorId);
+
+        if (!$tutor instanceof Tutor || $tutor->tenantId !== $tenantId) {
+            throw new CrossTenantReferenceException(
+                "tutor_id {$tutorId} was not found for the authenticated tenant"
+            );
+        }
+
+        if ($patientId !== null) {
+            $patient = $this->patients->findById($patientId);
+
+            if (!$patient instanceof Patient || $patient->tenantId !== $tenantId) {
+                throw new CrossTenantReferenceException(
+                    "patient_id {$patientId} was not found for the authenticated tenant"
+                );
+            }
+
+            if ($patient->tutorId !== $tutorId) {
+                throw new InvalidArgumentException('The patient does not belong to the selected tutor');
+            }
+        }
+
+        if ($encounterId === null) {
+            return;
+        }
+
+        if ($patientId === null) {
+            throw new InvalidArgumentException('patient_id is required when encounter_id is informed');
+        }
+
+        $encounter = $this->encounters->findById($encounterId);
+
+        if (!$encounter instanceof Encounter || $encounter->tenantId() !== $tenantId) {
+            throw new CrossTenantReferenceException(
+                "encounter_id {$encounterId} was not found for the authenticated tenant"
+            );
+        }
+
+        if ($encounter->patientId() !== $patientId || $encounter->systemUnitId() !== $systemUnitId) {
+            throw new InvalidArgumentException('The encounter does not belong to the selected patient and unit');
+        }
     }
 
     /**
