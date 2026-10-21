@@ -56,6 +56,11 @@ class SaleList extends TPage
         $column_status->setTransformer(function ($value) {
             return self::saleStatusBadge((string) $value);
         });
+        // o TDataGrid escapa valores escalares sem transformer: o botão sai
+        // como TElement montado aqui, a partir do objeto da linha
+        $column_action->setTransformer(function ($value, $object) {
+            return self::actionCell($object);
+        });
         $column_financial->setTransformer(function ($value) {
             return self::financialStatusBadge($value === null || $value === '' ? null : (string) $value);
         });
@@ -108,11 +113,7 @@ class SaleList extends TPage
 
             foreach ($sales as $sale)
             {
-                $row = (object) $sale;
-                $row->action = $sale['status'] === \CentralVet\Domain\Sale::STATUS_COMPLETED
-                    ? self::cancelLink((int) $sale['id'])
-                    : '';
-                $this->datagrid->addItem($row);
+                $this->datagrid->addItem((object) $sale);
             }
 
             $this->pageNavigation->setCount($count);
@@ -178,14 +179,29 @@ class SaleList extends TPage
     }
 
     /**
-     * Link de leitura (GET onEdit) que abre a cortina de cancelamento.
+     * Célula de ação: em venda concluída, link de leitura (GET onEdit) que
+     * abre a cortina de cancelamento; em venda cancelada, nada.
      */
-    private static function cancelLink(int $saleId): string
+    public static function actionCell(object $row): TElement|string
     {
-        $url = 'index.php?class=SaleCancelForm&method=onEdit&sale_id=' . $saleId;
+        if ((string) ($row->status ?? '') !== \CentralVet\Domain\Sale::STATUS_COMPLETED)
+        {
+            return '';
+        }
 
-        return '<a href="' . CvFormat::e($url) . '" generator="adianti" class="btn btn-sm btn-outline-danger cv-touch-target">'
-             . '<i class="fa fa-ban" aria-hidden="true"></i> ' . CvFormat::e(_t('Cancel sale')) . '</a>';
+        $link = new TElement('a');
+        $link->{'href'} = 'index.php?class=SaleCancelForm&method=onEdit&sale_id=' . (int) $row->id;
+        $link->{'generator'} = 'adianti';
+        $link->{'class'} = 'btn btn-sm btn-outline-danger cv-touch-target';
+
+        $icon = new TElement('i');
+        $icon->{'class'} = 'fa fa-ban';
+        $icon->{'aria-hidden'} = 'true';
+
+        $link->add($icon);
+        $link->add(' ' . CvFormat::e(_t('Cancel sale')));
+
+        return $link;
     }
 
     /**
