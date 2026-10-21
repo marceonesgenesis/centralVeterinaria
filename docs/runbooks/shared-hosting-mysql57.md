@@ -146,9 +146,24 @@ compatibilidade com MySQL 5.7 antes de executar. Este bootstrap inicial não
 
 Os schemas iniciais do Adianti não cadastram automaticamente os controladores
 de negócio do Central Vet. O seed de programas/permissões separado está em
-`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra 47
-controladores, libera-os somente para o grupo administrador e configura a
+`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra os
+controladores, libera-os para o grupo administrador e configura a
 permissão de desconto por método. Não contém dados clínicos de demonstração.
+O total de programas muda a cada tela nova; para saber quantos o seed cadastra,
+use `grep -c "INSERT INTO system_program " src/app/database/seeds/initial-application-programs.sql`
+em vez de um número fixo. Depois de aplicar, confira por nome as telas mais
+recentes (por exemplo, as da Etapa 2) e a liberação para o grupo 1:
+
+```sql
+SELECT p.controller, COUNT(gp.id) AS liberado_grupo_1
+FROM system_program p
+LEFT JOIN system_group_program gp
+       ON gp.system_program_id = p.id AND gp.system_group_id = 1
+WHERE p.controller IN ('SaleList', 'SaleCancelForm')
+GROUP BY p.controller;
+```
+
+O resultado esperado são duas linhas, cada uma com `liberado_grupo_1` = 1.
 
 Esse seed foi aplicado no banco online com autorização específica em
 2026-10-02, dentro de uma transação, após guardar e validar o snapshot das
