@@ -343,7 +343,8 @@ class ApplicationAuthenticationService
     /**
      * Bloqueio por assinatura e plano (T-19), logo depois do guard de
      * mutação e só com sessão logada: decide pelo SubscriptionAccessGuard
-     * (T-15), guarda a decisão na sessão por 60 s por tenant e controller e,
+     * (T-15), guarda a decisão na sessão por 60 s por tenant e controller (ou
+     * Classe::método das exceções de ALWAYS_ALLOWED_METHODS) e,
      * se bloqueado, responde 403 com a mensagem da decisão e o link para a
      * tela da assinatura, sem executar o controller. Sessão sem tenant ou sem
      * controller segue sem bloqueio; tenant sem assinatura é legacy.
@@ -368,14 +369,17 @@ class ApplicationAuthenticationService
         $now = time();
         $cache = TSession::getValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY);
         $cache = is_array($cache) ? $cache : [];
-        $entry = self::cachedSubscriptionAccess($cache, $tenantId, $class, $now);
+        $method = $_REQUEST['method'] ?? null;
+        $method = is_string($method) && $method !== '' ? $method : null;
+        $key = SubscriptionAccessGuard::accessKey($class, $method);
+        $entry = self::cachedSubscriptionAccess($cache, $tenantId, $key, $now);
         
         if ($entry === null)
         {
             try
             {
                 $guard = new SubscriptionAccessGuard(new SubscriptionRepository(PdoConnectionFactory::fromEnvironment()));
-                $decision = $guard->decide($tenantId, $class, new DateTimeImmutable());
+                $decision = $guard->decide($tenantId, $class, new DateTimeImmutable(), $method);
             }
             catch (\Throwable $e)
             {
@@ -384,9 +388,9 @@ class ApplicationAuthenticationService
                 return;
             }
             
-            $cache = self::rememberSubscriptionAccess($cache, $tenantId, $class, $decision, $now);
+            $cache = self::rememberSubscriptionAccess($cache, $tenantId, $key, $decision, $now);
             TSession::setValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY, $cache);
-            $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $class)];
+            $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $key)];
         }
         
         if (!$entry['allowed'])

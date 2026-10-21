@@ -18,16 +18,41 @@ use DateTimeImmutable;
  */
 final class SubscriptionAccessGuard
 {
-    /** Telas que seguem abertas com a assinatura bloqueada (login, assinatura, senha). */
-    public const ALWAYS_ALLOWED = ['LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm'];
+    /**
+     * Telas que seguem abertas com a assinatura bloqueada (login, assinatura,
+     * senha) e os dropdowns de mensagens e notificações do shell, que só leem.
+     */
+    public const ALWAYS_ALLOWED = [
+        'LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm',
+        'SystemMessageDropdown', 'SystemNotificationDropdown',
+    ];
+
+    /**
+     * Controllers com mutação em que só o método de leitura do shell segue
+     * aberto: CvShellController::onContext (contexto do usuário); a troca de
+     * unidade (onSwitchUnit) continua bloqueada.
+     */
+    public const ALWAYS_ALLOWED_METHODS = ['CvShellController' => ['onContext']];
 
     public function __construct(private readonly SubscriptionRepositoryInterface $subscriptions)
     {
     }
 
-    public function decide(int $tenantId, string $controller, DateTimeImmutable $now): AccessDecision
+    /**
+     * Chave da decisão (e do cache na sessão): `Classe::método` para os pares
+     * de ALWAYS_ALLOWED_METHODS, senão a classe.
+     */
+    public static function accessKey(string $controller, ?string $method): string
     {
-        $alwaysAllowed = in_array($controller, self::ALWAYS_ALLOWED, true);
+        return $method !== null && in_array($method, self::ALWAYS_ALLOWED_METHODS[$controller] ?? [], true)
+            ? $controller . '::' . $method
+            : $controller;
+    }
+
+    public function decide(int $tenantId, string $controller, DateTimeImmutable $now, ?string $method = null): AccessDecision
+    {
+        $alwaysAllowed = in_array($controller, self::ALWAYS_ALLOWED, true)
+            || ($method !== null && in_array($method, self::ALWAYS_ALLOWED_METHODS[$controller] ?? [], true));
         $subscription = $this->subscriptions->findByTenantId($tenantId);
 
         if ($subscription === null) {
