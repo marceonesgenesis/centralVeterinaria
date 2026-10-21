@@ -98,7 +98,7 @@ final class MutationGuardWiringTest
         $resolver = [\ApplicationAuthenticationService::class, 'resolveDispatchTarget'];
 
         [$server, $request, $query, $body] = $this->multiSearchRequest($token);
-        $request['class'] = $query['class'] = 'cvfixturesearchservice';
+        $request['class'] = $query['class'] = 'csrffixtureframeworksearchservice';
         Assert::same(
             MutationRequestPolicy::DENY,
             MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body, $resolver),
@@ -134,7 +134,7 @@ final class MutationGuardWiringTest
 
         $param = \ApplicationAuthenticationService::withoutCsrfCookie($request);
         Assert::false(str_contains(http_build_query($param), 'cv_csrf'), 'cv_csrf ainda vai para a URL');
-        Assert::same('CvFixtureSearchService', $param['class']);
+        Assert::same('CsrfFixtureFrameworkSearchService', $param['class']);
         Assert::same('ana', $param['value']);
     }
 
@@ -156,7 +156,7 @@ final class MutationGuardWiringTest
         // URL do TDBMultiSearch::show() + dados do select2 (value, hash) que o
         // prefilter do cv-shell.js move para a query ao trocar GET por POST.
         $query = [
-            'class' => 'CvFixtureSearchService',
+            'class' => 'CsrfFixtureFrameworkSearchService',
             'method' => 'onSearch',
             'static' => '1',
             'database' => 'permission',
@@ -189,8 +189,8 @@ final class MutationGuardWiringTest
     {
         require_once dirname(__DIR__, 2) . '/app/service/auth/ApplicationAuthenticationService.php';
 
-        if (!class_exists('CvFixtureSearchService', false)) {
-            class_alias(CsrfFixtureFrameworkSearchService::class, 'CvFixtureSearchService');
+        if (!class_exists('CsrfFixtureFrameworkSearchService', false)) {
+            class_alias(CsrfFixtureFrameworkSearchService::class, 'CsrfFixtureFrameworkSearchService');
         }
     }
 

@@ -265,6 +265,11 @@ class ApplicationAuthenticationService
             ]);
         }
         
+        // Com request_order vazio, $_REQUEST segue variables_order (EGPCS) e
+        // inclui os cookies: o Adianti repassa $_REQUEST como $param e copiaria
+        // cv_csrf para as URLs que monta. O token só trafega no cabeçalho.
+        $_REQUEST = self::withoutCsrfCookie($_REQUEST);
+        
         $class = (string) ($_REQUEST['class'] ?? '');
         
         try
@@ -282,7 +287,14 @@ class ApplicationAuthenticationService
             self::denyRequest('[search-guard] denied ' . $class . ': ' . $searchDenial);
         }
         
-        $decision = MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token);
+        $decision = MutationRequestPolicy::decideFromRequest(
+            $_SERVER,
+            $_REQUEST,
+            $token,
+            null,
+            null,
+            [self::class, 'resolveDispatchTarget']
+        );
         
         if ($decision === MutationRequestPolicy::STRIP_METHOD)
         {
@@ -292,6 +304,45 @@ class ApplicationAuthenticationService
         {
             self::denyRequest('[csrf] denied ' . $class . '::' . (string) ($_REQUEST['method'] ?? ''));
         }
+    }
+    
+    /**
+     * Nome canônico de classe/método para a MutationRequestPolicy, aceitando
+     * os class_alias do AdiantiClassMap (ex.: AdiantiMultiSearchService →
+     * Adianti\Service\AdiantiMultiSearchService): a Reflection devolve o nome
+     * com namespace, e o alias só vale quando o nome pedido é, byte a byte, o
+     * nome curto da classe real. Caixa diferente continua negada.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public static function resolveDispatchTarget(string $class, string $method): ?array
+    {
+        $canonical = MutationRequestPolicy::resolveCanonical($class, $method);
+        if ($canonical === null || $canonical[0] === $class)
+        {
+            return $canonical;
+        }
+        
+        $separator = strrpos($canonical[0], '\\');
+        if ($separator !== false && substr($canonical[0], $separator + 1) === $class)
+        {
+            return [$class, $canonical[1]];
+        }
+        
+        return $canonical;
+    }
+    
+    /**
+     * Parâmetros da requisição sem o cookie do token CSRF.
+     *
+     * @param array<string, mixed> $request
+     * @return array<string, mixed>
+     */
+    public static function withoutCsrfCookie(array $request): array
+    {
+        unset($request[MutationRequestPolicy::COOKIE_NAME]);
+        
+        return $request;
     }
     
     /**
