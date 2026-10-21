@@ -14,13 +14,16 @@ use InvalidArgumentException;
  * guardadas como toRow() e reidratadas por fromRow() (sem aliasing), chaves
  * únicas de billing_order_id, tenant_id e stripe_subscription_id, e
  * listPixDueForIssue lendo as faturas do FakeSubscriptionInvoiceRepository
- * passado (sem ele, nenhuma fatura conta). Não há transação: os *ForUpdate
- * só registram a chamada em $lockCalls.
+ * passado (sem ele, nenhuma fatura conta). Os *ForUpdate exigem "transação aberta":
+ * $inTransaction começa true e, em false, eles lançam LogicException como o
+ * repositório real; cada chamada fica em $lockCalls.
  */
 final class FakeSubscriptionRepository implements SubscriptionRepositoryInterface
 {
     /** @var array<int, array<string, int|string|null>> */
     public array $rows = [];
+
+    public bool $inTransaction = true;
 
     /** @var list<string> */
     public array $lockCalls = [];
@@ -71,6 +74,7 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
 
     public function findByStripeSubscriptionIdForUpdate(string $stripeSubscriptionId): ?Subscription
     {
+        $this->assertTransaction('findByStripeSubscriptionIdForUpdate');
         $this->lockCalls[] = 'findByStripeSubscriptionIdForUpdate';
 
         return $this->findBy('stripe_subscription_id', $stripeSubscriptionId);
@@ -78,6 +82,7 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
 
     public function findByIdForUpdate(int $id): ?Subscription
     {
+        $this->assertTransaction('findByIdForUpdate');
         $this->lockCalls[] = 'findByIdForUpdate';
 
         return isset($this->rows[$id]) ? Subscription::fromRow($this->rows[$id]) : null;
@@ -97,7 +102,7 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
             }
         }
 
-        return array_slice($ids, 0, max(1, $limit));
+        return array_slice($ids, 0, self::limit($limit));
     }
 
     public function listPixDueForIssue(DateTimeImmutable $until, int $limit): array
@@ -126,7 +131,7 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
 
         usort($due, static fn (array $a, array $b): int => [$a['end'], $a['id']] <=> [$b['end'], $b['id']]);
 
-        return array_slice(array_column($due, 'id'), 0, max(1, $limit));
+        return array_slice(array_column($due, 'id'), 0, self::limit($limit));
     }
 
     private function findBy(string $column, int|string $value): ?Subscription
@@ -163,5 +168,21 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
                 }
             }
         }
+    }
+
+    private function assertTransaction(string $method): void
+    {
+        if (!$this->inTransaction) {
+            throw new \LogicException($method . ' requires an open transaction');
+        }
+    }
+
+    private static function limit(int $limit): int
+    {
+        if ($limit <= 0) {
+            throw new InvalidArgumentException('Limit must be positive');
+        }
+
+        return $limit;
     }
 }

@@ -14,7 +14,8 @@ use InvalidArgumentException;
  * Em memória, com o contrato de SubscriptionInvoiceRepository (T-10):
  * linhas guardadas como toRow() e reidratadas por fromRow(); local_key,
  * stripe_invoice_id ou stripe_payment_intent_id repetido no insert lança
- * DuplicateInvoice. Os *ForUpdate só registram a chamada em $lockCalls.
+ * DuplicateInvoice. Os *ForUpdate exigem "transação aberta" ($inTransaction começa true;
+ * em false lançam LogicException como o real) e ficam em $lockCalls.
  */
 final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepositoryInterface
 {
@@ -23,6 +24,8 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
     /** @var array<int, array<string, int|string|null>> */
     public array $rows = [];
 
+    public bool $inTransaction = true;
+
     /** @var list<string> */
     public array $lockCalls = [];
 
@@ -30,6 +33,7 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
 
     public function findByStripeInvoiceIdForUpdate(string $stripeInvoiceId): ?SubscriptionInvoice
     {
+        $this->assertTransaction('findByStripeInvoiceIdForUpdate');
         $this->lockCalls[] = 'findByStripeInvoiceIdForUpdate';
 
         return $this->findBy('stripe_invoice_id', $stripeInvoiceId);
@@ -80,12 +84,13 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
 
         return array_map(
             static fn (array $row): SubscriptionInvoice => SubscriptionInvoice::fromRow($row),
-            array_slice($rows, 0, max(1, $limit)),
+            array_slice($rows, 0, self::limit($limit)),
         );
     }
 
     public function findByIdForUpdate(int $id): ?SubscriptionInvoice
     {
+        $this->assertTransaction('findByIdForUpdate');
         $this->lockCalls[] = 'findByIdForUpdate';
 
         return isset($this->rows[$id]) ? SubscriptionInvoice::fromRow($this->rows[$id]) : null;
@@ -93,6 +98,7 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
 
     public function findByPaymentIntentIdForUpdate(string $paymentIntentId): ?SubscriptionInvoice
     {
+        $this->assertTransaction('findByPaymentIntentIdForUpdate');
         $this->lockCalls[] = 'findByPaymentIntentIdForUpdate';
 
         return $this->findBy('stripe_payment_intent_id', $paymentIntentId);
@@ -124,7 +130,7 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
             }
         }
 
-        return array_slice($ids, 0, max(1, $limit));
+        return array_slice($ids, 0, self::limit($limit));
     }
 
     private function findBy(string $column, string $value): ?SubscriptionInvoice
@@ -154,5 +160,21 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
         }
 
         return false;
+    }
+
+    private function assertTransaction(string $method): void
+    {
+        if (!$this->inTransaction) {
+            throw new \LogicException($method . ' requires an open transaction');
+        }
+    }
+
+    private static function limit(int $limit): int
+    {
+        if ($limit <= 0) {
+            throw new InvalidArgumentException('Limit must be positive');
+        }
+
+        return $limit;
     }
 }

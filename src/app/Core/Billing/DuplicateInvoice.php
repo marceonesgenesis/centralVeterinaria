@@ -18,12 +18,26 @@ final class DuplicateInvoice extends RuntimeException
     {
         return new self(
             sprintf(
-                'Subscription invoice already exists (local_key=%s, stripe_invoice_id=%s)',
+                'Subscription invoice already exists (key=%s, local_key=%s, stripe_invoice_id=%s, stripe_payment_intent_id=%s)',
+                self::collidedKey($previous) ?? '-',
                 $invoice->localKey() ?? '-',
                 $invoice->stripeInvoiceId() ?? '-',
+                $invoice->stripePaymentIntentId() ?? '-',
             ),
             0,
             $previous,
         );
+    }
+
+    /** Nome da UNIQUE na mensagem do MySQL ("... for key 'subscription_invoice.subscription_invoice_pi_uq'"). */
+    private static function collidedKey(?\Throwable $previous): ?string
+    {
+        $message = $previous instanceof \PDOException ? (string) ($previous->errorInfo[2] ?? $previous->getMessage()) : '';
+
+        if (preg_match("/for key '(?:[^'.]+\\.)?([^']+)'/", $message, $match) !== 1) {
+            return null;
+        }
+
+        return $match[1];
     }
 }

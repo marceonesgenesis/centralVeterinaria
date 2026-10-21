@@ -134,6 +134,24 @@ final class SubscriptionRepositoryIntegrationTest extends MysqlIntegrationTestCa
         }
     }
 
+    public function testEveryForUpdateRefusesToRunOutsideATransaction(): void
+    {
+        $other = $this->secondConnection();
+        $subscriptions = new SubscriptionRepository($other);
+        $invoices = new SubscriptionInvoiceRepository($other);
+
+        $calls = [
+            'findByIdForUpdate (subscription)' => static fn () => $subscriptions->findByIdForUpdate(1),
+            'findByStripeInvoiceIdForUpdate' => static fn () => $invoices->findByStripeInvoiceIdForUpdate('in_x'),
+            'findByIdForUpdate (invoice)' => static fn () => $invoices->findByIdForUpdate(1),
+            'findByPaymentIntentIdForUpdate' => static fn () => $invoices->findByPaymentIntentIdForUpdate('pi_x'),
+        ];
+
+        foreach ($calls as $name => $call) {
+            Assert::throws(\LogicException::class, $call, "{$name} must be refused outside a transaction");
+        }
+    }
+
     public function testListGraceExpiredReturnsOnlyPastGrace(): void
     {
         $expired = $this->cardSubscription('pro');
@@ -182,10 +200,13 @@ final class SubscriptionRepositoryIntegrationTest extends MysqlIntegrationTestCa
         $subscriptionId = $this->subscriptions->insert($this->pixSubscription('2031-01-01', '2031-02-01'));
         $this->invoices->insert($this->pixInvoice($subscriptionId, '2031-02-01', '2031-03-01'));
 
-        Assert::throws(
-            DuplicateInvoice::class,
-            fn () => $this->invoices->insert($this->pixInvoice($subscriptionId, '2031-02-01', '2031-03-01')),
-        );
+        $message = '';
+        try {
+            $this->invoices->insert($this->pixInvoice($subscriptionId, '2031-02-01', '2031-03-01'));
+        } catch (DuplicateInvoice $e) {
+            $message = $e->getMessage();
+        }
+        Assert::stringContains('key=subscription_invoice_local_key_uq', $message, 'DuplicateInvoice must name the UNIQUE that collided');
 
         $local = $this->invoices->findByLocalKey(sprintf('pix:%d:2031-02-01', $subscriptionId));
         Assert::notNull($local, 'The first invoice must still be there');
