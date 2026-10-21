@@ -1,15 +1,26 @@
 <?php
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
+use CentralVet\Billing\AccessDecision;
+use CentralVet\Billing\SubscriptionAccessGuard;
+use CentralVet\Persistence\PdoConnectionFactory;
+use CentralVet\Persistence\SubscriptionRepository;
 use CentralVet\Security\CsrfToken;
 use CentralVet\Security\MutationRequestPolicy;
 use CentralVet\Security\SearchParameterGuard;
 use CentralVet\Tenancy\AdiantiSessionContextSource;
 use CentralVet\Tenancy\Exception\MissingTenantContext;
 use CentralVet\Tenancy\TenantContext;
+use CentralVet\Tenancy\TenantUserActivation;
 
 class ApplicationAuthenticationService
 {
+    /** Decisões de SubscriptionAccessGuard em cache na sessão, por tenant e controller (T-19). */
+    public const SUBSCRIPTION_ACCESS_SESSION_KEY = 'cv_subscription_access';
+    
+    /** Validade, em segundos, de cada decisão em cache. */
+    public const SUBSCRIPTION_ACCESS_TTL = 60;
+    
     /**
      * Authenticate user and load permissions
      */
@@ -176,6 +187,20 @@ class ApplicationAuthenticationService
     {
         $ini  = AdiantiApplicationConfig::get();
         
+        // T-19: o primeiro login do convidado ativa o vínculo com a clínica.
+        // Falha aqui não impede o login; o próximo login tenta de novo.
+        try
+        {
+            TTransaction::open('permission');
+            TenantUserActivation::activateInvited(TTransaction::get(), (int) TSession::getValue('userid'));
+            TTransaction::close();
+        }
+        catch (\Throwable $e)
+        {
+            TTransaction::rollbackAll();
+            error_log('[tenant-user] activation failed: ' . $e->getMessage());
+        }
+        
         if (!empty($ini['hooks']['after_login']) && is_array($ini['hooks']['after_login']))
         {
             foreach ($ini['hooks']['after_login'] as $after_login_hook)
@@ -316,14 +341,131 @@ class ApplicationAuthenticationService
     }
     
     /**
-     * Responde 403 com a mensagem de T-01 e encerra a requisição.
+     * Bloqueio por assinatura e plano (T-19), logo depois do guard de
+     * mutação e só com sessão logada: decide pelo SubscriptionAccessGuard
+     * (T-15), guarda a decisão na sessão por 60 s por tenant e controller e,
+     * se bloqueado, responde 403 com a mensagem da decisão e o link para a
+     * tela da assinatura, sem executar o controller. Sessão sem tenant ou sem
+     * controller segue sem bloqueio; tenant sem assinatura é legacy.
      */
-    private static function denyRequest(string $logLine): void
+    public static function enforceSubscriptionAccess(): void
+    {
+        $class = (string) ($_REQUEST['class'] ?? '');
+        if ($class === '')
+        {
+            return;
+        }
+        
+        try
+        {
+            $tenantId = TenantContext::fromAuthenticatedSession(new AdiantiSessionContextSource())->tenantId();
+        }
+        catch (MissingTenantContext $e)
+        {
+            return;
+        }
+        
+        $now = time();
+        $cache = TSession::getValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY);
+        $cache = is_array($cache) ? $cache : [];
+        $entry = self::cachedSubscriptionAccess($cache, $tenantId, $class, $now);
+        
+        if ($entry === null)
+        {
+            try
+            {
+                $guard = new SubscriptionAccessGuard(new SubscriptionRepository(PdoConnectionFactory::fromEnvironment()));
+                $decision = $guard->decide($tenantId, $class, new DateTimeImmutable());
+            }
+            catch (\Throwable $e)
+            {
+                // Sem banco a aplicação inteira já falha; não guarda decisão.
+                error_log('[subscription-guard] decision failed for tenant ' . $tenantId . ': ' . $e->getMessage());
+                return;
+            }
+            
+            $cache = self::rememberSubscriptionAccess($cache, $tenantId, $class, $decision, $now);
+            TSession::setValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY, $cache);
+            $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $class)];
+        }
+        
+        if (!$entry['allowed'])
+        {
+            self::denyRequest(
+                '[subscription-guard] denied ' . $class . ' for tenant ' . $tenantId . ': ' . $entry['reason'],
+                (string) $entry['message_key'],
+                'index.php?class=SubscriptionStatusView'
+            );
+        }
+    }
+    
+    /** Chave da decisão em cache: tenant e controller. */
+    public static function subscriptionAccessCacheKey(int $tenantId, string $controller): string
+    {
+        return $tenantId . '|' . $controller;
+    }
+    
+    /**
+     * Decisão em cache ainda válida para o tenant e o controller, ou null.
+     *
+     * @param array<string, mixed> $cache
+     * @return array{allowed: bool, reason: string, message_key: ?string, expires_at: int}|null
+     */
+    public static function cachedSubscriptionAccess(array $cache, int $tenantId, string $controller, int $now): ?array
+    {
+        $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $controller)] ?? null;
+        
+        if (!is_array($entry) || !isset($entry['expires_at'], $entry['allowed']) || (int) $entry['expires_at'] <= $now)
+        {
+            return null;
+        }
+        
+        return $entry;
+    }
+    
+    /**
+     * Cache com a decisão acrescentada (válida por SUBSCRIPTION_ACCESS_TTL)
+     * e sem as entradas vencidas.
+     *
+     * @param array<string, mixed> $cache
+     * @return array<string, array{allowed: bool, reason: string, message_key: ?string, expires_at: int}>
+     */
+    public static function rememberSubscriptionAccess(array $cache, int $tenantId, string $controller, AccessDecision $decision, int $now): array
+    {
+        $cache = array_filter(
+            $cache,
+            static fn ($entry): bool => is_array($entry) && (int) ($entry['expires_at'] ?? 0) > $now
+        );
+        
+        $cache[self::subscriptionAccessCacheKey($tenantId, $controller)] = [
+            'allowed'     => $decision->allowed(),
+            'reason'      => $decision->reason(),
+            'message_key' => $decision->messageKey(),
+            'expires_at'  => $now + self::SUBSCRIPTION_ACCESS_TTL,
+        ];
+        
+        return $cache;
+    }
+    
+    /**
+     * Responde 403 com a mensagem de T-01 (ou a chave informada, traduzida
+     * depois de fixar o idioma da sessão), o link opcional e encerra.
+     */
+    private static function denyRequest(string $logLine, ?string $messageKey = null, ?string $link = null): void
     {
         ApplicationTranslator::setLanguage(TSession::getValue('user_language'), true);
         http_response_code(403);
         error_log($logLine);
-        new TMessage('error', _t('The request could not be verified. Reload the page and try again.'));
+        
+        $message = $messageKey !== null
+            ? _t($messageKey)
+            : _t('The request could not be verified. Reload the page and try again.');
+        if ($link !== null)
+        {
+            $message .= '<br><a href="' . htmlspecialchars($link, ENT_QUOTES) . '" generator="adianti">' . _t('Subscription') . '</a>';
+        }
+        
+        new TMessage('error', $message);
         exit;
     }
     
@@ -351,6 +493,7 @@ class ApplicationAuthenticationService
         }
         
         self::enforceMutationGuard();
+        self::enforceSubscriptionAccess();
         
         if (!isset($ini['general']['concurrent_sessions']))
         {
