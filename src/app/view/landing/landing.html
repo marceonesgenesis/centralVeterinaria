@@ -46,6 +46,7 @@
 </header>
 
 <main id="inicio">
+  <div class="checkout-result" id="checkout-result" role="status" tabindex="-1" hidden></div>
   <section class="hero">
     <div class="wrap">
       <div class="hero-copy">
@@ -227,7 +228,7 @@
       <div class="section-head">
         <p class="eyebrow">Planos</p>
         <h2>Escolha o plano do tamanho da sua clínica</h2>
-        <p>Adicione um plano ao carrinho, revise e envie seus dados. Nossa equipe entra em contato para ativar a sua conta.</p>
+        <p>Escolha um plano, preencha os dados da clínica e pague com cartão de crédito ou Pix. A conta é criada assim que o pagamento é confirmado.</p>
       </div>
       <div class="plans" id="plans"></div>
       <p class="plans-note">Valores mensais por clínica. Os recursos marcados como Em breve entram no plano quando forem lançados.</p>
@@ -241,6 +242,48 @@
           <tbody id="compare-body"></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <section class="block subscribe" id="assinar" aria-labelledby="subscribe-title" hidden>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Assinatura</p>
+        <h2 id="subscribe-title" tabindex="-1">Assinar o plano</h2>
+      </div>
+      <form class="form subscribe-form" id="subscribe-form" novalidate>
+        <div class="subscribe-plan">
+          <p class="subscribe-plan-label">Plano escolhido</p>
+          <p class="subscribe-plan-name"><b id="sub-plan-name"></b> · <span id="sub-plan-price"></span><span>/mês</span></p>
+          <a class="subscribe-change" href="#planos">Trocar de plano</a>
+          <span class="err" id="sub-plan-err"></span>
+        </div>
+        <fieldset class="field subscribe-group">
+          <legend>Dados do responsável</legend>
+          <div class="field"><label for="sub-name">Nome do responsável</label><input id="sub-name" type="text" autocomplete="name" maxlength="160" placeholder="Ex.: Dra. Ana Ribeiro" aria-describedby="sub-name-err" required><span class="err" id="sub-name-err"></span></div>
+          <div class="field"><label for="sub-email">E-mail</label><input id="sub-email" type="email" autocomplete="email" maxlength="190" placeholder="voce@clinica.com.br" aria-describedby="sub-email-err" required><span class="err" id="sub-email-err"></span></div>
+          <div class="field"><label for="sub-phone">Telefone com DDD</label><input id="sub-phone" type="tel" autocomplete="tel" maxlength="30" placeholder="(11) 91234-5678" aria-describedby="sub-phone-err" required><span class="err" id="sub-phone-err"></span></div>
+          <div class="field"><label for="sub-clinic">Nome da clínica</label><input id="sub-clinic" type="text" autocomplete="organization" maxlength="190" placeholder="Ex.: Clínica Patas &amp; Cia" aria-describedby="sub-clinic-err" required><span class="err" id="sub-clinic-err"></span></div>
+        </fieldset>
+        <fieldset class="field methods" aria-describedby="sub-method-err">
+          <legend>Forma de pagamento</legend>
+          <div class="methods-options" id="sub-methods"></div>
+          <span class="err" id="sub-method-err"></span>
+        </fieldset>
+        <div class="hp" aria-hidden="true"><label for="sub-website">Site</label><input id="sub-website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"></div>
+        <div class="field">
+          <label for="sub-terms" class="check"><input type="checkbox" id="sub-terms" aria-describedby="sub-terms-err" required><span id="sub-terms-text"></span></label>
+          <span class="err" id="sub-terms-err"></span>
+        </div>
+        <div class="field">
+          <label for="sub-consent" class="check"><input type="checkbox" id="sub-consent" aria-describedby="sub-consent-err"><span id="sub-consent-text"></span></label>
+          <span class="err" id="sub-consent-err"></span>
+        </div>
+        <div class="subscribe-actions">
+          <button type="submit" class="btn btn-primary" id="submit-subscribe">Ir para o pagamento</button>
+          <p class="status" id="subscribe-status" role="status"></p>
+        </div>
+      </form>
     </div>
   </section>
 
@@ -272,8 +315,8 @@
           <p>Não. Quando forem lançados, entram nos planos indicados no comparativo sem mudar a mensalidade contratada.</p>
         </details>
         <details>
-          <summary>O que acontece depois que eu envio o carrinho?</summary>
-          <p>Recebemos seus dados e o plano escolhido. Nossa equipe entra em contato pelo WhatsApp ou e-mail informado para confirmar a assinatura e liberar o acesso. Nenhum pagamento é cobrado nesta página.</p>
+          <summary>O que acontece depois que eu assino?</summary>
+          <p>O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Assinatura.</p>
         </details>
       </div>
     </div>
@@ -284,7 +327,7 @@
       <div class="cta-final">
         <div>
           <h2>Comece pelo plano que cabe na sua rotina.</h2>
-          <p>Escolha um plano, envie seus dados e nossa equipe ativa a sua conta.</p>
+          <p>Escolha um plano, pague com cartão ou Pix e receba por e-mail o convite de acesso.</p>
         </div>
         <a class="btn btn-primary" href="#planos">Ver planos</a>
       </div>
