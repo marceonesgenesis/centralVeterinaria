@@ -314,4 +314,47 @@ final class SearchParameterGuardTest
         );
         self::assertDenied(SearchParameterGuard::check('\\AdiantiAutocompleteService', [], 7), 'autocomplete with leading backslash');
     }
+
+    public function testOrderColumnMustBeASearchedColumnOrTheKey(): void
+    {
+        Assert::same(
+            'orderColumn is not a searched column',
+            SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['orderColumn' => 'password']), null),
+            'orderColumn outside column/key must be denied'
+        );
+        Assert::same(
+            'orderColumn is not a searched column',
+            SearchParameterGuard::check(self::SERVICE, self::tutorRequest(['orderColumn' => 'tenant_id']), 7),
+            'tenant model orderColumn outside column/key must be denied'
+        );
+        Assert::null(SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['orderColumn' => 'name']), null), 'orderColumn = column');
+        Assert::null(SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['orderColumn' => 'id']), null), 'orderColumn = key');
+        Assert::null(SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['orderColumn' => '']), null), 'orderColumn omitted');
+        Assert::null(
+            SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['column' => 'name,email', 'orderColumn' => 'email']), null),
+            'orderColumn among multiple columns'
+        );
+        Assert::same(
+            'orderColumn is not an identifier',
+            SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['orderColumn' => 'name desc']), null),
+            'identifier check still runs first'
+        );
+    }
+
+    public function testRealWidgetSearchesKeepOrderColumnAllowed(): void
+    {
+        // SaleForm (Tutor, Patient, Product, ProcedureCatalogItem), SystemUserForm (SystemProgram), AppointmentForm (SystemUser).
+        foreach ([['Tutor', 'full_name'], ['Patient', 'name'], ['Product', 'name'], ['ProcedureCatalogItem', 'name']] as [$model, $column]) {
+            $request = self::tutorRequest([
+                'model' => $model,
+                'column' => $column,
+                'orderColumn' => $column,
+                'mask' => '<span>{' . $column . '_safe}</span>',
+            ]);
+            Assert::null(SearchParameterGuard::check(self::SERVICE, $request, 7), "{$model} search");
+        }
+        foreach (['SystemProgram', 'SystemUser'] as $model) {
+            Assert::null(SearchParameterGuard::check(self::SERVICE, self::systemUserRequest(['model' => $model]), null), "{$model} search");
+        }
+    }
 }
