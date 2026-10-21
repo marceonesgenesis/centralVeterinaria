@@ -77,6 +77,16 @@ final class PaymentIdempotencyIntegrationTest extends MysqlIntegrationTestCase
         Assert::same($first->id(), (new SubmissionKeyRepository($this->context(), $this->pdo))->findReference(SubmissionToken::SCOPE_PAYMENT, $token));
     }
 
+    /**
+     * B registers without a token (internal checkout path, same lock), so it
+     * never touches submission_key: its first statement is the receivable
+     * read. With FOR UPDATE it waits for A's row lock on the receivable and
+     * ends in 1205; a plain consistent read would not see A's uncommitted
+     * row and answer "Receivable N not found" instead. With a token, B would
+     * already wait in claim() (FK submission_key -> tenant on A's
+     * uncommitted tenant row) and the test would not prove the receivable
+     * lock. Base data cannot be committed (no COMMIT in integration tests).
+     */
     public function testRegisterWaitsForTheReceivableHeldByAnotherTransaction(): void
     {
         $cashSessionId = $this->openCashSession();
@@ -94,7 +104,7 @@ final class PaymentIdempotencyIntegrationTest extends MysqlIntegrationTestCase
             $answer = 'no exception';
 
             try {
-                $this->service($other)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION, SubmissionToken::generate());
+                $this->service($other)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION);
             } catch (\PDOException $e) {
                 $errorCode = (int) ($e->errorInfo[1] ?? 0);
                 $answer = $e->getMessage();
