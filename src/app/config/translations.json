@@ -2080,6 +2080,10 @@
     "pt": "Os identificadores devem ser números inteiros positivos"
   },
   {
+    "en": "If the login is registered and active, you will receive an e-mail with the instructions to reset the password.",
+    "pt": "Se o login estiver cadastrado e ativo, você receberá um e-mail com as instruções para redefinir a senha."
+  },
+  {
     "en": "IM",
     "pt": "IM"
   },
@@ -3628,6 +3632,10 @@
     "pt": "Quantidade do produto"
   },
   {
+    "en": "Product without sale price. Set the sale price in the product registration before selling.",
+    "pt": "Produto sem preço de venda. Informe o preço de venda no cadastro do produto antes de vender."
+  },
+  {
     "en": "Products",
     "pt": "Produtos"
   },
@@ -4292,6 +4300,10 @@
     "pt": "Selecione o leito de destino"
   },
   {
+    "en": "Select the patient of the encounter",
+    "pt": "Selecione o paciente do atendimento"
+  },
+  {
     "en": "Send",
     "pt": "Enviar"
   },
@@ -4888,6 +4900,10 @@
     "pt": "A conta do atendimento não está aberta"
   },
   {
+    "en": "The encounter does not belong to the selected patient and unit",
+    "pt": "O atendimento não pertence ao paciente e à unidade selecionados"
+  },
+  {
     "en": "The file must be a CSV of up to 1 MB",
     "pt": "O arquivo deve ser um CSV de até 1 MB"
   },
@@ -4916,6 +4932,10 @@
     "pt": "As senhas não coincidem"
   },
   {
+    "en": "The patient does not belong to the selected tutor",
+    "pt": "O paciente não pertence ao tutor selecionado"
+  },
+  {
     "en": "The patient does not belong to this tutor",
     "pt": "O paciente não pertence a este tutor"
   },
@@ -4926,6 +4946,10 @@
   {
     "en": "The programs selected here will automatically have access permission granted to this user group",
     "pt": "Os programas selecionados aqui terão permissão de acesso concedida automaticamente a este grupo de usuários"
+  },
+  {
+    "en": "The request could not be verified. Reload the page and try again.",
+    "pt": "Não foi possível validar a requisição. Recarregue a página e tente novamente."
   },
   {
     "en": "The selected record does not belong to this clinic",
@@ -5084,6 +5108,10 @@
     "pt": "Esta operação não é permitida"
   },
   {
+    "en": "This password reset link is invalid, expired or has already been used.",
+    "pt": "Este link de redefinição de senha é inválido, expirou ou já foi usado."
+  },
+  {
     "en": "This patient is already hospitalized",
     "pt": "Este paciente já está internado"
   },
@@ -5230,6 +5258,10 @@
   {
     "en": "Too many AI requests right now. Wait a moment and try again.",
     "pt": "Muitas solicitações à IA neste momento. Aguarde um pouco e tente de novo."
+  },
+  {
+    "en": "Too many password reset attempts. Try again in %s seconds.",
+    "pt": "Muitas tentativas de redefinição de senha. Tente novamente em %s segundos."
   },
   {
     "en": "Tool",

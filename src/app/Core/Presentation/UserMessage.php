@@ -98,6 +98,11 @@ final class UserMessage
         'Invalid monthly token quota' => 'Invalid monthly token quota',
         'Unknown AI decision' => 'Unknown AI decision',
         'Edited AI text must not be empty' => 'Edited AI text must not be empty',
+        // Etapa 1 — segurança do MVP (preço de venda e coerência das referências da venda).
+        'Product without sale price. Set the sale price in the product registration before selling.' => 'Product without sale price. Set the sale price in the product registration before selling.',
+        'The patient does not belong to the selected tutor' => 'The patient does not belong to the selected tutor',
+        'The encounter does not belong to the selected patient and unit' => 'The encounter does not belong to the selected patient and unit',
+        'patient_id is required when encounter_id is informed' => 'Select the patient of the encounter',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
