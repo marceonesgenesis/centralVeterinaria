@@ -55,8 +55,8 @@ resto era ruído de widget (`->clear()`, `->add()`, `TScript::create`).
 
 | Prefixo | Motivo |
 |---|---|
-| `onReload` | Recarga de grids/listas (43 métodos); nenhum grava. |
-| `onEdit` | Carrega registro no formulário (31); nenhum grava. |
+| `onReload` | Recarga de grids/listas (44 métodos, com `SaleList::onReload`); nenhum grava. |
+| `onEdit` | Carrega registro no formulário (32, com `SaleCancelForm::onEdit`, que só mostra a venda na cortina); nenhum grava. |
 | `onLoad` | Carrega formulário/visão (17); conferidos `SystemProfile2FAForm::onLoad` (gera segredo só para exibir, não grava), `SurgeryChecklistForm::onLoad`, `SurgeryMaterialForm::onLoad`, `SystemDriveList::onLoad`, `SystemPasswordResetForm::onLoad` (link do e-mail). |
 | `onSearch` | Filtros (`TutorList`, `PayableList`, `GlobalSearchController`, `AdiantiAutocompleteService`, `AdiantiMultiSearchService`); só `TSession::setValue` de filtro. |
 | `onView` | Visualização; `SystemMessageFormView::onView` grava e está em `MUTATING_OVERRIDES`. |
@@ -132,6 +132,10 @@ token. Os `onAsk*` só abrem `TQuestion`, mas `onAsk` não é prefixo de leitura
 `DocumentList::onRetry`, `EncounterView::onFinish`, `HospitalizationView` (alta e suspensão de prescrição
 via `__adianti_post_data`) e os diálogos `onAskCancel/onAskComplete/onAskDischarge/onAskSuspendOrder/
 onAskMarkSent/onAskRetry/onAskCheckIn`: POST + token.
+
+`SaleCancelForm::onCancel` (cortina aberta por `SaleList`; devolve estoque, estorna recebimentos e cancela
+a venda pelo `SaleCancellationService`): POST de formulário + token. `SaleList::onReload` e
+`SaleCancelForm::onEdit` são leitura (prefixos `onReload`/`onEdit`).
 
 ## Admin
 

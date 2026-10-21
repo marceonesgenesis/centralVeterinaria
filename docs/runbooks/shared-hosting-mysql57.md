@@ -146,7 +146,7 @@ compatibilidade com MySQL 5.7 antes de executar. Este bootstrap inicial não
 
 Os schemas iniciais do Adianti não cadastram automaticamente os controladores
 de negócio do Central Vet. O seed de programas/permissões separado está em
-`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra 45
+`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra 47
 controladores, libera-os somente para o grupo administrador e configura a
 permissão de desconto por método. Não contém dados clínicos de demonstração.
 
