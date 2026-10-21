@@ -6,6 +6,7 @@ namespace CentralVet\Tests\Unit;
 
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\CheckoutStartHandler;
+use CentralVet\Billing\Stripe\CurlStripeClient;
 use CentralVet\Billing\Stripe\StripeApiException;
 use CentralVet\Billing\Stripe\StripeConfig;
 use CentralVet\Landing\LandingCatalog;
@@ -201,6 +202,37 @@ final class CheckoutStartHandlerTest
         Assert::notNull($order);
         Assert::same(BillingOrder::STATUS_PENDING, $order->status());
         Assert::null($order->stripeCheckoutSessionId());
+    }
+
+    public function testEmptyStripeKeyAnswers502WithoutAnyRequestLeaving(): void
+    {
+        $transportCalls = 0;
+        $config = new StripeConfig('', 'placeholder-webhook', [
+            'starter' => 'price_starter_placeholder',
+            'pro' => 'price_pro_placeholder',
+            'business' => 'price_business_placeholder',
+            'enterprise' => 'price_enterprise_placeholder',
+        ]);
+        $handler = new CheckoutStartHandler(
+            $this->tokens,
+            new LoginRateLimiter($this->redis, 10, 3600, 'centralvet:checkout-throttle:'),
+            $this->orders,
+            new CurlStripeClient($config, static function () use (&$transportCalls): array {
+                $transportCalls++;
+
+                return ['status' => 200, 'body' => '{"id":"cus_test_1"}'];
+            }),
+            $config,
+            new PublicUrl('https://app.centralvet.test'),
+            static fn (): string => self::PUBLIC_ID,
+        );
+        $this->handler = $handler;
+
+        $response = $this->silently(fn (): LeadResponse => $this->post($this->validPayload('card')));
+
+        Assert::same(502, $response->status);
+        Assert::same(['error' => 'gateway_unavailable'], $response->body);
+        Assert::same(0, $transportCalls);
     }
 
     public function testHoneypotAnswers200WithoutOrderNorStripe(): void

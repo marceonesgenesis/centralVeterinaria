@@ -138,6 +138,51 @@ final class CurlStripeClientTest
         throw new \RuntimeException('StripeApiException was not thrown');
     }
 
+    public function testEmptyOrMalformedKeyFailsBeforeAnyRequestLeaves(): void
+    {
+        foreach (['', '   ', 'placeholder-secret', 'rk_test_dummy', 'pk_live_dummy', 'sk_dummy', 'whsec_test_etapa3'] as $key) {
+            $transportCalls = 0;
+            $client = new CurlStripeClient(
+                new StripeConfig($key, 'whsec_test_etapa3', []),
+                static function () use (&$transportCalls): array {
+                    $transportCalls++;
+
+                    return ['status' => 200, 'body' => '{"id":"cus_1"}'];
+                },
+            );
+
+            try {
+                $client->request('POST', '/v1/customers', ['name' => 'Responsável', 'email' => 'resp@example.invalid'], 'k1');
+                throw new \RuntimeException("StripeApiException was not thrown for key '{$key}'");
+            } catch (StripeApiException $e) {
+                Assert::same(0, $e->httpStatus());
+                Assert::null($e->stripeCode());
+                Assert::false(str_contains($e->getMessage(), 'sk_'), 'Message must not echo the key: ' . $e->getMessage());
+                Assert::false(str_contains($e->getMessage(), 'resp@example.invalid'), 'Message must not echo the params');
+            }
+
+            Assert::same(0, $transportCalls, "No request may leave with key '{$key}'");
+        }
+    }
+
+    public function testLiveAndTestKeysAreAccepted(): void
+    {
+        foreach (['sk_test_dummy', 'sk_live_dummy'] as $key) {
+            $transportCalls = 0;
+            $client = new CurlStripeClient(
+                new StripeConfig($key, '', []),
+                static function () use (&$transportCalls): array {
+                    $transportCalls++;
+
+                    return ['status' => 200, 'body' => '{"id":"cus_1"}'];
+                },
+            );
+
+            Assert::same(['id' => 'cus_1'], $client->request('POST', '/v1/customers'));
+            Assert::same(1, $transportCalls);
+        }
+    }
+
     public function testInvalidJsonResponseIsAnError(): void
     {
         $client = $this->client(['status' => 200, 'body' => '<html>bad gateway</html>']);
