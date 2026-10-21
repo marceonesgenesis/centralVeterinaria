@@ -40,6 +40,10 @@
     "pt": "Já existe um leito com o código \"^1\" nesta unidade"
   },
   {
+    "en": "A cancellation reason is required",
+    "pt": "Informe o motivo do cancelamento."
+  },
+  {
     "en": "A document template with this name already exists",
     "pt": "Já existe um modelo de documento com este nome"
   },
@@ -364,6 +368,14 @@
     "pt": "Valor (R$)"
   },
   {
+    "en": "Amount due",
+    "pt": "Saldo a receber"
+  },
+  {
+    "en": "Amount received",
+    "pt": "Valor recebido"
+  },
+  {
     "en": "An authenticated session with a tenant is required",
     "pt": "É necessária uma sessão autenticada com um tenant"
   },
@@ -680,6 +692,10 @@
     "pt": "Limite de chamadas atingido"
   },
   {
+    "en": "Cancel sale",
+    "pt": "Cancelar venda"
+  },
+  {
     "en": "Cancel surgery",
     "pt": "Cancelar cirurgia"
   },
@@ -710,6 +726,14 @@
   {
     "en": "Cancelled at",
     "pt": "Cancelada em"
+  },
+  {
+    "en": "Cancelled by ^1 on ^2",
+    "pt": "Cancelada por ^1 em ^2"
+  },
+  {
+    "en": "Cancelled sale",
+    "pt": "Venda cancelada"
   },
   {
     "en": "Cancelled surgeries",
@@ -1612,6 +1636,10 @@
     "pt": "Conta do atendimento"
   },
   {
+    "en": "Encounter account #^1",
+    "pt": "Conta de atendimento #^1"
+  },
+  {
     "en": "Encounter finished",
     "pt": "Atendimento finalizado"
   },
@@ -1886,6 +1914,10 @@
   {
     "en": "Financial entry",
     "pt": "Lançamento financeiro"
+  },
+  {
+    "en": "Financial status",
+    "pt": "Situação financeira"
   },
   {
     "en": "Financial summary",
@@ -2370,6 +2402,10 @@
   {
     "en": "Invalid selection",
     "pt": "Seleção inválida"
+  },
+  {
+    "en": "Invalid submission token",
+    "pt": "Envio inválido. Recarregue a tela e tente novamente."
   },
   {
     "en": "Invalid surgery",
@@ -2940,6 +2976,10 @@
     "pt": "Nenhuma sala cadastrada nesta unidade"
   },
   {
+    "en": "No payment received",
+    "pt": "Nenhum recebimento registrado"
+  },
+  {
     "en": "No payments recorded in this session yet",
     "pt": "Nenhum pagamento registrado nesta sessão ainda"
   },
@@ -3068,6 +3108,10 @@
     "pt": "Valor antigo"
   },
   {
+    "en": "On account (open receivable)",
+    "pt": "A prazo (recebível em aberto)"
+  },
+  {
     "en": "Once a day",
     "pt": "Uma vez por dia"
   },
@@ -3114,6 +3158,14 @@
   {
     "en": "Open (status)",
     "pt": "Aberto"
+  },
+  {
+    "en": "Open a cash session for this unit before receiving payment",
+    "pt": "Abra o caixa desta unidade antes de receber o pagamento."
+  },
+  {
+    "en": "Open a cash session for this unit before reversing payments",
+    "pt": "Abra o caixa desta unidade antes de estornar recebimentos."
   },
   {
     "en": "Open a hospitalization from the hospitalization board or from the encounter.",
@@ -4128,8 +4180,20 @@
     "pt": "Venda"
   },
   {
+    "en": "Sale #^1",
+    "pt": "Venda #^1"
+  },
+  {
+    "en": "Sale cancelled successfully",
+    "pt": "Venda cancelada com sucesso."
+  },
+  {
     "en": "Sale completed successfully",
     "pt": "Venda concluída com sucesso"
+  },
+  {
+    "en": "Sale history",
+    "pt": "Histórico de vendas"
   },
   {
     "en": "Sale price",
@@ -4532,6 +4596,10 @@
     "pt": "Lotes de estoque"
   },
   {
+    "en": "Stock changed during the sale; review the cart and try again",
+    "pt": "O estoque mudou durante a venda; revise o carrinho e tente novamente."
+  },
+  {
     "en": "Stock quantity",
     "pt": "Quantidade em estoque"
   },
@@ -4872,6 +4940,10 @@
     "pt": "O motivo do cancelamento é obrigatório"
   },
   {
+    "en": "The cancellation reason must have at most 500 characters",
+    "pt": "O motivo do cancelamento aceita no máximo 500 caracteres."
+  },
+  {
     "en": "The consent text recorded on the surgery will be used",
     "pt": "Será usado o texto do termo registrado na cirurgia"
   },
@@ -5124,8 +5196,20 @@
     "pt": "Esta conta a receber já está totalmente paga."
   },
   {
+    "en": "This receivable is cancelled and cannot receive payments",
+    "pt": "Este recebível está cancelado e não aceita recebimentos."
+  },
+  {
+    "en": "This sale was already cancelled",
+    "pt": "Esta venda já estava cancelada; nada foi alterado."
+  },
+  {
     "en": "This service has appointments; deactivate it instead",
     "pt": "Este serviço tem agendamentos; inative-o em vez de excluir"
+  },
+  {
+    "en": "This submission was already processed",
+    "pt": "Este envio já foi processado; nada foi gravado novamente."
   },
   {
     "en": "This surgery already has a follow-up appointment",
@@ -5670,6 +5754,10 @@
   {
     "en": "You are not allowed to apply a vaccine for this unit",
     "pt": "Você não tem permissão para aplicar uma vacina para esta unidade"
+  },
+  {
+    "en": "You are not allowed to cancel sales for this unit",
+    "pt": "Você não tem permissão para cancelar vendas desta unidade."
   },
   {
     "en": "You are not allowed to change the communication preferences of this tutor",

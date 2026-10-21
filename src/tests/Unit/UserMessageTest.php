@@ -119,7 +119,7 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(82, UserMessage::STATIC);
+        Assert::count(89, UserMessage::STATIC); // Etapa 2, T-01: +7 mensagens de domínio.
         Assert::count(106, UserMessage::PATTERNS);
 
         // Etapa 1, T-01: a mensagem crua cita campos técnicos; a chave é o texto para o usuário.

@@ -103,6 +103,14 @@ final class UserMessage
         'The patient does not belong to the selected tutor' => 'The patient does not belong to the selected tutor',
         'The encounter does not belong to the selected patient and unit' => 'The encounter does not belong to the selected patient and unit',
         'patient_id is required when encounter_id is informed' => 'Select the patient of the encounter',
+        // Etapa 2 — dinheiro e estoque (idempotência, caixa, recebível e cancelamento da venda).
+        'This submission was already processed' => 'This submission was already processed',
+        'Invalid submission token' => 'Invalid submission token',
+        'Open a cash session for this unit before receiving payment' => 'Open a cash session for this unit before receiving payment',
+        'Open a cash session for this unit before reversing payments' => 'Open a cash session for this unit before reversing payments',
+        'This receivable is cancelled and cannot receive payments' => 'This receivable is cancelled and cannot receive payments',
+        'A cancellation reason is required' => 'A cancellation reason is required',
+        'The cancellation reason must have at most 500 characters' => 'The cancellation reason must have at most 500 characters',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
