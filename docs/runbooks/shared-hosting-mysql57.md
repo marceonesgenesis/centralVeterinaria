@@ -528,3 +528,47 @@ Aplique só com autorização SQL específica. Antes e depois, anote
 `$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
 CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0 e
 as 4 tabelas novas, 0 linhas.
+
+### Reconciliação da cobrança
+
+O `bin/billing-reconcile.php` (Etapa 3) recupera o que o webhook não aplicou:
+busca no Stripe os eventos desde o último recebido menos 1 dia (`GET
+/v1/events`, paginado; sem eventos, os últimos 3 dias) e aplica os que faltam;
+retoma pedidos pagos sem provisionamento, provisionamentos falhos e convites
+não enviados; emite a fatura Pix 3 dias antes do fim do período, marca a
+assinatura `past_due` quando a fatura Pix vence e gera PaymentIntent novo
+quando o Pix expira; e suspende a assinatura cuja tolerância de 7 dias acabou.
+A única escrita no Stripe é o `POST /v1/payment_intents` do Pix, com
+`Idempotency-Key`. Rode por cron a cada 15 minutos, a partir da raiz de `src/`:
+
+```cron
+# Reconciliação da cobrança (a cada 15 minutos)
+*/15 * * * * cd /caminho/da/aplicacao/src && php bin/billing-reconcile.php >> /caminho/dos/logs/billing-reconcile.log 2>&1
+```
+
+A saída é uma linha de contadores (`billing-reconcile events_fetched=<n>
+events_ingested=<n> orders_fulfilled=<n> orders_failed=<n>
+pix_invoices_issued=<n> pix_invoices_overdue=<n> pix_intents_refreshed=<n>
+subscriptions_suspended=<n>`), sem dado pessoal; sai 0, ou 1 em erro de Stripe
+ou de banco (`billing-reconcile error=<classe>`, só a classe da exceção). Cada
+pedido, fatura ou assinatura roda em transação própria: a falha de um item vai
+para o log e não interrompe os outros. Execuções sobrepostas não acumulam (trava
+de arquivo `flock` no diretório temporário; a segunda sai 0 com
+`billing-reconcile skipped_locked`). O ambiente do cron precisa de `DB_*`,
+`STRIPE_*`, `SMTP_*`/`COMMUNICATION_*` e `APP_PUBLIC_URL`, como o webhook (nunca na
+linha do crontab).
+
+Endpoint do webhook no painel do Stripe (Developers → Webhooks → Add
+endpoint):
+
+- URL: `https://<domínio>/billing-webhook.php` (POST, autenticado pela
+  `Stripe-Signature`; o segredo `whsec_…` do endpoint vai em
+  `STRIPE_WEBHOOK_SECRET`, nunca em código nem no crontab).
+- Versão da API: `2024-06-20` (a mesma de `StripeConfig::API_VERSION`).
+- Eventos: `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded`,
+  `checkout.session.async_payment_failed`, `checkout.session.expired`,
+  `invoice.created`, `invoice.finalized`, `invoice.paid`,
+  `invoice.payment_failed`, `invoice.voided`, `invoice.marked_uncollectible`,
+  `customer.subscription.updated`, `customer.subscription.deleted`,
+  `payment_intent.succeeded` e `charge.refunded`.

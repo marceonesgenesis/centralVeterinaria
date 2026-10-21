@@ -11,6 +11,7 @@ use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\PlanEntitlements;
+use CentralVet\Billing\Stripe\StripeApiException;
 use CentralVet\Billing\Subscription;
 use CentralVet\Billing\SubscriptionInvoice;
 use CentralVet\Billing\TenantProvisioningService;
@@ -234,6 +235,25 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         $post = array_values(array_filter($this->stripe->calls, static fn (array $c): bool => $c['method'] === 'POST'));
         Assert::count(1, $post);
         Assert::same(sprintf('pix-invoice-%d-2', $invoiceId), $post[0]['idempotencyKey']);
+        Assert::count(1, $this->email->deliveries());
+        $this->assertOnlyReadsAndPaymentIntents();
+    }
+
+    public function testStripeFailureOnOnePixInvoiceRollsItBackAndTheOthersContinue(): void
+    {
+        [$failingOrderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $failingId = $this->subscription($failingOrderId, 'pro', Subscription::METHOD_PIX, null, $this->now->modify('+1 day'));
+        [$okOrderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $okId = $this->subscription($okOrderId, 'pro', Subscription::METHOD_PIX, null, $this->now->modify('+2 days'));
+        $this->stripe->fail('POST', '/v1/payment_intents', new StripeApiException('Stripe unavailable', 503));
+        $this->queuePaymentIntent('pi_t18_ok', $this->now->modify('+10 days'));
+
+        $this->queueNoEvents();
+        $result = $this->reconciler()->run($this->now);
+
+        Assert::same(1, $result['pix_invoices_issued']);
+        Assert::count(0, $this->invoices->listBySubscription($failingId, 10), 'the invoice without PaymentIntent is rolled back');
+        Assert::count(1, $this->invoices->listBySubscription($okId, 10));
         Assert::count(1, $this->email->deliveries());
         $this->assertOnlyReadsAndPaymentIntents();
     }
