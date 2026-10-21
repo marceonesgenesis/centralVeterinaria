@@ -10,10 +10,13 @@ use CentralVet\Domain\CashSession;
 use CentralVet\Domain\Contract\CashSessionRepositoryInterface;
 use CentralVet\Domain\Contract\PaymentRepositoryInterface;
 use CentralVet\Domain\Contract\ReceivableRepositoryInterface;
+use CentralVet\Domain\Contract\SubmissionKeyRepositoryInterface;
+use CentralVet\Domain\Exception\DuplicateSubmissionException;
 use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\OverpaymentException;
 use CentralVet\Domain\Payment;
 use CentralVet\Domain\Receivable;
+use CentralVet\Domain\SubmissionToken;
 use CentralVet\Tenancy\TenantContext;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -55,6 +58,16 @@ use InvalidArgumentException;
  * Interface spec, and none of the repositories consumed here take one
  * either, per ADR 0002) — the tenant is always resolved from the injected
  * TenantContext.
+ *
+ * Etapa 2 (T-11): with a submission token, register() validates it and
+ * claims it in submission_key (scope 'payment') before reading anything; a
+ * token already claimed throws DuplicateSubmissionException pointing at the
+ * payment of the first submission. The receivable is always read with
+ * findByIdForUpdate(), so two concurrent payments on the same receivable are
+ * serialized by the database (the caller owns the transaction). Without a
+ * token (internal call from the sale checkout) there is no deduplication,
+ * but the same lock applies. A cancelled receivable refuses the payment
+ * (Receivable::recordPayment) before anything is written.
  */
 final class PaymentService
 {
@@ -65,6 +78,7 @@ final class PaymentService
         private readonly FinancialEntryService $financialEntries,
         private readonly AuthorizationPolicyInterface $authorization,
         private readonly TenantContext $context,
+        private readonly SubmissionKeyRepositoryInterface $submissionKeys,
     ) {
     }
 
@@ -79,6 +93,10 @@ final class PaymentService
      * @throws OverpaymentException when `receivable.paid_cents +
      *         $amountCents` would exceed `receivable.total_cents`. Nothing
      *         is written.
+     * @throws InvalidArgumentException when $submissionToken is given but is
+     *         not a valid token ('Invalid submission token').
+     * @throws DuplicateSubmissionException when $submissionToken was already
+     *         claimed; nothing is read or written.
      */
     public function register(
         int $receivableId,
@@ -87,9 +105,23 @@ final class PaymentService
         int $amountCents,
         int $systemUserId,
         string $action,
+        ?string $submissionToken = null,
     ): Payment {
+        if ($submissionToken !== null) {
+            $submissionToken = SubmissionToken::assertValid($submissionToken);
+
+            if (!$this->submissionKeys->claim(SubmissionToken::SCOPE_PAYMENT, $submissionToken, $systemUserId)) {
+                throw DuplicateSubmissionException::forReference(
+                    SubmissionToken::SCOPE_PAYMENT,
+                    $this->submissionKeys->findReference(SubmissionToken::SCOPE_PAYMENT, $submissionToken),
+                );
+            }
+        }
+
+        // FOR UPDATE: a concurrent payment on the same receivable waits here
+        // until this transaction ends (T-11).
         /** @var Receivable|null $receivable */
-        $receivable = $this->receivables->findById($receivableId);
+        $receivable = $this->receivables->findByIdForUpdate($receivableId);
 
         if ($receivable === null) {
             throw new InvalidArgumentException("Receivable {$receivableId} not found");
@@ -154,6 +186,10 @@ final class PaymentService
             action: $action,
             paymentMethod: $paymentMethod,
         );
+
+        if ($submissionToken !== null) {
+            $this->submissionKeys->attach(SubmissionToken::SCOPE_PAYMENT, $submissionToken, (int) $savedPayment->id());
+        }
 
         return $savedPayment;
     }

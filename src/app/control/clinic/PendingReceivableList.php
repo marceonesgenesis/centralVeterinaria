@@ -95,6 +95,7 @@ class PendingReceivableList extends TStandardList
         });
 
         // creates the datagrid columns
+        $column_origin       = new TDataGridColumn('origin', _t('Origin'), 'left');
         $column_tutor        = new TDataGridColumn('tutor_name', _t('Tutor'), 'left');
         $column_total        = new TDataGridColumn('total_cents', _t('Total'), 'right', 130);
         $column_paid         = new TDataGridColumn('paid_cents', _t('Paid'), 'right', 130);
@@ -113,6 +114,7 @@ class PendingReceivableList extends TStandardList
         });
 
         // add the columns to the DataGrid
+        $this->datagrid->addColumn($column_origin);
         $this->datagrid->addColumn($column_tutor);
         $this->datagrid->addColumn($column_total);
         $this->datagrid->addColumn($column_paid);
@@ -189,6 +191,7 @@ class PendingReceivableList extends TStandardList
 
                 $row = new stdClass;
                 $row->id           = $receivable->id();
+                $row->origin       = CvFormat::e(self::originLabel($receivable));
                 $row->tutor_name   = $tutor_name;
                 $row->total_cents  = $receivable->totalCents();
                 $row->paid_cents   = $receivable->paidCents();
@@ -253,6 +256,21 @@ class PendingReceivableList extends TStandardList
     }
 
     /**
+     * Origem do recebível (T-11): venda do PDV ou conta de atendimento.
+     */
+    private static function originLabel(\CentralVet\Domain\Receivable $receivable): string
+    {
+        $sale_id = $receivable->saleId();
+
+        if ($sale_id !== null)
+        {
+            return _t('Sale #^1', $sale_id);
+        }
+
+        return _t('Encounter account #^1', (int) $receivable->encounterAccountId());
+    }
+
+    /**
      *
      */
     public static function onChangeLimit($param)
@@ -287,6 +305,7 @@ class PendingReceivableList extends TStandardList
             $financial_entries,
             $authorization,
             $context,
+            new \CentralVet\Persistence\SubmissionKeyRepository($context, $connection),
         );
     }
 
