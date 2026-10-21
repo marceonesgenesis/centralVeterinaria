@@ -33,9 +33,21 @@ consultar TRIGGERS quando o MySQL 8 usa `information_schema.check_constraints`.
 
 `src/init.php` carrega opcionalmente `app/config/hosting-environment.php`.
 Esse arquivo privado deve definir APP_SEED, DB_HOST, DB_PORT, DB_DATABASE,
-DB_USERNAME, DB_PASSWORD, APP_ENV, APP_DEBUG e APP_TIMEZONE usando `putenv()`.
+DB_USERNAME, DB_PASSWORD, APP_ENV, APP_DEBUG, APP_TIMEZONE e APP_PUBLIC_URL
+usando `putenv()`.
 Não versionar esse arquivo. Bloquear acesso HTTP aos diretórios `app/config`
 e `app/database` com `.htaccess` (`Require all denied`).
+
+`APP_PUBLIC_URL` é a base dos links de redefinição de senha; sem ela o reset
+não envia e-mail. Use o domínio real, com `https` e o subdiretório se houver:
+
+```php
+putenv('APP_PUBLIC_URL=https://<domínio>');
+```
+
+O limite de tentativas do reset reaproveita `LOGIN_RATE_LIMIT_*` e o
+`RATE_LIMIT_DRIVER` (ver [`environments.md`](./environments.md)). A proteção
+CSRF não exige configuração; o cookie `cv_csrf` só depende da sessão.
 
 Defina `DB_STRICT_MODE=true` para que cada conexão da aplicação use o modo
 SQL estrito, independentemente da configuração global da hospedagem. Isso

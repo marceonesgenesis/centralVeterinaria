@@ -17,6 +17,7 @@ runbooks indicam o que muda nesses ambientes.
 - [`comunicacao.md`](./comunicacao.md) — consentimento, templates, e-mail/WhatsApp, agendador, LGPD e Central de Pendências (Fase 7A).
 - [`documentos.md`](./documentos.md) — PDFs assíncronos, storage privado, versionamento, download com RBAC, aviso `document_ready` e operação (Fase 7B).
 - [`ia-assistente.md`](./ia-assistente.md) — assistente de IA: casos de uso, ativação por tenant, variáveis `AI_*`, custo, falhas, LGPD e incidente (Fase 8A).
+- [`../security/csrf-inventario.md`](../security/csrf-inventario.md) — inventário de métodos de leitura e escrita da proteção CSRF (ver também a seção "Proteção CSRF" de `environments.md`).
 
 Nenhum destes procedimentos envolve credencial real. Comandos de escrita em
 banco (migration, rollback, restore) exigem autorização explícita antes de
