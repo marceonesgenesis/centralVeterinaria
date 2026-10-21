@@ -39,6 +39,13 @@
 - 2026-10-21 · T-16 · onda 5 — Runbook dizia 47 programas, mas o seed tem 80 INSERT de system_program; por ruling o runbook passou a usar grep e SELECT de conferência de SaleList e SaleCancelForm (grupo 1), sem número fixo (138e5e3).
 - 2026-10-21 · T-16 · onda 5 — Orquestrador repassou o contrato da T-14 (rollback no onCancel em CashSessionRequiredException); atendido e conferido pelo revisor.
 - 2026-10-21 · onda 5 · onda 5 — Seed tocado: validador rodou prepare-mysql57.py (6 checks and 12 triggers, No SQL executed) e só SELECT do .verify.sql no centralvet_test, 0 violações; nada aplicado no dev.
+- 2026-10-21 · T-17 · onda 6 — Dev: usuário autorizou aplicar a 0016 e o seed (SaleList e SaleCancelForm, ids 140 e 141, grupo 1); validador aplicou e rodou .verify.sql antes e depois: 0 violações; nginx precisou de `nginx -s reload` após o rebuild (502 por IP antigo do upstream).
+- 2026-10-21 · T-17 · onda 6 — Orquestrador recriou duas vezes o cookie-jar admin (.env lido sem imprimir a senha); a 2ª porque a sessão era anterior ao seed e dava "Permissão negada" na SaleList.
+- 2026-10-21 · T-17 · onda 6 — Fumaça do cancelamento: validador recusou duas vezes gravar no dev (autorização só via orquestrador); usuário confirmou por AskUserQuestion (venda ZZ-E2- com 2 cancelamentos e limpeza: sim; audit_log: manter; caixa 120: manter). Orquestrador rodou pelo navegador: venda 11192 à vista R$ 100, cancelamento com estorno único, estoque 8→10, 2ª tentativa idempotente, limpeza em transação (zz_rows=0); evidências em scratchpad/ev/ (cancel-1, cancel-2, cleanup-cancel, csrf-403).
+- 2026-10-21 · T-17 · onda 6 — Cenários não rodados no navegador (à vista sem caixa aberto; totais do caixa fechado): usuário manteve o caixa 120; cobertos pelo teste unitário e pelo cenário (g) da integração.
+- 2026-10-21 · T-16 · onda 6 — Correção 2 pedida pelo usuário: fumaça achou o botão "Cancelar venda" da SaleList como HTML escapado; coluna `action` ganhou transformer que devolve TElement (RED 1d3563a, fix 5c0bcdd); conferido no navegador (44px, à esquerda, sem escape).
+- 2026-10-21 · T-16 · onda 6 — RED 1d3563a criou SaleListActionCellTest.php fora de Arquivos prováveis; aceito por ser correção pedida pelo usuário.
+- 2026-10-21 · T-17 · onda 6 — Cenário (c): o 1205 vem do claim em submission_key, não do FOR UPDATE do lote; mesma limitação de T-06/T-08/T-09.
 
 ## Bloqueios
 - nenhum
@@ -61,6 +68,8 @@
 - T-14: SaleCancellationService::cancel/SaleCancellationResult (fcffd4a); exige transação; autoriza na unidade da venda; sem caixa e com pagamento lança CashSessionRequiredException após devolver estoque, então o chamador (T-16) faz rollback.
 - T-15: SaleForm finaliza por SaleCheckoutService::checkout (combo payment_method vazio = a prazo; THidden submission_token); recibo via SaleReceiptHtml::render (5140236, fix 1606c82).
 - T-16: SaleList (aba stock/sale_history) e SaleCancelForm disponíveis (db36652); onCancel estático faz TTransaction::rollback em CashSessionRequiredException; seed ganhou os dois programas para o grupo 1.
+- T-17: SaleCheckoutFlowIntegrationTest (9b0d9aa) cobre à vista, a prazo, corrida, rollback, repetição e cancelamento (inclui cancelamento sem caixa + rollback); SUITE 1995/1995; 0016 e seed aplicados no dev.
+- T-16: SaleList::actionCell devolve TElement (5c0bcdd); coluna action usa transformer.
 
 ## Pendências
 - T-02: prova de preservação de dados vazia (receivable e sale com 0 linhas no centralvet_test); ensaio com linhas ou a T-17 cobriria.
@@ -101,6 +110,12 @@
 - T-16: 'Sale {id} not found' sem tradução em UserMessage (aparece em inglês).
 - T-16: botão de cancelar ativo em venda já cancelada (SaleCancelForm::onEdit).
 - T-16: sem fumaça manual no :8081 (seed ainda não aplicado no dev); rollback do onCancel com MySQL fica para a T-17.
+- T-17: audit_log do dev ficou com +15 linhas das fumaças ZZ-E2-; mantido por decisão do usuário.
+- T-16: botão de cancelar segue aparecendo em venda já cancelada (operação idempotente).
+- T-17: (c) não distingue a proteção FOR UPDATE do lote (1205 vem do claim em submission_key).
+- T-17: openCashBalance() é ?int e o teste não assere não-nulo antes de somar (SaleCheckoutFlowIntegrationTest.php:111,136,286,311,498).
+- T-17: fumaça sem status 200 do POST onCancel em ev/cancel-1.txt (só o estado no banco).
+- T-16: SaleListActionCellTest: sem teste que renderize a SaleList/TDataGrid (vínculo coluna→transformer só por grep); asserção '&lt;a' tautológica; docblock diz que o TDataGrid escapa "ANTES do transformer" (impreciso).
 
 ## Riscos
 - Código novo sem a 0016 aplicada quebra o PDV e o recebimento no ambiente (INSERT de `sale_id`/`submission_key`). Mitigação: rebuild do dev só depois da migration autorizada; runbook da 0016 (T-02).
@@ -120,5 +135,6 @@
   - Onda 3: BASE fc5e50c → HEAD bcfe53f (23a73f4, 9815aa9, 94f6705, 4971ff6, bcfe53f)
   - Onda 4: BASE 7f1f77b → HEAD fcffd4a (e5705be, e7cbbdf, 0e5e318, fcffd4a)
   - Onda 5: BASE 98f06d7 → HEAD 1606c82 (4c35afe, d4903d1, 5140236, db36652, 138e5e3, 1606c82)
-- Último status conhecido: onda 5 concluída (T-15, T-16 [x]); SUITE 1984/1984
-- Próxima onda recomendada: onda 6 (T-17)
+  - Onda 6: BASE b466c70 → HEAD 5c0bcdd (9b0d9aa, 1d3563a, 5c0bcdd)
+- Último status conhecido: onda 6 concluída (T-17 [x], T-16 reaberta e [x]); SUITE 1995/1995
+- Próxima onda recomendada: nenhuma (revisão final)
