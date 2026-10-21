@@ -11,9 +11,11 @@ use CentralVet\Tests\Support\Assert;
  * T-11 (Etapa 3): seed dos 4 grupos de plano. Cada grupo
  * "Central Vet - Plano <Nome>" liga exatamente os controllers de
  * initial-application-programs.sql (menos LandingLeadList) que
- * PlanEntitlements::forPlan(<plano>)->allowsProgram() permite, mais
- * SystemUserList/SystemUserForm em todos e SystemUnitForm/SystemUnitList
- * onde o plano tem multi_unit. Lê o SQL; o seed não é aplicado em banco.
+ * PlanEntitlements::forPlan(<plano>)->allowsProgram() permite, mais o
+ * autoatendimento do próprio usuário (perfil, senha, 2FA). Nenhum programa
+ * de administração global do sistema (System* fora do autoatendimento):
+ * eles não respeitam o tenant (ruling da Correção 1). Lê o SQL; o seed não
+ * é aplicado em banco.
  */
 final class PlanGroupsSeedTest
 {
@@ -24,7 +26,17 @@ final class PlanGroupsSeedTest
         'enterprise' => 'Central Vet - Plano Enterprise',
     ];
 
-    private const FORBIDDEN = ['LandingLeadList', 'SystemDatabaseExplorer', 'SystemSQLPanel', 'SystemGroupForm'];
+    /** Perfil (SystemProfileView), troca de senha (SystemProfileForm) e 2FA. */
+    private const SELF_SERVICE = ['SystemProfileView', 'SystemProfileForm', 'SystemProfile2FAForm'];
+
+    private const FORBIDDEN = [
+        'LandingLeadList', 'SystemDatabaseExplorer', 'SystemSQLPanel',
+        'SystemUserForm', 'SystemUserList', 'SystemUnitForm', 'SystemUnitList',
+        'SystemGroupForm', 'SystemGroupList', 'SystemProgramForm', 'SystemProgramList',
+    ];
+
+    /** Prefixos de internação/cirurgia e IA: só no Enterprise. */
+    private const ENTERPRISE_ONLY = ['/^Hospitalization/', '/^Surgery/', '/^Bed(Form|List)$/', '/^Ai[A-Z]/'];
 
     public function testHeaderTransactionAndIdempotency(): void
     {
@@ -64,12 +76,7 @@ final class PlanGroupsSeedTest
         foreach (self::GROUPS as $planId => $group) {
             $plan = PlanEntitlements::forPlan($planId);
             $expected = array_values(array_filter($base, static fn (string $c): bool => $plan->allowsProgram($c)));
-            $expected[] = 'SystemUserList';
-            $expected[] = 'SystemUserForm';
-            if (in_array($planId, ['business', 'enterprise'], true)) {
-                $expected[] = 'SystemUnitForm';
-                $expected[] = 'SystemUnitList';
-            }
+            $expected = array_merge($expected, self::SELF_SERVICE);
             sort($expected);
 
             $actual = $links[$group] ?? [];
@@ -79,15 +86,43 @@ final class PlanGroupsSeedTest
         }
     }
 
-    public function testUnitProgramsOnlyInMultiUnitPlans(): void
+    public function testEveryGroupHasProfilePasswordAndTwoFactor(): void
     {
         $links = $this->links();
-
-        foreach (['starter', 'pro'] as $planId) {
-            $actual = $links[self::GROUPS[$planId]] ?? [];
-            Assert::false(in_array('SystemUnitForm', $actual, true), $planId . ' must not link SystemUnitForm');
-            Assert::false(in_array('SystemUnitList', $actual, true), $planId . ' must not link SystemUnitList');
+        foreach (self::GROUPS as $group) {
+            foreach (self::SELF_SERVICE as $controller) {
+                Assert::true(in_array($controller, $links[$group] ?? [], true), $group . ' must link ' . $controller);
+            }
         }
+    }
+
+    public function testNoGroupLinksGlobalSystemAdministration(): void
+    {
+        foreach ($this->links() as $group => $controllers) {
+            foreach ($controllers as $controller) {
+                Assert::false(
+                    str_starts_with($controller, 'System') && !in_array($controller, self::SELF_SERVICE, true),
+                    $group . ' must not link global system program ' . $controller,
+                );
+            }
+        }
+    }
+
+    public function testHospitalSurgeryAndAiOnlyInEnterprise(): void
+    {
+        $links = $this->links();
+        $enterpriseHits = 0;
+        foreach (self::GROUPS as $planId => $group) {
+            foreach ($links[$group] ?? [] as $controller) {
+                foreach (self::ENTERPRISE_ONLY as $pattern) {
+                    if (preg_match($pattern, $controller) === 1) {
+                        Assert::same('enterprise', $planId, $controller . ' linked in ' . $group);
+                        $enterpriseHits++;
+                    }
+                }
+            }
+        }
+        Assert::same(22, $enterpriseHits, 'Enterprise links 17 hospital/surgery/bed + 5 AI programs');
     }
 
     public function testNoGroupLinksPlatformAdministrationPrograms(): void

@@ -1,18 +1,24 @@
 -- Prepared only; requires separate approval.
 -- Etapa 3 (T-11): grupos de permissão por plano. Cada grupo "Central Vet - Plano <Nome>"
 -- recebe os programas de initial-application-programs.sql (exceto LandingLeadList) que
--- PlanEntitlements::forPlan(<plano>)->allowsProgram() libera, mais SystemUserList e
--- SystemUserForm (e SystemUnitForm/SystemUnitList nos planos com multi_unit).
--- Nenhum outro programa do grupo 1 (administração da plataforma) é ligado.
+-- PlanEntitlements::forPlan(<plano>)->allowsProgram() libera, mais o autoatendimento do
+-- próprio usuário: SystemProfileView (perfil), SystemProfileForm (troca de senha) e
+-- SystemProfile2FAForm (2FA).
+-- Nenhum programa de administração global do sistema (SystemUser*, SystemUnit*,
+-- SystemGroup*, SystemProgram*, SystemSQLPanel, SystemDatabaseExplorer, LandingLeadList...):
+-- eles não filtram por tenant e levariam ao grupo 1 ou a dados de outro tenant. Gestão de
+-- equipe e de unidades por clínica fica para task própria, que acrescenta seus programas.
 -- Depende de permission.sql e initial-application-programs.sql já aplicados: um programa
 -- ausente em system_program simplesmente não é ligado. Idempotente; não apaga nem altera nada.
+-- Os JOINs por system_group.name e system_program.controller supõem nomes únicos (mesmo
+-- padrão de initial-application-programs.sql): duplicata geraria o mesmo MAX+1 e erro de PK.
 -- Regerar a partir de PlanEntitlements quando o mapa de direitos mudar (PlanGroupsSeedTest confere).
 
 SET NAMES utf8mb4;
 
 START TRANSACTION;
 
--- Plano Starter (starter): 40 programas.
+-- Plano Starter (starter): 41 programas.
 
 INSERT INTO system_group (id, name)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group current_groups), 'Central Vet - Plano Starter'
@@ -250,16 +256,22 @@ AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Starter'
-WHERE p.controller='SystemUserForm'
+WHERE p.controller='SystemProfileView'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Starter'
-WHERE p.controller='SystemUserList'
+WHERE p.controller='SystemProfileForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
--- Plano Pro (pro): 59 programas.
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Starter'
+WHERE p.controller='SystemProfile2FAForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+-- Plano Pro (pro): 60 programas.
 
 INSERT INTO system_group (id, name)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group current_groups), 'Central Vet - Plano Pro'
@@ -611,16 +623,22 @@ AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Pro'
-WHERE p.controller='SystemUserForm'
+WHERE p.controller='SystemProfileView'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Pro'
-WHERE p.controller='SystemUserList'
+WHERE p.controller='SystemProfileForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
--- Plano Business (business): 61 programas.
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
+FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Pro'
+WHERE p.controller='SystemProfile2FAForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+-- Plano Business (business): 60 programas.
 
 INSERT INTO system_group (id, name)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group current_groups), 'Central Vet - Plano Business'
@@ -972,28 +990,22 @@ AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Business'
-WHERE p.controller='SystemUserForm'
+WHERE p.controller='SystemProfileView'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Business'
-WHERE p.controller='SystemUserList'
+WHERE p.controller='SystemProfileForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Business'
-WHERE p.controller='SystemUnitForm'
+WHERE p.controller='SystemProfile2FAForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
-INSERT INTO system_group_program (id, system_group_id, system_program_id)
-SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
-FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Business'
-WHERE p.controller='SystemUnitList'
-AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
-
--- Plano Enterprise (enterprise): 83 programas.
+-- Plano Enterprise (enterprise): 82 programas.
 
 INSERT INTO system_group (id, name)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group current_groups), 'Central Vet - Plano Enterprise'
@@ -1477,25 +1489,19 @@ AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Enterprise'
-WHERE p.controller='SystemUserForm'
+WHERE p.controller='SystemProfileView'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Enterprise'
-WHERE p.controller='SystemUserList'
+WHERE p.controller='SystemProfileForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
 FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Enterprise'
-WHERE p.controller='SystemUnitForm'
-AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
-
-INSERT INTO system_group_program (id, system_group_id, system_program_id)
-SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g.id, p.id
-FROM system_program p JOIN system_group g ON g.name='Central Vet - Plano Enterprise'
-WHERE p.controller='SystemUnitList'
+WHERE p.controller='SystemProfile2FAForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
 
 COMMIT;
