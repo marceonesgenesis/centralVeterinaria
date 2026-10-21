@@ -387,13 +387,16 @@ class SaleForm extends TPage
                 throw new Exception(_t('Product not found or inactive'));
             }
 
+            // F1: the cart line carries the sale price, never the cost; a
+            // product without a sale price throws here, before the line is
+            // appended to the draft.
             $items = $this->draftItems();
             $items[] = [
                 'type' => 'product',
                 'referenceId' => $productId,
                 'quantity' => $quantity,
                 'description' => $product->name(),
-                'unitPriceCents' => $product->unitCostCents(),
+                'unitPriceCents' => $product->requireSalePriceCents(),
             ];
 
             TSession::setValue($this->draftSessionKey(), $items);
@@ -404,6 +407,11 @@ class SaleForm extends TPage
             }
 
             $this->reloadSelf();
+        }
+        catch (\CentralVet\Domain\Exception\ProductWithoutSalePriceException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
@@ -788,6 +796,9 @@ class SaleForm extends TPage
             $procedureCatalogService,
             $authorization,
             $context,
+            new \CentralVet\Persistence\TutorRepository($context, $connection),
+            new \CentralVet\Persistence\PatientRepository($context, $connection),
+            new \CentralVet\Persistence\EncounterRepository($context, $connection),
         );
     }
 
