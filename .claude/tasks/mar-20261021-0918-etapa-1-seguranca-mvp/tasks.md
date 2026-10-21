@@ -13,13 +13,13 @@ Comandos usados em Teste RED e Validação:
 | T-02 | backend | MutationRequestPolicy (POST + token para métodos que gravam) e inventário CSRF | — | sim | alta | Spock | [x] |
 | T-03 | backend | Núcleo do reset de senha: PublicUrl, PasswordResetToken de uso único, PasswordResetRequest com limitador | — | sim | alta | Jaspion | [x] |
 | T-04 | backend | S1: cadastro público legado desligado (config, menus públicos, botão do login) | — | sim | simples | Levi | [x] |
-| T-05 | backend | S4 + F1 no SaleService: referências resolvidas no tenant e preço de venda obrigatório | T-01 | sim | alta | Arquimedes | [ ] |
+| T-05 | backend | S4 + F1 no SaleService: referências resolvidas no tenant e preço de venda obrigatório | T-01 | sim | alta | Arquimedes | [x] |
 | T-06 | frontend | Guard central ligado em checkMultiSession, cookie cv_csrf e cabeçalho/POST no cv-shell.js | T-01, T-02, T-11 | sim | alta | Aang | [ ] |
-| T-07 | backend | Formulários de reset usam o núcleo de T-03; APP_PUBLIC_URL no .env.example e no compose | T-01, T-03 | sim | média | Jaspion | [ ] |
+| T-07 | backend | Formulários de reset usam o núcleo de T-03; APP_PUBLIC_URL no .env.example e no compose | T-01, T-03 | sim | média | Jaspion | [x] |
 | T-08 | frontend | SaleForm: carrinho pelo preço de venda, recusa sem preço e wiring dos repositórios no SaleService | T-05 | sim | média | Arquimedes | [ ] |
 | T-09 | docs | Runbooks: APP_PUBLIC_URL, limite de reset, proteção CSRF e hospedagem compartilhada | T-02, T-06, T-07 | sim | simples | Gandalf | [ ] |
 | T-10 | qa | Integração MySQL: venda com referência de outra clínica não grava venda nem estoque | T-05, T-08 | não | média | Yoda | [ ] |
-| T-11 | backend | S7: SearchParameterGuard para AdiantiMultiSearchService e AdiantiAutocompleteService | T-02 | sim | alta | Spock | [ ] |
+| T-11 | backend | S7: SearchParameterGuard para AdiantiMultiSearchService e AdiantiAutocompleteService | T-02 | sim | alta | Spock | [x] |
 
 ## Detalhamento
 

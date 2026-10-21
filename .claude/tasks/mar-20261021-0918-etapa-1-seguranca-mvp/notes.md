@@ -21,6 +21,12 @@
 - 2026-10-21 · plano · onda — — Respostas do desenvolvedor: (1) revogação de sessões após reset fica para depois, sem migration nesta etapa; (2) o validador pode fazer teste de fumaça no navegador gravando no banco de dev, só com dados de teste que ele cria (prefixos `ZZ-CSRF-` e `ZZ-F1-`) e exclui no fim — passos em T-06 e T-08, Validação; nenhuma outra gravação no banco de dev; (3) `main` é a branch de produção para a PR futura.
 
 - 2026-10-21 · T-11 · onda 2 — S7 incluído por decisão do desenvolvedor, a partir do achado relatado pelo implementador de T-02. O pré-filtro fica em classe própria (`SearchParameterGuard`, T-11). Só T-06 edita `ApplicationAuthenticationService.php` e o invoca, por isso T-06 passou para a Onda 3 e T-09 para a Onda 4. O escopo cresceu em relação ao relato: o plano também cobre `mask`, `criteria` (filtro `tenant_id` forjável) e o hash do autocomplete com seed fixo, verificados no fonte durante a replanejamento.
+- 2026-10-21 · T-07 · onda 2 — PasswordResetFormsWiringTest exige os mounts de .env.example e docker-compose.yml; o comando SUITE do gate/cruzada/revisão final passa a incluí-los (sem eles falha por ambiente).
+- 2026-10-21 · T-07 · onda 2 — .env.example com APP_PUBLIC_URL ativo e comentado (desvio de forma) aceito.
+- 2026-10-21 · T-07 · onda 2 — Risco de timing do SMTP síncrono fica como sugestão/pendência (mensagem uniforme + limite duplo).
+- 2026-10-21 · T-11 · onda 2 — Fixture extra multisearch-tenant-7-active-criteria.txt no commit RED 0653fa5 aceita (RED inválido/escopo por ruling; caso real do StockBatchForm).
+- 2026-10-21 · T-11 · onda 2 — Filtros extras `campo = inteiro` unidos por AND após tenant_id aceitos (OR/aninhamento/não-identificador são negados).
+- 2026-10-21 · T-11 · onda 2 — criteria só aceito em forma canônica (serialize(obj) === raw) com chaves privadas exatas.
 
 ## Bloqueios
 - nenhum
@@ -33,6 +39,9 @@
 - T-02 usou MUTATING_OVERRIDES/EXEMPT_ACTIONS além do plano e SystemDataBrowser::onLoad em aba nova (index.php) cai em strip_method, janela sem dados; o teste de fumaça de T-06 inclui abrir tabela + exportar CSV.
 - AdiantiAutocompleteService/AdiantiMultiSearchService::onSearch concatenam operator e orderColumn no SQL (injeção para usuário logado); tratado em T-11.
 - O container :8081 serve o código da imagem; mudanças só aparecem após rebuild da imagem app (relevante para os testes de fumaça de T-06/T-08).
+- T-05: SaleService::__construct ganhou TutorRepositoryInterface, PatientRepositoryInterface e EncounterRepositoryInterface no fim; produto sem sale_price_cents lança ProductWithoutSalePriceException.
+- T-07: APP_PUBLIC_URL entrou no environment compartilhado (&app-environment) do compose (app e worker); .env.example traz a linha ativa.
+- T-11: SearchParameterGuard::check(string $class, array $request, ?int $tenantId): ?string (null = permite); aceita filtros extras AND `campo = inteiro` após tenant_id e nega criteria com properties não vazias.
 
 ## Pendências
 - Revogação de sessões após reset: com `concurrent_sessions = '1'` e o driver de sessão em arquivos não há como derrubar as sessões de um usuário; com Redis, `SessionRegistry` guarda só a sessão corrente para o bloqueio de sessão concorrente. Revogar exige um marcador por usuário (ex.: `system_users.password_changed_at` comparado a cada requisição no mesmo `checkMultiSession`), com migration. Decisão do desenvolvedor (2026-10-21): fica para depois da Etapa 1.
@@ -41,6 +50,11 @@
 - T-02: SystemDatabaseExplorer::onExport* por GET sem token ainda gera o dump em tmp/ (consumo de disco/CPU); avaliar no teste de fumaça de T-06.
 - T-03: timing do reset revela se o login existe (envio SMTP síncrono só no usuário ativo); tratar em T-07 (envio adiado) ou registrar o risco.
 - T-03: check-then-hit não atômico em PasswordResetRequest (usar o retorno de hit()); PublicUrl aceita base com query/fragmento; teste de limite não afere o maior dos dois identificadores.
+- T-05: sem teste que prove a fase 1b (referências) rodando depois da autorização (AuthorizationDenied antes de CrossTenantReferenceException); reflow do docblock em SaleService.php:78.
+- T-07: SMTP síncrono distingue login ativo de inexistente por timing; enfileirar o e-mail no worker em etapa seguinte. PublicUrl::fromEnvironment() lançando antes de handle() não registra a tentativa no limitador.
+- T-11: faltam testes dos ramos negativos do AND extra (OR, valor não inteiro, tenant_id repetido, TCriteria aninhado, properties com order/group, variável não identificador); IDENTIFIER/MASK terminam em `$` (aceita \n final; usar `\z` ou modificador D); normalizar ltrim($class, '\\') em SearchParameterGuard.php:57-61.
+- T-11: T-06 precisa invocar o guard para AdiantiMultiSearchService/AdiantiAutocompleteService.
+- Estado intermediário: SaleForm monta SaleService com assinatura antiga (ArgumentCountError em runtime) até a T-08 (onda 3).
 
 ## Riscos
 - S7: o pré-filtro pode negar uma busca legítima que use parâmetros fora das listas (por exemplo, `setOperator` novo ou máscara composta). Mitigação: o Teste RED de T-11 cobre a busca real do `SaleForm` e de `SystemUser`, a Validação de T-11 confere os 11 usos e o teste de fumaça de T-06 inclui a busca de tutor. Uma sessão sem tenant resolvido (`MissingTenantContext`) passa a ter as buscas de models de tenant negadas.
@@ -58,5 +72,6 @@
 - BASE da onda 1: aba0e82
 - Commits por onda:
   - Onda 1: BASE aba0e82 → HEAD 8dd9f54 (8dd9f54 cca1efc 6454f50 d2ae72f 82fba32 1cbe9a4 dd6049d f9094ab 0deda83 9a8b170 456f743 bdb8eac aa40daf 1c0a05e 9cf70ae)
-- Último status conhecido: onda 1 concluída (T-01..T-04 [x]); HEAD 8dd9f54 antes do chore(tasks)
-- Próxima onda recomendada: onda 2 (T-05, T-07, T-11)
+  - Onda 2: BASE 24876ac → HEAD 7bd0e6c (7bd0e6c 069eb63 9411ffb 75d4646 072b81e d3ad5b5 0653fa5 19015f3)
+- Último status conhecido: onda 2 concluída (T-05, T-07, T-11 [x]); HEAD 7bd0e6c antes do chore(tasks)
+- Próxima onda recomendada: onda 3 (T-06, T-08)
