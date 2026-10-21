@@ -146,6 +146,13 @@ a venda pelo `SaleCancellationService`): POST de formulário + token. `SaleList:
 `SystemSQLPanel::onGenerate/onExportCSV`, `SystemDataBrowser::onLoad` e `SystemTableList::onExportCSV/SQL` executam SQL
 montado a partir do request e estão em `MUTATING_OVERRIDES`.
 
+Equipe e unidades por clínica (Etapa 3, T-24/T-25): `ClinicUserForm::onSave` (convite ou edição),
+`ClinicUserForm::onDeactivate`, `ClinicUserForm::onReactivate` e `ClinicUnitForm::onSave` (criação ou
+renomeação de unidade) caem na regra geral: POST + token central da `MutationRequestPolicy`
+(`X-CSRF-Token` = `cv_shell_csrf`), sem entrada em `EXEMPT_*` nem em `MUTATING_OVERRIDES`.
+`ClinicUserForm::onEdit`, `ClinicUnitForm::onEdit`, `ClinicUserList::onReload` e `ClinicUnitList::onReload`
+são leitura (prefixos `onEdit`/`onReload`).
+
 ## Copiloto IA
 
 `AiCopilotPanel::onAsk` (override), `AiCopilotPanel::onDelete/onClose`, `EncounterView::onAiDecide/

@@ -154,6 +154,14 @@
                 <icon>fas:file-invoice-dollar fa-fw</icon>
                 <action>SubscriptionStatusView</action>
             </menuitem>
+            <menuitem label='_t{Team}'>
+                <icon>fas:users fa-fw</icon>
+                <action>ClinicUserList</action>
+            </menuitem>
+            <menuitem label='_t{Clinic units}'>
+                <icon>fas:building fa-fw</icon>
+                <action>ClinicUnitList</action>
+            </menuitem>
 
             <menuitem label='_t{AI assistant}'>
                 <icon>fas:comments fa-fw</icon>

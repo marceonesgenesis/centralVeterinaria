@@ -1119,4 +1119,47 @@ SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1
 FROM system_program p WHERE p.controller='SubscriptionStatusView'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
 
+-- Etapa 3 (T-24/T-25): equipe e unidades por clínica (filtram pelo tenant da sessão),
+-- concedidas ao grupo 1; os grupos de plano as recebem em plan-groups.sql.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Team', 'ClinicUserList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUserList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUserList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Team Form', 'ClinicUserForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUserForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUserForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Units', 'ClinicUnitList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUnitList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUnitList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Unit Form', 'ClinicUnitForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUnitForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUnitForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
 COMMIT;
