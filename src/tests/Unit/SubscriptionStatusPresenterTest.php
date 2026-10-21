@@ -118,7 +118,7 @@ final class SubscriptionStatusPresenterTest
         $initial = (string) file_get_contents($seeds . 'initial-application-programs.sql');
         Assert::stringContains("'SubscriptionStatusView'", $initial);
         Assert::true(
-            preg_match("/system_group_id\\), 1, p\\.id\\s+FROM system_program p WHERE p\\.controller='SubscriptionStatusView'/", $initial) === 1,
+            preg_match("/current_links\\), 1, p\\.id\\s+FROM system_program p WHERE p\\.controller='SubscriptionStatusView'/", $initial) === 1,
             'SubscriptionStatusView linked to group 1',
         );
 

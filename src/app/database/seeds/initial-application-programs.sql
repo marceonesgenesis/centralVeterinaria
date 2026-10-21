@@ -1106,4 +1106,17 @@ SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1
 FROM system_program p WHERE p.controller='AiToolCallList'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
 
+-- Etapa 3 (T-21): tela da assinatura (só leitura), concedida ao grupo 1; os grupos de
+-- plano a recebem em plan-groups.sql.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Subscription Status', 'SubscriptionStatusView'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='SubscriptionStatusView');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='SubscriptionStatusView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
 COMMIT;

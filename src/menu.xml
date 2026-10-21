@@ -150,6 +150,10 @@
                 <icon>fas:kit-medical fa-fw</icon>
                 <action>SurgeryRoomList</action>
             </menuitem>
+            <menuitem label='_t{Subscription}'>
+                <icon>fas:file-invoice-dollar fa-fw</icon>
+                <action>SubscriptionStatusView</action>
+            </menuitem>
 
             <menuitem label='_t{AI assistant}'>
                 <icon>fas:comments fa-fw</icon>
