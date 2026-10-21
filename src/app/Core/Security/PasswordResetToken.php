@@ -19,8 +19,17 @@ final class PasswordResetToken
 {
     public const TTL_SECONDS = 10800;
 
-    public function __construct(private readonly string $key)
+    public const MIN_KEY_BYTES = 32;
+
+    /**
+     * php-jwt 7 refuses HMAC keys shorter than the hash output (32 bytes
+     * for HS256); fail here first with a clear message.
+     */
+    public function __construct(#[\SensitiveParameter] private readonly string $key)
     {
+        if (strlen($key) < self::MIN_KEY_BYTES) {
+            throw new \InvalidArgumentException('JWT HMAC key must have at least 32 bytes');
+        }
     }
 
     public function issue(string $login, string $passwordHash, int $now): string
