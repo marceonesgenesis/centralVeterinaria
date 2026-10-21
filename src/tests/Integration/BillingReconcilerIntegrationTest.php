@@ -234,12 +234,12 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         Assert::same(2, $refreshed?->paymentIntentAttempts());
         $post = array_values(array_filter($this->stripe->calls, static fn (array $c): bool => $c['method'] === 'POST'));
         Assert::count(1, $post);
-        Assert::same(sprintf('pix-invoice-%d-2', $invoiceId), $post[0]['idempotencyKey']);
+        Assert::same('pix-invoice-' . $refreshed?->localKey() . '-2', $post[0]['idempotencyKey']);
         Assert::count(1, $this->email->deliveries());
         $this->assertOnlyReadsAndPaymentIntents();
     }
 
-    public function testStripeFailureOnOnePixInvoiceRollsItBackAndTheOthersContinue(): void
+    public function testStripeFailureOnOnePixInvoiceKeepsItWithoutIntentAndRetriesWithTheSameKey(): void
     {
         [$failingOrderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
         $failingId = $this->subscription($failingOrderId, 'pro', Subscription::METHOD_PIX, null, $this->now->modify('+1 day'));
@@ -247,14 +247,115 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         $okId = $this->subscription($okOrderId, 'pro', Subscription::METHOD_PIX, null, $this->now->modify('+2 days'));
         $this->stripe->fail('POST', '/v1/payment_intents', new StripeApiException('Stripe unavailable', 503));
         $this->queuePaymentIntent('pi_t18_ok', $this->now->modify('+10 days'));
+        $this->stripe->fail('POST', '/v1/payment_intents', new StripeApiException('Stripe unavailable', 503));
 
         $this->queueNoEvents();
         $result = $this->reconciler()->run($this->now);
 
-        Assert::same(1, $result['pix_invoices_issued']);
-        Assert::count(0, $this->invoices->listBySubscription($failingId, 10), 'the invoice without PaymentIntent is rolled back');
+        Assert::same(2, $result['pix_invoices_issued']);
+        $kept = $this->invoices->listBySubscription($failingId, 10);
+        Assert::count(1, $kept, 'the invoice stays so the retry reuses its id and key');
+        Assert::null($kept[0]->stripePaymentIntentId());
         Assert::count(1, $this->invoices->listBySubscription($okId, 10));
         Assert::count(1, $this->email->deliveries());
+
+        $this->queuePaymentIntent('pi_t18_retry', $this->now->modify('+10 days'));
+        $this->queueNoEvents();
+        $retry = $this->reconciler()->run($this->now->modify('+15 minutes'));
+
+        Assert::same(1, $retry['pix_intents_refreshed']);
+        Assert::same('pi_t18_retry', $this->invoices->listBySubscription($failingId, 10)[0]->stripePaymentIntentId());
+        $keys = array_values(array_map(
+            static fn (array $c): ?string => $c['idempotencyKey'],
+            array_filter($this->stripe->calls, static fn (array $c): bool => $c['method'] === 'POST'),
+        ));
+        $failingKey = 'pix-invoice-' . $kept[0]->localKey() . '-1';
+        Assert::same([$failingKey, 'pix-invoice-' . $this->invoices->listBySubscription($okId, 10)[0]->localKey() . '-1', $failingKey, $failingKey], $keys);
+        $this->assertOnlyReadsAndPaymentIntents();
+    }
+
+    public function testEmailFailureKeepsInvoiceAndIntentWithoutASecondIntentAndStillGoesPastDue(): void
+    {
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $periodEnd = $this->now->modify('+2 days');
+        $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $this->queuePaymentIntent('pi_t18_mail', $this->now->modify('+10 days'));
+        $this->email->failWith('smtp_recipient_rejected');
+
+        $this->queueNoEvents();
+        $first = $this->reconciler()->run($this->now);
+
+        Assert::same(1, $first['pix_invoices_issued']);
+        $invoices = $this->invoices->listBySubscription($subscriptionId, 10);
+        Assert::count(1, $invoices, 'an e-mail failure must not roll the invoice back');
+        Assert::same('pi_t18_mail', $invoices[0]->stripePaymentIntentId());
+
+        $this->queueNoEvents();
+        $this->reconciler()->run($this->now->modify('+15 minutes'));
+        $this->queueNoEvents();
+        $late = $this->reconciler()->run($periodEnd->modify('+1 hour'));
+
+        Assert::count(1, array_filter($this->stripe->calls, static fn (array $c): bool => $c['method'] === 'POST'), 'no second PaymentIntent');
+        Assert::count(1, $this->invoices->listBySubscription($subscriptionId, 10));
+        Assert::same(1, $late['pix_invoices_overdue']);
+        Assert::same(Subscription::STATUS_PAST_DUE, $this->subscriptions->findByIdForUpdate($subscriptionId)?->status());
+        $this->assertOnlyReadsAndPaymentIntents();
+    }
+
+    public function testInvitesThatAlwaysFailDoNotBlockNewPaidOrders(): void
+    {
+        $this->email->failWith('smtp_unavailable');
+        $stuck = [];
+        for ($i = 0; $i < BillingReconciler::FULFILLMENT_BATCH; $i++) {
+            [$orderId] = $this->order('starter', BillingOrder::METHOD_CARD, true);
+            $this->subscription($orderId, 'starter', Subscription::METHOD_CARD, 'sub_t18_' . bin2hex(random_bytes(6)), $this->now->modify('+1 month'));
+            $stuck[] = $orderId;
+        }
+        $this->queueNoEvents();
+        $this->reconciler()->run($this->now);
+        foreach ($stuck as $orderId) {
+            $order = $this->orders->findByIdForUpdate($orderId);
+            Assert::same(BillingOrder::STATUS_PROVISIONED, $order?->status());
+            Assert::null($order?->inviteSentAt());
+        }
+
+        [$newOrderId] = $this->order('starter', BillingOrder::METHOD_CARD, true);
+        $this->subscription($newOrderId, 'starter', Subscription::METHOD_CARD, 'sub_t18_' . bin2hex(random_bytes(6)), $this->now->modify('+1 month'));
+        $this->queueNoEvents();
+        $this->reconciler()->run($this->now->modify('+15 minutes'));
+
+        Assert::same(BillingOrder::STATUS_PROVISIONED, $this->orders->findByIdForUpdate($newOrderId)?->status(), 'the new paid order is provisioned despite a full batch of failing invites');
+
+        $this->pdo->prepare('UPDATE billing_order SET provisioning_attempts = 10 WHERE id = ?')->execute([$stuck[0]]);
+        Assert::false(in_array($stuck[0], $this->orders->listPendingFulfillment(100000), true), 'invite resend stops at the attempt cap');
+        Assert::true(in_array($stuck[1], $this->orders->listPendingFulfillment(100000), true));
+    }
+
+    public function testStalledInvoicesOfSuspendedOrCancelledSubscriptionsDoNotBlockTheOpenPixBatch(): void
+    {
+        $dueAt = $this->now->modify('-20 days');
+        for ($i = 0; $i < BillingReconciler::PIX_BATCH; $i++) {
+            [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+            $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $dueAt);
+            $invoice = SubscriptionInvoice::issuePix($subscriptionId, 9700, $dueAt, $dueAt->modify('+1 month'), $dueAt);
+            $invoice->attachPaymentIntent('pi_t18_stalled_' . $i, null, $this->now->modify('-10 days'));
+            $this->invoices->insert($invoice);
+            $this->pdo->prepare('UPDATE subscription SET status = ? WHERE id = ?')
+                ->execute([$i % 2 === 0 ? Subscription::STATUS_SUSPENDED : Subscription::STATUS_CANCELLED, $subscriptionId]);
+        }
+
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $periodEnd = $this->now->modify('-1 day');
+        $activeId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $invoice = SubscriptionInvoice::issuePix($activeId, 9700, $periodEnd, $periodEnd->modify('+1 month'), $periodEnd);
+        $invoice->attachPaymentIntent('pi_t18_active', null, $this->now->modify('+6 days'));
+        $this->invoices->insert($invoice);
+
+        $this->queueNoEvents();
+        $result = $this->reconciler()->run($this->now);
+
+        Assert::same(1, $result['pix_invoices_overdue']);
+        Assert::same(Subscription::STATUS_PAST_DUE, $this->subscriptions->findByIdForUpdate($activeId)?->status());
         $this->assertOnlyReadsAndPaymentIntents();
     }
 
