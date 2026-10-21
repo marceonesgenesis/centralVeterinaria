@@ -171,6 +171,7 @@ O guard roda em `checkMultiSession()`, chamado por `engine.php` e `index.php`. F
 
 - `download.php`: só lê arquivo de `files/` com sessão logada (`realpath` restrito).
 - `lead.php`: POST público da landing com `LeadFormToken` próprio e limitador (`LeadSubmissionHandler`).
+- `checkout.php`: POST público da compra pela landing com `LeadFormToken` (`form_token` no corpo, uso único), same-origin (`LeadSubmissionHandler::precheck`) e limitador por IP `checkout|` (`CheckoutStartHandler`); o preço vem do servidor.
 - `landing.php`: página pública de leitura.
 - `cmd.php`: só CLI (`PHP_SAPI !== 'cli'` encerra).
 

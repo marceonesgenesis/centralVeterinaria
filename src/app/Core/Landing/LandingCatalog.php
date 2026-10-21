@@ -10,12 +10,21 @@ namespace CentralVet\Landing;
  * leem daqui; nenhum preço de plano existe fora desta classe.
  *
  * Mudar CONSENT_TEXT exige nova CONSENT_VERSION (prova do consentimento LGPD).
+ * Mudar TERMS_TEXT exige nova TERMS_VERSION (prova do aceite da assinatura,
+ * separada do consentimento de contato).
  */
 final class LandingCatalog
 {
     public const CONSENT_VERSION = 'lgpd-contato-2026-10';
 
     public const CONSENT_TEXT = 'Concordo que a equipe Central Vet Pro entre em contato sobre a assinatura, conforme a LGPD.';
+
+    public const TERMS_VERSION = 'assinatura-2026-10';
+
+    public const TERMS_TEXT = 'Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.';
+
+    /** Formas de pagamento da compra pela landing (id => rótulo). */
+    public const PAYMENT_METHODS = ['card' => 'Cartão de crédito', 'pix' => 'Pix'];
 
     public const VETS_OPTIONS = [
         '1' => 'Só eu',
@@ -157,6 +166,12 @@ final class LandingCatalog
             'vets' => self::VETS_OPTIONS,
             'ufs' => self::UFS,
             'consent' => ['version' => self::CONSENT_VERSION, 'text' => self::CONSENT_TEXT],
+            'terms' => ['version' => self::TERMS_VERSION, 'text' => self::TERMS_TEXT],
+            'payment_methods' => array_map(
+                static fn (string $id, string $label): array => ['id' => $id, 'label' => $label],
+                array_keys(self::PAYMENT_METHODS),
+                self::PAYMENT_METHODS,
+            ),
         ], self::JSON_FLAGS);
     }
 
