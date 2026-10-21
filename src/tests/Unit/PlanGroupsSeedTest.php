@@ -106,6 +106,50 @@ final class PlanGroupsSeedTest
         }
     }
 
+    /**
+     * Correção pós-onda da T-25: reaplicar initial-application-programs.sql
+     * depois de plan-groups.sql não pode alcançar grupo de plano. Todo vínculo
+     * do seed inicial vai para um grupo fixo (id literal 1/2 do permission.sql
+     * ou g.name de grupo que não é de plano) ou, quando escolhe os grupos por
+     * critério amplo (tabela derivada, ex. "todo grupo com EncounterView"),
+     * essa tabela derivada exclui 'Central Vet - Plano %'.
+     */
+    public function testInitialSeedNeverGrantsToPlanGroups(): void
+    {
+        $initial = $this->source(dirname(__DIR__, 2) . '/app/database/seeds/initial-application-programs.sql');
+        $broad = 0;
+
+        foreach ($this->statementsOf($initial) as $statement) {
+            if (!str_starts_with($statement, 'INSERT INTO system_group_program')) {
+                continue;
+            }
+            if (preg_match('/current_links\) ?, [12], p\.id FROM system_program p WHERE/', $statement) === 1) {
+                continue;
+            }
+            if (preg_match("/JOIN system_group g ON g\.name='([^']+)'/", $statement, $fixed) === 1) {
+                Assert::false(str_starts_with($fixed[1], 'Central Vet - Plano '), 'initial seed must not link plan group ' . $fixed[1]);
+                continue;
+            }
+
+            $broad++;
+            Assert::true(
+                preg_match('/JOIN \((SELECT DISTINCT .*?)\) (\w+) WHERE p\.controller=/', $statement, $derived) === 1,
+                'unrecognised group selection in initial seed: ' . substr($statement, 0, 200),
+            );
+            Assert::stringContains($derived[2] . '.system_group_id, p.id', $statement, 'target group comes from the derived table');
+            Assert::true(
+                preg_match("/NOT LIKE 'Central Vet - Plano %'/", $derived[1]) === 1,
+                'broad grant must exclude plan groups: ' . substr($statement, 0, 200),
+            );
+            Assert::true(
+                preg_match("/earlier_link.*NOT LIKE 'Central Vet - Plano %'.*\) ?, ?" . $derived[2] . '\.system_group_id/', $statement) === 1,
+                'id offset must count the same groups as the grant',
+            );
+        }
+
+        Assert::same(2, $broad, 'AiCopilotPanel and AiConversationList are the broad grants');
+    }
+
     public function testNoGroupLinksGlobalSystemAdministration(): void
     {
         foreach ($this->links() as $group => $controllers) {
@@ -201,8 +245,14 @@ final class PlanGroupsSeedTest
     /** @return list<string> */
     private function statements(): array
     {
+        return $this->statementsOf($this->seed());
+    }
+
+    /** @return list<string> */
+    private function statementsOf(string $sql): array
+    {
         $lines = array_filter(
-            explode("\n", $this->seed()),
+            explode("\n", $sql),
             static fn (string $line): bool => !str_starts_with(ltrim($line), '--'),
         );
         $statements = array_map(
