@@ -33,7 +33,7 @@ use InvalidArgumentException;
  */
 final class PaymentReversalServiceTest
 {
-    private const ACTION = 'test::payment-reversal';
+    private const ACTION = 'test::reversal';
     private const TENANT_ID = 1;
     private const UNIT_ID = 5;
     private const USER_ID = 7;
