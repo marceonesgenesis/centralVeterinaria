@@ -58,6 +58,21 @@ final class FakeStockMovementRepository implements StockMovementRepositoryInterf
         ));
     }
 
+    /** @return list<StockMovement> */
+    public function listByReference(string $referenceType, int $referenceId): array
+    {
+        $matches = array_values(array_filter(
+            $this->movements,
+            fn (StockMovement $movement): bool => $movement->tenantId() === $this->tenantId
+                && $movement->referenceType() === $referenceType
+                && $movement->referenceId() === $referenceId,
+        ));
+
+        usort($matches, static fn (StockMovement $a, StockMovement $b): int => $a->id() <=> $b->id());
+
+        return $matches;
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof StockMovement) {
