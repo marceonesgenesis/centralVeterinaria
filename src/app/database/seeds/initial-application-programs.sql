@@ -1053,6 +1053,8 @@ AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_
 -- para todo grupo que já tem EncounterView; AiToolCallList (auditoria de ferramentas) só para o
 -- grupo 1 (Template - Admin). Um INSERT ... SELECT concede a vários grupos: o id de cada vínculo
 -- novo é MAX(id) + a posição do grupo entre os grupos com EncounterView que ainda não têm o programa.
+-- Os grupos de plano ('Central Vet - Plano %', plan-groups.sql) ficam fora dos dois critérios: a IA
+-- só entra no Enterprise, por plan-groups.sql, mesmo quando este seed é reaplicado depois dele.
 
 INSERT INTO system_program (id, name, controller)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Copilot Panel', 'AiCopilotPanel'
@@ -1064,6 +1066,7 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
        + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
           FROM system_group_program earlier_link
           JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          JOIN system_group earlier_group ON earlier_group.id=earlier_link.system_group_id AND COALESCE(earlier_group.name,'') NOT LIKE 'Central Vet - Plano %'
           WHERE earlier_link.system_group_id <= clinical_group.system_group_id
           AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
        clinical_group.system_group_id, p.id
@@ -1071,7 +1074,9 @@ FROM system_program p
 JOIN (SELECT DISTINCT encounter_link.system_group_id
       FROM system_group_program encounter_link
       JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
-      WHERE encounter_view.controller='EncounterView') clinical_group
+      JOIN system_group encounter_group ON encounter_group.id=encounter_link.system_group_id
+      WHERE encounter_view.controller='EncounterView'
+      AND COALESCE(encounter_group.name,'') NOT LIKE 'Central Vet - Plano %') clinical_group
 WHERE p.controller='AiCopilotPanel'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
 
@@ -1085,6 +1090,7 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
        + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
           FROM system_group_program earlier_link
           JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          JOIN system_group earlier_group ON earlier_group.id=earlier_link.system_group_id AND COALESCE(earlier_group.name,'') NOT LIKE 'Central Vet - Plano %'
           WHERE earlier_link.system_group_id <= clinical_group.system_group_id
           AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
        clinical_group.system_group_id, p.id
@@ -1092,7 +1098,9 @@ FROM system_program p
 JOIN (SELECT DISTINCT encounter_link.system_group_id
       FROM system_group_program encounter_link
       JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
-      WHERE encounter_view.controller='EncounterView') clinical_group
+      JOIN system_group encounter_group ON encounter_group.id=encounter_link.system_group_id
+      WHERE encounter_view.controller='EncounterView'
+      AND COALESCE(encounter_group.name,'') NOT LIKE 'Central Vet - Plano %') clinical_group
 WHERE p.controller='AiConversationList'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
 
