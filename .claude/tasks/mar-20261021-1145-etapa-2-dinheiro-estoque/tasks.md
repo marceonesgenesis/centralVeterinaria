@@ -20,8 +20,8 @@ Comandos usados em Teste RED e Validação:
 | T-08 | backend | Recebível de venda, bloqueio do recebível, PaymentReversal e totais de caixa líquidos | T-02 | sim | alta | Thanos | [x] |
 | T-09 | backend | Sale::cancel rastreável, SaleRepository com bloqueio e consumo em ordem de product_id | T-02 | sim | média | Batman | [x] |
 | T-10 | backend | SaleFinanceReader: lista de vendas e resumo do recibo a partir dos dados gravados | T-02 | sim | média | Saitama | [x] |
-| T-11 | backend | PaymentService::register com bloqueio e token; PaymentForm e PendingReceivableList | T-01, T-07, T-08 | sim | alta | Thanos | [ ] |
-| T-12 | backend | PaymentReversalService: estorna recebimentos no caixa aberto e cancela o recebível | T-01, T-08 | sim | média | Hegel | [ ] |
+| T-11 | backend | PaymentService::register com bloqueio e token; PaymentForm e PendingReceivableList | T-01, T-07, T-08 | sim | alta | Thanos | [x] |
+| T-12 | backend | PaymentReversalService: estorna recebimentos no caixa aberto e cancela o recebível | T-01, T-08 | sim | média | Hegel | [x] |
 | T-13 | backend | SaleCheckoutService: venda + recebível + recebimento à vista na mesma transação, com token | T-06, T-07, T-08, T-09, T-11 | sim | alta | Athena | [ ] |
 | T-14 | backend | SaleCancellationService: devolve estoque, estorna e cancela, idempotente | T-06, T-08, T-09, T-12 | sim | alta | Batman | [ ] |
 | T-15 | frontend | SaleForm: forma de pagamento, token, checkout e recibo dos dados gravados | T-01, T-10, T-13 | sim | alta | Tesla | [ ] |

@@ -26,6 +26,9 @@
 - 2026-10-21 · T-08 · onda 2 — RED inválido do validador (commit RED tocou ReceivableSaleOriginTest.php além dos declarados) aceito no histórico sem fix loop; revisor aprovou.
 - 2026-10-21 · T-09 · onda 2 — RED inválido do validador (commit RED tocou SaleRepositoryCancelIntegrationTest.php e SaleServiceTest.php além dos declarados) aceito no histórico sem fix loop; revisor aprovou.
 - 2026-10-21 · onda 2 · onda 2 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts e ambos estavam verdes na onda 1; aceito como pendência.
+- 2026-10-21 · T-11 · onda 3 — Achado [plano-mandou] da rodada 1 (1205 do teste vinha do claim/FK de tenant, não de findByIdForUpdate) decidido como corrigir; B chama register sem token (caminho interno do checkout), pois COMMIT de dados de base é proibido pelo MysqlIntegrationTestCase; sensibilidade provada (com findById o teste falha). Desvio em reports/T-11.md § Correção 1 (bcfe53f).
+- 2026-10-21 · T-12 · onda 3 — Commit 94f6705 ajustou 1 linha do teste RED (ACTION 'test::payment-reversal' → 'test::reversal'), sem mudar asserções; aceito, validador confirmou RED por classe inexistente.
+- 2026-10-21 · onda 3 · onda 3 — prepare-mysql57.py e .verify.sql da 0016 não rodados: a onda não tocou src/app/database nem scripts (ruling vigente desde a onda 2).
 
 ## Bloqueios
 - nenhum
@@ -42,6 +45,8 @@
 - T-10: SaleFinanceReader (e36c011): listSales traz completed e cancelled; datas Y-m-d H:i:s; venda sem recebível → receivable_id null e received_cents 0.
 - T-06: StockService::consume lê com FOR UPDATE e exige transação; reverseReferenceConsumption devolve unidades repostas, 0 se já houver reversão (d39d5c0).
 - T-08: Receivable::encounterAccountId() agora ?int (único consumidor ReceivableRepository.php:136 aceita null); openForSale, findByIdForUpdate/findBySaleId, PaymentReversal e repositórios (d5318e5).
+- T-12: PaymentReversalService::cancelReceivable (94f6705): autoriza antes de ler; estorna só pagamentos sem existsForPayment; ordem das gravações = reversal → financial_entry expense, por pagamento; Receivable::cancel()+save por último; exige transação no PDO real.
+- T-11: PaymentService ganhou 7º parâmetro SubmissionKeyRepositoryInterface; register(..., ?string $submissionToken = null) lê com findByIdForUpdate (exige transação), com token faz claim antes de ler e attach('payment', token, paymentId) ao fim; PaymentForm/PendingReceivableList instanciam o repositório (4971ff6, bcfe53f).
 
 ## Pendências
 - T-02: prova de preservação de dados vazia (receivable e sale com 0 linhas no centralvet_test); ensaio com linhas ou a T-17 cobriria.
@@ -67,6 +72,11 @@
 - T-09: catch de compensação em SaleService.php:335-343 não devolve movimentos já consumidos de produtos anteriores (limitação pré-existente).
 - Validador: contrato de encounterAccountId() ?int (T-08) com único consumidor ReceivableRepository.php:136.
 - Validador: ExamResultAiIntegrationTest intermitente em execuções de T-07/T-08, verde na SUITE do gate (flaky reforçado, não confirmado).
+- T-11: PaymentFormSubmissionTokenTest confere a fonte com strings literais e quebra com reformatação (PaymentFormSubmissionTokenTest.php:18-65).
+- T-12: testes do caixa fechado só cobrem listByCashSession(50); totalsByPaymentMethod inalterado só o MySQL cobre (CashSessionService.php:163) — explicitar em T-17.
+- T-12: unidade autorizada é a informada pelo chamador (receivable sem system_unit_id); T-14 deve passar a unidade da venda, não a da sessão (PaymentReversalService.php:67).
+- T-12: ACTION certo ('test::reversal') não estava no commit RED 23a73f4.
+- Pendência T-06/T-08/T-09 (1205 sem isolar o lock) resolvida para T-11; continua para as demais.
 
 ## Riscos
 - Código novo sem a 0016 aplicada quebra o PDV e o recebimento no ambiente (INSERT de `sale_id`/`submission_key`). Mitigação: rebuild do dev só depois da migration autorizada; runbook da 0016 (T-02).
@@ -83,5 +93,6 @@
 - Commits por onda:
   - Onda 1: BASE 363582a → HEAD 69e1122 (49d4480, be89ba0, 7c198b6, f3a7cbd, 28f0fd2, 74862a5, 88b0bca, 69e1122)
   - Onda 2: BASE 5cee1ca → HEAD d39d5c0 (df71f73, a4e7142, b059779, db4a30d, 5e93e5c, 4295ab3, b9a1cfb, 31a38f8, 7237261, d5318e5, e36c011, d39d5c0)
-- Último status conhecido: onda 2 concluída (T-05..T-10 [x]); SUITE 1934/1934, lint 0, framework_hashes ok
-- Próxima onda recomendada: onda 3 (T-11, T-12)
+  - Onda 3: BASE fc5e50c → HEAD bcfe53f (23a73f4, 9815aa9, 94f6705, 4971ff6, bcfe53f)
+- Último status conhecido: onda 3 concluída (T-11, T-12 [x]); SUITE 1955/1955
+- Próxima onda recomendada: onda 4 (T-13, T-14)
