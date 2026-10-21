@@ -316,6 +316,19 @@ final class MutationRequestPolicyTest
         );
     }
 
+    public function testRawSqlAdminToolsRequireToken(): void
+    {
+        // Build SQL from request params (table, filter column): stacked queries possible.
+        foreach (['SystemDataBrowser::onLoad', 'SystemTableList::onExportCSV', 'SystemTableList::onExportSQL'] as $action) {
+            [$class, $method] = explode('::', $action);
+            Assert::same(
+                MutationRequestPolicy::DENY,
+                MutationRequestPolicy::decide('engine.php', 'POST', $class, $method, null, self::TOKEN),
+                "{$action} must require POST + token"
+            );
+        }
+    }
+
     public function testAddedOverridesAndExemptions(): void
     {
         foreach (['CashSessionForm::onOpen', 'SystemMessageFormView::onView', 'SaleForm::onClearCart', 'PrescriptionForm::onClear'] as $action) {
