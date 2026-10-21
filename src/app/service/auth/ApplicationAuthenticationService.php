@@ -265,9 +265,12 @@ class ApplicationAuthenticationService
             ]);
         }
         
-        // Com request_order vazio, $_REQUEST segue variables_order (EGPCS) e
-        // inclui os cookies: o Adianti repassa $_REQUEST como $param e copiaria
-        // cv_csrf para as URLs que monta. O token só trafega no cabeçalho.
+        // A imagem PHP fixa request_order = "GP" (P1), e $_REQUEST não traz
+        // cookies. Em hospedagem sem essa configuração, request_order vazio faz
+        // $_REQUEST seguir variables_order (EGPCS) e incluir os cookies: o
+        // Adianti repassa $_REQUEST como $param e copiaria cv_csrf para as URLs
+        // que monta. withoutCsrfCookie fica como defesa; o token só trafega no
+        // cabeçalho.
         $_REQUEST = self::withoutCsrfCookie($_REQUEST);
         
         $class = (string) ($_REQUEST['class'] ?? '');
@@ -287,14 +290,7 @@ class ApplicationAuthenticationService
             self::denyRequest('[search-guard] denied ' . $class . ': ' . $searchDenial);
         }
         
-        $decision = MutationRequestPolicy::decideFromRequest(
-            $_SERVER,
-            $_REQUEST,
-            $token,
-            null,
-            null,
-            [self::class, 'resolveDispatchTarget']
-        );
+        $decision = MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token);
         
         if ($decision === MutationRequestPolicy::STRIP_METHOD)
         {
@@ -304,32 +300,6 @@ class ApplicationAuthenticationService
         {
             self::denyRequest('[csrf] denied ' . $class . '::' . (string) ($_REQUEST['method'] ?? ''));
         }
-    }
-    
-    /**
-     * Nome canônico de classe/método para a MutationRequestPolicy, aceitando
-     * os class_alias do AdiantiClassMap (ex.: AdiantiMultiSearchService →
-     * Adianti\Service\AdiantiMultiSearchService): a Reflection devolve o nome
-     * com namespace, e o alias só vale quando o nome pedido é, byte a byte, o
-     * nome curto da classe real. Caixa diferente continua negada.
-     *
-     * @return array{0: string, 1: string}|null
-     */
-    public static function resolveDispatchTarget(string $class, string $method): ?array
-    {
-        $canonical = MutationRequestPolicy::resolveCanonical($class, $method);
-        if ($canonical === null || $canonical[0] === $class)
-        {
-            return $canonical;
-        }
-        
-        $separator = strrpos($canonical[0], '\\');
-        if ($separator !== false && substr($canonical[0], $separator + 1) === $class)
-        {
-            return [$class, $canonical[1]];
-        }
-        
-        return $canonical;
     }
     
     /**

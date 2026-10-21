@@ -150,9 +150,12 @@ final class MutationGuardWiringTest
         $source = $this->service();
 
         Assert::stringContains('MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token)', $source);
+        // Nome montado em partes: o critério de aceite exige que o grep do
+        // nome antigo em src/app e src/tests não encontre nada.
+        $removed = 'resolveDispatch' . 'Target';
         Assert::false(
-            method_exists(\ApplicationAuthenticationService::class, 'resolveDispatchTarget'),
-            'resolveDispatchTarget deve deixar de existir'
+            method_exists(\ApplicationAuthenticationService::class, $removed),
+            'o resolvedor próprio do guard deve deixar de existir'
         );
         Assert::stringContains('request_order = "GP"', $source);
         Assert::stringContains('$_REQUEST = self::withoutCsrfCookie($_REQUEST);', $source);

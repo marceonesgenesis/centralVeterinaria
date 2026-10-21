@@ -199,6 +199,13 @@ final class MutationRequestPolicy
      * Canonical (declared) class and method names, or null when the class
      * or the method does not exist.
      *
+     * A class_alias from the AdiantiClassMap (AdiantiMultiSearchService ->
+     * Adianti\Service\AdiantiMultiSearchService) keeps the requested name
+     * when it is, byte for byte, the short name of the real class (after the
+     * last backslash). Any other spelling (different case, leading
+     * backslash) yields the declared name, which differs from the request,
+     * so the policy denies it.
+     *
      * @return array{0: string, 1: string}|null
      */
     public static function resolveCanonical(string $class, string $method): ?array
@@ -209,16 +216,20 @@ final class MutationRequestPolicy
             }
 
             $canonicalClass = (new \ReflectionClass($class))->getName();
+            $separator = strrpos($canonicalClass, '\\');
+            $resolvedClass = $separator !== false && substr($canonicalClass, $separator + 1) === $class
+                ? $class
+                : $canonicalClass;
 
             if ($method === '') {
-                return [$canonicalClass, ''];
+                return [$resolvedClass, ''];
             }
 
             if (!method_exists($canonicalClass, $method)) {
                 return null;
             }
 
-            return [$canonicalClass, (new \ReflectionMethod($canonicalClass, $method))->getName()];
+            return [$resolvedClass, (new \ReflectionMethod($canonicalClass, $method))->getName()];
         } catch (\Throwable) {
             return null;
         }
