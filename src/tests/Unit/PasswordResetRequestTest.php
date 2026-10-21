@@ -99,4 +99,21 @@ final class PasswordResetRequestTest
         $request->handle('b', '10.0.0.9', static fn () => null, static fn () => null, self::NOW);
         Assert::throws(TooManyPasswordResetAttempts::class, static fn () => $request->handle('c', '10.0.0.9', static fn () => null, static fn () => null, self::NOW));
     }
+
+    public function testAccountLimitAppliesAcrossDifferentIps(): void
+    {
+        $request = $this->request(5);
+        $lookups = 0;
+        $find = static function () use (&$lookups): ?array {
+            $lookups++;
+            return null;
+        };
+        for ($i = 1; $i <= 5; $i++) {
+            $request->handle('Admin', '10.0.1.' . $i, $find, static fn () => null, self::NOW);
+        }
+        Assert::throws(TooManyPasswordResetAttempts::class, static fn () => $request->handle(' admin ', '10.0.1.99', $find, static fn () => null, self::NOW));
+        Assert::same(5, $lookups);
+        $request->handle('other', '10.0.1.99', $find, static fn () => null, self::NOW);
+        Assert::same(6, $lookups);
+    }
 }
