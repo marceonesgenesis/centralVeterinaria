@@ -62,6 +62,29 @@ final class SaleReceiptHtmlTest
         Assert::false(str_contains($html, '<b>x</b>'), 'descrição do item saiu sem escape');
     }
 
+    public function testReceiptPrintsEscapedTutorAndPatientNames(): void
+    {
+        $summary = $this->summary(0, []);
+        $summary['tutor_name'] = 'ZZ <Tutor>';
+        $summary['patient_name'] = 'Rex & <Cia>';
+
+        $html = $this->render($this->sale(patientId: 21), $summary);
+
+        Assert::stringContains('Tutor: ZZ &lt;Tutor&gt;', $html);
+        Assert::stringContains('Patient: Rex &amp; &lt;Cia&gt;', $html);
+        Assert::false(str_contains($html, '<Tutor>'), 'nome do tutor saiu sem escape');
+        Assert::false(str_contains($html, '#11'), 'com o nome, o recibo não mostra o id do tutor');
+        Assert::false(str_contains($html, '#21'), 'com o nome, o recibo não mostra o id do paciente');
+    }
+
+    public function testReceiptFallsBackToIdsWhenNamesAreMissing(): void
+    {
+        $html = $this->render($this->sale(patientId: 21), $this->summary(0, []));
+
+        Assert::stringContains('Tutor: #11', $html);
+        Assert::stringContains('Patient: #21', $html);
+    }
+
     private function render(Sale $sale, array $summary): string
     {
         $items = [
@@ -80,7 +103,7 @@ final class SaleReceiptHtmlTest
         return $key;
     }
 
-    private function sale(string $status = Sale::STATUS_COMPLETED): Sale
+    private function sale(string $status = Sale::STATUS_COMPLETED, ?int $patientId = null): Sale
     {
         $cancelled = $status === Sale::STATUS_CANCELLED;
 
@@ -89,7 +112,7 @@ final class SaleReceiptHtmlTest
             1,
             1,
             11,
-            null,
+            $patientId,
             null,
             5,
             $status,
