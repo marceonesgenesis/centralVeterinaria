@@ -319,7 +319,7 @@ final class MutationRequestPolicyTest
     public function testRawSqlAdminToolsRequireToken(): void
     {
         // Build SQL from request params (table, filter column): stacked queries possible.
-        foreach (['SystemDataBrowser::onLoad', 'SystemTableList::onExportCSV', 'SystemTableList::onExportSQL'] as $action) {
+        foreach (['SystemDataBrowser::onLoad', 'SystemTableList::onExportCSV', 'SystemTableList::onExportSQL', 'SystemSQLPanel::onExportCSV'] as $action) {
             [$class, $method] = explode('::', $action);
             Assert::same(
                 MutationRequestPolicy::DENY,
@@ -327,6 +327,44 @@ final class MutationRequestPolicyTest
                 "{$action} must require POST + token"
             );
         }
+    }
+
+    public function testSqlPanelExportCsvRequiresTokenThroughRequest(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
+        $request = ['class' => 'SystemSQLPanel', 'method' => 'onExportCSV', 'static' => '1'];
+        $resolver = static fn (string $class, string $method): array => [$class, $method];
+
+        Assert::false(MutationRequestPolicy::isReadOnly('SystemSQLPanel', 'onExportCSV'));
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $request, [], $resolver)
+        );
+    }
+
+    public function testRealResolverReturnsCanonicalNamesOrNull(): void
+    {
+        Assert::same(
+            ['CentralVet\\Security\\CsrfToken', 'isValid'],
+            MutationRequestPolicy::resolveCanonical('centralvet\\security\\csrftoken', 'ISVALID')
+        );
+        Assert::same(
+            ['CentralVet\\Security\\CsrfToken', ''],
+            MutationRequestPolicy::resolveCanonical('CentralVet\\Security\\CsrfToken', '')
+        );
+        Assert::same(null, MutationRequestPolicy::resolveCanonical('CentralVet\\Security\\CsrfToken', 'noSuchMethod'));
+        Assert::same(null, MutationRequestPolicy::resolveCanonical('NoSuchClassAnywhere', 'onReload'));
+    }
+
+    public function testRealResolverDeniesWrongCaseThroughRequest(): void
+    {
+        $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
+        $request = ['class' => 'centralvet\\security\\csrftoken', 'method' => 'isValid'];
+
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, self::TOKEN, $request, [])
+        );
     }
 
     public function testAddedOverridesAndExemptions(): void
