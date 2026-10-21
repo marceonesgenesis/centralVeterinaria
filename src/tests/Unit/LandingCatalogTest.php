@@ -36,7 +36,24 @@ final class LandingCatalogTest
         Assert::false(str_contains($json, '>'), 'publicJson must not contain a raw >');
 
         $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        Assert::same(['plans', 'compare', 'vets', 'ufs', 'consent'], array_keys($data));
+        Assert::same(['plans', 'compare', 'vets', 'ufs', 'consent', 'terms', 'payment_methods'], array_keys($data));
+    }
+
+    public function testPublicJsonCarriesTermsAndPaymentMethods(): void
+    {
+        $data = json_decode(LandingCatalog::publicJson(), true, 512, JSON_THROW_ON_ERROR);
+
+        Assert::same('assinatura-2026-10', LandingCatalog::TERMS_VERSION);
+        Assert::same(['version' => 'assinatura-2026-10', 'text' => LandingCatalog::TERMS_TEXT], $data['terms']);
+        Assert::same(
+            'Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.',
+            LandingCatalog::TERMS_TEXT,
+        );
+        Assert::same([
+            ['id' => 'card', 'label' => 'Cartão de crédito'],
+            ['id' => 'pix', 'label' => 'Pix'],
+        ], $data['payment_methods']);
+        Assert::same(['card' => 'Cartão de crédito', 'pix' => 'Pix'], LandingCatalog::PAYMENT_METHODS);
     }
 
     public function testValidPayloadTakesPriceAndVersionFromCatalog(): void
