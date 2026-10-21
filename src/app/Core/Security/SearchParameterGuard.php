@@ -28,16 +28,21 @@ final class SearchParameterGuard
     private const MULTI_SEARCH = 'AdiantiMultiSearchService';
     private const AUTOCOMPLETE = 'AdiantiAutocompleteService';
     private const DATABASE = 'permission';
-    private const IDENTIFIER = '/^[A-Za-z_][A-Za-z0-9_]*$/';
-    private const MASK = '/^(<span>)?\{([A-Za-z_][A-Za-z0-9_]*)\}(<\/span>)?$/';
+    private const IDENTIFIER = '/^[A-Za-z_][A-Za-z0-9_]*$/D';
+    private const MASK = '/^(<span>)?\{([A-Za-z_][A-Za-z0-9_]*)\}(<\/span>)?$/D';
     private const FLAGS = ['idsearch', 'idtextsearch', 'onlyidsearch', 'jsonvalue'];
 
     private const CRITERIA_CLASS = 'Adianti\\Database\\TCriteria';
     private const FILTER_CLASS = 'Adianti\\Database\\TFilter';
     private const AND_OPERATOR = 'AND ';
+    private const CRITERIA_PROPERTIES = ['expressions', 'operators', 'properties', 'caseInsensitive'];
+    private const FILTER_PROPERTIES = ['variable', 'operator', 'value', 'value2', 'preparedVars', 'caseInsensitive'];
 
     public static function check(string $class, array $request, ?int $tenantId): ?string
     {
+        // class_exists/call_user_func also dispatch "\\AdiantiMultiSearchService".
+        $class = ltrim($class, '\\');
+
         if (strcasecmp($class, self::AUTOCOMPLETE) === 0) {
             return 'AdiantiAutocompleteService is disabled';
         }
@@ -140,13 +145,17 @@ final class SearchParameterGuard
         }
 
         $criteria = self::decodeObject($encoded);
-        if ($criteria === null || ($criteria['__PHP_Incomplete_Class_Name'] ?? null) !== self::CRITERIA_CLASS) {
-            return 'criteria is not a TCriteria';
+        if ($criteria === null || !self::hasExactlyProperties($criteria, self::CRITERIA_CLASS, self::CRITERIA_PROPERTIES)) {
+            return 'criteria is not a canonical TCriteria';
         }
 
         $expressions = self::property($criteria, self::CRITERIA_CLASS, 'expressions');
         $operators = self::property($criteria, self::CRITERIA_CLASS, 'operators');
         $properties = self::property($criteria, self::CRITERIA_CLASS, 'properties');
+
+        if (!is_bool(self::property($criteria, self::CRITERIA_CLASS, 'caseInsensitive'))) {
+            return 'criteria has an unexpected shape';
+        }
 
         if (!is_array($expressions) || !array_is_list($expressions) || $expressions === []
             || !is_array($operators) || !array_is_list($operators) || count($operators) !== count($expressions)) {
@@ -166,8 +175,13 @@ final class SearchParameterGuard
 
         foreach ($expressions as $index => $expression) {
             $filter = is_object($expression) ? (array) $expression : null;
-            if ($filter === null || ($filter['__PHP_Incomplete_Class_Name'] ?? null) !== self::FILTER_CLASS) {
-                return 'criteria expression is not a TFilter';
+            if ($filter === null || !self::hasExactlyProperties($filter, self::FILTER_CLASS, self::FILTER_PROPERTIES)) {
+                return 'criteria expression is not a canonical TFilter';
+            }
+
+            if (self::property($filter, self::FILTER_CLASS, 'preparedVars') !== []
+                || !is_bool(self::property($filter, self::FILTER_CLASS, 'caseInsensitive'))) {
+                return 'criteria filter not allowed';
             }
 
             $expectedOperator = $index === 0 ? null : self::AND_OPERATOR;
@@ -213,7 +227,43 @@ final class SearchParameterGuard
             return null;
         }
 
-        return $value instanceof \__PHP_Incomplete_Class ? (array) $value : null;
+        if (!$value instanceof \__PHP_Incomplete_Class) {
+            return null;
+        }
+
+        // The dispatch unserializes the same bytes with the real classes,
+        // where an unmangled or duplicated key overwrites the private
+        // property read here. Only the canonical form (what serialize()
+        // emits for the object as read) is accepted; together with the
+        // exact key sets below, every byte inspected is a byte the
+        // framework will use.
+        if (serialize($value) !== $raw) {
+            return null;
+        }
+
+        return (array) $value;
+    }
+
+    /**
+     * @param array<string, mixed> $object
+     * @param list<string> $names
+     */
+    private static function hasExactlyProperties(array $object, string $class, array $names): bool
+    {
+        if (($object['__PHP_Incomplete_Class_Name'] ?? null) !== $class) {
+            return false;
+        }
+
+        $expected = ['__PHP_Incomplete_Class_Name'];
+        foreach ($names as $name) {
+            $expected[] = "\0{$class}\0{$name}";
+        }
+
+        $actual = array_map('strval', array_keys($object));
+        sort($expected);
+        sort($actual);
+
+        return $actual === $expected;
     }
 
     /** @param array<string, mixed> $object */
