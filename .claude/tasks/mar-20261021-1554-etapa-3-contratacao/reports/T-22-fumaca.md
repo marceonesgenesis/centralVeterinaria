@@ -62,7 +62,7 @@ Para cada linha da tabela (A, B, R, P, C, H), no navegador, em `$APP/`:
 3. DevTools → Network: `POST /checkout.php` responde **502** `{"error":"gateway_unavailable"}`; a tela mostra em pt-BR "Não foi possível iniciar o pagamento. Tente de novo em instantes."
 4. Rótulos da seção alinhados à esquerda e botão com 44 px ou mais (snippet da seção 6).
 
-Observação: com `STRIPE_SECRET_KEY` vazio o `CurlStripeClient` ainda tenta `POST https://api.stripe.com/v1/customers` sem credencial (Stripe responde 401, ou falha de rede) e isso vira o 502. Nenhuma conta real é usada.
+Observação: com `STRIPE_SECRET_KEY` vazio, o `CurlStripeClient` recusa a chave antes de montar a requisição (T-08, commit a80a2ef: `StripeApiException` "STRIPE_SECRET_KEY is empty or not a secret API key") e isso vira o 502. **Nenhuma chamada sai para api.stripe.com**: nem rede, nem conta real.
 
 Prova (g) — os 6 pedidos `pending`, sem sessão e com o preço do servidor:
 ```sql
@@ -210,7 +210,7 @@ UPDATE billing_order SET responsible_email = 'zz-e3-h@example.test' WHERE clinic
 ```bash
 RECON
 # esperado: exit=1 com "billing-reconcile error=CentralVet\Billing\Stripe\StripeApiException" (o GET /v1/events
-# falha sem chave), mas as fases seguintes rodam: fulfillOrders provisiona H. Sem POST ao Stripe nesta fase
+# é recusado localmente pela chave vazia, sem requisição a api.stripe.com), mas as fases seguintes rodam: fulfillOrders provisiona H. Sem POST ao Stripe nesta fase
 # (provado na integração: testScenarioH... só GET depois do webhook).
 ```
 ```sql
@@ -270,7 +270,7 @@ UPDATE subscription s JOIN billing_order o ON o.id = s.billing_order_id SET s.cu
 WHERE o.clinic_name = 'ZZ-E3- Clínica A';   -- simula o fim do período em 2 dias (emissão 3 dias antes)
 ```
 ```bash
-RECON   # exit=1 (GET /v1/events); issuePixInvoices cria a fatura local; o POST /v1/payment_intents falha sem chave
+RECON   # exit=1 (GET /v1/events); issuePixInvoices cria a fatura local; o POST /v1/payment_intents é recusado localmente (chave vazia, sem rede)
         # e a fatura fica sem PaymentIntent (a próxima rodada tentaria de novo com a mesma Idempotency-Key)
 ```
 ```sql
