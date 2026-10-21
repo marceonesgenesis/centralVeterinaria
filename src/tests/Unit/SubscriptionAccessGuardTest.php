@@ -95,7 +95,7 @@ final class SubscriptionAccessGuardTest
         $now = $failedAt->modify('+9 days');
 
         Assert::same(
-            ['LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm'],
+            ['LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm', 'SystemMessageDropdown', 'SystemNotificationDropdown'],
             SubscriptionAccessGuard::ALWAYS_ALLOWED,
         );
 
@@ -104,6 +104,43 @@ final class SubscriptionAccessGuardTest
             Assert::true($decision->allowed(), $controller . ' must stay reachable when suspended');
             Assert::null($decision->messageKey());
         }
+    }
+
+    /**
+     * Correção pós-onda (Onda 6): com a assinatura suspensa, o shell da
+     * SubscriptionStatusView (contexto do usuário e os dropdowns de
+     * mensagens e notificações, só leitura) segue aberto; a troca de unidade
+     * (CvShellController::onSwitchUnit) e os programas clínicos, não.
+     */
+    public function testSuspendedStillReachesTheReadOnlyShellButNotClinicalPrograms(): void
+    {
+        $failedAt = new DateTimeImmutable('2026-10-10 12:00:00');
+        [$guard] = $this->guardWith('starter', static function (Subscription $s) use ($failedAt): void {
+            $s->markPaymentFailed(200, $failedAt);
+            $s->suspendIfGraceExpired($failedAt->modify('+8 days'));
+        });
+        $now = $failedAt->modify('+9 days');
+
+        foreach ([['CvShellController', 'onContext'], ['SystemMessageDropdown', null], ['SystemNotificationDropdown', null], ['SystemMessageDropdown', 'show']] as [$controller, $method]) {
+            $decision = $guard->decide(self::TENANT, $controller, $now, $method);
+            Assert::true($decision->allowed(), "{$controller}::{$method} must stay reachable when suspended");
+            Assert::null($decision->messageKey());
+        }
+
+        foreach ([['CvShellController', 'onSwitchUnit'], ['CvShellController', null], ['PatientList', null], ['SaleForm', 'onSave']] as [$controller, $method]) {
+            $decision = $guard->decide(self::TENANT, $controller, $now, $method);
+            Assert::false($decision->allowed(), "{$controller}::{$method} must stay blocked when suspended");
+            Assert::same(AccessDecision::REASON_BLOCKED_STATUS, $decision->reason());
+        }
+    }
+
+    public function testAccessKeySeparatesOnlyTheMethodLevelExceptions(): void
+    {
+        Assert::same(['CvShellController' => ['onContext']], SubscriptionAccessGuard::ALWAYS_ALLOWED_METHODS);
+        Assert::same('CvShellController::onContext', SubscriptionAccessGuard::accessKey('CvShellController', 'onContext'));
+        Assert::same('CvShellController', SubscriptionAccessGuard::accessKey('CvShellController', 'onSwitchUnit'));
+        Assert::same('CvShellController', SubscriptionAccessGuard::accessKey('CvShellController', null));
+        Assert::same('PatientList', SubscriptionAccessGuard::accessKey('PatientList', 'onReload'));
     }
 
     public function testTenantWithoutSubscriptionIsLegacy(): void

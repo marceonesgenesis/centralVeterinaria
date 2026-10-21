@@ -55,6 +55,23 @@ final class SubscriptionAccessWiringTest
     }
 
     /**
+     * Correção pós-onda da T-15 (Onda 6): a decisão e o cache usam a chave
+     * de SubscriptionAccessGuard::accessKey(classe, método), para liberar só
+     * CvShellController::onContext (leitura do shell) com a assinatura
+     * suspensa, sem liberar onSwitchUnit.
+     */
+    public function testDecisionAndCacheUseTheMethodAwareAccessKey(): void
+    {
+        $source = $this->method('enforceSubscriptionAccess');
+
+        Assert::stringContains("\$_REQUEST['method']", $source, 'o método da requisição entra na decisão');
+        Assert::stringContains('SubscriptionAccessGuard::accessKey($class, $method)', $source);
+        Assert::stringContains('->decide($tenantId, $class, new DateTimeImmutable(), $method)', $source);
+        Assert::stringContains('self::cachedSubscriptionAccess($cache, $tenantId, $key, $now)', $source);
+        Assert::stringContains('self::rememberSubscriptionAccess($cache, $tenantId, $key, $decision, $now)', $source);
+    }
+
+    /**
      * Correção 1: em GET de página inteira (index.php) o denyRequest sai
      * antes do layout, sem adianti.js; o TMessage viraria só um <script>
      * e a tela ficaria em branco. Lá vai uma página HTML autônoma; no
