@@ -66,57 +66,63 @@ final class MutationGuardWiringTest
      * POST engine.php?class=AdiantiMultiSearchService&method=onSearch&... com
      * X-CSRF-Token e recebia 403. AdiantiMultiSearchService é class_alias de
      * Adianti\Service\AdiantiMultiSearchService (AdiantiClassMap), e a
-     * Reflection devolve o nome com namespace: a política lia isso como
-     * divergência de grafia. A fixture reproduz o alias do framework.
+     * Reflection devolve o nome com namespace. P3 (Etapa 2): a regra do alias
+     * vive em MutationRequestPolicy::resolveCanonical, sem resolvedor extra.
+     * A fixture reproduz o alias do framework.
      */
-    public function testFrameworkAliasedSearchIsAllowedWithTheRealParameters(): void
+    public function testFrameworkAliasedSearchIsAllowedWithTheDefaultResolver(): void
     {
         $token = str_repeat('a', 64);
         [$server, $request, $query, $body] = $this->multiSearchRequest($token);
 
         Assert::same(
-            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::ALLOW,
             MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body),
-            'pré-condição: o resolvedor padrão nega o alias do framework'
+            'o resolvedor padrão aceita o alias do framework'
         );
         Assert::same(
-            MutationRequestPolicy::ALLOW,
-            MutationRequestPolicy::decideFromRequest(
-                $server,
-                $request,
-                $token,
-                $query,
-                $body,
-                [\ApplicationAuthenticationService::class, 'resolveDispatchTarget']
-            )
+            ['CsrfFixtureFrameworkSearchService', 'onSearch'],
+            MutationRequestPolicy::resolveCanonical('CsrfFixtureFrameworkSearchService', 'onSearch')
         );
     }
 
-    public function testAliasResolverKeepsDenyingCaseAndQueryBodyDivergence(): void
+    public function testDefaultResolverKeepsDenyingCaseBackslashAndQueryBodyDivergence(): void
     {
         $token = str_repeat('a', 64);
-        $resolver = [\ApplicationAuthenticationService::class, 'resolveDispatchTarget'];
 
         [$server, $request, $query, $body] = $this->multiSearchRequest($token);
         $request['class'] = $query['class'] = 'csrffixtureframeworksearchservice';
         Assert::same(
             MutationRequestPolicy::DENY,
-            MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body, $resolver),
+            MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body),
             'grafia de caixa diferente continua negada'
+        );
+
+        [$server, $request, $query, $body] = $this->multiSearchRequest($token);
+        $request['class'] = $query['class'] = '\\CsrfFixtureFrameworkSearchService';
+        Assert::same(
+            MutationRequestPolicy::DENY,
+            MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body),
+            'barra inicial continua negada'
         );
 
         [$server, $request, $query, $body] = $this->multiSearchRequest($token);
         $body['method'] = 'onDelete';
         Assert::same(
             MutationRequestPolicy::DENY,
-            MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body, $resolver),
+            MutationRequestPolicy::decideFromRequest($server, $request, $token, $query, $body),
             'method do corpo diferente do da query continua negado'
         );
 
-        Assert::null(\ApplicationAuthenticationService::resolveDispatchTarget('CvFixtureMissingClass', 'onSearch'));
+        Assert::null(MutationRequestPolicy::resolveCanonical('CvFixtureMissingClass', 'onSearch'));
         Assert::same(
             [CsrfFixtureFrameworkSearchService::class, 'onSearch'],
-            \ApplicationAuthenticationService::resolveDispatchTarget(CsrfFixtureFrameworkSearchService::class, 'onSearch')
+            MutationRequestPolicy::resolveCanonical(CsrfFixtureFrameworkSearchService::class, 'onSearch')
+        );
+        Assert::same(
+            [CsrfFixtureFrameworkSearchService::class, 'onSearch'],
+            MutationRequestPolicy::resolveCanonical('csrffixtureframeworksearchservice', 'onSearch'),
+            'caixa diferente devolve o nome canônico, que difere do pedido'
         );
     }
 
@@ -138,11 +144,17 @@ final class MutationGuardWiringTest
         Assert::same('ana', $param['value']);
     }
 
-    public function testGuardUsesTheAliasResolverAndDropsTheCookieFromRequest(): void
+    public function testGuardUsesTheDefaultResolverAndDropsTheCookieFromRequest(): void
     {
+        $this->loadService();
         $source = $this->service();
 
-        Assert::stringContains("[self::class, 'resolveDispatchTarget']", $source);
+        Assert::stringContains('MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token)', $source);
+        Assert::false(
+            method_exists(\ApplicationAuthenticationService::class, 'resolveDispatchTarget'),
+            'resolveDispatchTarget deve deixar de existir'
+        );
+        Assert::stringContains('request_order = "GP"', $source);
         Assert::stringContains('$_REQUEST = self::withoutCsrfCookie($_REQUEST);', $source);
     }
 

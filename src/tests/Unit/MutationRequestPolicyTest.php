@@ -356,6 +356,15 @@ final class MutationRequestPolicyTest
         Assert::same(null, MutationRequestPolicy::resolveCanonical('NoSuchClassAnywhere', 'onReload'));
     }
 
+    public function testRealResolverReturnsCanonicalNameForLeadingBackslash(): void
+    {
+        Assert::same(
+            ['CentralVet\\Security\\CsrfToken', 'isValid'],
+            MutationRequestPolicy::resolveCanonical('\\CentralVet\\Security\\CsrfToken', 'isValid'),
+            'barra inicial devolve o nome canônico, que difere do pedido'
+        );
+    }
+
     public function testRealResolverDeniesWrongCaseThroughRequest(): void
     {
         $server = ['SCRIPT_NAME' => '/engine.php', 'REQUEST_METHOD' => 'GET'];
