@@ -7,7 +7,8 @@ namespace CentralVet\Security;
 /**
  * Handles a "forgot my password" request.
  *
- * Throttled per account (login|ip) and per IP (*|ip). The outcome is the
+ * Throttled per account (normalized login, from any IP) and per IP (any
+ * account), as two independent limits. The outcome is the
  * same for unknown, inactive and active logins (void, no exception), so the
  * response does not reveal whether a login exists; only the throttle is
  * observable, and it does not depend on the login existing.
@@ -31,9 +32,11 @@ final class PasswordResetRequest
      */
     public function handle(string $login, string $ip, callable $findUser, callable $send, int $now): void
     {
+        // Two independent limits in distinct namespaces of the same limiter:
+        // per account (normalized login, any IP) and per IP (any account).
         $identifiers = [
-            LoginRateLimiter::identifierFor($login, $ip),
-            LoginRateLimiter::identifierFor('*', $ip),
+            'account:' . strtolower(trim($login)),
+            'ip:' . trim($ip),
         ];
 
         $wait = null;
