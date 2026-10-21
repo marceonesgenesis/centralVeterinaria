@@ -103,4 +103,5 @@
   - Onda 3: BASE f30ca6a → HEAD 7f3b9f5 (7f3b9f5,b5ac8ca,c943ac7)
   - Onda 4: BASE c1046a5 → HEAD bad05f5 (bad05f5,6700d92,ed64189,84ab554,4ba3e8d,7a518d0,fc03dcf,b0b06a4)
 - Último status conhecido: onda 4 concluída; T-01..T-28 [x] (SUITE 1763/1763, revisões sem bloqueantes)
-- Próxima onda recomendada: nenhuma (revisão final)
+- Entrega: BASE 14139af → HEAD c0cd4eb com os commits por onda preservados. O fechamento de 2026-10-19 tinha desfeito os commits (`reset --soft 14139af`, alterações staged); em 2026-10-21 o histórico foi restaurado a c0cd4eb sem diferença de código.
+- Próxima onda recomendada: nenhuma (revisão final em `reviews/final.md`, pendências [aberta] informativas ou dependentes de autorização SQL)
