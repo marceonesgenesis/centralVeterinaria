@@ -132,7 +132,7 @@ class SystemRequestPasswordResetForm extends TPage
         }
         catch (TooManyPasswordResetAttempts $e)
         {
-            new TMessage('error', _t('Too many password reset attempts. Try again in %s seconds.', $e->secondsUntilAvailable));
+            new TMessage('error', _t('Too many password reset attempts. Try again in ^1 seconds.', $e->secondsUntilAvailable));
             return;
         }
         catch (Throwable $e)

@@ -168,7 +168,7 @@ class LoginForm extends TPage
             if ($rate_limiter->tooManyAttempts($rate_limit_identity))
             {
                 $already_throttled = true;
-                throw new Exception(_t('Too many login attempts. Try again in %s seconds.', $rate_limiter->secondsUntilAvailable($rate_limit_identity)));
+                throw new Exception(_t('Too many login attempts. Try again in ^1 seconds.', $rate_limiter->secondsUntilAvailable($rate_limit_identity)));
             }
 
             // regenerate the session id (and drop the old one) before

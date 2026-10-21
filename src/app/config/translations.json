@@ -5260,8 +5260,12 @@
     "pt": "Muitas solicitações à IA neste momento. Aguarde um pouco e tente de novo."
   },
   {
-    "en": "Too many password reset attempts. Try again in %s seconds.",
-    "pt": "Muitas tentativas de redefinição de senha. Tente novamente em %s segundos."
+    "en": "Too many login attempts. Try again in ^1 seconds.",
+    "pt": "Muitas tentativas de login. Tente novamente em ^1 segundos."
+  },
+  {
+    "en": "Too many password reset attempts. Try again in ^1 seconds.",
+    "pt": "Muitas tentativas de redefinição de senha. Tente novamente em ^1 segundos."
   },
   {
     "en": "Tool",
