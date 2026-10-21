@@ -114,6 +114,14 @@ final class UserMessage
         'Your plan does not include this feature' => 'Your plan does not include this feature',
         'Your subscription is suspended. Regularize the payment to continue' => 'Your subscription is suspended. Regularize the payment to continue',
         'No subscription registered for this clinic' => 'No subscription registered for this clinic',
+        // Etapa 3, T-24 — equipe e unidades da clínica.
+        'Group not allowed for this clinic' => 'Group not allowed for this clinic',
+        'A user with this e-mail already exists' => 'A user with this e-mail already exists',
+        'Invalid e-mail' => 'Invalid e-mail',
+        'You cannot deactivate your own user' => 'You cannot deactivate your own user',
+        'No plan group available for this clinic' => 'No plan group available for this clinic',
+        'Unit name is required' => 'Unit name is required',
+        'Unit name must have at most 120 characters' => 'Unit name must have at most 120 characters',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */

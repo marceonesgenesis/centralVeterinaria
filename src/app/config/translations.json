@@ -88,6 +88,10 @@
     "pt": "Já existe um tutor com este documento"
   },
   {
+    "en": "A user with this e-mail already exists",
+    "pt": "Já existe um usuário com este e-mail"
+  },
+  {
     "en": "A vaccine catalog item is required",
     "pt": "É necessário um item do catálogo de vacinas"
   },
@@ -882,6 +886,10 @@
   {
     "en": "Clinic",
     "pt": "Clínica"
+  },
+  {
+    "en": "Clinic units",
+    "pt": "Unidades da clínica"
   },
   {
     "en": "Clinical",
@@ -2064,6 +2072,10 @@
     "pt": "Grupo"
   },
   {
+    "en": "Group not allowed for this clinic",
+    "pt": "Grupo não permitido para esta clínica"
+  },
+  {
     "en": "Groups",
     "pt": "Grupos"
   },
@@ -2344,6 +2356,10 @@
     "pt": "duração inválida"
   },
   {
+    "en": "Invalid e-mail",
+    "pt": "E-mail inválido"
+  },
+  {
     "en": "Invalid encounter id",
     "pt": "Id de atendimento inválido"
   },
@@ -2438,6 +2454,14 @@
   {
     "en": "Invalid tool input",
     "pt": "Entrada inválida"
+  },
+  {
+    "en": "Invite user",
+    "pt": "Convidar usuário"
+  },
+  {
+    "en": "Invited",
+    "pt": "Convidado"
   },
   {
     "en": "Invoices",
@@ -2880,6 +2904,10 @@
     "pt": "Novo tutor"
   },
   {
+    "en": "New unit",
+    "pt": "Nova unidade"
+  },
+  {
     "en": "New vaccine catalog entry",
     "pt": "Novo item do catálogo de vacinas"
   },
@@ -3014,6 +3042,10 @@
   {
     "en": "No pending items",
     "pt": "Nenhuma pendência"
+  },
+  {
+    "en": "No plan group available for this clinic",
+    "pt": "Nenhum grupo do plano disponível para esta clínica"
   },
   {
     "en": "No preference was changed",
@@ -3878,6 +3910,10 @@
   {
     "en": "RAM Memory",
     "pt": "Memória RAM"
+  },
+  {
+    "en": "Reactivate",
+    "pt": "Reativar"
   },
   {
     "en": "Ready",
@@ -5504,6 +5540,14 @@
     "pt": "Custo unitário"
   },
   {
+    "en": "Unit name is required",
+    "pt": "Informe o nome da unidade"
+  },
+  {
+    "en": "Unit name must have at most 120 characters",
+    "pt": "O nome da unidade deve ter no máximo 120 caracteres"
+  },
+  {
     "en": "Unit of measure",
     "pt": "Unidade de medida"
   },
@@ -5966,6 +6010,10 @@
   {
     "en": "You are not allowed to view this message",
     "pt": "Você não tem permissão para ver esta mensagem"
+  },
+  {
+    "en": "You cannot deactivate your own user",
+    "pt": "Você não pode desativar o próprio usuário"
   },
   {
     "en": "You have already registered this password",
