@@ -26,6 +26,9 @@
 - 2026-10-21 · T-02 · onda 1 — billing_order.terms_accepted_at ganharia ON UPDATE CURRENT_TIMESTAMP no MySQL 5.7; corrigido na própria 0017 (ainda não aplicada em dev/produção) em 85e3ec7: DEFAULT CURRENT_TIMESTAMP(6) sem ON UPDATE, com checagem no .verify.sql; 0017 reaplicada só no centralvet_test.
 - 2026-10-21 · T-05 · onda 1 — Mapa de usos do download.php completado em 576d8da (plano-mandou). Botões de exportação PDF/CSV/XML e pré-visualizações de upload levam a 404 (já não funcionavam); fica para task futura e para a fumaça da T-22.
 - 2026-10-21 · T-04 · onda 1 — Resultado: dompdf 3.1.6, php-jwt 7.2.1, composer audit limpo, hash confere (o hash do composer.json já estava desatualizado antes). Rebuild de app/worker fica para a T-22.
+- 2026-10-21 · T-13 · onda 3 — Reprovada na rodada 1: slug 'clinica-'+8hex colidia com tenant_slug_uq e deixava o pedido pago em provisioning_failed. Ruling do orquestrador (plano-mandou): freeSlug tenta a base, base-2..base-9 e por fim clinica-<public_id inteiro>, com SAVEPOINT. Corrigida (RED 79381ea, fix 51af440), aprovada na rodada 2. Teste de corrida do mesmo pedido dispensado: FOR UPDATE no pedido + UNIQUEs já protegem e o teste em 2 conexões não discriminaria.
+- 2026-10-21 · T-14 · onda 3 — Plano contraditório entre a regra geral de evento antigo e o Review Focus 500/400. No Pix, a fatura que avança o período usa max(created, last_event_created); a de período anterior continua barrada. Brecha residual aceita: Pix pago de período avançado volta de past_due/suspended para active (pagamento recebido).
+- 2026-10-21 · T-15 · onda 3 — ALWAYS_ALLOWED: `legacy` sem assinatura, `grace` na tolerância, `full` nos demais; aceito pela revisão. Tenant provisionado nunca nasce sem assinatura (provisionamento vincula a assinatura do checkout e lança subscriptionMissing com rollback).
 
 ## Bloqueios
 - nenhum
@@ -46,6 +49,11 @@
 - [T-10] Repositórios de assinatura e fatura com DuplicateInvoice (qualquer 1062, mensagem traz key=); todo *ForUpdate exige transação; insert() devolve o id e não muda a entidade; fakes têm $inTransaction=true, $rows e $lockCalls.
 - [T-11] seeds/plan-groups.sql (não aplicado): grupos 'Central Vet - Plano <Nome>' sem SystemUser*/SystemUnit*/SystemGroup*; Starter 41, Pro 60, Business 60, Enterprise 82 programas; exige permission.sql e initial-application-programs.sql antes.
 - [T-12] AccountInviteService::send devolve o id do deliver e propaga MessageDeliveryFailed; PasswordResetToken::issue ganhou $ttlSeconds opcional (padrão 10800; <= 0 lança).
+- [T-23] PixInvoiceIssuer::REFERENCE = 'pix-invoice'; StripeApiException em issueNext depois do insert deixa a fatura sem PaymentIntent: T-18 faz rollback ou o reconciliador regenera via listOpenPix; ensurePaymentIntent de fatura sem id devolve false.
+- [T-15] Guardas em CentralVet\Billing (SubscriptionAccessGuard, AccessDecision, QuotaGuard, QuotaExceededException) e TenantUsageReader; AccessDecision::REASON_*; QuotaExceededException::users/units usam a mensagem em inglês da T-01 (traduzir com _t()).
+- [T-13] TenantProvisioningService/TransactionRunner/ProvisioningResult/ProvisioningConflict: fulfill() abre a própria transação (savepoint se já houver) e deve ser chamado FORA de transação aberta (convite sai depois do commit); pedido inexistente ou não pago = not_paid; falha de convite mantém o status e deixa invite_sent_at nulo; provisioning_error: login_conflict, group_missing, subscription_missing ou nome curto da exceção; slug com desempate e savepoints de nome único.
+- [T-14] BillingEventProcessor: BillingEventOutcome processed/ignored; BillingEventOutOfOrder também para checkout sem pedido e payment_intent.succeeded de fatura inexistente; checkout repetido = ignored sem orderToFulfill (T-17 provisiona só com orderToFulfill != null); paid_at = created do evento; Pix que avança o período usa max(created, last_event_created).
+- [T-16] POST /checkout.php com form_token no corpo (mesmo LeadFormToken do lead); limite checkout|<ip> via CHECKOUT_RATE_LIMIT_* (padrão 10/3600); 201 {checkout_url, order}, 422 {errors}, 502 gateway_unavailable, 503 unavailable.
 
 ## Pendências
 - T-01: sugestões da revisão (chave própria "Invoice amount due" na T-21; relatório devia rodar só as 3 classes do critério).
@@ -61,6 +69,13 @@
 - T-10: ficaram de fora os ramos extras de listOpenPix/listPixDueForIssue (due_at <= now com PI vivo; past_due incluída, suspended/cancelled excluídas), teste da guarda dos outros 4 *ForUpdate reais e o tipo da exceção do save() dos fakes.
 - T-11: até a T-24 e a T-25, o admin da clínica não tem gestão de usuários nem de unidades; sem asserção fixa de Hospitalization/Surgery/Bed/Ai só no Enterprise; idempotência do seed só conferida no texto (aplicar 2x no centralvet_test com autorização); citar no cabeçalho o risco de MAX+1 com nome/controller duplicado.
 - T-12: sem teste de issue() com TTL <= 0 nem de send() propagando MessageDeliveryFailed.
+- T-13: convite fora da trava e sem teto de reenvio (invite_sent_at nulo reenviado pelo reconciliador; envio duplo possível); caminho de falha só grava o nome curto da exceção; faltam testes de group_missing, pedido inexistente e commit/rollback real do TransactionRunner; fulfill dentro de transação externa envia convite antes do commit (T-17/T-18 chamam fora).
+- T-14: StripeApiException depois de orders->save (GET da assinatura no cartão) exige rollback do chamador (T-17); amount_received não comparado com amount_due; pagamento do PI antigo após regeneração sai ignored (T-18); ordem de lock fatura → assinatura (T-18/T-23 igual); barreira contra fatura de período anterior depende de created.
+- T-15: reason `full` descreve mal assinatura suspensa; consulta de assinatura antes do ALWAYS_ALLOWED (sem a 0017 LoginForm quebra); quota sem proteção de concorrência (T-24/T-25 serializam); convite expirado ocupa a quota; falta caso PatientList com suspended/cancelled.
+- T-16: CHECKOUT_RATE_LIMIT_* fora do .env.example; token consumido antes do Stripe (retry após 502 volta 403); priceIdFor sem price lança RuntimeException depois do POST /v1/customers; falta teste com contact_consent=true; mensagens 422 em pt fixo (como no lead).
+- T-17: webhook ainda inexistente: conferir Stripe-Signature, documentar a exceção no inventário CSRF, rollback em StripeApiException depois de orders->save e risco de deadlock 1213 no claim concorrente do evento (da onda 2).
+- T-18: StripeApiException depois do insert em PixInvoiceIssuer::issueNext deixa fatura sem PaymentIntent (reconciliador via listOpenPix ou rollback); Stripe repete por 24 h um 500 da Idempotency-Key; deadlock entre provisionamentos concorrentes cai em provisioning_failed e a retomada reprocessa.
+- T-23: sem teste do ramo DuplicateInvoice → null nem de issueNext com StripeApiException; resposta sem expires_at/hosted_instructions_url não tratada; faltam casos past_due e limite exato de 3 dias.
 
 ## Riscos
 - RISCO Pix: o limite de `payment_method_options[pix][expires_after_seconds]` do PaymentIntent no Stripe precisa aceitar 864000 s (10 dias). Se a API recusar, T-23 usa o máximo aceito, e o reconciliador regenera o Pix expirado, o que já está previsto. A renovação Pix depende do cron do reconciliador (a cada 15 min): sem o cron, nenhuma fatura de renovação é emitida.
@@ -80,5 +95,6 @@
 - Commits por onda:
   - Onda 1: BASE 49ada48 → HEAD 85e3ec7 (987537b, 7ab22ba, ae00071, 7415ce2, 7c864ba, 5964a0a, 95c4c4a, e736ac6, 1a877e7, 65ca55e, 191021b, db59257, 50b41ba, d74868c, d833d45, 576d8da, ca64082, 85e3ec7)
   - Onda 2: BASE df3992e → HEAD e9915bf (13374df, c2b4cc1, fb2558c, 99e580c, 8f70d96, 3d7d4ab, 55a1cac, 33e4972, b07c578, e9915bf)
-- Último status conhecido: onda 2 concluída (T-09 a T-12 [x], SUITE 2110/2110); T-13 a T-25 pendentes
-- Próxima onda recomendada: onda 3
+  - Onda 3: BASE aa2866f → HEAD 51af440 (6934b5a, eb6a0c2, 7ed9650, d7efbd9, 76088e4, b870a4f, 124bc49, e73f264, e0318bb, 0cb993e, 79381ea, 51af440)
+- Último status conhecido: onda 3 concluída (T-13, T-14, T-15, T-16, T-23 [x], SUITE 2166/2166); T-17 a T-22, T-24 e T-25 pendentes
+- Próxima onda recomendada: onda 4
