@@ -97,12 +97,10 @@ class LoginForm extends TPage
         
         $this->form->addAction(_t('Log in'), new TAction([$this, 'onLogin']), '' );
         
-        if (isset($ini['permission']['user_register']) && $ini['permission']['user_register'] == '1')
-        {
-            $createAccount = $this->form->addFooterAction(_t('Create account'), new TAction([self::class, 'onCreateAccount']), '');
-            $createAccount->setProperty('type', 'button');
-            $createAccount->setProperty('onclick', "window.location.href = 'landing.php#cart'; return false;");
-        }
+        // "Criar conta" leva à landing (contratação); o cadastro legado fica desligado
+        $createAccount = $this->form->addFooterAction(_t('Create account'), new TAction([self::class, 'onCreateAccount']), '');
+        $createAccount->setProperty('type', 'button');
+        $createAccount->setProperty('onclick', "window.location.href = 'landing.php#cart'; return false;");
         
         if (isset($ini['permission']['reset_password']) && $ini['permission']['reset_password'] == '1')
         {
