@@ -214,6 +214,34 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         $this->assertOnlyReadsAndPaymentIntents();
     }
 
+    public function testOverduePixInvoiceGoesPastDueEvenWhenThePaymentIntentFails(): void
+    {
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $periodEnd = $this->now->modify('-1 day');
+        $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $invoiceId = $this->invoices->insert(SubscriptionInvoice::issuePix($subscriptionId, 9700, $periodEnd, $periodEnd->modify('+1 month'), $periodEnd));
+        $this->stripe->fail('POST', '/v1/payment_intents', new StripeApiException('Stripe secret key is not configured', 0));
+
+        $this->queueNoEvents();
+        $result = $this->reconciler()->run($this->now);
+
+        Assert::same(1, $result['pix_invoices_overdue']);
+        Assert::same(0, $result['pix_intents_refreshed']);
+        $subscription = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::same(Subscription::STATUS_PAST_DUE, $subscription?->status(), 'the overdue is recorded even though Stripe failed');
+        Assert::notNull($subscription?->graceUntil());
+        Assert::null($this->invoices->findByIdForUpdate($invoiceId)?->stripePaymentIntentId());
+        Assert::count(1, array_filter($this->stripe->calls, static fn (array $c): bool => $c['method'] === 'POST'));
+
+        $this->queueNoEvents();
+        $this->stripe->fail('POST', '/v1/payment_intents', new StripeApiException('Stripe secret key is not configured', 0));
+        $late = $this->reconciler()->run($this->now->modify('+8 days'));
+
+        Assert::same(1, $late['subscriptions_suspended']);
+        Assert::same(Subscription::STATUS_SUSPENDED, $this->subscriptions->findByIdForUpdate($subscriptionId)?->status());
+        $this->assertOnlyReadsAndPaymentIntents();
+    }
+
     public function testExpiredPixGetsANewPaymentIntent(): void
     {
         [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
