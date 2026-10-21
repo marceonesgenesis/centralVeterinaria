@@ -96,6 +96,16 @@ final class PlanGroupsSeedTest
         }
     }
 
+    public function testEveryGroupHasTheClinicTeamAndUnitPrograms(): void
+    {
+        $links = $this->links();
+        foreach (self::GROUPS as $group) {
+            foreach (['ClinicUserList', 'ClinicUserForm', 'ClinicUnitList', 'ClinicUnitForm'] as $controller) {
+                Assert::true(in_array($controller, $links[$group] ?? [], true), $group . ' must link ' . $controller);
+            }
+        }
+    }
+
     public function testNoGroupLinksGlobalSystemAdministration(): void
     {
         foreach ($this->links() as $group => $controllers) {
