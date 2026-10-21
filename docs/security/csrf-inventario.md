@@ -15,6 +15,20 @@ A política é uma allowlist de leitura. Para uma requisição logada com `class
 4. Por `engine.php` → `allow` só com `POST` e cabeçalho `X-CSRF-Token` igual a `TSession['cv_shell_csrf']`
    (`CsrfToken::isValid`, `hash_equals`); senão `deny`.
 
+Antes disso, `decideFromRequest` (Rodada 1 da revisão):
+
+- **Mesma fonte do dispatch.** `AdiantiCoreApplication::run()` e o despacho estático leem `$_REQUEST`, mas o
+  despacho de página (`AdiantiPageControlTrait::run`) executa `$_GET['class']`/`$_GET['method']`. Com
+  `variables_order=EGPCS`, o corpo POST (ou um cookie) sobrescreve a query em `$_REQUEST`. Se `class`/`method`
+  da query (`$_GET`) ou do corpo (`$_POST`) divergirem de `$_REQUEST`, ou se `method` só existir em
+  `$_REQUEST` com `class` na query → `deny`. Ex.: `POST engine.php?class=SaleForm&method=onSave` com
+  corpo `method=onReload` → `deny`.
+- **Nomes canônicos.** O PHP resolve classe e método sem diferenciar maiúsculas. Os nomes são resolvidos por
+  `ReflectionClass::getName`/`ReflectionMethod::getName` (`resolveCanonical`); classe ou método inexistente,
+  ou grafia diferente da declarada (`SaleForm::onClearcart`, `cashsessionform::onOpen`) → `deny`.
+- Como defesa extra, `isReadOnly`/`decide` comparam listas, prefixos e chaves `Classe::método` sem
+  diferenciar maiúsculas.
+
 Errar uma leitura como escrita só passa a exigir POST + token; errar uma escrita como leitura abre CSRF.
 Na dúvida, o método fica fora das listas de leitura.
 
@@ -48,10 +62,10 @@ resto era ruído de widget (`->clear()`, `->add()`, `TScript::create`).
 | `onView` | Visualização; `SystemMessageFormView::onView` grava e está em `MUTATING_OVERRIDES`. |
 | `onShow` | `onShowCurtainFilters` e `SystemPostCommentForm::onShow`: só montam a cortina/formulário. |
 | `onOpen` | `AiCopilotPanel::onOpen` (link do painel), `SystemDriveList::onOpen`, `SystemProgramList::onOpen`; `CashSessionForm::onOpen` abre caixa e está em `MUTATING_OVERRIDES`. |
-| `onClear` | Limpa formulário (`ProductForm`, `ServiceForm`, `PrescriptionForm`, `SystemPostForm`, `SystemMessageForm`, `SystemRegistrationForm`); `SaleForm::onClearCart` apaga o carrinho da sessão e está em `MUTATING_OVERRIDES`. |
+| `onClear` | Limpa formulário (`ProductForm`, `ServiceForm`, `SystemPostForm`, `SystemMessageForm`, `SystemRegistrationForm`); `SaleForm::onClearCart` e `PrescriptionForm::onClear` apagam rascunho da sessão e estão em `MUTATING_OVERRIDES`. |
 | `onChangeLimit` | Tamanho de página do grid em sessão. |
-| `onExport` | `FinancialOverview::onExport`, `LandingLeadList::onExport`, `SystemTableList`/`SystemDatabaseExplorer::onExportCSV/SQL`: só leem; o `unlink` é do arquivo temporário. |
-| `onGenerate` | `PrescriptionForm::onGeneratePdf`, `SaleForm::onGenerateReceiptPdf` (links `engine.php`), `SystemSQLPanel::onGenerate` (recusa SQL que não começa por `SELECT`). |
+| `onExport` | `FinancialOverview::onExport`, `LandingLeadList::onExport`, `SystemDatabaseExplorer::onExportCSV/SQL` (tabelas vindas de `getDatabaseTables`): só leem; o `unlink` é do arquivo temporário. `SystemTableList::onExportCSV/SQL` estão em `MUTATING_OVERRIDES`. |
+| `onGenerate` | `PrescriptionForm::onGeneratePdf`, `SaleForm::onGenerateReceiptPdf` (links `engine.php`). `SystemSQLPanel::onGenerate` está em `MUTATING_OVERRIDES`. |
 | `onPrint` | Reservado para impressão; nenhum método atual. |
 | `onDisplay` | `SystemDriveList::onDisplay*`/`SystemDatabaseExplorer::onDisplay*`: só exibem confirmação ou menu; a ação vem depois em outro método. |
 
@@ -67,6 +81,11 @@ de cortina (`SystemUserForm::onClose`…) passam a exigir POST + token, sem prej
 | `CashSessionForm::onOpen` | Chama `CashSessionService::open` com saldo inicial: abre a sessão de caixa. |
 | `SystemMessageFormView::onView` | `->store()` marca a mensagem como lida. |
 | `SaleForm::onClearCart` | Apaga o rascunho do carrinho e o tutor da sessão (`TSession::setValue(..., null)`). |
+| `PrescriptionForm::onClear` | Descarta o rascunho e o cabeçalho da prescrição na sessão (mesmo efeito de `onClearCart`). |
+| `SystemSQLPanel::onGenerate` | Executa o SQL digitado (`$conn->query`) só com checagem de prefixo `SELECT`; com prepares emulados no MySQL admite `SELECT 1; DELETE ...` e `SELECT ... INTO OUTFILE`. |
+| `SystemDataBrowser::onLoad` | Monta `SELECT ... FROM {$table}` e `TFilter` com tabela e coluna vindas do request: SQL arbitrário por concatenação. |
+| `SystemTableList::onExportCSV` | Exporta `$param['table']` sem validação, interpolado no SQL. |
+| `SystemTableList::onExportSQL` | Idem, gerando `INSERT`s. |
 
 ### EXEMPT_CLASSES
 
@@ -119,7 +138,8 @@ onAskMarkSent/onAskRetry/onAskCheckIn`: POST + token.
 `SystemScheduleList::onTurnOnOff`, `SystemScheduleForm::onSave`, `SystemDatabaseExplorer::onConfirmImport`,
 `AiSettingsForm::onSave`, comunicação/drive (`SystemDocument*`, `SystemFolder*`, `SystemPost*`,
 `SystemWikiForm`, `SystemMessageForm::onSend`, `SystemSupportForm::onSend`): POST + token.
-`SystemSQLPanel::onGenerate` fica em leitura porque recusa SQL que não seja `SELECT`.
+`SystemSQLPanel::onGenerate`, `SystemDataBrowser::onLoad` e `SystemTableList::onExportCSV/SQL` executam SQL
+montado a partir do request e estão em `MUTATING_OVERRIDES`.
 
 ## Copiloto IA
 

@@ -59,6 +59,11 @@ final class MutationRequestPolicy
         'CashSessionForm::onOpen',
         'SystemMessageFormView::onView',
         'SaleForm::onClearCart',
+        'PrescriptionForm::onClear',
+        'SystemSQLPanel::onGenerate',
+        'SystemDataBrowser::onLoad',
+        'SystemTableList::onExportCSV',
+        'SystemTableList::onExportSQL',
     ];
 
     /** Classes accepted without token (upload to tmp/ only, raw XHR). */
@@ -79,16 +84,18 @@ final class MutationRequestPolicy
             return true;
         }
 
-        if (in_array($class . '::' . $method, self::MUTATING_OVERRIDES, true)) {
+        // PHP resolves class and method names case-insensitively, so every
+        // comparison is too: `onClearcart` must not dodge `onClearCart`.
+        if (self::inList($class . '::' . $method, self::MUTATING_OVERRIDES)) {
             return false;
         }
 
-        if (in_array($method, self::READ_METHODS, true)) {
+        if (self::inList($method, self::READ_METHODS)) {
             return true;
         }
 
         foreach (self::READ_PREFIXES as $prefix) {
-            if (str_starts_with($method, $prefix)) {
+            if (strncasecmp($method, $prefix, strlen($prefix)) === 0) {
                 return true;
             }
         }
@@ -105,8 +112,8 @@ final class MutationRequestPolicy
         mixed $sessionToken
     ): string {
         if (self::isReadOnly($class, $method)
-            || in_array($class, self::EXEMPT_CLASSES, true)
-            || in_array($class . '::' . $method, self::EXEMPT_ACTIONS, true)
+            || self::inList($class, self::EXEMPT_CLASSES)
+            || self::inList($class . '::' . $method, self::EXEMPT_ACTIONS)
         ) {
             return self::ALLOW;
         }
@@ -119,23 +126,120 @@ final class MutationRequestPolicy
     }
 
     /**
-     * @param array<string, mixed> $server  $_SERVER
-     * @param array<string, mixed> $request $_REQUEST
+     * Decides on the live request. Class and method come from $_REQUEST (what
+     * AdiantiCoreApplication::run() and static dispatch use), but the page
+     * dispatch (AdiantiPageControlTrait::run) executes $_GET: when the query or
+     * the body name a class/method different from $_REQUEST, the request is
+     * denied. Names are then resolved to their canonical spelling (Reflection
+     * by default); unknown class/method or a spelling that differs from the
+     * declared one is denied.
+     *
+     * @param array<string, mixed>      $server   $_SERVER
+     * @param array<string, mixed>      $request  $_REQUEST
+     * @param array<string, mixed>|null $query    $_GET (null = the superglobal)
+     * @param array<string, mixed>|null $body     $_POST (null = the superglobal)
+     * @param (callable(string, string): ?array{0: string, 1: string})|null $resolver
      */
-    public static function decideFromRequest(array $server, array $request, mixed $sessionToken): string
-    {
+    public static function decideFromRequest(
+        array $server,
+        array $request,
+        mixed $sessionToken,
+        ?array $query = null,
+        ?array $body = null,
+        ?callable $resolver = null
+    ): string {
+        $query ??= $_GET;
+        $body ??= $_POST;
+
         $script = $server['SCRIPT_NAME'] ?? '';
         $httpMethod = $server['REQUEST_METHOD'] ?? 'GET';
-        $class = $request['class'] ?? '';
-        $method = $request['method'] ?? '';
+        $class = self::stringParam($request, 'class');
+        $method = self::stringParam($request, 'method');
+
+        foreach (['class' => $class, 'method' => $method] as $key => $value) {
+            foreach ([$query, $body] as $source) {
+                if (array_key_exists($key, $source) && self::stringParam($source, $key) !== $value) {
+                    return self::DENY;
+                }
+            }
+        }
+
+        // The page dispatch runs $_GET['method']: a method present only in
+        // $_REQUEST (body or cookie) while the query names the class is not
+        // what will run.
+        if ($method !== '' && array_key_exists('class', $query) && !array_key_exists('method', $query)
+            && !array_key_exists('method', $body)) {
+            return self::DENY;
+        }
+
+        if ($class === '') {
+            if ($method !== '') {
+                return self::DENY;
+            }
+        } else {
+            $canonical = ($resolver ?? [self::class, 'resolveCanonical'])($class, $method);
+
+            if (!is_array($canonical) || $canonical !== [$class, $method]) {
+                return self::DENY;
+            }
+        }
 
         return self::decide(
             basename(is_string($script) ? $script : ''),
             is_string($httpMethod) ? $httpMethod : 'GET',
-            is_string($class) ? $class : '',
-            is_string($method) ? $method : '',
+            $class,
+            $method,
             $server[self::SERVER_HEADER_KEY] ?? null,
             $sessionToken
         );
+    }
+
+    /**
+     * Canonical (declared) class and method names, or null when the class
+     * or the method does not exist.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public static function resolveCanonical(string $class, string $method): ?array
+    {
+        try {
+            if (!class_exists($class)) {
+                return null;
+            }
+
+            $canonicalClass = (new \ReflectionClass($class))->getName();
+
+            if ($method === '') {
+                return [$canonicalClass, ''];
+            }
+
+            if (!method_exists($canonicalClass, $method)) {
+                return null;
+            }
+
+            return [$canonicalClass, (new \ReflectionMethod($canonicalClass, $method))->getName()];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** @param array<string, mixed> $source */
+    private static function stringParam(array $source, string $key): string
+    {
+        $value = $source[$key] ?? '';
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** @param list<string> $list */
+    private static function inList(string $needle, array $list): bool
+    {
+        foreach ($list as $item) {
+            if (strcasecmp($needle, $item) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
