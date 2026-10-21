@@ -140,7 +140,7 @@ final class CurlStripeClientTest
 
     public function testEmptyOrMalformedKeyFailsBeforeAnyRequestLeaves(): void
     {
-        foreach (['', '   ', 'placeholder-secret', 'rk_test_dummy', 'pk_live_dummy', 'sk_dummy', 'whsec_test_etapa3'] as $key) {
+        foreach (['', '   ', 'placeholder-secret', 'pk_live_dummy', 'pk_test_dummy', 'rk_dummy', 'sk_dummy', 'whsec_test_etapa3'] as $key) {
             $transportCalls = 0;
             $client = new CurlStripeClient(
                 new StripeConfig($key, 'whsec_test_etapa3', []),
@@ -167,7 +167,7 @@ final class CurlStripeClientTest
 
     public function testLiveAndTestKeysAreAccepted(): void
     {
-        foreach (['sk_test_dummy', 'sk_live_dummy'] as $key) {
+        foreach (['sk_test_dummy', 'sk_live_dummy', 'rk_test_dummy', 'rk_live_dummy'] as $key) {
             $transportCalls = 0;
             $client = new CurlStripeClient(
                 new StripeConfig($key, '', []),
