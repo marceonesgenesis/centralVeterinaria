@@ -27,13 +27,15 @@ use CentralVet\Tests\Support\TestDatabase;
  * A (the test transaction) holds the lock; B (second connection, lock wait
  * timeout 1 s) ends in 1205. Everything is rolled back; nothing commits.
  *
- * Limitation (notes.md § Riscos): the fixtures cannot be committed, so B
- * also waits on A's implicit INSERT locks. In the close direction this
- * still proves the lock — a plain consistent read in B would not see A's
- * uncommitted session and answer "Cash session N not found" instead of
- * 1205. In the register direction B already waits on the receivable (read
- * FOR UPDATE since Etapa 2); CashSessionLockTest proves register() reads
- * the session only through findByIdForUpdate().
+ * Base data cannot be committed (MysqlIntegrationTestCase), so the race
+ * tests run in a tenant that already exists committed in the test database
+ * (MIN(id) of `tenant`): A opens the cash session there and holds it; B
+ * creates its OWN tutor/sale/receivable in the same tenant inside its own
+ * transaction, so the receivable lock never waits on A. The only row B can
+ * wait for is A's cash_session, and only because B reads it FOR UPDATE: a
+ * plain consistent read would not see A's uncommitted session and answer
+ * "Cash session N not found" instead of 1205. Each race test also asserts
+ * that the 1205 was raised inside CashSessionRepository::findByIdForUpdate().
  */
 final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
 {
@@ -43,6 +45,7 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
     private int $unitId;
     private int $tenantId;
     private int $tutorId;
+    private int $baseTenantId;
 
     public function setUp(): void
     {
@@ -53,39 +56,52 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
         $this->unitId = (int) $this->pdo->query('SELECT MIN(id) FROM system_unit')->fetchColumn();
         Assert::true($this->unitId > 0, 'Fixture requires at least one existing system_unit row');
 
+        $this->baseTenantId = (int) $this->pdo->query('SELECT MIN(id) FROM tenant')->fetchColumn();
+        Assert::true($this->baseTenantId > 0, 'Fixture requires at least one committed tenant row');
+
         $this->tenantId = $this->createTenant('e3-t03');
         $this->tutorId = $this->createTutor();
     }
 
     public function testRegisterWaitsForTheCashSessionHeldByAnotherTransaction(): void
     {
-        $cashSessionId = $this->openCashSession();
-        $receivableId = $this->saleReceivable(10000);
+        $tenantId = $this->baseTenantId;
+        $cashSessionId = $this->openCashSession($tenantId);
 
-        $locked = (new CashSessionRepository($this->context(), $this->pdo))->findByIdForUpdate($cashSessionId);
+        $locked = (new CashSessionRepository($this->context($tenantId), $this->pdo))->findByIdForUpdate($cashSessionId);
         Assert::notNull($locked, 'A holds the cash session');
 
-        [$errorCode, $answer] = $this->inSecondConnection(
-            fn (\PDO $other) => $this->paymentService($other)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION),
+        $receivableId = 0;
+
+        [$errorCode, $answer, $inCashSessionLock] = $this->inSecondConnection(
+            function (\PDO $other) use ($tenantId, $cashSessionId, &$receivableId): void {
+                // B's own receivable: free for B, never touched by A.
+                $receivableId = $this->saleReceivableOn($other, $tenantId, 10000);
+                $this->paymentService($other, $tenantId)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION);
+            },
         );
 
+        Assert::true($receivableId > 0, "B created its own receivable before registering (answered: {$answer})");
         Assert::same(1205, $errorCode, "B must end in lock wait timeout (answered: {$answer})");
+        Assert::true($inCashSessionLock, 'B must wait on CashSessionRepository::findByIdForUpdate(), not on the receivable');
         Assert::same(0, $this->paymentCount($receivableId));
     }
 
     public function testCloseWaitsForThePaymentHeldByAnotherTransaction(): void
     {
-        $cashSessionId = $this->openCashSession();
-        $receivableId = $this->saleReceivable(10000);
+        $tenantId = $this->baseTenantId;
+        $cashSessionId = $this->openCashSession($tenantId);
+        $receivableId = $this->saleReceivableOn($this->pdo, $tenantId, 10000);
 
-        $payment = $this->paymentService($this->pdo)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION);
+        $payment = $this->paymentService($this->pdo, $tenantId)->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, $this->userId, self::ACTION);
         Assert::notNull($payment->id(), 'A registered the payment and still holds the cash session');
 
-        [$errorCode, $answer] = $this->inSecondConnection(
-            fn (\PDO $other) => $this->cashSessionService($other)->close($cashSessionId, 3000, $this->userId, self::ACTION),
+        [$errorCode, $answer, $inCashSessionLock] = $this->inSecondConnection(
+            fn (\PDO $other) => $this->cashSessionService($other, $tenantId)->close($cashSessionId, 3000, $this->userId, self::ACTION),
         );
 
         Assert::same(1205, $errorCode, "B must end in lock wait timeout (answered: {$answer})");
+        Assert::true($inCashSessionLock, 'B must wait on CashSessionRepository::findByIdForUpdate()');
         Assert::same('open', $this->sessionStatus($cashSessionId));
     }
 
@@ -155,7 +171,9 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
      * Runs $work in a second connection with a 1 s lock wait timeout and
      * always rolls it back.
      *
-     * @return array{0: int, 1: string} MySQL error code (0 when none) and what B answered
+     * @return array{0: int, 1: string, 2: bool} MySQL error code (0 when
+     *         none), what B answered, and whether the error was raised inside
+     *         CashSessionRepository::findByIdForUpdate()
      */
     private function inSecondConnection(callable $work): array
     {
@@ -166,19 +184,27 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
         try {
             $work($other);
 
-            return [0, 'no exception'];
+            return [0, 'no exception', false];
         } catch (\PDOException $e) {
-            return [(int) ($e->errorInfo[1] ?? 0), $e->getMessage()];
+            $inCashSessionLock = false;
+
+            foreach ($e->getTrace() as $frame) {
+                if (($frame['class'] ?? '') === CashSessionRepository::class && ($frame['function'] ?? '') === 'findByIdForUpdate') {
+                    $inCashSessionLock = true;
+                }
+            }
+
+            return [(int) ($e->errorInfo[1] ?? 0), $e->getMessage(), $inCashSessionLock];
         } catch (\Throwable $e) {
-            return [0, get_class($e) . ': ' . $e->getMessage()];
+            return [0, get_class($e) . ': ' . $e->getMessage(), false];
         } finally {
             $other->rollBack();
         }
     }
 
-    private function paymentService(\PDO $connection): PaymentService
+    private function paymentService(\PDO $connection, ?int $tenantId = null): PaymentService
     {
-        $context = $this->context();
+        $context = $this->context($tenantId);
         $authorization = new FakeAuthorizationPolicy();
 
         return new PaymentService(
@@ -192,9 +218,9 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
         );
     }
 
-    private function cashSessionService(\PDO $connection): CashSessionService
+    private function cashSessionService(\PDO $connection, ?int $tenantId = null): CashSessionService
     {
-        $context = $this->context();
+        $context = $this->context($tenantId);
 
         return new CashSessionService(
             new CashSessionRepository($context, $connection),
@@ -204,9 +230,9 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
         );
     }
 
-    private function context(): TenantContext
+    private function context(?int $tenantId = null): TenantContext
     {
-        return TenantContext::authenticated($this->tenantId, $this->userId, $this->unitId);
+        return TenantContext::authenticated($tenantId ?? $this->tenantId, $this->userId, $this->unitId);
     }
 
     private function sessionStatus(int $cashSessionId): string
@@ -241,13 +267,43 @@ final class CashSessionCloseRaceIntegrationTest extends MysqlIntegrationTestCase
         return (int) $receivable->id();
     }
 
-    private function openCashSession(): int
+    /**
+     * Tutor, sale and receivable of $tenantId written through $connection
+     * (uncommitted in that connection's transaction).
+     */
+    private function saleReceivableOn(\PDO $connection, int $tenantId, int $totalCents): int
+    {
+        $tutor = $connection->prepare(
+            'INSERT INTO tutor (tenant_id, public_id, full_name, phone) VALUES (:tenant_id, UUID(), :full_name, :phone)',
+        );
+        $tutor->execute(['tenant_id' => $tenantId, 'full_name' => 'E3 Tutor B', 'phone' => '11999990001']);
+        $tutorId = (int) $connection->lastInsertId();
+
+        $sale = $connection->prepare(
+            "INSERT INTO sale (tenant_id, system_unit_id, tutor_id, patient_id, system_user_id, status, total_amount_cents, sold_at)
+             VALUES (:tenant_id, :unit_id, :tutor_id, NULL, :user_id, 'completed', :total, '2031-06-01 09:00:00')",
+        );
+        $sale->execute([
+            'tenant_id' => $tenantId,
+            'unit_id' => $this->unitId,
+            'tutor_id' => $tutorId,
+            'user_id' => $this->userId,
+            'total' => $totalCents,
+        ]);
+
+        $receivable = Receivable::openForSale($tenantId, (int) $connection->lastInsertId(), $tutorId, $totalCents);
+        (new ReceivableRepository($this->context($tenantId), $connection))->save($receivable);
+
+        return (int) $receivable->id();
+    }
+
+    private function openCashSession(?int $tenantId = null): int
     {
         $statement = $this->pdo->prepare(
             "INSERT INTO cash_session (tenant_id, system_unit_id, opened_by_system_user_id, opening_balance_cents, status)
              VALUES (:tenant_id, :unit_id, :user_id, 0, 'open')",
         );
-        $statement->execute(['tenant_id' => $this->tenantId, 'unit_id' => $this->unitId, 'user_id' => $this->userId]);
+        $statement->execute(['tenant_id' => $tenantId ?? $this->tenantId, 'unit_id' => $this->unitId, 'user_id' => $this->userId]);
 
         return (int) $this->pdo->lastInsertId();
     }
