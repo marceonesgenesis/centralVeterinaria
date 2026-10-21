@@ -19,22 +19,13 @@ use DateTimeImmutable;
  */
 final class SaleReceiptHtml
 {
-    /** Rótulos (chaves de tradução) das formas de pagamento, como CvFormat::paymentMethod. */
-    private const METHOD_LABELS = [
-        Payment::METHOD_CASH => 'Cash',
-        Payment::METHOD_DEBIT_CARD => 'Debit card',
-        Payment::METHOD_CREDIT_CARD => 'Credit card',
-        Payment::METHOD_PIX => 'Pix',
-        Payment::METHOD_BANK_TRANSFER => 'Bank transfer',
-    ];
-
     private function __construct()
     {
     }
 
     /**
      * @param list<SaleItem> $items
-     * @param array{status?: string, total_cents?: int, received_cents?: int, payment_methods?: list<string>, cancelled_at?: ?string, cancelled_by_name?: ?string, cancellation_reason?: ?string} $summary
+     * @param array{status?: string, total_cents?: int, received_cents?: int, payment_methods?: list<string>, cancelled_at?: ?string, cancelled_by_name?: ?string, cancellation_reason?: ?string, tutor_name?: string, patient_name?: ?string} $summary
      * @param callable(string, string...): string $translate
      */
     public static function render(Sale $sale, array $items, array $summary, callable $translate): string
@@ -56,8 +47,10 @@ final class SaleReceiptHtml
         $receivedCents = (int) ($summary['received_cents'] ?? 0);
         $dueCents = max(0, $totalCents - $receivedCents);
 
+        // Nomes de SaleFinanceReader::receiptSummary; o id (#n) só quando a chave falta.
+        $tutorText = self::nameOrId($summary['tutor_name'] ?? null, $sale->tutorId());
         $patientLine = $sale->patientId() !== null
-            ? ' &mdash; ' . $t('Patient') . ': ' . $sale->patientId()
+            ? ' &mdash; ' . $t('Patient') . ': ' . self::nameOrId($summary['patient_name'] ?? null, $sale->patientId())
             : '';
 
         $html = '<html><head><meta charset="utf-8"></head><body>'
@@ -69,7 +62,7 @@ final class SaleReceiptHtml
             $html .= self::cancellationBlock($sale, $summary, $translate, $t);
         }
 
-        $html .= '<p>' . $t('Tutor') . ': ' . $sale->tutorId() . $patientLine . '</p>'
+        $html .= '<p>' . $t('Tutor') . ': ' . $tutorText . $patientLine . '</p>'
             . '<p>' . $t('Date') . ': ' . self::e($sale->soldAt()->format('d/m/Y H:i')) . '</p>'
             . '<table border="1" cellpadding="4" cellspacing="0" width="100%">'
             . '<thead><tr>'
@@ -80,7 +73,7 @@ final class SaleReceiptHtml
 
         if ($receivedCents > 0) {
             $methods = array_map(
-                static fn (string $method): string => $translate(self::METHOD_LABELS[$method] ?? $method),
+                static fn (string $method): string => $translate(Payment::METHOD_LABELS[$method] ?? $method),
                 array_values(array_map('strval', (array) ($summary['payment_methods'] ?? []))),
             );
             $methodsText = $methods === [] ? '' : ' (' . self::e(implode(', ', $methods)) . ')';
@@ -121,6 +114,12 @@ final class SaleReceiptHtml
         }
 
         return $block;
+    }
+
+    /** Nome escapado, ou "#<id>" quando o resumo não traz o nome. */
+    private static function nameOrId(mixed $name, int $id): string
+    {
+        return is_string($name) && $name !== '' ? self::e($name) : '#' . $id;
     }
 
     private static function formatDateTime(mixed $value): ?string

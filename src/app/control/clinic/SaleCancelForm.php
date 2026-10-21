@@ -55,9 +55,6 @@ class SaleCancelForm extends TPage
         $this->form->addFields([new TLabel(_t('Cancellation reason'))]);
         $this->form->addFields([$reason]);
 
-        $btn = $this->form->addAction(_t('Cancel sale'), new TAction([__CLASS__, 'onCancel']), 'fa:ban');
-        $btn->class = 'btn btn-danger cv-touch-target';
-
         $this->form->addHeaderActionLink(_t('Close'), new TAction([__CLASS__, 'onClose']), 'fa:times');
 
         $container = new TVBox;
@@ -96,7 +93,14 @@ class SaleCancelForm extends TPage
 
             if ($summary['status'] === \CentralVet\Domain\Sale::STATUS_CANCELLED)
             {
+                // venda já cancelada: só o selo e o aviso, sem a ação de confirmar
+                $this->summaryBox->add(CvBadge::create(_t('Cancelled'), 'danger'));
                 $this->summaryBox->add(new TAlert('info', _t('This sale was already cancelled')));
+            }
+            else
+            {
+                $btn = $this->form->addAction(_t('Cancel sale'), new TAction([__CLASS__, 'onCancel']), 'fa:ban');
+                $btn->class = 'btn btn-danger cv-touch-target';
             }
 
             $data = new stdClass;

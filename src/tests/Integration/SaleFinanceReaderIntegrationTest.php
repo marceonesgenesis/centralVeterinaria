@@ -82,6 +82,8 @@ final class SaleFinanceReaderIntegrationTest extends MysqlIntegrationTestCase
             'cancelled_at' => null,
             'cancelled_by_name' => null,
             'cancellation_reason' => null,
+            'tutor_name' => 'E2 Tutor A',
+            'patient_name' => null,
         ], $summary);
     }
 

@@ -49,6 +49,20 @@ final class Payment
         self::METHOD_BANK_TRANSFER,
     ];
 
+    /**
+     * Single source of the payment method labels (English translation keys),
+     * read by CvFormat::paymentMethod and SaleReceiptHtml.
+     *
+     * @var array<string, string>
+     */
+    public const METHOD_LABELS = [
+        self::METHOD_CASH => 'Cash',
+        self::METHOD_DEBIT_CARD => 'Debit card',
+        self::METHOD_CREDIT_CARD => 'Credit card',
+        self::METHOD_PIX => 'Pix',
+        self::METHOD_BANK_TRANSFER => 'Bank transfer',
+    ];
+
     private function __construct(
         private ?int $id,
         private readonly int $tenantId,

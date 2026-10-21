@@ -108,7 +108,7 @@ final class SaleFinanceReader extends AbstractTenantRepository
      * Financial summary printed on the receipt, from the stored rows only;
      * null when the sale does not exist or belongs to another tenant.
      *
-     * @return array{sale_id: int, status: string, total_cents: int, receivable_status: ?string, received_cents: int, payment_methods: list<string>, cancelled_at: ?string, cancelled_by_name: ?string, cancellation_reason: ?string}|null
+     * @return array{sale_id: int, status: string, total_cents: int, receivable_status: ?string, received_cents: int, payment_methods: list<string>, cancelled_at: ?string, cancelled_by_name: ?string, cancellation_reason: ?string, tutor_name: string, patient_name: ?string}|null
      */
     public function receiptSummary(int $saleId): ?array
     {
@@ -117,8 +117,11 @@ final class SaleFinanceReader extends AbstractTenantRepository
         $statement = $this->connection->prepare(
             'SELECT s.id, s.status, s.total_amount_cents, r.id AS receivable_id, r.status AS receivable_status, '
             . self::RECEIVED_CENTS_SQL . ' AS received_cents, '
-            . "DATE_FORMAT(s.cancelled_at, '%Y-%m-%d %H:%i:%s') AS cancelled_at, u.name AS cancelled_by_name, s.cancellation_reason "
+            . "DATE_FORMAT(s.cancelled_at, '%Y-%m-%d %H:%i:%s') AS cancelled_at, u.name AS cancelled_by_name, s.cancellation_reason, "
+            . 't.full_name AS tutor_name, pt.name AS patient_name '
             . 'FROM sale s '
+            . 'LEFT JOIN tutor t ON t.id = s.tutor_id AND t.tenant_id = s.tenant_id '
+            . 'LEFT JOIN patient pt ON pt.id = s.patient_id AND pt.tenant_id = s.tenant_id '
             . 'LEFT JOIN receivable r ON r.sale_id = s.id AND r.tenant_id = s.tenant_id '
             . 'LEFT JOIN system_users u ON u.id = s.cancelled_by_system_user_id '
             . "WHERE {$query->whereSql()}"
@@ -142,6 +145,8 @@ final class SaleFinanceReader extends AbstractTenantRepository
             'cancelled_at' => $row['cancelled_at'] === null ? null : (string) $row['cancelled_at'],
             'cancelled_by_name' => $row['cancelled_by_name'] === null ? null : (string) $row['cancelled_by_name'],
             'cancellation_reason' => $row['cancellation_reason'] === null ? null : (string) $row['cancellation_reason'],
+            'tutor_name' => (string) ($row['tutor_name'] ?? ''),
+            'patient_name' => $row['patient_name'] === null ? null : (string) $row['patient_name'],
         ];
     }
 
