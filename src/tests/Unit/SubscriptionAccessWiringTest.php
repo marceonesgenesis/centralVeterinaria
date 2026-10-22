@@ -64,11 +64,34 @@ final class SubscriptionAccessWiringTest
     {
         $source = $this->method('enforceSubscriptionAccess');
 
-        Assert::stringContains("\$_REQUEST['method']", $source, 'o método da requisição entra na decisão');
-        Assert::stringContains('SubscriptionAccessGuard::accessKey($class, $method)', $source);
-        Assert::stringContains('->decide($tenantId, $class, new DateTimeImmutable(), $method)', $source);
+        Assert::stringContains('SubscriptionAccessGuard::requestTarget($_REQUEST, $_GET, $_POST)', $source, 'classe e método da mesma fonte que o dispatch');
+        Assert::false(str_contains($source, "\$_REQUEST['method']"), 'o método não vem só de $_REQUEST (o POST venceria a query)');
+        Assert::false(str_contains($source, "\$_REQUEST['class']"), 'a classe não vem só de $_REQUEST');
+        Assert::stringContains("\$key = \$target['key'];", $source);
+        Assert::stringContains("->decide(\$tenantId, \$target['class'], new DateTimeImmutable(), \$target['method'])", $source);
         Assert::stringContains('self::cachedSubscriptionAccess($cache, $tenantId, $key, $now)', $source);
         Assert::stringContains('self::rememberSubscriptionAccess($cache, $tenantId, $key, $decision, $now)', $source);
+
+        $divergent = strpos($source, 'if ($target === null)');
+        Assert::true($divergent !== false && $divergent < strpos($source, '->decide('), 'divergência negada antes de decidir');
+        Assert::stringContains("'[subscription-guard] denied divergent class/method'", $source);
+    }
+
+    /** Rodada 2: a entrada bloqueada da classe não vale para onContext, e a liberada de onContext não vale para onSwitchUnit. */
+    public function testCacheKeepsOnContextApartFromTheClassEntry(): void
+    {
+        $this->loadService();
+        $now = 1_000_000;
+        $context = \CentralVet\Billing\SubscriptionAccessGuard::requestTarget(
+            ['class' => 'CvShellController', 'method' => 'onContext'], ['class' => 'CvShellController', 'method' => 'onContext'], []);
+        $switch = \CentralVet\Billing\SubscriptionAccessGuard::requestTarget(
+            ['class' => 'CvShellController', 'method' => 'onSwitchUnit'], ['class' => 'CvShellController', 'method' => 'onSwitchUnit'], []);
+
+        $cache = \ApplicationAuthenticationService::rememberSubscriptionAccess([], 7, $switch['key'], AccessDecision::blockedStatus(), $now);
+        Assert::null(\ApplicationAuthenticationService::cachedSubscriptionAccess($cache, 7, $context['key'], $now + 1), 'onContext é decidido à parte da classe');
+
+        $cache = \ApplicationAuthenticationService::rememberSubscriptionAccess([], 7, $context['key'], AccessDecision::full(), $now);
+        Assert::null(\ApplicationAuthenticationService::cachedSubscriptionAccess($cache, 7, $switch['key'], $now + 1), 'onSwitchUnit não herda a entrada de onContext');
     }
 
     /**
