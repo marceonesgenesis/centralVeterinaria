@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CentralVet\Billing;
 
 use CentralVet\Billing\Contract\SubscriptionRepositoryInterface;
+use CentralVet\Security\MutationRequestPolicy;
 use DateTimeImmutable;
 
 /**
@@ -47,6 +48,30 @@ final class SubscriptionAccessGuard
         return $method !== null && in_array($method, self::ALWAYS_ALLOWED_METHODS[$controller] ?? [], true)
             ? $controller . '::' . $method
             : $controller;
+    }
+
+    /**
+     * Classe, método (null quando ausente) e chave de decisão da requisição,
+     * lidos da mesma fonte que o dispatch executa pela regra da
+     * MutationRequestPolicy (MutationRequestPolicy::dispatchTarget); null
+     * quando query, corpo e $_REQUEST divergem (o chamador nega).
+     *
+     * @param array<string, mixed> $request $_REQUEST
+     * @param array<string, mixed> $query   $_GET
+     * @param array<string, mixed> $body    $_POST
+     * @return array{class: string, method: ?string, key: string}|null
+     */
+    public static function requestTarget(array $request, array $query, array $body): ?array
+    {
+        $target = MutationRequestPolicy::dispatchTarget($request, $query, $body);
+        if ($target === null) {
+            return null;
+        }
+
+        [$class, $method] = $target;
+        $method = $method === '' ? null : $method;
+
+        return ['class' => $class, 'method' => $method, 'key' => self::accessKey($class, $method)];
     }
 
     public function decide(int $tenantId, string $controller, DateTimeImmutable $now, ?string $method = null): AccessDecision

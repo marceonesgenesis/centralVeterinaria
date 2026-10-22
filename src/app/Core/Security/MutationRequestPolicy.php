@@ -154,24 +154,12 @@ final class MutationRequestPolicy
 
         $script = $server['SCRIPT_NAME'] ?? '';
         $httpMethod = $server['REQUEST_METHOD'] ?? 'GET';
-        $class = self::stringParam($request, 'class');
-        $method = self::stringParam($request, 'method');
 
-        foreach (['class' => $class, 'method' => $method] as $key => $value) {
-            foreach ([$query, $body] as $source) {
-                if (array_key_exists($key, $source) && self::stringParam($source, $key) !== $value) {
-                    return self::DENY;
-                }
-            }
-        }
-
-        // The page dispatch runs $_GET['method']: a method present only in
-        // $_REQUEST (body or cookie) while the query names the class is not
-        // what will run.
-        if ($method !== '' && array_key_exists('class', $query) && !array_key_exists('method', $query)
-            && !array_key_exists('method', $body)) {
+        $target = self::dispatchTarget($request, $query, $body);
+        if ($target === null) {
             return self::DENY;
         }
+        [$class, $method] = $target;
 
         if ($class === '') {
             if ($method !== '') {
@@ -193,6 +181,46 @@ final class MutationRequestPolicy
             $server[self::SERVER_HEADER_KEY] ?? null,
             $sessionToken
         );
+    }
+
+    /**
+     * Class and method the dispatch will run, or null when the sources
+     * diverge: $_REQUEST (AdiantiCoreApplication::run, static dispatch) and
+     * $_GET (AdiantiPageControlTrait::run) must name the same class/method,
+     * and so must the body when it carries them (request_order=GP lets the
+     * POST win in $_REQUEST). A method present only in $_REQUEST while the
+     * query names the class is not what will run either. Names are not
+     * canonicalized here (decideFromRequest does that). Shared with
+     * SubscriptionAccessGuard::requestTarget, so both guards judge the same
+     * target.
+     *
+     * @param array<string, mixed> $request $_REQUEST
+     * @param array<string, mixed> $query   $_GET
+     * @param array<string, mixed> $body    $_POST
+     * @return array{0: string, 1: string}|null
+     */
+    public static function dispatchTarget(array $request, array $query, array $body): ?array
+    {
+        $class = self::stringParam($request, 'class');
+        $method = self::stringParam($request, 'method');
+
+        foreach (['class' => $class, 'method' => $method] as $key => $value) {
+            foreach ([$query, $body] as $source) {
+                if (array_key_exists($key, $source) && self::stringParam($source, $key) !== $value) {
+                    return null;
+                }
+            }
+        }
+
+        // The page dispatch runs $_GET['method']: a method present only in
+        // $_REQUEST (body or cookie) while the query names the class is not
+        // what will run.
+        if ($method !== '' && array_key_exists('class', $query) && !array_key_exists('method', $query)
+            && !array_key_exists('method', $body)) {
+            return null;
+        }
+
+        return [$class, $method];
     }
 
     /**

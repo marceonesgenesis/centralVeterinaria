@@ -351,8 +351,11 @@ class ApplicationAuthenticationService
      */
     public static function enforceSubscriptionAccess(): void
     {
-        $class = (string) ($_REQUEST['class'] ?? '');
-        if ($class === '')
+        // Classe e método da mesma fonte que o dispatch executa (regra da
+        // MutationRequestPolicy): com request_order=GP o POST venceria a query
+        // em $_REQUEST, e o run() da página executa $_GET.
+        $target = SubscriptionAccessGuard::requestTarget($_REQUEST, $_GET, $_POST);
+        if ($target !== null && $target['class'] === '')
         {
             return;
         }
@@ -369,9 +372,14 @@ class ApplicationAuthenticationService
         $now = time();
         $cache = TSession::getValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY);
         $cache = is_array($cache) ? $cache : [];
-        $method = $_REQUEST['method'] ?? null;
-        $method = is_string($method) && $method !== '' ? $method : null;
-        $key = SubscriptionAccessGuard::accessKey($class, $method);
+        if ($target === null)
+        {
+            self::denyRequest('[subscription-guard] denied divergent class/method');
+            return;
+        }
+        
+        $class = $target['class'];
+        $key = $target['key'];
         $entry = self::cachedSubscriptionAccess($cache, $tenantId, $key, $now);
         
         if ($entry === null)
@@ -379,7 +387,7 @@ class ApplicationAuthenticationService
             try
             {
                 $guard = new SubscriptionAccessGuard(new SubscriptionRepository(PdoConnectionFactory::fromEnvironment()));
-                $decision = $guard->decide($tenantId, $class, new DateTimeImmutable(), $method);
+                $decision = $guard->decide($tenantId, $target['class'], new DateTimeImmutable(), $target['method']);
             }
             catch (\Throwable $e)
             {
