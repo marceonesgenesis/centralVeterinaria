@@ -34,7 +34,7 @@ Comandos usados em Teste RED e Validação:
 | T-19 | backend | Bloqueio por assinatura e plano no checkMultiSession e primeiro acesso (quotas ficam em T-24 e T-25) | T-01, T-15 | sim | alta | Aang | [x] |
 | T-20 | frontend | Landing: escolha do plano, responsável, termos, forma de pagamento e retorno do checkout | T-16 | sim | média | Saitama | [x] |
 | T-21 | frontend | SubscriptionStatusView: plano, estado, período, tolerância e faturas com link de pagamento | T-01, T-07, T-10, T-11, T-15 | sim | média | Athena | [x] |
-| T-22 | qa | Integração ponta a ponta dos cenários de aquisição da auditoria e fumaça no navegador (condicional à autorização do dev) | T-17, T-18, T-19, T-20, T-21, T-24, T-25 | não | alta | Goku | [ ] |
+| T-22 | qa | Integração ponta a ponta dos cenários de aquisição da auditoria e fumaça no navegador (condicional à autorização do dev) | T-17, T-18, T-19, T-20, T-21, T-24, T-25 | não | alta | Goku | [x] |
 | T-23 | backend | PixInvoiceIssuer: fatura local e PaymentIntent Pix por período, com e-mail do link | T-01, T-07, T-08, T-10 | sim | média | Tesla | [x] |
 | T-24 | backend | Equipe da clínica: ClinicTeamService, ClinicUserList e ClinicUserForm (listar, convidar, editar, desativar) por tenant, com quota, assinatura e grupos do plano | T-01, T-07, T-10, T-11, T-12, T-13, T-15 | sim | alta | Jaspion | [x] |
 | T-25 | backend | Unidades da clínica: ClinicUnitService, ClinicUnitList e ClinicUnitForm por tenant; programas de equipe e unidades no seed, menu e inventário CSRF | T-07, T-11, T-13, T-15, T-21, T-24 | não | alta | Darwin | [x] |
