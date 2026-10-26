@@ -26,9 +26,9 @@ Comandos usados em Teste RED e Validação:
 | T-08 | infra | Backup completo: banco, arquivos, documentos e MinIO, cifrado, com retenção e cópia externa | T-01, T-02 | sim | alta | Naruto | [x] |
 | T-09 | backend | Preflight de produção e paridade de ambiente | T-02, T-03 | sim | média | Jaspion | [x] |
 | T-10 | backend | Heartbeat de jobs e alerta ao operador com deduplicação | T-01 | sim | média | Platão | [x] |
-| T-11 | infra | Restauração verificada e ensaio em projeto isolado | T-08, T-17 | sim | alta | Spock | [ ] |
-| T-12 | backend | Monitor operacional e alertas (`bin/ops-monitor.php`) | T-10 | sim | alta | Sherlock | [ ] |
-| T-13 | backend | Heartbeat do reconciliador e retenção LGPD de `billing_event.payload` | T-10 | sim | média | Athena | [ ] |
+| T-11 | infra | Restauração verificada e ensaio em projeto isolado | T-08, T-17 | sim | alta | Spock | [x] |
+| T-12 | backend | Monitor operacional e alertas (`bin/ops-monitor.php`) | T-10 | sim | alta | Sherlock | [x] |
+| T-13 | backend | Heartbeat do reconciliador e retenção LGPD de `billing_event.payload` | T-10 | sim | média | Athena | [x] |
 | T-14 | ci | CI reproduzível com banco de teste isolado, schema e lint | T-01, T-03, T-05, T-08, T-11 | sim | alta | Kratos | [ ] |
 | T-15 | infra | Ensaio de rollback de release e registro dos tempos medidos | T-03, T-05, T-08, T-11, T-17 | sim | alta | Thanos | [ ] |
 | T-16 | docs | Documentação operacional: runbooks, cron, alertas, release, LGPD | T-03, T-06, T-07, T-09, T-12, T-13, T-14, T-15, T-17 | não | média | Gandalf | [ ] |

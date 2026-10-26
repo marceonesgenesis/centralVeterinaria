@@ -24,6 +24,10 @@
 - 2026-10-26 · T-17 · onda 2 — O comando real com `--user 1000:33` (permissões de `var/drill` e do volume de documentos) é adaptação de ambiente, não falha; a T-16 deve registrá-lo no runbook.
 - 2026-10-26 · T-17 · onda 2 — A correção da asserção RED da 0019 para a lista completa de versões de `schema_migrations` é legítima.
 - 2026-10-26 · T-10 · onda 2 — O relatório cita o hash 31343ab por engano; a implementação é ce97252. Só divergência documental.
+- 2026-10-26 · T-12 · onda 3 — `StorageException` na montagem do storage vira o alerta `storage_unavailable` (código 2); as demais exceções seguem com código 1. Validador aceitou.
+- 2026-10-26 · T-11 · onda 3 — O restore recria o banco e substitui files/documents/minio, só no projeto alvo, protegido por RESTORE_CENTRALVET/RESTORE_CENTRALVET_DRILL.
+- 2026-10-26 · T-11 · onda 3 — Saídas aditivas: linha `restore: timings` e RESTORE_MANIFEST_COPY.
+- 2026-10-26 · T-11 · onda 3 — O `--decrypt` do .cvbk monta `src/` como :ro, porque a imagem dev não tem hosting-backup.php.
 
 ## Bloqueios
 - nenhum
@@ -47,6 +51,9 @@
 - [T-09] `php bin/preflight.php [--trusted-proxies-file=] [--with-db]`: sai 1 com FAIL, 0 sem FAIL, 2 em argumento inválido; no dev fail=9 warn=1 (esperado).
 - [T-10] `HeartbeatRepositoryInterface`, `AlertStateRepositoryInterface`, `PdoHeartbeatRepository`/`PdoAlertStateRepository`, `OperatorAlertNotifier` (reenvio após 21600 s); fakes em `src/tests/Support` (`FakeAlertStateRepository::sentCount`).
 - [T-17] `php bin/hosting-backup.php [--no-heartbeat]` e `--decrypt <in> <out>`; pacote `centralvet-<ts>.tar.gz.cvbk` (CVBK1). Linhas `migration` com a versão completa; triggers sem DEFINER entre `DELIMITER ;;` (restaurar com o cliente `mysql`). T-11/T-15/T-16: rodar com `--user 1000:33` por causa do volume de documentos 0750 www-data e `var/drill` 0700; arquivos com umask 077.
+- [T-13] `php bin/billing-event-retention.php` pronto (978a7e5): imprime `{"purged":n,"batches":n}`, heartbeat `billing-event-retention` com detail `purged=<n> batches=<n>`; fixa o fuso por `APP_TIMEZONE` (config/environment.php) como o reconciliador. `bin/billing-reconcile.php` grava `billing-reconcile` só no sucesso (detail = linha de contadores); falha → `error_log('billing-reconcile heartbeat_failed=<classe>')`, código 0. T-16: cron diário da retenção.
+- [T-12] `php bin/ops-monitor.php` pronto (RED 1aacce2, impl. 132bb73): imprime `ops-monitor alerts=<n> notified=<n> keys=<chaves|->`, sai 0/2/1, grava heartbeat `ops-monitor` (detail = a linha sem o prefixo). Chaves de alerta: billing_reconcile_stale, backup_stale, billing_event_failed, billing_order_stuck, message_failed, message_queue_stalled, document_failed, document_queue_stalled, storage_unavailable. `StorageException` ao montar o storage (raiz local ausente) vira `storage_unavailable`, não código 1 — T-16 pode documentar.
+- [T-11] `scripts/restore.sh [--project] [--env-file] <arquivo>` e `scripts/restore-drill.sh [--keep] <arquivo>` prontos (RED c8913ca, impl 73289c1). Códigos restore: 2 uso/config, 3 sem `CONFIRM_RESTORE=RESTORE_<PROJETO>`, 5 frase/integridade (nada escrito), 6 falha após iniciar escrita. Recria o banco antes do dump e substitui files/documents/minio. Aditivos: linha `restore: timings decrypt_seconds=<n> db_seconds=<n> files_seconds=<n>` antes da final e `RESTORE_MANIFEST_COPY=<caminho>`. Drill: env `var/drill/.env` gerado só se ausente (sobrescrevível por `RESTORE_DRILL_ENV_FILE`), sai 4 se o projeto não sobe, recusa `.sql.gz`, remove volumes `centralvet-drill_*` restantes. `.cvbk` decifrado com `--user $(id -u):$(id -g)` e `src/` montado `:ro` (imagem dev sem `hosting-backup.php`). Ensaio real T-08 e T-17: mismatches=0.
 
 ## Pendências
 - Banco dev `centralvet` com 3 migrations pendentes (0017, 0018, 0019); aplicar exige autorização do usuário.
@@ -62,6 +69,15 @@
 - T-10: `alert_key`/`job` são `varchar(64)` e o notifier não limita a chave (chave > 64 faz `markSent` lançar depois da entrega e o e-mail volta a cada cron).
 - T-17: `parts=` imprime 3 contra 4 da T-08; o dump fixa `SQL_MODE` e não restaura o `sql_mode` de cada trigger; `decryptFile` confere o HMAC e decifra em duas passadas (decifrar para `.part` numa passada); CLI sem teste automatizado para heartbeat bem-sucedido e códigos 2/5; o heartbeat nunca foi testado contra banco real.
 - T-17: o `--user 1000:33` do comando real deve entrar no runbook da T-16 (ruling da onda 2).
+- T-11: teste de adulteração só no `.tar.gpg`; faltam casos de parte trocada no `.cvbk` (scripts/restore.test.sh:242-248).
+- T-11: restore com projeto vivo: app/worker/minio rodando durante DROP DATABASE e reextração do minio; parar antes ou documentar no runbook T-16 (restore.sh:213-240).
+- T-11: `trap 'exit 6'` (restore.sh:167) e `trap 'exit 4'` (restore-drill.sh:96) valem também antes de qualquer escrita; Ctrl-C na verificação sai com código errado.
+- T-11: stderr de gpg/tar silenciado; disco cheio no staging vira "wrong passphrase" (código 5) (restore.sh:175-177).
+- T-11: decrypt do .cvbk usa o `src/` do checkout, não o da imagem de release; registrar no runbook T-16 (restore.sh:181-189).
+- T-11: uso do alvo `restore-drill` lista `file.sql.gz`, que o drill recusa (Makefile:37, restore-drill.sh:44-47).
+- T-12: `OpsMonitorWiringTest` não cobre o `catch (StorageException` nem o storage que lança (OpsMonitorWiringTest.php:15-64).
+- T-12: probe fica no storage se `get` lança após `put`; usar `finally` com delete tolerante (OperationalMonitor.php:557-563).
+- T-12: sem teste unitário do ramo "conteúdo lido diferente do gravado" de storage_unavailable (OperationalMonitor.php:565).
 
 ## Riscos
 - Ensaios e CI local (T-11, T-14, T-15) constroem imagens e sobem projetos Docker próprios: demoram e disputam CPU. Mitigação: projetos `centralvet-ci-local` e `centralvet-drill` com `down -v` no fim; o orquestrador pode serializar a Onda 4.
@@ -80,5 +96,6 @@
 - Commits por onda:
   - Onda 1: BASE 992877a → HEAD 5a7cc83 (66b71cd, 078436f, 11ae944, aea3174, e2c7664, 2646242, f512e7e, 445983e, 04e09a7, 360fd8e, 0c42ef8, c126fa8, f65190b, 50534eb, 2a4c63c, 5a7cc83)
   - Onda 2: BASE 0e8bd4f → HEAD 94ff476 (3dd059f, 523f277, 6ea7874, 343d933, 4956a7e, 1f4bfa2, 02b5d30, ce97252, 31343ab, af394ef, 0e7f03b, 94ff476)
-- Último status conhecido: onda 2 concluída (T-07, T-08, T-09, T-10, T-17 [x]; gate SUITE 2363/2363; fix loop na T-17).
-- Próxima onda recomendada: 3 (T-11, T-12, T-13; T-14 e T-15 dependem da T-11)
+  - Onda 3: BASE 797304e → HEAD 132bb73 (132bb73, 73289c1, c8913ca, 978a7e5, 1aacce2, fb58218)
+- Último status conhecido: onda 3 concluída (T-11, T-12, T-13 [x]; gate SUITE 2390/2390; drill de restore mismatches=0 nos dois formatos).
+- Próxima onda recomendada: 4 (T-14, T-15; depois T-16)
