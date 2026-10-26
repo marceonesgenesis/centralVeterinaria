@@ -67,4 +67,4 @@
 - Commits por onda:
   - Onda 1: BASE 992877a → HEAD 5a7cc83 (66b71cd, 078436f, 11ae944, aea3174, e2c7664, 2646242, f512e7e, 445983e, 04e09a7, 360fd8e, 0c42ef8, c126fa8, f65190b, 50534eb, 2a4c63c, 5a7cc83)
 - Último status conhecido: onda 1 concluída (T-01 a T-06 [x]; gate SUITE 2327/2327; fix loop em T-01, T-05 e T-06).
-- Próxima onda recomendada: 2 (T-07, T-08, T-09, T-10, T-12 dependentes de T-01/T-02/T-03 conforme tasks.md; T-17 também)
+- Próxima onda recomendada: 2 (T-07, T-08, T-09, T-10, T-17; T-12 e T-13 dependem da T-10)
