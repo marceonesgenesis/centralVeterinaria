@@ -130,3 +130,24 @@ método chamado; o inventário dos métodos está em
 - Clientes fora do jQuery (`fetch`, `XMLHttpRequest`, scripts externos) devem
   enviar o cabeçalho; `template=iframe` não carrega o `cv-shell.js`, então
   mutações ali recebem 403.
+
+## Piloto: oferta e suporte
+
+Fonte única: `CentralVet\Pilot\PilotSettings` (lê o ambiente) e
+`CentralVet\Billing\OfferScope` (recorte homologado). Os recursos fora do
+recorte continuam no código e nos direitos do plano (`PlanEntitlements` e
+`plan-groups.sql` não mudam); só ficam desligados por feature flag.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `OFFER_PLANS` | `starter,pro,business,enterprise` | Planos à venda, na ordem de `PlanEntitlements::PLAN_IDS`; id desconhecido é ignorado; vazio ou só desconhecidos = os 4. |
+| `OFFER_PREVIEW_FEATURES` | vazio | Recursos fora do recorte ligados em prévia: `communication`, `hospital`, `ai_advanced`. **Vazio em produção** (checklist de go-live). |
+| `SUPPORT_EMAIL` | vazio | Canal de suporte obrigatório. O preflight reprova (`support_email` FAIL) vazio, inválido ou terminado em `.invalid`. |
+| `SUPPORT_WHATSAPP` | vazio | Opcional; só dígitos com DDI e DDD, 10 a 15 (ex.: `5585999990000`). Fora disso é ignorado. |
+| `SUPPORT_HOURS` | vazio | Horário exibido; vazio = `Segunda a sexta, das 8h às 18h`. |
+| `DATA_RETENTION_DAYS_AFTER_CANCEL` | `30` | Dias (1 a 3650) que os dados ficam após o cancelamento; fora da faixa = 30. |
+
+Recorte liberado no piloto: núcleo clínico, exames e vacinação (programas sem
+gate), `inventory_pos`, `finance_full` e `multi_unit`
+(`OfferScope::RELEASED_FEATURES`). Desligados: `communication`, `hospital` e
+`ai_advanced`, até constarem em `OFFER_PREVIEW_FEATURES`.

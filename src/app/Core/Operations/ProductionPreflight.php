@@ -63,6 +63,7 @@ final class ProductionPreflight
         $accessKey = $this->value('S3_ACCESS_KEY');
         $secretKey = $this->value('S3_SECRET_KEY');
         $stripeKey = $this->value('STRIPE_SECRET_KEY');
+        $supportEmail = $this->value('SUPPORT_EMAIL');
 
         $findings = [
             $this->check('app_env', $this->value('APP_ENV') !== 'production'),
@@ -75,6 +76,8 @@ final class ProductionPreflight
             $this->check('smtp_driver', $this->value('COMMUNICATION_EMAIL_DRIVER') !== 'smtp'),
             $this->check('smtp_from', $smtpFrom === '' || str_ends_with(strtolower($smtpFrom), '.invalid')),
             $this->check('operator_email', $this->value('BILLING_OPERATOR_EMAIL') === ''),
+            $this->check('support_email', filter_var($supportEmail, FILTER_VALIDATE_EMAIL) === false
+                || str_ends_with(strtolower($supportEmail), '.invalid')),
             $this->check('storage_credentials', $usesS3 && (
                 $accessKey === '' || $accessKey === 'minioadmin' || $secretKey === '' || $secretKey === 'minioadmin123'
             )),
