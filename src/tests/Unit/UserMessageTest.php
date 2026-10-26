@@ -94,6 +94,14 @@ final class UserMessageTest
         Assert::same(['key' => 'Bank account must belong to the current unit', 'params' => []], UserMessage::resolve('Bank account must belong to the current unit 3'));
     }
 
+    public function testReceivableAndCashSessionNotFoundResolve(): void
+    {
+        // Etapa 5, T-18: PaymentService::register sobre recebível ou caixa de outro tenant.
+        Assert::same(['key' => 'Receivable not found', 'params' => []], UserMessage::resolve('Receivable 59869 not found'));
+        Assert::same(['key' => 'Record not found', 'params' => []], UserMessage::resolve('Cash session 12 not found'));
+        Assert::null(UserMessage::resolve('Receivable 59869 not found for tenant 3'));
+    }
+
     public function testNameMarkupMessageIsCatalogued(): void
     {
         // Rodada 3, T-14: NameText::MARKUP_MESSAGE.
@@ -120,7 +128,7 @@ final class UserMessageTest
     public function testCatalogHasExactlyTheContractEntries(): void
     {
         Assert::count(107, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant. Etapa 5, T-02: +6 (cancelamento, onboarding, piloto); T-12: +1 (último administrador).
-        Assert::count(110, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas).
+        Assert::count(112, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas). Etapa 5, T-18: +2 (recebível e caixa não encontrados).
 
         // Etapa 5, T-02: mensagens de domínio estáticas que chegam traduzidas à tela.
         $etapa5 = [
