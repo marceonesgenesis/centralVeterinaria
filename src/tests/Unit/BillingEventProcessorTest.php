@@ -320,6 +320,42 @@ final class BillingEventProcessorTest
         ));
     }
 
+    public function testEventsOfAnotherIntegrationWithoutCentralVetMarkAreIgnored(): void
+    {
+        $foreign = [
+            ($this->events['checkoutCompleted'])('cs_foreign', 'sub_foreign', 300, 'paid', null),
+            ($this->events['invoice'])('invoice.paid', 'in_foreign', 'sub_foreign', 'paid', 9700, 1_792_678_400, 1_795_270_400, 300, null),
+            ($this->events['subscriptionUpdated'])('sub_foreign', 'active', 300, null, null, null),
+            ($this->events['event'])('charge.refunded', ['id' => 'ch_foreign', 'object' => 'charge', 'invoice' => 'in_foreign', 'amount_refunded' => 9700], 300),
+        ];
+
+        foreach ($foreign as $event) {
+            Assert::same('ignored', $this->processor->process($event, $this->now)->status(), $event['type']);
+        }
+        Assert::count(0, $this->invoices->rows);
+        Assert::count(0, $this->subscriptions->rows);
+        Assert::count(0, $this->stripe->calls);
+    }
+
+    public function testEventsWithCentralVetMarkAndMissingDependencyAreStillOutOfOrder(): void
+    {
+        $ours = [
+            ($this->events['checkoutCompleted'])('cs_foreign', 'sub_foreign', 300),
+            ($this->events['checkoutAsyncSucceeded'])('cs_foreign_pix', 'pi_foreign', 9700, 300),
+            ($this->events['invoice'])('invoice.paid', 'in_foreign', 'sub_foreign', 'paid', 9700, 1_792_678_400, 1_795_270_400, 300),
+            ($this->events['subscriptionUpdated'])('sub_foreign', 'active', 300),
+            ($this->events['event'])('charge.refunded', ['id' => 'ch_foreign', 'object' => 'charge', 'invoice' => 'in_foreign', 'amount_refunded' => 9700, 'metadata' => ['billing_order' => 'order_test']], 300),
+            ($this->events['event'])('charge.refunded', ['id' => 'ch_foreign_2', 'object' => 'charge', 'invoice' => 'in_foreign', 'amount_refunded' => 9700, 'metadata' => ['subscription_invoice' => '7']], 300),
+            ($this->events['event'])('invoice.paid', ['id' => 'in_new_api', 'object' => 'invoice', 'status' => 'paid', 'parent' => ['subscription_details' => ['subscription' => 'sub_foreign', 'metadata' => ['billing_order' => 'order_test']]]], 300),
+            ($this->events['event'])('invoice.paid', ['id' => 'in_meta', 'object' => 'invoice', 'subscription' => 'sub_foreign', 'status' => 'paid', 'metadata' => ['billing_order' => 'order_test']], 300),
+        ];
+
+        foreach ($ours as $event) {
+            Assert::throws(BillingEventOutOfOrder::class, fn () => $this->processor->process($event, $this->now));
+        }
+        Assert::count(0, $this->invoices->rows);
+    }
+
     public function testSubscriptionDeletedCancels(): void
     {
         $this->startCardSubscription('cs_card_del', 'sub_card_del', 50);
