@@ -10,10 +10,14 @@ Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com
 - T-02: Migration 0017 e banco de teste
 - T-11: Seed dos grupos de plano
 - T-25: Unidades da clínica, seed, menu e inventário
+- T-26: Estado `refunded` do pedido: migration 0018, domínio e repositório (Onda 7 — correção da revisão final)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
 ## Caminhos relevantes
+- `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reviews/final.md` (§ Bloqueantes: origem da T-26)
+- `src/app/database/migrations/20261021_0017_etapa3_billing.sql` (`billing_order`, `billing_order_status_ck`)
+- `src/app/Core/Billing/ProvisioningConflict.php` (`LOGIN_CONFLICT`)
 - src/app/database/migrations/20261021_0016_etapa2_sale_finance.sql e .verify.sql (modelo)
 - `scripts/prepare-mysql57.py`
 - `scripts/test-db/provision.sh`
@@ -32,6 +36,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Pré-requisito de T-02: MySQL no ar (`docker compose up -d mysql`). DDL no `centralvet_test` pelo MYSQLTEST (root do container mysql), autorizado no padrão da Etapa 2; nunca no `centralvet`.
 - T-11 não aplica o seed em banco nenhum: é arquivo preparado.
 - T-25: o seed só recebe `INSERT ... WHERE NOT EXISTS` no fim, sem `DELETE`/`UPDATE` nem mudança das linhas de T-11 (e9915bf) e de T-21; ninguém aplica em banco. Pré-requisito do teste: a 0017 no `centralvet_test`. Leia `src/app/Core/Tenancy/ClinicTeamService.php` (T-24) como modelo; não edite `SystemUnitForm`.
+- T-26 (Onda 7): aplicar a 0018 e o `.verify.sql` ao `centralvet_test` com MYSQLTEST (root do container mysql, nunca o `centralvet`) e commitar a migration antes de commitar o `BillingOrder::toRow` com as colunas novas; registrar no relatório `SELECT COUNT(*) FROM billing_order` antes e depois.
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 

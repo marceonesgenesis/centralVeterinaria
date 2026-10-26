@@ -8,7 +8,7 @@ Comandos usados em Teste RED e Validação:
 - MYSQLTEST = `docker compose exec -T mysql sh -ceu 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 --batch centralvet_test'` (root do container mysql, padrão autorizado na Etapa 2 para DDL no banco de teste; nunca contra `centralvet`).
 - Testes de integração estendem `CentralVet\Tests\Support\MysqlIntegrationTestCase` (`$this->pdo` em transação, rollback no `tearDown`, guarda contra commit). A segunda conexão segue `SurgeryRepositoryIntegrationTest::secondConnection()` com `SET SESSION innodb_lock_wait_timeout = 1`, `beginTransaction()` e `rollBack()` no `finally`. Serviço que abre a própria transação (T-13, T-17) é testado com `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` ou com o PDO de teste injetado e a guarda de commit respeitada (o serviço aceita um `TransactionRunner` que, no teste, usa savepoints).
 - Nenhum teste chama a rede: o Stripe é sempre `CentralVet\Tests\Support\FakeStripeClient` (T-08). A assinatura do webhook usa o segredo de teste `whsec_test_etapa3` gerado no próprio teste.
-- Mensagens novas ao usuário só pelas chaves de T-01 (`_t('<en>')`); nenhuma task além de T-01 edita `translations.json` nem `UserMessage.php`. A landing tem i18n própria (`src/landing/translations.js`, T-20).
+- Mensagens novas ao usuário só pelas chaves de T-01 (`_t('<en>')`); nenhuma task além de T-01 edita `translations.json` nem `UserMessage.php` (exceções em ondas próprias: T-24 nos dois; T-29, na Onda 7, só em `UserMessage.php`, reaproveitando chave existente). A landing tem i18n própria (`src/landing/translations.js`, T-20).
 - Credenciais: nenhuma chave real em código, teste, log, relatório ou prompt. Só placeholders vazios em `.env.example` (T-08). Escrever no `.env` exige confirmação do usuário.
 
 | ID | Camada | Descrição | Dependências | Paralelizável | Complexidade | Agente | Status |
@@ -38,6 +38,12 @@ Comandos usados em Teste RED e Validação:
 | T-23 | backend | PixInvoiceIssuer: fatura local e PaymentIntent Pix por período, com e-mail do link | T-01, T-07, T-08, T-10 | sim | média | Tesla | [x] |
 | T-24 | backend | Equipe da clínica: ClinicTeamService, ClinicUserList e ClinicUserForm (listar, convidar, editar, desativar) por tenant, com quota, assinatura e grupos do plano | T-01, T-07, T-10, T-11, T-12, T-13, T-15 | sim | alta | Jaspion | [x] |
 | T-25 | backend | Unidades da clínica: ClinicUnitService, ClinicUnitList e ClinicUnitForm por tenant; programas de equipe e unidades no seed, menu e inventário CSRF | T-07, T-11, T-13, T-15, T-21, T-24 | não | alta | Darwin | [x] |
+| T-26 | database | Correção (revisão final): estado terminal `refunded` do pedido — migration 0018, BillingOrder e listagem de login_conflict no repositório | T-02, T-07, T-09 | sim | alta | Darwin | [x] |
+| T-27 | backend | Correção (revisão final): checkout recusa com 422 e-mail já cadastrado e responde 502 com preço não configurado, antes do Stripe; CHECKOUT_RATE_LIMIT_* no .env.example | T-08, T-16 | sim | alta | Batman | [x] |
+| T-28 | backend | Correção (revisão final): eventos Stripe de outra integração saem ignored; fora de ordem real mantido | T-14 | sim | média | Hegel | [x] |
+| T-29 | shared | Correção (revisão final): "Resource does not belong to the authenticated tenant" em pt-BR via UserMessage | T-01 | sim | simples | Maquiavel | [x] |
+| T-30 | docs | Correção (revisão final): README e inventário CSRF sem download.php como caminho de download | T-05 | sim | simples | Gandalf (docs) | [x] |
+| T-31 | backend | Correção (revisão final): LoginConflictRefundService no reconciliador — cancela a Subscription, estorna, cancela a assinatura local e alerta o operador | T-26 | não | alta | Naruto | [ ] |
 
 ## Detalhamento
 
@@ -886,6 +892,245 @@ Origem: revisão da T-11. `SystemUserForm` e `SystemUnitForm` não respeitam o t
 - o `git diff ... | grep -c '^-[^-]'` acima (evidência: `0`)
 - `grep -cE "^(DELETE|UPDATE)" src/app/database/seeds/plan-groups.sql` (evidência: `0`)
 - LINT de `app/Core/Tenancy/ClinicUnitService.php`, `app/control/admin/ClinicUnitList.php`, `app/control/admin/ClinicUnitForm.php` e dos 3 testes (evidência: `No syntax errors detected`)
+
+### T-26 — Estado `refunded` do pedido: migration 0018, domínio e repositório
+
+**Camada:** database
+**Dependências:** T-02, T-07, T-09
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Darwin
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Bloqueantes, item 1b: "Nenhum caminho cancela a Subscription nem estorna").
+- Achado: [bloqueante] [plano-mandou] o pedido pago cujo e-mail já é login termina `provisioning_failed` com `provisioning_error = 'login_conflict'`; não existe estado terminal para "cobrança devolvida", e o reconciliador o reprocessa até 10 vezes (`BillingOrderRepository::listPendingFulfillment`, `MAX_PROVISIONING_ATTEMPTS = 10`).
+- Reprodução exigida: no MySQL, um pedido `provisioning_failed`/`login_conflict` aparece em `listPendingFulfillment(10)` antes da correção e não aparece depois; o mesmo pedido chega a `refunded` só pelos métodos novos do domínio.
+- Veredito: bloqueante, ruling do orquestrador (corrigir na Onda 7, base do estorno da T-31 na Onda 8).
+
+**Arquivos prováveis**
+- `src/app/database/migrations/20261026_0018_billing_order_refund.sql`
+- `src/app/database/migrations/20261026_0018_billing_order_refund.verify.sql`
+- `scripts/test-db/provision.sh`
+- `docs/runbooks/tests.md`
+- `docs/runbooks/shared-hosting-mysql57.md`
+- `src/app/Core/Billing/BillingOrder.php`
+- `src/tests/Unit/BillingOrderTest.php`
+- `src/app/Core/Billing/Contract/BillingOrderRepositoryInterface.php`
+- `src/app/Core/Persistence/BillingOrderRepository.php`
+- `src/tests/Support/FakeBillingOrderRepository.php`
+- `src/tests/Integration/BillingOrderRepositoryIntegrationTest.php`
+
+**Interface**
+- Produz: migration `20261026_0018_billing_order_refund.sql` no padrão da 0016 (cabeçalho, `DROP CHECK` seguido de `ADD CONSTRAINT`, registro em `schema_migrations` com o checksum placeholder): `ALTER TABLE billing_order ADD COLUMN subscription_cancelled_at timestamp(6) NULL AFTER invite_sent_at, ADD COLUMN stripe_refund_id varchar(64) NULL AFTER subscription_cancelled_at, ADD COLUMN refunded_at timestamp(6) NULL AFTER stripe_refund_id`; `ALTER TABLE billing_order DROP CHECK billing_order_status_ck`; `ALTER TABLE billing_order ADD CONSTRAINT billing_order_status_ck CHECK (status IN ('pending', 'checkout_open', 'paid', 'provisioned', 'provisioning_failed', 'expired', 'refunded'))`; `.verify.sql` só com `SELECT` (as 3 colunas em `information_schema.COLUMNS` e o `refunded` em `information_schema.CHECK_CONSTRAINTS`)
+- Produz: `BillingOrder::STATUS_REFUNDED = 'refunded'` (entra em `STATUSES` e em `PAID_STATUSES`, então `markPaid` e `expire` devolvem `false` num pedido `refunded`); `isLoginConflict(): bool` (status `provisioning_failed` e `provisioningError()` = `ProvisioningConflict::LOGIN_CONFLICT`); `markSubscriptionCancelled(\DateTimeImmutable $at): void` (exige `isLoginConflict()` e `paymentMethod()` = `card`, senão `InvalidStatusTransitionException`; segunda chamada mantém a primeira data); `recordRefund(string $stripeRefundId): void` (exige `isLoginConflict()`; id vazio → `InvalidArgumentException`); `markRefunded(\DateTimeImmutable $at): void` (exige `isLoginConflict()`, `stripeRefundId()` não nulo e, no cartão, `subscriptionCancelledAt()` não nulo, senão `InvalidStatusTransitionException`; status vira `refunded`, `refunded_at` = `$at`, `provisioning_error` mantido); getters `subscriptionCancelledAt(): ?\DateTimeImmutable`, `stripeRefundId(): ?string`, `refundedAt(): ?\DateTimeImmutable`; `toRow()`/`fromRow()` com `subscription_cancelled_at`, `stripe_refund_id` e `refunded_at` (formato `DATE_FORMAT` das demais datas)
+- Produz: `BillingOrderRepositoryInterface::listLoginConflictsToRefund(int $limit): array` → `list<int>` dos ids com `status = 'provisioning_failed' AND provisioning_error = 'login_conflict'`, por `id`, sem teto de tentativas (`$limit <= 0` → `[]`); `listPendingFulfillment(int $limit): array` deixa de devolver pedido `provisioning_failed` com `provisioning_error = 'login_conflict'`; o `FakeBillingOrderRepository` implementa as duas regras iguais
+- Regras: aplicar a 0018 e o `.verify.sql` ao `centralvet_test` (MYSQLTEST) e commitar a migration **antes** de commitar `BillingOrder::toRow` com as colunas novas: sem a 0018 todo INSERT em `billing_order` falha com `Unknown column`, e as outras tasks da onda rodam integração no mesmo banco. Antes de aplicar, registrar `SELECT COUNT(*) FROM billing_order` no relatório; depois, o mesmo número. `scripts/test-db/provision.sh` lista a 0018 depois da 0017 (cabeçalho `0001..0018`); `docs/runbooks/tests.md` cita a 0018 junto da 0017 na aplicação incremental; `docs/runbooks/shared-hosting-mysql57.md` ganha `## Migration 0018` no padrão da 0017 (cópia com prefixo `22-`, `python3 scripts/prepare-mysql57.py "$d" "$d/out"` rodado de verdade e a linha `Prepared N stages, X checks and Y triggers` que ele imprimir, e o aviso: aplicar a 0018 antes de subir o código desta onda)
+- Consome: T-07 `toRow(): array`, T-09 `listPendingFulfillment(int $limit): array`
+
+**Teste RED**
+- `src/tests/Unit/BillingOrderTest.php`, `src/tests/Integration/BillingOrderRepositoryIntegrationTest.php` — pedido de cartão `provisioning_failed` com `markProvisioningFailed('login_conflict')`: `isLoginConflict()` é `true`; `markSubscriptionCancelled` → `recordRefund('re_test_1')` → `markRefunded` deixa `status() = 'refunded'`, e depois `markPaid(...)` e `expire()` devolvem `false`; `markRefunded` sem `recordRefund` lança `InvalidStatusTransitionException`; pedido com `markProvisioningFailed('group_missing')` recusa `recordRefund`; `fromRow(toRow())` preserva as 3 colunas novas; no MySQL, com um pedido `login_conflict`, um `group_missing` e um `paid`, `listLoginConflictsToRefund(10)` devolve só o id do `login_conflict` e `listPendingFulfillment(10)` devolve os outros dois; o pedido `refunded` salvo e relido tem `stripe_refund_id = 're_test_1'` e `refunded_at` não nulo (comando: `SUITE com <Classe> = BillingOrderTest|BillingOrderRepositoryIntegrationTest`)
+
+**Critério de aceite**
+- MYSQLTEST com `SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'centralvet_test' AND TABLE_NAME = 'billing_order' AND COLUMN_NAME IN ('subscription_cancelled_at', 'stripe_refund_id', 'refunded_at')` imprime `3`, e `SELECT COUNT(*) FROM billing_order` imprime o mesmo número antes e depois da 0018.
+- SUITE com `BillingOrderTest|BillingOrderRepositoryIntegrationTest|TenantProvisioningIntegrationTest|BillingWebhookIntegrationTest|BillingReconcilerIntegrationTest|MysqlIsolationGuardIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `grep -n "0018" scripts/test-db/provision.sh docs/runbooks/shared-hosting-mysql57.md` imprime a linha da lista e o título `## Migration 0018`.
+
+**Validação**
+- MYSQLTEST com o `.verify.sql` da 0018 (evidência: as 3 colunas e o CHECK com `refunded`) e as duas contagens de `billing_order` (evidência: números iguais — nenhum pedido perdido)
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos de `refunded` e de listagem, `Failed: 0`)
+- `python3 scripts/prepare-mysql57.py` na cópia `22-` (evidência: a linha `Prepared ...` citada no runbook)
+- LINT de `app/Core/Billing/BillingOrder.php`, `app/Core/Billing/Contract/BillingOrderRepositoryInterface.php`, `app/Core/Persistence/BillingOrderRepository.php`, `tests/Support/FakeBillingOrderRepository.php` e dos 2 testes (evidência: `No syntax errors detected`)
+
+### T-27 — Checkout recusa e-mail já cadastrado e preço não configurado antes do Stripe
+
+**Camada:** backend
+**Dependências:** T-08, T-16
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Batman
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Bloqueantes, saída (a), e § Triagem T-16).
+- Achado 1: [bloqueante] [plano-mandou] `CheckoutStartHandler` (linhas 108-146) insere o pedido e chama `POST /v1/customers` e `/v1/checkout/sessions` sem consultar `system_users`; o e-mail que já é login, ou que já pagou outro pedido, é cobrado sem receber conta.
+- Achado 2: [aberta → incluída] `StripeConfig::priceIdFor` (linha 55) lança `RuntimeException`, que escapa do `catch (StripeApiException)` da linha 145 depois do `POST /v1/customers`: `checkout.php` responde 503 e o pedido fica `pending`.
+- Achado 3: `CHECKOUT_RATE_LIMIT_*` (lidos em `src/checkout.php:65-66`) fora do `.env.example`.
+- Reprodução exigida: no `CheckoutStartHandlerTest`, o e-mail cadastrado e o preço vazio do cartão produzem hoje chamadas ao `FakeStripeClient` e pedido no fake; depois, 0 chamadas e 0 pedidos.
+- Veredito: bloqueante (achado 1) e pendências incluídas por pedido do orquestrador (achados 2 e 3).
+
+**Arquivos prováveis**
+- `src/app/Core/Billing/CheckoutStartHandler.php`
+- `src/checkout.php`
+- `src/app/Core/Billing/Contract/AccountEmailReaderInterface.php`
+- `src/app/Core/Persistence/AccountEmailReader.php`
+- `src/tests/Support/FakeAccountEmailReader.php`
+- `src/tests/Unit/CheckoutStartHandlerTest.php`
+- `src/tests/Integration/AccountEmailReaderIntegrationTest.php`
+- `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php`
+- `.env.example`
+
+**Interface**
+- Produz: `CentralVet\Billing\Contract\AccountEmailReaderInterface::isTaken(string $email): bool`; `CentralVet\Persistence\AccountEmailReader::__construct(\PDO $pdo)` → `true` quando o e-mail, com `trim`, é `system_users.login` ou é `billing_order.responsible_email` de pedido com `status IN ('paid', 'provisioned', 'provisioning_failed')`; a comparação usa a collation das colunas (`utf8mb4_0900_ai_ci`, sem diferença de caixa); e-mail vazio → `false` sem consulta. `CentralVet\Tests\Support\FakeAccountEmailReader` com `public array $taken = []` (compara `strtolower(trim(...))`) e `public int $calls = 0`
+- Produz: `CheckoutStartHandler::__construct(LeadFormToken $formTokens, LoginRateLimiter $limiter, BillingOrderRepositoryInterface $orders, StripeClientInterface $stripe, StripeConfig $config, PublicUrl $url, \Closure $uuid, AccountEmailReaderInterface $emails)`; `CheckoutStartHandler::EMAIL_TAKEN_MESSAGE = 'Este e-mail já está cadastrado no Central Vet Pro. Entre com ele ou use outro e-mail.'`
+- Produz: em `handle()`, depois de `validate()` sem erros e antes de `LeadFormToken::consume`, nesta ordem: (1) `$emails->isTaken(<responsible_email validado>)` → 422 `{"errors": {"responsible_email": "<EMAIL_TAKEN_MESSAGE>"}}` (a mesma mensagem para login e para pedido pago: não diz qual dos dois); (2) cartão: `priceIdFor(<plan_id>)` lançando `\RuntimeException` → `error_log('[CheckoutStart] price not configured for plan <plan_id>')` e 502 `{"error": "gateway_unavailable"}` (a landing já trata 502). Nos dois casos o `form_token` não é consumido, nenhum pedido é inserido e nenhuma chamada vai ao Stripe. Erro de banco em `isTaken` propaga (o `checkout.php` responde 503, como hoje). O 502 de `StripeApiException` depois do pedido fica como está
+- Produz: `src/checkout.php` passa `new AccountEmailReader($pdo)` como último argumento; o builder de `BillingAcquisitionFlowIntegrationTest` (linha ~569) passa `new AccountEmailReader($this->pdo)`, e um cenário que reaproveite o e-mail de pedido já pago no mesmo método usa e-mail próprio, sem perder asserção; `.env.example`, logo depois do bloco `LEAD_RATE_LIMIT_*`, ganha o comentário `# Limite de POST /checkout.php por IP (landing pública), contado a cada envio.` / `# Padrão 10 por 3600 s. Ver src/checkout.php e CentralVet\Billing\CheckoutStartHandler.` e as linhas `# CHECKOUT_RATE_LIMIT_MAX_ATTEMPTS=10` e `# CHECKOUT_RATE_LIMIT_DECAY_SECONDS=3600` (comentadas como as do lead)
+- Consome: T-16 `handle(string $method, array $headers, string $body, string $ip, \DateTimeImmutable $now): LeadResponse`, T-08 `priceIdFor(string $planId): string`
+
+**Teste RED**
+- `src/tests/Unit/CheckoutStartHandlerTest.php`, `src/tests/Support/FakeAccountEmailReader.php`, `src/tests/Integration/AccountEmailReaderIntegrationTest.php` — payload Pro com cartão cujo `responsible_email` está em `FakeAccountEmailReader::$taken` devolve 422 com `errors.responsible_email` = `CheckoutStartHandler::EMAIL_TAKEN_MESSAGE`, 0 itens em `FakeStripeClient::$calls`, 0 pedidos no `FakeBillingOrderRepository`, e o mesmo `form_token` com outro e-mail devolve 201 em seguida; `StripeConfig` com o preço `pro` vazio e cartão devolve 502 `gateway_unavailable`, 0 chamadas ao Stripe e 0 pedidos, e o mesmo config com Pix devolve 201; no MySQL, `isTaken` é `true` para um login de `system_users` escrito com caixa e espaços diferentes (`' Dono.T27@Clinica.TEST '` contra `dono.t27@clinica.test`) e para o `responsible_email` de pedidos `paid`, `provisioned` e `provisioning_failed`, e `false` para `checkout_open` e `expired` (comando: `SUITE com <Classe> = CheckoutStartHandlerTest|AccountEmailReaderIntegrationTest`)
+
+**Critério de aceite**
+- Com a 0017 no `centralvet_test`, SUITE com `CheckoutStartHandlerTest|AccountEmailReaderIntegrationTest|BillingAcquisitionFlowIntegrationTest|LandingCatalogTest|MysqlIsolationGuardIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `grep -c "CHECKOUT_RATE_LIMIT_" .env.example` imprime `2`.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos de e-mail cadastrado, preço vazio e token reaproveitado; `Failed: 0`)
+- `grep -c "CHECKOUT_RATE_LIMIT_" .env.example` (evidência: `2`)
+- LINT de `app/Core/Billing/CheckoutStartHandler.php`, `checkout.php`, `app/Core/Billing/Contract/AccountEmailReaderInterface.php`, `app/Core/Persistence/AccountEmailReader.php`, `tests/Support/FakeAccountEmailReader.php` e dos 3 testes (evidência: `No syntax errors detected`)
+- Review Focus: no `AccountEmailReaderIntegrationTest`, `' Dono.T27@Clinica.TEST '` contra o login `dono.t27@clinica.test` dá `true`; no `CheckoutStartHandlerTest`, o 422 sai com 0 chamadas ao Stripe
+
+### T-28 — Eventos Stripe de outra integração saem `ignored`
+
+**Camada:** backend
+**Dependências:** T-14
+**Paralelizável:** sim
+**Complexidade:** média
+**Agente:** Hegel
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Achados, [sugestão] incluída pelo orquestrador).
+- Achado: evento de outra integração na mesma conta Stripe (`checkout.session.completed` sem pedido, `charge.refunded` sem fatura) lança `BillingEventOutOfOrder` (`BillingEventProcessor.php:88,296`): 500 até o Stripe desistir, e falha de novo a cada rodada do reconciliador.
+- Reprodução exigida: no `BillingEventProcessorTest`, o `checkout.session.completed` sem `client_reference_id` nem `metadata.billing_order` e sem pedido local lança hoje `BillingEventOutOfOrder`; depois, devolve `ignored`. O fora de ordem real (evento com a marca do Central Vet) continua lançando.
+- Veredito: incluído no pacote de correção.
+
+**Arquivos prováveis**
+- `src/app/Core/Billing/BillingEventProcessor.php`
+- `src/tests/Unit/BillingEventProcessorTest.php`
+- `src/tests/Support/Fixtures/stripe-events.php`
+
+**Interface**
+- Produz: nos 4 pontos em que `BillingEventProcessor` lança `BillingEventOutOfOrder` por dependência ausente, o evento só é "nosso" quando traz a marca do Central Vet: `checkout.session.*` sem pedido pelo `session.id` → `client_reference_id` ou `metadata.billing_order` não vazio; `invoice.*` sem assinatura local → `subscription_details.metadata.billing_order`, `parent.subscription_details.metadata.billing_order` ou `metadata.billing_order` não vazio; `customer.subscription.*` sem assinatura local → `metadata.billing_order` não vazio; `charge.refunded` com `invoice` não registrada → `metadata.billing_order` ou `metadata.subscription_invoice` não vazio. Nosso → `BillingEventOutOfOrder` como hoje; sem a marca → `BillingEventOutcome::ignored()` e `error_log('[BillingEventProcessor] ignored foreign <type> <id do objeto>')`, sem e-mail nem payload no log. `payment_intent.succeeded` não muda (já exige `metadata.subscription_invoice`)
+- Produz: em `src/tests/Support/Fixtures/stripe-events.php`, parâmetro opcional final `?string $billingOrder = 'order_test'` em `checkoutCompleted`, `checkoutAsyncSucceeded`, `invoice` e `subscriptionUpdated`: com valor, os objetos levam `client_reference_id` e `metadata.billing_order` (checkout), `subscription_details.metadata.billing_order` (invoice) ou `metadata.billing_order` (subscription); `null` omite as chaves. As chamadas existentes não mudam e continuam "nossas"
+- Consome: T-14 `process(array $event, \DateTimeImmutable $now): BillingEventOutcome`
+
+**Teste RED**
+- `src/tests/Unit/BillingEventProcessorTest.php`, `src/tests/Support/Fixtures/stripe-events.php` — com `$billingOrder = null` e sem registro local: `checkoutCompleted('cs_foreign', 'sub_foreign', 300, 'paid', null)`, `invoice('invoice.paid', 'in_foreign', 'sub_foreign', 'paid', 9700, <início>, <fim>, 300, null)`, `subscriptionUpdated('sub_foreign', 'active', 300, null, null, null)` e um `charge.refunded` montado com `event('charge.refunded', ['id' => 'ch_foreign', 'object' => 'charge', 'invoice' => 'in_foreign', 'amount_refunded' => 9700], 300)` devolvem `status() = 'ignored'`, com 0 linhas novas em `$this->invoices->rows`; os mesmos objetos com o `billing_order` padrão (e o `charge.refunded` com `metadata.billing_order`) continuam lançando `BillingEventOutOfOrder` (comando: `SUITE com <Classe> = BillingEventProcessorTest`)
+
+**Critério de aceite**
+- Com a 0017 no `centralvet_test`, SUITE com `BillingEventProcessorTest|BillingWebhookIntegrationTest|BillingAcquisitionFlowIntegrationTest|BillingReconcilerIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos `ignored` e nos fora de ordem reais; `Failed: 0`)
+- LINT de `app/Core/Billing/BillingEventProcessor.php`, `tests/Support/Fixtures/stripe-events.php` e do teste (evidência: `No syntax errors detected`)
+- Review Focus: o `invoice.paid` com a marca antes do checkout continua 500 `processing_failed` e `failed`, e o reenvio depois do checkout sai `processed` (os casos existentes de `BillingWebhookIntegrationTest` e `testScenarioFOutOfOrderInvoicePaidSucceedsOnRedelivery` em `PASS`)
+
+### T-29 — Mensagem de recurso de outra clínica em pt-BR
+
+**Camada:** shared
+**Dependências:** T-01
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Maquiavel
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Triagem, T-22 onda 6; `reviews/T-22.md` [sugestão]).
+- Achado: `TenantBoundaryViolation('Resource does not belong to the authenticated tenant')` (`TenantContext.php:64`, `ClinicTeamService.php:36`, `ClinicUnitService.php:28`) chega à tela em inglês, porque `CvFormat::userError` cai em `userMessage()` e `UserMessage` não mapeia o texto.
+- Reprodução exigida: `UserMessage::resolve('Resource does not belong to the authenticated tenant')` devolve hoje `null`.
+- Veredito: incluído no pacote (está no sistema de mensagens `UserMessage`).
+
+**Arquivos prováveis**
+- `src/app/Core/Presentation/UserMessage.php`
+- `src/tests/Unit/UserMessageTest.php`
+- `src/tests/Unit/TenantBoundaryMessageTest.php`
+
+**Interface**
+- Produz: em `UserMessage::STATIC`, `'Resource does not belong to the authenticated tenant' => 'The selected record does not belong to this clinic'`: a chave já existe em `src/app/config/translations.json` (linha 5111) com o texto pt, então `translations.json` não muda; `UserMessageTest` passa a contar 100 entradas em `STATIC` (hoje `Assert::count(99, UserMessage::STATIC)`, linha 122)
+- Consome: nada (usa a chave existente de `translations.json`)
+
+**Teste RED**
+- `src/tests/Unit/TenantBoundaryMessageTest.php` — `UserMessage::resolve('Resource does not belong to the authenticated tenant')` devolve `['key' => 'The selected record does not belong to this clinic', 'params' => []]` (chave em `src/app/config/translations.json:5111`), e a entrada dessa chave em `translations.json` tem `pt` não vazio e diferente do `en` (comando: `SUITE com <Classe> = TenantBoundaryMessageTest`)
+
+**Critério de aceite**
+- SUITE com `TenantBoundaryMessageTest|UserMessageTest|Etapa3MessagesTest|Etapa3TeamMessagesTest|ControllerRawExceptionMessageTest` mostra `PASS` em todos e `Failed: 0`.
+- `git diff fbe280f -- src/app/config/translations.json` não imprime linha.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` e `Failed: 0`)
+- o `git diff` acima (evidência: saída vazia)
+- LINT de `app/Core/Presentation/UserMessage.php` e dos 2 testes (evidência: `No syntax errors detected`)
+
+### T-30 — Documentação do download.php desabilitado
+
+**Camada:** docs
+**Dependências:** T-05
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Gandalf (docs)
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Triagem T-05).
+- Achado: `README.md` (linhas 170-171 e 177) e `docs/security/csrf-inventario.md` (linha 177) ainda dizem que os downloads autenticados passam por `download.php`, que responde 404 desde a T-05 (`src/download.php`, `docs/security/downloads-s6.md`).
+- Reprodução exigida: `grep -n "download.php" README.md docs/security/csrf-inventario.md` mostra as frases desatualizadas.
+- Veredito: incluído no pacote (só documentação).
+
+**Arquivos prováveis**
+- `README.md`
+- `docs/security/csrf-inventario.md`
+
+**Interface**
+- Produz: em `README.md`, as frases sobre `src/files` dizem que o Nginx bloqueia o acesso HTTP direto e que `download.php` está desabilitado (responde 404 e registra log, decisão S6 em `docs/security/downloads-s6.md`), sem afirmar que downloads passam por ele; a linha 177 deixa de citar "downloads somente pelo controlador autenticado"; em `docs/security/csrf-inventario.md`, a linha de `download.php` diz "desabilitado (404, sem leitura de arquivo; ver `docs/security/downloads-s6.md`)"
+- Consome: nada (texto da decisão S6 em `docs/security/downloads-s6.md`)
+
+**Teste RED**
+- sem teste: só documentação; a prova é o `grep` do critério de aceite
+
+**Critério de aceite**
+- `grep -nE "passam somente por .download\.php|só lê arquivo de .files/" README.md docs/security/csrf-inventario.md` não imprime linha.
+- `grep -n "download.php" README.md docs/security/csrf-inventario.md` imprime ao menos uma linha com `404` ou `desabilitado` em cada arquivo.
+
+**Validação**
+- os dois `grep` acima (evidência: o primeiro vazio; o segundo com as linhas novas)
+- `git diff fbe280f --stat -- README.md docs/security/csrf-inventario.md` (evidência: só os 2 arquivos, poucas linhas)
+
+### T-31 — Estorno e cancelamento do pedido pago com login_conflict, com alerta ao operador
+
+**Camada:** backend
+**Dependências:** T-26
+**Paralelizável:** não
+**Complexidade:** alta
+**Agente:** Naruto
+
+**Origem:** onda de correção da revisão final (`reviews/final.md` § Bloqueantes, saída (b)).
+- Achado: [bloqueante] [plano-mandou] na corrida (o e-mail vira login entre o checkout e o webhook) o provisionamento cai em `login_conflict` (`TenantProvisioningService.php:198-203`) depois do pagamento; nenhum caminho cancela a Subscription do cartão nem estorna, e o Stripe segue cobrando todo mês um cliente sem acesso. No Pix, o reconciliador ainda emite a fatura do mês seguinte para a assinatura local `active`.
+- Reprodução exigida: no MySQL com `FakeStripeClient`, um pedido de cartão pago cujo e-mail já é login termina hoje `provisioning_failed`, com a assinatura local `active` e nenhuma chamada `DELETE /v1/subscriptions/...` nem `POST /v1/refunds` depois de `BillingReconciler::run`; depois da correção, os dois saem uma vez, o pedido fica `refunded` e a assinatura local `cancelled`.
+- Veredito: bloqueante, ruling do orquestrador; o cancelamento e o estorno automáticos aguardam a confirmação do usuário (pergunta do planejamento), e o plano segue com eles.
+
+**Arquivos prováveis**
+- `src/app/Core/Billing/LoginConflictRefundService.php`
+- `src/app/Core/Billing/BillingReconciler.php`
+- `src/bin/billing-reconcile.php`
+- `src/tests/Integration/LoginConflictRefundIntegrationTest.php`
+- `src/tests/Integration/BillingReconcilerIntegrationTest.php`
+- `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php`
+- `.env.example`
+- `docker-compose.yml`
+- `docs/runbooks/shared-hosting-mysql57.md`
+
+**Interface**
+- Produz: `CentralVet\Billing\LoginConflictRefundService::__construct(TransactionRunner $tx, BillingOrderRepositoryInterface $orders, SubscriptionRepositoryInterface $subscriptions, StripeClientInterface $stripe, \CentralVet\Communication\MessageChannelProviderInterface $email, string $operatorEmail)`, `refund(int $billingOrderId, \DateTimeImmutable $now): string` ∈ `'refunded'`, `'already_refunded'`, `'not_applicable'` (constantes `RESULT_REFUNDED`, `RESULT_ALREADY_REFUNDED`, `RESULT_NOT_APPLICABLE`)
+- Regras: cada passo numa transação própria do `TransactionRunner`, com o pedido relido por `findByIdForUpdate`; pedido `refunded` → `already_refunded` sem chamada ao Stripe; pedido sem `isLoginConflict()` → `not_applicable` sem chamada. (1) Cartão com `subscriptionCancelledAt()` nulo: `GET /v1/subscriptions/<stripe_subscription_id>`; se `status` ≠ `canceled`, `DELETE /v1/subscriptions/<stripe_subscription_id>` com `Idempotency-Key` `cancel-<public_id>`; depois `markSubscriptionCancelled($now)` e `save`. (2) `stripeRefundId()` nulo: `GET /v1/checkout/sessions/<stripe_checkout_session_id>` → Pix: `payment_intent` da sessão; cartão: `invoice` da sessão → `GET /v1/invoices/<invoice>` → `payment_intent`; `POST /v1/refunds` com `payment_intent`, `reason=requested_by_customer`, `metadata[billing_order]=<public_id>`, `metadata[reason]=login_conflict` e `Idempotency-Key` `refund-<public_id>` (estorno total); `StripeApiException` com `stripeCode` `charge_already_refunded` → `GET /v1/refunds` com `payment_intent` e `limit=1`, usando `data[0].id`; depois `recordRefund(<id>)` e `save`. (3) Assinatura local do pedido (`findByBillingOrderId`) fora de `cancelled` → `applyProviderStatus('canceled', null, null, max(<lastEventCreated()>, <unix de $now>), $now)` e `save`, para o reconciliador não emitir fatura Pix; depois `markRefunded($now)` e `save`. (4) Depois do commit: `error_log('[LoginConflictRefund] ' . json_encode(['event' => 'login_conflict_refunded', 'order' => <public_id>, 'payment_method' => <card|pix>, 'refund' => <stripe_refund_id>]))`; com `$operatorEmail` não vazio, `deliver(new OutgoingMessage($operatorEmail, 'Central Vet Pro: pedido <public_id> estornado (e-mail já cadastrado)', <corpo pt com public_id, plano, forma de pagamento, valor, clínica, e-mail do responsável e id do estorno>, 'login-conflict-refund-<public_id>'))`; falha do e-mail só vai ao `error_log` e não desfaz nada. `StripeApiException` em qualquer passo → `error_log` com `'event' => 'login_conflict_refund_failed'`, `order`, `step` e a classe da exceção, e relança: o pedido segue `provisioning_failed` com os passos já gravados, e a rodada seguinte retoma do passo pendente. O provisionamento continua sem cliente Stripe
+- Produz: `BillingReconciler::__construct(StripeClientInterface $stripe, BillingEventRepositoryInterface $events, BillingEventIngestor $ingestor, BillingOrderRepositoryInterface $orders, SubscriptionRepositoryInterface $subscriptions, SubscriptionInvoiceRepositoryInterface $invoices, PixInvoiceIssuer $pixIssuer, TenantProvisioningService $provisioning, TransactionRunner $tx, LoginConflictRefundService $refunds)`; fase `refundLoginConflicts` logo depois de `reconcileEvents` e antes de `fulfillOrders`: `listLoginConflictsToRefund(50)` → `refund` por pedido (erro de um pedido não interrompe os demais; a fase relança o primeiro no fim, como as outras); chave nova `orders_refunded` no array de `run`, depois de `orders_failed`, e `orders_refunded=<n>` na linha impressa por `src/bin/billing-reconcile.php` na mesma posição
+- Produz: `.env.example`, depois do bloco `STRIPE_*`, com o comentário `# E-mail do operador que recebe o alerta de estorno automático (pedido pago com e-mail já cadastrado). Vazio: só o error_log.` e a linha `BILLING_OPERATOR_EMAIL=`; `docker-compose.yml` com `BILLING_OPERATOR_EMAIL: ${BILLING_OPERATOR_EMAIL:-}` no `app-environment`; `src/bin/billing-reconcile.php` monta o serviço com o `$email` existente e `(string) (getenv('BILLING_OPERATOR_EMAIL') ?: '')`; os builders de `BillingReconcilerIntegrationTest` (linha ~407) e `BillingAcquisitionFlowIntegrationTest` (linha ~612) passam o serviço; o runbook ganha, na seção `### Reconciliação da cobrança`, o `BILLING_OPERATOR_EMAIL` e o contador `orders_refunded`
+- Consome: T-26 `isLoginConflict(): bool`, T-26 `markSubscriptionCancelled(\DateTimeImmutable $at): void`, T-26 `recordRefund(string $stripeRefundId): void`, T-26 `markRefunded(\DateTimeImmutable $at): void`, T-26 `subscriptionCancelledAt(): ?\DateTimeImmutable`, T-26 `stripeRefundId(): ?string`, T-26 `listLoginConflictsToRefund(int $limit): array`, T-09 `findByIdForUpdate(int $id): ?BillingOrder`, T-09 `save(BillingOrder $order): void`, T-10 `findByBillingOrderId(int $billingOrderId): ?Subscription`, T-10 `save(Subscription $subscription): void`, T-07 `applyProviderStatus(string $stripeStatus, ?\DateTimeImmutable $periodStart, ?\DateTimeImmutable $periodEnd, int $eventCreated, \DateTimeImmutable $now): bool`, T-07 `lastEventCreated(): int`, T-08 `request(string $method, string $path, array $params = [], ?string $idempotencyKey = null): array`, T-13 `run(\Closure $work): mixed`, T-18 `run(\DateTimeImmutable $now): array`
+
+**Teste RED**
+- `src/tests/Integration/LoginConflictRefundIntegrationTest.php`, `src/tests/Integration/BillingReconcilerIntegrationTest.php` — no MySQL com `FakeStripeClient` e `FakeEmailProvider`: pedido de cartão `provisioning_failed`/`login_conflict` com assinatura local `active` → `refund` devolve `refunded`, e o fake registra, nesta ordem, `GET /v1/subscriptions/<sub>`, `DELETE /v1/subscriptions/<sub>` (`Idempotency-Key` `cancel-<public_id>`), `GET /v1/checkout/sessions/<cs>`, `GET /v1/invoices/<in>` e `POST /v1/refunds` (`Idempotency-Key` `refund-<public_id>`, `payment_intent` do invoice); o pedido fica `refunded` com `stripe_refund_id`, a assinatura local `cancelled` e o `FakeEmailProvider` com 1 entrega ao operador; a segunda chamada devolve `already_refunded` sem chamada nova; Pix: sem `DELETE`, estorno do `payment_intent` da sessão; com `POST /v1/refunds` falhando (`StripeApiException` 503), o pedido de cartão fica `provisioning_failed` com `subscription_cancelled_at` gravado, e a chamada seguinte não repete o `DELETE` e termina `refunded`; `operatorEmail` vazio → 0 entregas; pedido `group_missing` → `not_applicable` com 0 chamadas; no reconciliador, um pedido `login_conflict` sai com `orders_refunded = 1`, `orders_failed = 0` e `provisioning_attempts` inalterado (comando: `SUITE com <Classe> = LoginConflictRefundIntegrationTest|BillingReconcilerIntegrationTest`)
+
+**Critério de aceite**
+- Com a 0017 e a 0018 no `centralvet_test`, SUITE com `LoginConflictRefundIntegrationTest|BillingReconcilerIntegrationTest|BillingAcquisitionFlowIntegrationTest|BillingWebhookIntegrationTest|TenantProvisioningIntegrationTest|MysqlIsolationGuardIntegrationTest` mostra `PASS` em todos, sem `SKIP`, e `Failed: 0`.
+- `grep -c "^BILLING_OPERATOR_EMAIL=$" .env.example` imprime `1`; `grep -c "BILLING_OPERATOR_EMAIL" docker-compose.yml` imprime `1`.
+- `grep -n "StripeClientInterface" src/app/Core/Billing/TenantProvisioningService.php` não imprime linha.
+
+**Validação**
+- SUITE com a `<Classe>` acima (evidência: `PASS` nos casos de cartão, Pix, retomada, idempotência e reconciliador; `Failed: 0`)
+- os `grep` acima (evidência: `1`, `1` e saída vazia)
+- LINT de `app/Core/Billing/LoginConflictRefundService.php`, `app/Core/Billing/BillingReconciler.php`, `bin/billing-reconcile.php` e dos 3 testes (evidência: `No syntax errors detected`)
+- Review Focus: no `BillingAcquisitionFlowIntegrationTest`, cenário novo: checkout de cartão com e-mail livre, login criado com esse e-mail antes do `checkout.session.completed`, webhook 200 com o pedido `provisioning_failed`, e `BillingReconciler::run` deixa o pedido `refunded`, 1 `DELETE` e 1 `POST /v1/refunds`; a segunda rodada não faz chamada nova ao Stripe
+- Validação cruzada da Onda 8 (e da 7): SUITE completo sem filtro de classe (`Failed: 0`, nenhuma classe nova em `SKIP`) e LINT de todo PHP tocado na onda (`git diff --name-only <BASE da onda> -- '*.php'`)
 
 ## Legenda
 

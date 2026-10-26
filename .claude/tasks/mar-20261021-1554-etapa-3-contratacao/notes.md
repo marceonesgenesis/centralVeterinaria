@@ -43,6 +43,16 @@
 - 2026-10-21 · T-22 · onda 6 — Git: desligamento durante o commit cd51782 deixou 12 objetos vazios e HEAD inválido; backup do .git em scratchpad/git-repair-20261021-202709/, branch apontada para 51b8fbc, índice refeito, fsck limpo; correção recommitada como 3bb0850.
 - 2026-10-21 · T-08 · onda 6 — Correções pós-onda aceitas sem fix loop (a950a87 tocou CheckoutStartHandlerTest da T-16; 238ba95 tocou SubscriptionAccessWiringTest da T-19; df743de e 94008c4 tocaram ApplicationAuthenticationService da T-19 e MutationRequestPolicy da Etapa 1; 3bb0850 alterou 2 linhas de WHERE em vez de removê-las): chave Stripe vazia/inválida falha antes da requisição (a80a2ef) e aceita rk_ (fb7ecd7); seed inicial não alcança grupos de plano (3bb0850); vencimento Pix em transação própria (9323c8e); shell de leitura liberado com assinatura suspensa (df743de); guard lê classe e método da mesma fonte do dispatch (94008c4, MutationRequestPolicy::dispatchTarget, 0 divergências em 39366 combinações).
 - 2026-10-21 · T-19 · onda 6 — O fail-open do guard (Onda 4) continua vigente e foi comunicado ao usuário.
+- 2026-10-26 · plano · onda 7 — Correção da revisão final (`reviews/final.md`) planejada em duas ondas, Onda 7 (T-26 a T-30) e Onda 8 (T-31), e não numa só: o estorno (T-31) consome o estado `refunded`, as colunas da 0018 e a listagem `listLoginConflictsToRefund` da T-26, e task não pode depender de outra da mesma onda. BASE da Onda 7 `fbe280f`.
+- 2026-10-26 · plano · onda 7 — Estorno automático do `login_conflict` pago pela rodada do reconciliador (a cada 15 min), não pelo webhook: fora da requisição do Stripe, retomável por passo (`subscription_cancelled_at`, `stripe_refund_id`, `refunded_at`) e com `Idempotency-Key` `cancel-<public_id>`/`refund-<public_id>`; a próxima cobrança do cartão é mensal, então o atraso de 15 min não gera nova cobrança. O cancelamento consulta `GET /v1/subscriptions/<id>` antes do `DELETE` porque a chave idempotente do Stripe vale 24 h. O pedido `login_conflict` sai da retomada do provisionamento (`listPendingFulfillment`), que só repetiria o conflito. Recomendação do planejamento, pendente de confirmação do usuário.
+- 2026-10-26 · plano · onda 7 — A recusa do checkout (T-27) considera tomado o e-mail que é `system_users.login` ou `responsible_email` de pedido `paid`, `provisioned` ou `provisioning_failed` (este cobre o pedido pago que ainda vai provisionar); `refunded`, `expired` e `checkout_open` não bloqueiam. A mensagem é a mesma para os dois casos, só no campo `responsible_email`, atrás do limitador e do `form_token`. Preço não configurado responde 502 `gateway_unavailable` (já tratado pela landing) em vez de 503, sem consumir o token.
+- 2026-10-26 · plano · onda 7 — "Evento nosso" = traz `client_reference_id`/`metadata.billing_order` (ou `subscription_details.metadata.billing_order` na fatura, `metadata.subscription_invoice` no charge). Só o evento sem a marca e sem registro local vira `ignored`; o fixture `stripe-events.php` ganha a marca por padrão para os testes existentes seguirem "nossos". Risco aceito: `charge.refunded` de fatura nossa ainda não registrada sai `ignored` (o charge da fatura de assinatura não carrega metadata).
+- 2026-10-26 · plano · onda 7 — A mensagem de tenant reaproveita a chave existente `The selected record does not belong to this clinic` (`translations.json:5111`): T-29 edita só `UserMessage.php` e a contagem do `UserMessageTest`.
+- 2026-10-26 · plano · onda 7 — A linha solta de resto de edição em § Pendências (antiga notes.md:92, achado da revisão final) foi removida no planejamento da Onda 7.
+- 2026-10-26 · T-31 · onda 7 — Pedido pago que termina em login_conflict: cancelamento da Subscription e estorno AUTOMÁTICOS pelo reconciliador, com Idempotency-Key e alerta ao operador (resposta do usuário à pergunta do planejador; vale para a T-31).
+- 2026-10-26 · plano · onda 7 — Correção dividida em Onda 7 (T-26..T-30) e Onda 8 (T-31), porque a T-31 consome produtos da T-26.
+- 2026-10-26 · T-26 · onda 7 — Ambiente: MySQL e Redis subidos com docker compose up -d (não destrutivo) durante a onda.
+- 2026-10-26 · T-30 · onda 7 — Relatório ficou staged sem commit; incluído no commit de fechamento (chore(tasks)).
 
 ## Bloqueios
 - nenhum
@@ -79,6 +89,9 @@
 - [T-18] Reconciliador pronto (RED 6302b07, impl 84c01db): `CentralVet\Billing\BillingReconciler` conforme a Interface, `src/bin/billing-reconcile.php` (flock; `billing-reconcile skipped_locked` sai 0; erro imprime `billing-reconcile error=<classe>` e sai 1) e seção `### Reconciliação da cobrança` no runbook. Cada item em transação própria (rollback; a StripeApiException do PI em issueNext desfaz a fatura); falha de uma fase não impede as seguintes e a primeira sobe no fim. ingest/fulfill chamados fora de transação. orders_fulfilled conta provisioned + already_provisioned (reenvio de convite). Fatura Pix aberta de assinatura suspensa/cancelada não ganha PaymentIntent novo; pix_invoices_overdue conta só quando markOverdue mudou a assinatura.
 - [T-18] Correção 1 (RED ceb0288, fix 52ca85a): listPendingFulfillment ordena por provisioning_attempts, id e o provisionado sem convite também tem teto de 10; cada convite que falha soma 1 em provisioning_attempts (TenantProvisioningService). listOpenPix faz JOIN em subscription e só devolve faturas de assinatura active/past_due. PixInvoiceIssuer: Idempotency-Key agora é `pix-invoice-<local_key>-<tentativa>`; o e-mail fica pendente e só sai com deliverPending() depois do commit (discardPending() no rollback), até 3 tentativas; issueNext não propaga StripeApiException (a fatura fica sem PI e a listOpenPix repete com a mesma chave). Quem chamar issueNext/ensurePaymentIntent precisa chamar deliverPending() depois do commit. FakeSubscriptionInvoiceRepository tem `?FakeSubscriptionRepository $subscriptions` opcional para filtrar listOpenPix.
 - [T-22] Integração a..p (4d5353f) com 16 PASS e fumaça completa no dev; reprovada na rodada 1 (shell com 403 na assinatura suspensa), aprovada na rodada 2 após a correção na T-15. A fumaça provocou correções em T-08, T-25, T-18 e T-15 (ver Decisões).
+- [T-28] Pronto (RED 2cf96eb, impl 50147c3): stripe-events.php ganhou `?string $billingOrder = 'order_test'` final em checkoutCompleted/checkoutAsyncSucceeded/invoice/subscriptionUpdated (chamadas existentes inalteradas, continuam "nossas"; `null` = outra integração). Evento sem a marca do Central Vet e sem dependência local sai `ignored` + error_log 'ignored foreign <type> <id>'; com a marca segue BillingEventOutOfOrder.
+- [T-27] Checkout pronto (RED 222b6dc, impl f38cfb1): CheckoutStartHandler tem 8º argumento `AccountEmailReaderInterface $emails` (CentralVet\Persistence\AccountEmailReader($pdo)); quem constrói o handler precisa passá-lo. Depois de validate(): e-mail tomado → 422 {"errors":{"responsible_email": EMAIL_TAKEN_MESSAGE}}; cartão sem price id → 502 gateway_unavailable; nos dois, token mantido, sem pedido e sem Stripe. system_users.login é utf8mb4_unicode_ci (também _ci).
+- [T-26] Estado refunded pronto (RED e12fa5f, migration 6dc73a2, impl 0d5560e): 0018 aplicada no centralvet_test (billing_order 0 → 0 linhas); BillingOrder::toRow agora tem subscription_cancelled_at, stripe_refund_id e refunded_at no fim (todo INSERT/UPDATE exige a 0018). BillingOrder::STATUS_REFUNDED (em PAID_STATUSES), isLoginConflict(), markSubscriptionCancelled/recordRefund/markRefunded conforme a Interface; mensagens de InvalidStatusTransitionException começam por 'Billing order <id|public_id> cannot ...'. BillingOrderRepositoryInterface::listLoginConflictsToRefund(int) (por id, sem teto) implementado no repositório PDO e no FakeBillingOrderRepository; listPendingFulfillment não lista mais provisioning_failed/login_conflict. T-31: Pix pula o cancelamento (markSubscriptionCancelled lança no Pix).
 
 ## Pendências
 - T-01: sugestões da revisão (chave própria "Invoice amount due" na T-21; relatório devia rodar só as 3 classes do critério).
@@ -89,7 +102,6 @@
 - T-06: selo "Cancelled" duplicado na venda cancelada; sem teste de mesmo tenant nos JOINs de tutor/paciente; testes por texto-fonte frágeis.
 - T-07: regras sem teste (exceção de status desconhecido, attachCheckout, markInvoicePaid em cancelled); applyProviderStatus('active') reativa cancelled; suspended mantém grace vencido; markPaidByPaymentIntent aceita fatura void/uncollectible/draft; needsPaymentIntent com expiresAt nulo.
 - T-08: sem teste da redação de sk_/rk_/pk_ na mensagem de erro HTTP; vários t= no cabeçalho vale o último.
-@@ nesta onda.
 - T-09: teste do LogicException de findByCheckoutSessionIdForUpdate; FakeBillingOrderRepository::save sem unicidade de stripe_checkout_session_id; deadlock 1213 possível em claim concorrente (tratar em T-17 ou SELECT FOR UPDATE antes do INSERT); claim devolve evento received, então T-14 deve garantir idempotência do processador.
 - T-10: ficaram de fora os ramos extras de listOpenPix/listPixDueForIssue (due_at <= now com PI vivo; past_due incluída, suspended/cancelled excluídas), teste da guarda dos outros 4 *ForUpdate reais e o tipo da exceção do save() dos fakes.
 - T-11: até a T-24 e a T-25, o admin da clínica não tem gestão de usuários nem de unidades; sem asserção fixa de Hospitalization/Surgery/Bed/Ai só no Enterprise; idempotência do seed só conferida no texto (aplicar 2x no centralvet_test com autorização); citar no cabeçalho o risco de MAX+1 com nome/controller duplicado.
@@ -116,6 +128,16 @@
 - T-15 (onda 6): divergência classe query/POST com ALWAYS_ALLOWED (`SubscriptionStatusView`) tratada em 94008c4, conferir; testDecisionAndCacheUseTheMethodAwareAccessKey só confere o texto do fonte.
 - T-18 (onda 6): se a transação do vencimento Pix lança, o PI ainda é criado sem o vencimento registrado (considerar `continue`); Stripe fora do ar durante toda a tolerância suspende sem Pix pagável; segundo run do teste não confere a Idempotency-Key repetida.
 - T-25 (onda 6): critério do diff do plan-groups.sql imprime 2 (linhas de WHERE alteradas em 3bb0850, aceito); e-mail do Pix tenta 3 vezes sem retentativa entre rodadas.
+- T-28: teste de evento de outra integração não verifica o error_log `ignored foreign` nem a ausência de payload (BillingEventProcessorTest.php:323-338).
+- T-28: `charge.refunded` de fatura de cartão nossa ainda não registrada sai `ignored` em definitivo (charge não herda metadata.billing_order); considerar a marca pelo `customer` (BillingEventProcessor.php:312).
+- T-26: regras novas do FakeBillingOrderRepository (listLoginConflictsToRefund, exclusão de login_conflict em listPendingFulfillment) sem teste; a T-31 depende do Fake (FakeBillingOrderRepository.php:102,114).
+- T-26: recordRefund sobrescreve stripe_refund_id já gravado (BillingOrder.php:242-250).
+- T-26: TenantProvisioningService ainda aceita login_conflict/provisioning_failed e o domínio não impede markProvisioned/markProvisioningFailed depois de recordRefund; tratar na T-31 (TenantProvisioningService.php:93, BillingOrder.php:189,199).
+- T-26: teste de integração usa in_array e limite 100000 em vez da igualdade exata pedida (BillingOrderRepositoryIntegrationTest.php:63-77).
+- T-27: RED registrado só como símbolo ausente, não como a reprodução exigida em Origem (reports/T-27.md § RED).
+- T-27: o 422 de e-mail tomado sem consumir o form_token permite sondar e-mails com um token (oráculo de conta), contido só pelo limite de 10/h por IP; registrar como risco aceito (CheckoutStartHandler.php:110-112).
+- T-27: BillingAcquisitionFlowIntegrationTest falhou de forma intermitente por suítes paralelas no centralvet_test; rodar o gate isolado.
+- Ambiente (onda 7): falhas intermitentes 1213/1412/"requires an open transaction" no centralvet_test por suítes paralelas dos implementadores; sumiram no gate isolado (SUITE 2297/2297).
 
 ## Riscos
 - RISCO Pix: o limite de `payment_method_options[pix][expires_after_seconds]` do PaymentIntent no Stripe precisa aceitar 864000 s (10 dias). Se a API recusar, T-23 usa o máximo aceito, e o reconciliador regenera o Pix expirado, o que já está previsto. A renovação Pix depende do cron do reconciliador (a cada 15 min): sem o cron, nenhuma fatura de renovação é emitida.
@@ -126,10 +148,11 @@
 - O guard de T-19 lê `subscription` a cada 60 s por sessão: sem a 0017 aplicada no banco, o login quebra. Aplicar a 0017 antes de subir o código em qualquer ambiente.
 - Testes de bloqueio com fixture não commitada pegam o lock implícito do INSERT (pendência da Etapa 2): T-03 complementa com o teste unitário da ordem bloqueio → escrita.
 - Escopo grande (25 tasks, 6 ondas), executado de uma vez por decisão do usuário.
+- Ondas 7 e 8: a 0018 precisa estar aplicada antes do código em qualquer ambiente (dev, produção): o `BillingOrder::toRow` grava as colunas novas, e sem elas todo INSERT/UPDATE em `billing_order` falha. O estorno automático é uma ação de dinheiro irreversível no Stripe; os testes usam só o `FakeStripeClient`.
 
 ## Retomada
 - Pasta: `.claude/tasks/mar-20261021-1554-etapa-3-contratacao/`
-- Sessões: fc92cc27-9f66-4ad7-bfe3-efed43d88248
+- Sessões: fc92cc27-9f66-4ad7-bfe3-efed43d88248, b5eee13a-a154-4bef-8500-0b8809d420de
 - Branch de trabalho: task/etapa-3-contratacao (base: task/etapa-2-dinheiro-estoque)
 - BASE da onda 1: 49ada48
 - Commits por onda:
@@ -139,5 +162,6 @@
   - Onda 4: BASE 5db859e → HEAD a84b76c (15d48cf, 080924d, 458ec1c, 8db8904, b8c9e05, 10eebb8, f2c7918, 54252c5, f8db113, 44586d5, bb5bfaa, bc0b08f, a84b76c)
   - Onda 5: BASE e26d543 → HEAD 52ca85a (aa007bf, 6302b07, f5aeb13, 84c01db, ceb0288, 52ca85a)
   - Onda 6: BASE d757a4d → HEAD 94008c4 (4d5353f, a950a87, a80a2ef, 51b8fbc, 3bb0850, 0801de1, d62da62, 9323c8e, ad5a00d, fb7ecd7, 238ba95, df743de, a690350, 94008c4)
-- Último status conhecido: onda 6 concluída (T-22 [x]; integração a..p 16 PASS e fumaça no dev); todas as 25 tasks [x]
-- Próxima onda recomendada: nenhuma; seguir para a revisão final
+  - Onda 7: BASE fbe280f → HEAD 0d5560e (0d5560e, f38cfb1, 50147c3, 6dc73a2, e12fa5f, 222b6dc, 2cf96eb, df84e27, 34c6292, 498bb35)
+- Último status conhecido: onda 7 concluída (T-26..T-30 [x]; SUITE 2297/2297, LINT 20 arquivos OK); falta a Onda 8 (T-31)
+- Próxima onda recomendada: Onda 8 — T-31 (LoginConflictRefundService no reconciliador)

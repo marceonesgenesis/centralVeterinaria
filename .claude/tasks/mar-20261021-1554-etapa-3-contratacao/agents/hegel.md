@@ -8,10 +8,13 @@ Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com
 
 ## Tasks atribuídas
 - T-14: Processador de eventos Stripe
+- T-28: Eventos Stripe de outra integração saem `ignored` (Onda 7 — correção da revisão final)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
 ## Caminhos relevantes
+- `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reviews/final.md` (§ Achados: origem da T-28)
+- `src/tests/Integration/BillingWebhookIntegrationTest.php` e `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` (fora de ordem real; só leitura)
 - src/app/Core/Billing/ (T-07, T-08, T-09, T-10)
 - Board: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/board.md`
 - Relatórios: `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reports/` (modelo em `_template.md`)
@@ -24,6 +27,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Proibido: editar `src/lib/adianti`, `src/engine.php`, `src/index.php`, `src/init.php`, `src/composer.json`, `src/app/config/framework_hashes.php` ou qualquer arquivo listado nele (única exceção, autorizada pelo usuário: T-04 edita `src/composer.json`, `src/composer.lock` e a linha `composer.json` de `framework_hashes.php`); `composer update` sem pacote nomeado; SQL de escrita contra o banco `centralvet` (dev) sem autorização expressa; escrever no `.env`; colocar chave real (`sk_live_`, `sk_test_`, `whsec_`) em código, teste, log, relatório ou prompt; `git add -A`, `git stash`, `git checkout`, `git reset`, `git restore`.
 - Regras do projeto: rótulos e cabeçalhos de grid à esquerda; alvos de toque ≥ 44 px (`--cv-touch-target`); mensagens ao usuário só por `_t()` com as chaves de T-01 (`^1..^4`); toda mutação nova passa pela `MutationRequestPolicy` (exceção: `billing-webhook.php`, autenticado por `Stripe-Signature`).
 - Sem chamada real ao Stripe: `FakeStripeClient` (T-08).
+- T-28 (Onda 7): o fixture `stripe-events.php` é usado por testes de outras tasks; o parâmetro novo é opcional e final, e as chamadas existentes não mudam.
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 

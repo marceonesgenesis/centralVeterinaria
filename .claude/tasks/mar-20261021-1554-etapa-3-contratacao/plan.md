@@ -16,6 +16,7 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 - Migrations compatíveis com MySQL 5.7 (cópia `21-` no preparador). DDL no `centralvet_test` pelo root do container mysql, como na Etapa 2. Dev só com autorização expressa: o orquestrador pergunta quando chegar a Onda 6, e a fumaça de T-22 depende dela.
 - `download.php` não serve arquivo legítimo hoje (`src/files/` só tem `system/`, bloqueado): S6 resolvido desabilitando o endpoint.
 - S5 completo, autorizado pelo usuário: `src/composer.json` com `dompdf/dompdf ^3.1.6` e `firebase/php-jwt ^7.0`, `composer update` dessas dependências no container e o hash de `composer.json` em `framework_hashes.php` regenerado no mesmo commit (T-04).
+- Ondas 7 e 8 — correção da revisão final (`reviews/final.md`), BASE da Onda 7 `fbe280f`: TDD com RED commitado, nenhuma chamada real ao Stripe, nada no `.env` real; o cancelamento e o estorno automáticos do pedido pago com `login_conflict` seguem a recomendação do planejamento, pendente de confirmação do usuário (registrado em `notes.md`).
 - Regras de UI do `CLAUDE.md`: rótulos e cabeçalhos à esquerda, alvos de 44 px. Mensagens em pt-BR via `_t()` com `^1..^4`; `translations.json` só com `en`/`pt`, ordenado por `en`.
 
 ## Escopo
@@ -41,6 +42,9 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 - Pendência (d): botão de cancelar escondido em venda cancelada, nomes no recibo, mensagens traduzidas, rótulos de pagamento unificados (T-01, T-06).
 - Mensagens pt-BR novas (T-01).
 - Cenários de aquisição da auditoria e fumaça no navegador (T-22).
+- Correção da revisão final: o checkout recusa com 422, antes do Stripe e sem consumir o token, o e-mail que já é login ou que já tem pedido pago (T-27).
+- Correção da revisão final: pedido pago que termina em `login_conflict` tem a Subscription do cartão cancelada no Stripe, o pagamento estornado (cartão e Pix), a assinatura local cancelada, o estado terminal `refunded` e o alerta ao operador (`error_log` estruturado e e-mail para `BILLING_OPERATOR_EMAIL`), de forma idempotente e retomável (T-26, T-31).
+- Correção da revisão final: preço do plano não configurado responde 502 antes do `POST /v1/customers`, sem pedido `pending` (T-27); `CHECKOUT_RATE_LIMIT_*` no `.env.example` (T-27); evento Stripe de outra integração sai `ignored` (T-28); mensagem de recurso de outra clínica em pt-BR (T-29); README e inventário CSRF sem `download.php` como caminho de download (T-30).
 
 ### Excluído
 - Pagamentos de tutores à clínica (seguem manuais).
@@ -50,6 +54,7 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 - Cancelamento iniciado pela clínica no app (no cartão ele chega por `customer.subscription.deleted`; no Pix, a falta de pagamento suspende).
 - Fatura Stripe `send_invoice` com Pix e Pix Automático.
 - Aplicação no banco de dev ou em produção sem autorização expressa; Stripe em modo real.
+- Estorno automático de outras falhas de provisionamento (`group_missing`, `subscription_missing`, erro de banco): seguem para a retomada do reconciliador; estorno parcial; e-mail ao operador a cada falha de estorno (a falha vai só ao `error_log` e a rodada seguinte retoma).
 - Revogação de sessões ativas quando a assinatura é suspensa (o bloqueio vale na próxima requisição após o cache de 60 s).
 
 ## Contexto técnico
@@ -71,13 +76,13 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | Arquivo | Responsabilidade | Ação | Tasks que tocam |
 |---|---|---|---|
 | `src/app/config/translations.json` ⚠ | Textos pt-BR da Etapa 3 (T-01, Onda 1) e da equipe e unidades (T-24, Onda 4) | modificar | T-01, T-24 |
-| `src/app/Core/Presentation/UserMessage.php` ⚠ | Mensagem crua → chave (T-01, Onda 1; T-24, Onda 4) | modificar | T-01, T-24 |
+| `src/app/Core/Presentation/UserMessage.php` ⚠ | Mensagem crua → chave (T-01, Onda 1; T-24, Onda 4; mensagem de tenant na T-29, Onda 7) | modificar | T-01, T-24, T-29 |
 | `src/tests/Unit/Etapa3MessagesTest.php` | Chaves e mapeamentos da Etapa 3 | criar | T-01 |
 | `src/app/database/migrations/20261021_0017_etapa3_billing.sql` | Schema de cobrança | criar | T-02 |
 | `src/app/database/migrations/20261021_0017_etapa3_billing.verify.sql` | Conferência só com SELECT | criar | T-02 |
-| `scripts/test-db/provision.sh` | Lista de schema do banco de teste | modificar | T-02 |
-| `docs/runbooks/tests.md` | Lista de migrations do banco de teste | modificar | T-02 |
-| `docs/runbooks/shared-hosting-mysql57.md` ⚠ | Seção da 0017 (T-02, Onda 1); cron da reconciliação e endpoint Stripe (T-18, Onda 5) | modificar | T-02, T-18 |
+| `scripts/test-db/provision.sh` ⚠ | Lista de schema do banco de teste (T-02, Onda 1; 0018 na T-26, Onda 7) | modificar | T-02, T-26 |
+| `docs/runbooks/tests.md` ⚠ | Lista de migrations do banco de teste (T-02, Onda 1; 0018 na T-26, Onda 7) | modificar | T-02, T-26 |
+| `docs/runbooks/shared-hosting-mysql57.md` ⚠ | Seção da 0017 (T-02, Onda 1); cron da reconciliação e endpoint Stripe (T-18, Onda 5); seção da 0018 (T-26, Onda 7); `BILLING_OPERATOR_EMAIL` e `orders_refunded` (T-31, Onda 8) | modificar | T-02, T-18, T-26, T-31 |
 | `src/app/Core/Domain/Contract/CashSessionRepositoryInterface.php` | Leituras com bloqueio | modificar | T-03 |
 | `src/app/Core/Persistence/CashSessionRepository.php` | `FOR UPDATE` do caixa | modificar | T-03 |
 | `src/tests/Support/FakeCashSessionRepository.php` | Fake dos métodos novos | modificar | T-03 |
@@ -108,11 +113,11 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/app/Core/Billing/PlanEntitlements.php` | Quotas e recursos por plano | criar | T-07 |
 | `src/app/Core/Billing/Subscription.php` | Estado da assinatura e guarda de evento antigo | criar | T-07 |
 | `src/app/Core/Billing/SubscriptionInvoice.php` | Fatura | criar | T-07 |
-| `src/app/Core/Billing/BillingOrder.php` | Pedido da landing | criar | T-07 |
+| `src/app/Core/Billing/BillingOrder.php` ⚠ | Pedido da landing (T-07, Onda 1); estado `refunded` e passos do estorno (T-26, Onda 7) | criar | T-07, T-26 |
 | `src/tests/Unit/PlanEntitlementsTest.php` | Direitos por plano | criar | T-07 |
 | `src/tests/Unit/SubscriptionTest.php` | Transições e tolerância | criar | T-07 |
 | `src/tests/Unit/SubscriptionInvoiceTest.php` | Fatura e estorno | criar | T-07 |
-| `src/tests/Unit/BillingOrderTest.php` | Pedido idempotente | criar | T-07 |
+| `src/tests/Unit/BillingOrderTest.php` ⚠ | Pedido idempotente (T-07, Onda 1); transições do estorno (T-26, Onda 7) | criar | T-07, T-26 |
 | `src/app/Core/Billing/Stripe/StripeClientInterface.php` | Contrato do cliente | criar | T-08 |
 | `src/app/Core/Billing/Stripe/CurlStripeClient.php` | HTTP via cURL | criar | T-08 |
 | `src/app/Core/Billing/Stripe/StripeConfig.php` | Variáveis `STRIPE_*` | criar | T-08 |
@@ -122,15 +127,15 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/tests/Support/FakeStripeClient.php` | Fake sem rede | criar | T-08 |
 | `src/tests/Unit/StripeSignatureVerifierTest.php` | Assinatura | criar | T-08 |
 | `src/tests/Unit/CurlStripeClientTest.php` | Montagem da requisição | criar | T-08 |
-| `.env.example` | Placeholders `STRIPE_*` | modificar | T-08 |
-| `docker-compose.yml` | `STRIPE_*` no `app-environment` | modificar | T-08 |
-| `src/app/Core/Billing/Contract/BillingOrderRepositoryInterface.php` | Contrato do pedido | criar | T-09 |
+| `.env.example` ⚠ | Placeholders `STRIPE_*` (T-08, Onda 1); `CHECKOUT_RATE_LIMIT_*` comentadas (T-27, Onda 7); `BILLING_OPERATOR_EMAIL=` (T-31, Onda 8) | modificar | T-08, T-27, T-31 |
+| `docker-compose.yml` ⚠ | `STRIPE_*` no `app-environment` (T-08, Onda 1); `BILLING_OPERATOR_EMAIL` (T-31, Onda 8) | modificar | T-08, T-31 |
+| `src/app/Core/Billing/Contract/BillingOrderRepositoryInterface.php` ⚠ | Contrato do pedido (T-09, Onda 2); `listLoginConflictsToRefund` (T-26, Onda 7) | criar | T-09, T-26 |
 | `src/app/Core/Billing/Contract/BillingEventRepositoryInterface.php` | Contrato do evento | criar | T-09 |
-| `src/app/Core/Persistence/BillingOrderRepository.php` | Pedido no MySQL | criar | T-09 |
+| `src/app/Core/Persistence/BillingOrderRepository.php` ⚠ | Pedido no MySQL (T-09, Onda 2); `login_conflict` fora da retomada e listado para estorno (T-26, Onda 7) | criar | T-09, T-26 |
 | `src/app/Core/Persistence/BillingEventRepository.php` | Evento com deduplicação | criar | T-09 |
-| `src/tests/Support/FakeBillingOrderRepository.php` | Fake | criar | T-09 |
+| `src/tests/Support/FakeBillingOrderRepository.php` ⚠ | Fake (T-09, Onda 2); listagens do estorno (T-26, Onda 7) | criar | T-09, T-26 |
 | `src/tests/Support/FakeBillingEventRepository.php` | Fake | criar | T-09 |
-| `src/tests/Integration/BillingOrderRepositoryIntegrationTest.php` | Pedido e bloqueio | criar | T-09 |
+| `src/tests/Integration/BillingOrderRepositoryIntegrationTest.php` ⚠ | Pedido e bloqueio (T-09, Onda 2); colunas do estorno e listagens (T-26, Onda 7) | criar | T-09, T-26 |
 | `src/tests/Integration/BillingEventRepositoryIntegrationTest.php` | `claim` e duplicidade | criar | T-09 |
 | `src/app/Core/Billing/Contract/SubscriptionRepositoryInterface.php` | Contrato da assinatura | criar | T-10 |
 | `src/app/Core/Billing/Contract/SubscriptionInvoiceRepositoryInterface.php` | Contrato da fatura | criar | T-10 |
@@ -149,11 +154,11 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/app/Core/Billing/ProvisioningConflict.php` | Login já existente | criar | T-13 |
 | `src/app/Core/Billing/TransactionRunner.php` | Transação ou savepoint | criar | T-13 |
 | `src/tests/Integration/TenantProvisioningIntegrationTest.php` | Idempotência e retomada | criar | T-13 |
-| `src/app/Core/Billing/BillingEventProcessor.php` | Eventos → domínio | criar | T-14 |
+| `src/app/Core/Billing/BillingEventProcessor.php` ⚠ | Eventos → domínio (T-14, Onda 3); evento de outra integração `ignored` (T-28, Onda 7) | criar | T-14, T-28 |
 | `src/app/Core/Billing/BillingEventOutcome.php` | Resultado do evento | criar | T-14 |
 | `src/app/Core/Billing/BillingEventOutOfOrder.php` | Dependência ausente | criar | T-14 |
-| `src/tests/Unit/BillingEventProcessorTest.php` | Tipos, ordem e duplicidade | criar | T-14 |
-| `src/tests/Support/Fixtures/stripe-events.php` | Eventos de exemplo | criar | T-14 |
+| `src/tests/Unit/BillingEventProcessorTest.php` ⚠ | Tipos, ordem e duplicidade (T-14, Onda 3); nosso × de outra integração (T-28, Onda 7) | criar | T-14, T-28 |
+| `src/tests/Support/Fixtures/stripe-events.php` ⚠ | Eventos de exemplo (T-14, Onda 3); `$billingOrder` opcional com a marca do Central Vet (T-28, Onda 7) | criar | T-14, T-28 |
 | `src/app/Core/Billing/SubscriptionAccessGuard.php` | Acesso por estado e plano | criar | T-15 |
 | `src/app/Core/Billing/AccessDecision.php` | Decisão | criar | T-15 |
 | `src/app/Core/Billing/QuotaGuard.php` | Quotas | criar | T-15 |
@@ -164,19 +169,19 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/tests/Unit/SubscriptionAccessGuardTest.php` | Decisões | criar | T-15 |
 | `src/tests/Unit/QuotaGuardTest.php` | Limites | criar | T-15 |
 | `src/tests/Integration/TenantUsageReaderIntegrationTest.php` | Contagem por tenant | criar | T-15 |
-| `src/app/Core/Billing/CheckoutStartHandler.php` | Pedido e Checkout | criar | T-16 |
-| `src/checkout.php` | POST público do checkout | criar | T-16 |
+| `src/app/Core/Billing/CheckoutStartHandler.php` ⚠ | Pedido e Checkout (T-16, Onda 3); e-mail cadastrado e preço não configurado antes do Stripe (T-27, Onda 7) | criar | T-16, T-27 |
+| `src/checkout.php` ⚠ | POST público do checkout (T-16, Onda 3); `AccountEmailReader` (T-27, Onda 7) | criar | T-16, T-27 |
 | `src/app/Core/Landing/LandingCatalog.php` | Termos e formas de pagamento | modificar | T-16 |
 | `src/tests/Unit/LandingCatalogTest.php` | `publicJson` com termos | modificar | T-16 |
-| `src/tests/Unit/CheckoutStartHandlerTest.php` | Validação e preço do servidor | criar | T-16 |
-| `docs/security/csrf-inventario.md` ⚠ | `checkout.php` (T-16, Onda 3); `billing-webhook.php` (T-17, Onda 4); `ClinicUserForm` e `ClinicUnitForm` (T-25, Onda 5) | modificar | T-16, T-17, T-25 |
+| `src/tests/Unit/CheckoutStartHandlerTest.php` ⚠ | Validação e preço do servidor (T-16, Onda 3); e-mail cadastrado e preço vazio (T-27, Onda 7) | criar | T-16, T-27 |
+| `docs/security/csrf-inventario.md` ⚠ | `checkout.php` (T-16, Onda 3); `billing-webhook.php` (T-17, Onda 4); `ClinicUserForm` e `ClinicUnitForm` (T-25, Onda 5); `download.php` desabilitado (T-30, Onda 7) | modificar | T-16, T-17, T-25, T-30 |
 | `src/app/Core/Billing/BillingEventIngestor.php` | Claim, processo e provisionamento | criar | T-17 |
 | `src/app/Core/Billing/BillingWebhookHandler.php` | Webhook HTTP | criar | T-17 |
 | `src/billing-webhook.php` | POST público do webhook | criar | T-17 |
 | `src/tests/Integration/BillingWebhookIntegrationTest.php` | Assinatura, duplicado, fora de ordem | criar | T-17 |
-| `src/app/Core/Billing/BillingReconciler.php` | Reconciliação | criar | T-18 |
-| `src/bin/billing-reconcile.php` | Cron | criar | T-18 |
-| `src/tests/Integration/BillingReconcilerIntegrationTest.php` | Eventos perdidos e retomada | criar | T-18 |
+| `src/app/Core/Billing/BillingReconciler.php` ⚠ | Reconciliação (T-18, Onda 5); fase `refundLoginConflicts` e `orders_refunded` (T-31, Onda 8) | criar | T-18, T-31 |
+| `src/bin/billing-reconcile.php` ⚠ | Cron (T-18, Onda 5); serviço de estorno e `BILLING_OPERATOR_EMAIL` (T-31, Onda 8) | criar | T-18, T-31 |
+| `src/tests/Integration/BillingReconcilerIntegrationTest.php` ⚠ | Eventos perdidos e retomada (T-18, Onda 5); estorno na rodada (T-31, Onda 8) | criar | T-18, T-31 |
 | `src/app/service/auth/ApplicationAuthenticationService.php` ⚠ | `fromToken` na API 7 (T-04, Onda 1); bloqueio e primeiro acesso (T-19, Onda 4) | modificar | T-04, T-19 |
 | `src/app/Core/Tenancy/TenantUserActivation.php` | `invited` → `active` | criar | T-19 |
 | `src/tests/Unit/SubscriptionAccessWiringTest.php` | Wiring do bloqueio e do primeiro acesso | criar | T-19 |
@@ -191,7 +196,7 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/app/database/seeds/initial-application-programs.sql` ⚠ | Programa `SubscriptionStatusView` (T-21, Onda 4); programas de equipe e unidades (T-25, Onda 5) | modificar | T-21, T-25 |
 | `src/menu.xml` ⚠ | Item "Assinatura" (T-21, Onda 4); "Equipe" e "Unidades da clínica" (T-25, Onda 5) | modificar | T-21, T-25 |
 | `src/tests/Unit/SubscriptionStatusPresenterTest.php` | Resumo e faturas | criar | T-21 |
-| `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` | Cenários (a)–(o) | criar | T-22 |
+| `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` ⚠ | Cenários (a)–(o) (T-22, Onda 6); `AccountEmailReader` no builder (T-27, Onda 7); cenário de corrida com estorno (T-31, Onda 8) | criar | T-22, T-27, T-31 |
 | `src/app/Core/Billing/PixInvoiceIssuer.php` | Fatura Pix e PaymentIntent por período | criar | T-23 |
 | `src/tests/Unit/PixInvoiceIssuerTest.php` | Emissão, repetição e regeneração | criar | T-23 |
 | `src/app/Core/Tenancy/ClinicTeamService.php` | Equipe por tenant, grupos do plano, quota e convite | criar | T-24 |
@@ -205,8 +210,19 @@ Fechar a Etapa 3 da auditoria `.docs/audits/2026-10-09-prontidao-mvp.md`: a clí
 | `src/app/control/admin/ClinicUnitForm.php` | Criação e edição de unidade | criar | T-25 |
 | `src/tests/Integration/ClinicUnitServiceIntegrationTest.php` | Isolamento, quota, `tenant_id` | criar | T-25 |
 | `src/tests/Unit/ClinicUnitScreensWiringTest.php` | Seed, menu, inventário e rótulos | criar | T-25 |
+| `src/app/database/migrations/20261026_0018_billing_order_refund.sql` | Colunas do estorno e `refunded` no CHECK | criar | T-26 |
+| `src/app/database/migrations/20261026_0018_billing_order_refund.verify.sql` | Conferência só com SELECT | criar | T-26 |
+| `src/app/Core/Billing/Contract/AccountEmailReaderInterface.php` | E-mail já cadastrado | criar | T-27 |
+| `src/app/Core/Persistence/AccountEmailReader.php` | Login ou pedido pago no MySQL | criar | T-27 |
+| `src/tests/Support/FakeAccountEmailReader.php` | Fake | criar | T-27 |
+| `src/tests/Integration/AccountEmailReaderIntegrationTest.php` | Login, caixa e status do pedido | criar | T-27 |
+| `src/tests/Unit/UserMessageTest.php` | Contagem de `STATIC` (99 → 100) | modificar | T-29 |
+| `src/tests/Unit/TenantBoundaryMessageTest.php` | Mensagem de tenant em pt-BR | criar | T-29 |
+| `README.md` | Downloads e `download.php` desabilitado | modificar | T-30 |
+| `src/app/Core/Billing/LoginConflictRefundService.php` | Cancelamento, estorno e alerta | criar | T-31 |
+| `src/tests/Integration/LoginConflictRefundIntegrationTest.php` | Cartão, Pix, retomada e idempotência | criar | T-31 |
 
-Os arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas 1 e 5; o `PasswordResetToken` nas Ondas 1 e 2; o `ApplicationAuthenticationService` nas Ondas 1 e 4; `translations.json` e `UserMessage.php` nas Ondas 1 e 4; `plan-groups.sql` nas Ondas 2, 4 e 5; `PlanGroupsSeedTest` nas Ondas 2 e 5; o inventário CSRF nas Ondas 3, 4 e 5; `initial-application-programs.sql` e `menu.xml` nas Ondas 4 e 5.
+Os arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas 1 e 5; o `PasswordResetToken` nas Ondas 1 e 2; o `ApplicationAuthenticationService` nas Ondas 1 e 4; `translations.json` e `UserMessage.php` nas Ondas 1 e 4; `plan-groups.sql` nas Ondas 2, 4 e 5; `PlanGroupsSeedTest` nas Ondas 2 e 5; o inventário CSRF nas Ondas 3, 4 e 5; `initial-application-programs.sql` e `menu.xml` nas Ondas 4 e 5. Na correção da revisão final, cada arquivo de task anterior tocado nas Ondas 7 e 8 tem uma task só por onda: `.env.example` (T-27 na 7, T-31 na 8), `BillingAcquisitionFlowIntegrationTest` (T-27 na 7, T-31 na 8), o runbook de MySQL 5.7 (T-26 na 7, T-31 na 8) e os demais com uma task nova cada.
 
 ## Decisões de arquitetura
 
@@ -222,6 +238,8 @@ Os arquivos ⚠ são serializados em ondas diferentes: o runbook nas Ondas 1 e 5
 | Grupos por plano (`plan-groups.sql`) + `SubscriptionAccessGuard` no `checkMultiSession` | Só RBAC; só guard | O RBAC esconde o que o plano não tem; o guard é a barreira do servidor e cobre estado da assinatura; o grupo 1 (plataforma) nunca vai para a clínica |
 | Pix: 1º mês por Checkout `mode=payment`; renovação por fatura local com PaymentIntent Pix avulso (T-23), emitida pelo reconciliador e paga por `payment_intent.succeeded` | Subscription `send_invoice` com Pix; Pix em `mode=subscription` | Decisão do usuário: não se sabe se a conta aceita Pix em `send_invoice`. O PaymentIntent Pix avulso funciona em qualquer conta com Pix; o ciclo, o vencimento e a tolerância ficam no domínio, iguais aos do cartão |
 | Gestão por clínica em telas próprias (`ClinicTeamService`, `ClinicUnitService`) | Corrigir `SystemUserForm`/`SystemUnitForm` para filtrar por tenant | As telas de sistema servem o grupo 1 (plataforma) e listam grupos e unidades de todas as clínicas; telas novas com serviço no Core filtram tudo pelo `TenantContext`, aceitam só o grupo do plano e são testáveis no MySQL sem o Adianti. Decisão do usuário depois da revisão da T-11 |
+| Pedido pago com `login_conflict`: o reconciliador cancela a Subscription (cartão), estorna o pagamento (cartão e Pix), cancela a assinatura local e marca `refunded`, com cada passo gravado no pedido (T-26, T-31) | Só recusar no checkout; alertar o operador e estornar à mão; estornar no webhook | A recusa no checkout (T-27) não fecha a corrida entre o checkout e o webhook; o estorno à mão deixa o cartão cobrando até alguém agir. O reconciliador já roda a cada 15 min, fora da requisição do webhook, e a cobrança seguinte é mensal; colunas por passo e `Idempotency-Key` (`cancel-`/`refund-<public_id>`) tornam a rodada repetível. O provisionamento continua sem cliente Stripe |
+| Evento sem a marca do Central Vet (`client_reference_id`/`metadata.billing_order`) e sem registro local → `ignored` (T-28) | Ignorar todo evento sem registro local | Mantém o fora de ordem real (o Stripe reenvia e o reconciliador busca) só para os eventos nossos; os de outra integração na mesma conta param de falhar em loop |
 | `download.php` desabilitado (404) | Resolver arquivo por id com checagem de tenant | Nenhum fluxo do app serve arquivo por ele hoje; documentos clínicos têm mecanismo próprio |
 | php-jwt `^7.0` e dompdf `^3.1.6` no `composer.json`, com o hash regenerado no mesmo commit | Ficar em `^6.0` com mitigação | Autorizado pelo usuário; fecha os avisos de fato. O `PasswordResetToken` recusa chave < 32 bytes com mensagem clara antes do php-jwt 7 |
 
@@ -245,6 +263,8 @@ T-01, T-07, T-10, T-11, T-12, T-13, T-15 → T-24
 T-07, T-11, T-13, T-15, T-21, T-24 → T-25
 T-17, T-18, T-19, T-20, T-21, T-24, T-25 → T-22
 T-03, T-05, T-06 (sem dependentes)
+T-02, T-07, T-09 → T-26 → T-31 (Ondas 7 e 8, correção)
+T-08, T-16 → T-27; T-14 → T-28; T-01 → T-29; T-05 → T-30 (Onda 7, correção)
 ```
 
 ## Estratégia de execução
@@ -254,6 +274,8 @@ T-03, T-05, T-06 (sem dependentes)
 - Isolamento em ondas com edições paralelas: caminho exclusivo (cada agente só nos arquivos da própria task; os arquivos ⚠ estão em ondas diferentes)
 - Pré-condição da Onda 2: a 0017 aplicada ao `centralvet_test` (T-02). Sem ela, os testes de integração das Ondas 2–6 saem FAIL.
 - Pré-condição de T-04: rede para o packagist no `docker run composer:2.8.11`. O `src/vendor` (fora do git) é atualizado no host; a imagem do :8081 só muda com rebuild de `app` e `worker`.
+- Pré-condição da Onda 7: a T-26 aplica a 0018 ao `centralvet_test` e commita a migration antes do `BillingOrder::toRow` com as colunas novas (as outras tasks da onda rodam integração no mesmo banco). Em dev e produção, a 0018 vai antes do código das Ondas 7 e 8.
+- Validação cruzada das Ondas 7 e 8: SUITE completo sem filtro de classe (`Failed: 0`, nenhuma classe de integração nova em `SKIP`) e LINT de cada PHP tocado na onda (`git diff --name-only <BASE da onda> -- '*.php'`). BASE da Onda 7: `fbe280f`.
 - Pré-condição da Onda 6: o orquestrador pergunta ao usuário se autoriza aplicar a 0017 e os seeds no banco de dev `centralvet`; sem autorização, a fumaça no navegador de T-22 fica pendente.
 
 ## Ondas de execução
@@ -276,13 +298,19 @@ T-03, T-05, T-06 (sem dependentes)
 ### Onda 6
 - T-22
 
+### Onda 7 — correção (revisão final)
+- T-26, T-27, T-28, T-29, T-30
+
+### Onda 8 — correção (revisão final)
+- T-31
+
 ## Agentes
 
 | Agente | subagent_type | model | Tasks |
 |---|---|---|---|
 | Sun Tzu — orquestrador | — | — | todas |
-| Maquiavel | general-purpose | inherit | T-01 |
-| Darwin | general-purpose | inherit | T-02, T-11, T-25 |
+| Maquiavel | general-purpose | inherit | T-01, T-29 |
+| Darwin | general-purpose | inherit | T-02, T-11, T-25, T-26 |
 | Sherlock | general-purpose | inherit | T-03 |
 | Yoda | general-purpose | inherit | T-04 |
 | Jaspion | general-purpose | inherit | T-05, T-15, T-24 |
@@ -293,23 +321,25 @@ T-03, T-05, T-06 (sem dependentes)
 | Spock | general-purpose | inherit | T-10 |
 | Gandalf | general-purpose | inherit | T-12 |
 | Thanos | general-purpose | inherit | T-13 |
-| Hegel | general-purpose | inherit | T-14 |
-| Batman | general-purpose | inherit | T-16 |
+| Hegel | general-purpose | inherit | T-14, T-28 |
+| Batman | general-purpose | inherit | T-16, T-27 |
 | Kratos | general-purpose | inherit | T-17 |
-| Naruto | general-purpose | inherit | T-18 |
+| Naruto | general-purpose | inherit | T-18, T-31 |
 | Aang | general-purpose | inherit | T-19 |
 | Saitama | general-purpose | inherit | T-20 |
 | Athena | general-purpose | inherit | T-21 |
 | Goku | general-purpose | inherit | T-22 |
+| Gandalf (docs) | geduc:documentador | sonnet | T-30 |
 
 ## Review Focus
-- Responsável cujo e-mail já é login de outro usuário → pedido `provisioning_failed` com `provisioning_error = 'login_conflict'`, nenhum tenant criado e nenhuma chamada `POST` ao Stripe nas novas tentativas → T-13
+- Pedido de cartão pago cujo e-mail virou login entre o checkout e o webhook (corrida) → na rodada do reconciliador, 1 `DELETE /v1/subscriptions/<id>`, 1 `POST /v1/refunds`, pedido `refunded`, assinatura local `cancelled`; a rodada seguinte não faz chamada nova ao Stripe → T-31
+- E-mail com caixa e espaços diferentes de um login existente (`' Dono.T27@Clinica.TEST '` contra `dono.t27@clinica.test`) → 422 em `responsible_email`, 0 chamadas ao Stripe e o `form_token` ainda válido → T-27
+- `invoice.paid` de uma assinatura nossa (com `subscription_details.metadata.billing_order`) antes do `checkout.session.completed` → continua 500 e `failed`, e o reenvio sai `processed`; só o evento sem a marca vira `ignored` → T-28
 - Payload do checkout com `price_cents` ou `amount` forjado → pedido e Checkout com o preço do catálogo (9700 no Pro) → T-16
 - `payment_intent.succeeded` de fatura Pix processado depois que o reconciliador marcou a assinatura vencida (`markOverdue`) → fatura `paid` e assinatura `active` com o período novo, sem ser descartado como evento antigo → T-14
-- Corpo do webhook alterado depois de assinado, com o mesmo cabeçalho → 400 `invalid_signature`, 0 linhas em `billing_event` → T-17
-- Clínica com 403 em `SaleList` (plano) abrindo `TutorList` logo depois → 200: o cache de 60 s é por tenant e controller → T-19
 
 ## Critérios gerais de aceite
 - SUITE completo (cabeçalho de `tasks.md`) com MySQL no ar e a 0017 no `centralvet_test` imprime `Failed: 0` e nenhuma classe de integração nova em `SKIP`.
 - LINT de cada arquivo PHP tocado imprime `No syntax errors detected`; nenhuma linha nova em relação a `baseline/php-lint.txt` (0 linhas).
+- Ondas 7 e 8: com a 0018 no `centralvet_test`, nenhum pedido existente perdido (`SELECT COUNT(*) FROM billing_order` igual antes e depois da 0018) e o provisionamento ainda sem `StripeClientInterface`.
 - `git grep -nE "sk_(live|test)_[A-Za-z0-9]{8,}|whsec_[A-Za-z0-9]{20,}"` sem saída; `git diff task/etapa-2-dinheiro-estoque -- src/lib/adianti src/engine.php src/index.php src/init.php` sem linhas; em `src/composer.json`, só as 2 linhas de versão de T-04; em `framework_hashes.php`, só a linha `composer.json`, com o sha512 atual do arquivo.

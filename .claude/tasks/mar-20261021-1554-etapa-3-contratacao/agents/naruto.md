@@ -8,10 +8,14 @@ Etapa 3 — Contratação: compra pela landing com Stripe, assinatura mensal com
 
 ## Tasks atribuídas
 - T-18: Reconciliação
+- T-31: Estorno e cancelamento do pedido pago com login_conflict, com alerta ao operador (Onda 8 — correção da revisão final)
 
 Leia a especificação completa de cada task (arquivos, Interface, critério de aceite, validação) na seção correspondente de `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/tasks.md`. Não leia as demais seções.
 
 ## Caminhos relevantes
+- `/var/www/html/centralvet/.claude/tasks/mar-20261021-1554-etapa-3-contratacao/reviews/final.md` (§ Bloqueantes: origem da T-31)
+- `src/app/Core/Billing/PixInvoiceIssuer.php` (padrão de e-mail com `MessageChannelProviderInterface`)
+- `src/tests/Support/FakeEmailProvider.php`, `src/tests/Support/FakeStripeClient.php`
 - src/bin/worker.php (padrão `--once` com `flock`)
 - docs/runbooks/shared-hosting-mysql57.md § Agendador e worker na hospedagem
 - `src/app/Core/Billing/PixInvoiceIssuer.php` (T-23)
@@ -26,6 +30,7 @@ Leia a especificação completa de cada task (arquivos, Interface, critério de 
 - Proibido: editar `src/lib/adianti`, `src/engine.php`, `src/index.php`, `src/init.php`, `src/composer.json`, `src/app/config/framework_hashes.php` ou qualquer arquivo listado nele (única exceção, autorizada pelo usuário: T-04 edita `src/composer.json`, `src/composer.lock` e a linha `composer.json` de `framework_hashes.php`); `composer update` sem pacote nomeado; SQL de escrita contra o banco `centralvet` (dev) sem autorização expressa; escrever no `.env`; colocar chave real (`sk_live_`, `sk_test_`, `whsec_`) em código, teste, log, relatório ou prompt; `git add -A`, `git stash`, `git checkout`, `git reset`, `git restore`.
 - Regras do projeto: rótulos e cabeçalhos de grid à esquerda; alvos de toque ≥ 44 px (`--cv-touch-target`); mensagens ao usuário só por `_t()` com as chaves de T-01 (`^1..^4`); toda mutação nova passa pela `MutationRequestPolicy` (exceção: `billing-webhook.php`, autenticado por `Stripe-Signature`).
 - Pré-requisito: a 0017 no `centralvet_test` (T-02).
+- T-31 (Onda 8): exige a 0018 no `centralvet_test` (aplicada pela T-26); `BILLING_OPERATOR_EMAIL=` vazio no `.env.example` e `${BILLING_OPERATOR_EMAIL:-}` no compose, nunca valor real; nenhuma chamada real ao Stripe (só `FakeStripeClient`).
 
 Commite com `git -C <caminho acima>` em cada repositório que a task toca. Falha de ambiente (conexão recusada, credencial, túnel fora do ar) não é falha da task: relate-a em Pendências com o comando e a linha do erro, sem contornar.
 
