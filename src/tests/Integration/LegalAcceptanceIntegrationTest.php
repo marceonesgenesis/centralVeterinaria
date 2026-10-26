@@ -35,7 +35,7 @@ final class LegalAcceptanceIntegrationTest extends MysqlIntegrationTestCase
         $rows = $this->acceptances($user);
         Assert::count(2, $rows);
         Assert::same(
-            ['privacy' => 'privacidade-2026-10', 'terms' => 'termos-uso-2026-10'],
+            ['terms' => 'termos-uso-2026-10', 'privacy' => 'privacidade-2026-10'],
             array_column($rows, 'version', 'document'),
         );
         foreach ($rows as $row) {
