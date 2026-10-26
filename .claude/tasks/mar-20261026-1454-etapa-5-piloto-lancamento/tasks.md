@@ -32,11 +32,11 @@ Comandos usados em Teste RED e Validação (copiados da Etapa 4, `.claude/tasks/
 | T-11 | backend | Exportação dos dados da clínica (LGPD) em ZIP | — | sim | alta | Thanos | [x] |
 | T-12 | backend | Equipe da clínica com perfis restritos (`ClinicTeamService`) | T-04 | sim | média | Kratos | [x] |
 | T-13 | frontend | Landing e checkout alinhados à oferta e aos documentos legais | T-03, T-06 | sim | média | Tesla | [x] |
-| T-14 | frontend | Tela da assinatura com cancelamento pelo app | T-02, T-03, T-08 | sim | média | Maquiavel | [ ] |
-| T-15 | frontend | Telas de primeiros passos, dados da clínica e orientações do primeiro atendimento | T-02, T-09 | sim | média | Goku | [ ] |
-| T-16 | frontend | Aceite de termos e privacidade no primeiro acesso (`LoginForm`) | T-02, T-06, T-10 | sim | média | Sherlock | [ ] |
-| T-17 | frontend | Telas de suporte e de exportação dos dados | T-02, T-03, T-06, T-11 | sim | média | Platão | [ ] |
-| T-18 | qa | Jornada do piloto por perfil com 2 tenants (teste de integração) | T-04, T-12 | sim | alta | Saitama | [ ] |
+| T-14 | frontend | Tela da assinatura com cancelamento pelo app | T-02, T-03, T-08 | sim | média | Maquiavel | [x] |
+| T-15 | frontend | Telas de primeiros passos, dados da clínica e orientações do primeiro atendimento | T-02, T-09 | sim | média | Goku | [x] |
+| T-16 | frontend | Aceite de termos e privacidade no primeiro acesso (`LoginForm`) | T-02, T-06, T-10 | sim | média | Sherlock | [x] |
+| T-17 | frontend | Telas de suporte e de exportação dos dados | T-02, T-03, T-06, T-11 | sim | média | Platão | [x] |
+| T-18 | qa | Jornada do piloto por perfil com 2 tenants (teste de integração) | T-04, T-12 | sim | alta | Saitama | [x] |
 | T-19 | backend | Registro das telas novas: programas, grupos, menu, guarda e CSRF | T-04, T-07, T-14, T-15, T-17 | não | média | Levi | [ ] |
 | T-20 | docs | Roteiro de homologação, checklist de go-live e runbook do piloto | T-05, T-08, T-11, T-13, T-17, T-18, T-19 | não | média | Gandalf | [ ] |
 
