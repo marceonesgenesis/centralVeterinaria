@@ -56,8 +56,19 @@ final class LegalPageTest
         Assert::stringContains('pelo app, com efeito no fim do período pago', $page['body']);
         Assert::stringContains('30 dias', $page['body']);
         foreach (self::TERMS_SECTIONS as $section) {
-            Assert::stringContains('<h2>' . $section . '</h2>', $page['body'], 'seção ausente: ' . $section);
+            $heading = $section === 'Planos, cobrança e cancelamento'
+                ? '<h2 id="cancelamento">' . $section . '</h2>'
+                : '<h2>' . $section . '</h2>';
+            Assert::stringContains($heading, $page['body'], 'seção ausente: ' . $section);
         }
+    }
+
+    public function testTermsCancellationSectionHasAnchorForSupportLink(): void
+    {
+        $page = LegalPage::render('termos');
+
+        Assert::stringContains('<h2 id="cancelamento">Planos, cobrança e cancelamento</h2>', $page['body']);
+        Assert::stringContains(LegalDocuments::TERMS_VERSION, $page['body']);
     }
 
     public function testPrivacyRenderWithDraftMarkerVersionAndSections(): void
