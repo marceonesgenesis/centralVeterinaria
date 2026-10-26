@@ -142,6 +142,8 @@ final class UserMessage
         '/^Encounter (\d+|\(new\)) is not paused$/D' => 'Encounter ^1 is not paused',
         '/^A bank account named "(.+)" already exists for this unit$/D' => 'A bank account named "^1" already exists for this unit',
         '/^Bank account \d+ not found for this tenant$/D' => 'Bank account not found',
+        '/^Receivable \d+ not found$/D' => 'Receivable not found',
+        '/^Cash session \d+ not found$/D' => 'Record not found',
         '/^Service \d+ has appointments; deactivate it instead$/D' => 'This service has appointments; deactivate it instead',
         '/^A service named "(.+)" already exists for this tenant$/D' => 'A service named "^1" already exists',
         '/^A product named "(.+)" already exists for this tenant$/D' => 'A product named "^1" already exists',
