@@ -38,7 +38,7 @@ final class ProductionPreflightTest
         $codes = array_map(static fn (PreflightFinding $f): string => $f->code, $findings);
         Assert::same([
             'app_env', 'app_debug', 'display_errors', 'public_url_https', 'app_seed', 'db_password',
-            'redis_password', 'smtp_driver', 'smtp_from', 'operator_email', 'storage_credentials',
+            'redis_password', 'smtp_driver', 'smtp_from', 'operator_email', 'support_email', 'storage_credentials',
             'stripe_secret_key', 'stripe_webhook_secret', 'trust_forwarded_proto', 'ai_provider',
             'php_version', 'php_extensions',
         ], $codes);
@@ -57,6 +57,31 @@ final class ProductionPreflightTest
         $findings = $this->preflight(['SMTP_FROM_ADDRESS' => 'no-reply@example.invalid'])->run();
 
         Assert::same(PreflightFinding::FAIL, $this->level($findings, 'smtp_from'));
+    }
+
+    public function testMissingSupportEmailFails(): void
+    {
+        $env = $this->productionEnv();
+        unset($env['SUPPORT_EMAIL']);
+        $findings = (new ProductionPreflight($env, ['display_errors' => '0'], '8.4.13', self::EXTENSIONS))->run();
+
+        Assert::same(PreflightFinding::FAIL, $this->level($findings, 'support_email'));
+    }
+
+    public function testInvalidSupportEmailFails(): void
+    {
+        Assert::same(PreflightFinding::FAIL, $this->level($this->preflight(['SUPPORT_EMAIL' => 'suporte'])->run(), 'support_email'));
+        Assert::same(
+            PreflightFinding::FAIL,
+            $this->level($this->preflight(['SUPPORT_EMAIL' => 'suporte@example.invalid'])->run(), 'support_email'),
+        );
+    }
+
+    public function testValidSupportEmailPasses(): void
+    {
+        $findings = $this->preflight(['SUPPORT_EMAIL' => 'suporte@example.com'])->run();
+
+        Assert::same(PreflightFinding::PASS, $this->level($findings, 'support_email'));
     }
 
     public function testMinioAccessKeyFails(): void
@@ -159,7 +184,15 @@ final class ProductionPreflightTest
      */
     private function preflight(array $overrides = [], string $phpVersion = '8.4.13', ?array $extensions = null): ProductionPreflight
     {
-        $env = array_merge([
+        $env = array_merge($this->productionEnv(), $overrides);
+
+        return new ProductionPreflight($env, ['display_errors' => '0'], $phpVersion, $extensions ?? self::EXTENSIONS);
+    }
+
+    /** @return array<string, string> ambiente de produção fictício completo */
+    private function productionEnv(): array
+    {
+        return [
             'APP_ENV' => 'production',
             'APP_DEBUG' => 'false',
             'APP_PUBLIC_URL' => 'https://app.example.com',
@@ -172,6 +205,7 @@ final class ProductionPreflightTest
             'COMMUNICATION_EMAIL_DRIVER' => 'smtp',
             'SMTP_FROM_ADDRESS' => 'no-reply@example.com',
             'BILLING_OPERATOR_EMAIL' => 'operador@example.com',
+            'SUPPORT_EMAIL' => 'suporte@example.com',
             'STORAGE_DRIVER' => 's3',
             'DOCUMENT_STORAGE_DRIVER' => 'local',
             'S3_ACCESS_KEY' => 'zz-preflight-access',
@@ -180,9 +214,7 @@ final class ProductionPreflightTest
             'STRIPE_WEBHOOK_SECRET' => 'whsec_test_etapa4',
             'TRUST_FORWARDED_PROTO' => 'false',
             'AI_PROVIDER' => 'anthropic',
-        ], $overrides);
-
-        return new ProductionPreflight($env, ['display_errors' => '0'], $phpVersion, $extensions ?? self::EXTENSIONS);
+        ];
     }
 
     /** @param list<PreflightFinding> $findings */
