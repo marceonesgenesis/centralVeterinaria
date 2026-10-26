@@ -14,6 +14,7 @@ use CentralVet\Billing\Stripe\StripeConfig;
 use CentralVet\Landing\LeadEndpoint;
 use CentralVet\Landing\LeadFormToken;
 use CentralVet\Landing\LeadSubmissionHandler;
+use CentralVet\Persistence\AccountEmailReader;
 use CentralVet\Persistence\BillingOrderRepository;
 use CentralVet\Redis\RedisConnectionFactory;
 use CentralVet\Security\LoginRateLimiter;
@@ -91,6 +92,7 @@ try {
 
             return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
         },
+        new AccountEmailReader($pdo),
     );
 
     $response = $handler->handle(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Billing;
 
+use CentralVet\Billing\Contract\AccountEmailReaderInterface;
 use CentralVet\Billing\Contract\BillingOrderRepositoryInterface;
 use CentralVet\Billing\Stripe\StripeApiException;
 use CentralVet\Billing\Stripe\StripeClientInterface;
@@ -20,7 +21,9 @@ use CentralVet\Security\PublicUrl;
  * Regras de `POST /checkout.php` (compra pela landing), na ordem em que são
  * aplicadas: precheck do lead (método, tamanho, Content-Type, origem),
  * limite por IP (`checkout|<ip>`), JSON, `form_token`, honeypot, validação,
- * consumo do token, pedido `pending`, Customer e Checkout Session no Stripe
+ * e-mail já cadastrado (422 em `responsible_email`, a mesma mensagem para
+ * login e para pedido pago), preço do cartão configurado (502), consumo do
+ * token, pedido `pending`, Customer e Checkout Session no Stripe
  * e, por fim, pedido `checkout_open`.
  *
  * O preço vem de BillingOrder::place() (PlanEntitlements), nunca do payload:
@@ -36,6 +39,8 @@ use CentralVet\Security\PublicUrl;
  */
 final class CheckoutStartHandler
 {
+    public const EMAIL_TAKEN_MESSAGE = 'Este e-mail já está cadastrado no Central Vet Pro. Entre com ele ou use outro e-mail.';
+
     private const RATE_PREFIX = 'checkout|';
 
     private const PIX_EXPIRES_AFTER_SECONDS = 3600;
@@ -59,6 +64,7 @@ final class CheckoutStartHandler
         private readonly StripeConfig $config,
         private readonly PublicUrl $url,
         private readonly \Closure $uuid,
+        private readonly AccountEmailReaderInterface $emails,
     ) {
     }
 
@@ -99,6 +105,21 @@ final class CheckoutStartHandler
         $errors = self::validate($payload);
         if ($errors !== []) {
             return LeadResponse::json(422, ['errors' => $errors]);
+        }
+
+        if ($this->emails->isTaken(trim((string) $payload['responsible_email']))) {
+            return LeadResponse::json(422, ['errors' => ['responsible_email' => self::EMAIL_TAKEN_MESSAGE]]);
+        }
+
+        $planId = (string) $payload['plan_id'];
+        if ($payload['payment_method'] === BillingOrder::METHOD_CARD) {
+            try {
+                $this->config->priceIdFor($planId);
+            } catch (\RuntimeException) {
+                error_log(sprintf('[CheckoutStart] price not configured for plan %s', $planId));
+
+                return LeadResponse::json(502, ['error' => 'gateway_unavailable']);
+            }
         }
 
         if (!$this->formTokens->consume($token)) {

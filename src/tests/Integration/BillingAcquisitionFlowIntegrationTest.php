@@ -27,6 +27,7 @@ use CentralVet\Billing\TransactionRunner;
 use CentralVet\Landing\LeadFormToken;
 use CentralVet\Landing\LeadResponse;
 use CentralVet\Observability\Logging\JsonLogger;
+use CentralVet\Persistence\AccountEmailReader;
 use CentralVet\Persistence\BillingEventRepository;
 use CentralVet\Persistence\BillingOrderRepository;
 use CentralVet\Persistence\SubscriptionInvoiceRepository;
@@ -583,6 +584,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
 
                 return $this->lastPublicId;
             },
+            new AccountEmailReader($this->pdo),
         );
     }
 

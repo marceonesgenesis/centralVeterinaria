@@ -55,7 +55,7 @@ final class AccountEmailReaderIntegrationTest extends MysqlIntegrationTestCase
         $this->orders->insert($provisioned);
 
         $failed = $this->paid('falhou.t27@clinica.test');
-        $failed->markProvisioningFailed('login_conflict');
+        $failed->markProvisioningFailed('group_missing');
         $this->orders->insert($failed);
 
         Assert::true($this->reader->isTaken('Pago.T27@Clinica.test'), 'paid order takes the e-mail');
