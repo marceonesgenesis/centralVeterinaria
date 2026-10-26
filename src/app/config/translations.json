@@ -5136,6 +5136,10 @@
     "pt": "O motivo do cancelamento aceita no máximo 500 caracteres."
   },
   {
+    "en": "The clinic must keep at least one active administrator",
+    "pt": "A clínica precisa manter pelo menos um administrador ativo"
+  },
+  {
     "en": "The consent text recorded on the surgery will be used",
     "pt": "Será usado o texto do termo registrado na cirurgia"
   },

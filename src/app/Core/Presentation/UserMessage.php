@@ -131,6 +131,8 @@ final class UserMessage
         'Enter the clinic legal name' => 'Enter the clinic legal name',
         'Enter the unit name' => 'Enter the unit name',
         'This module is not available in the pilot yet' => 'This module is not available in the pilot yet',
+        // Etapa 5, T-12 — a clínica não fica sem administrador ativo.
+        'The clinic must keep at least one active administrator' => 'The clinic must keep at least one active administrator',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */

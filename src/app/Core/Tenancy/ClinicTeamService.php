@@ -13,6 +13,7 @@ use CentralVet\Billing\TenantProvisioningService;
 use CentralVet\Billing\TransactionRunner;
 use CentralVet\Tenancy\Exception\TenantBoundaryViolation;
 use DateTimeImmutable;
+use DomainException;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -180,6 +181,10 @@ final class ClinicTeamService
             $this->assertTenantUser($userId);
             $allowed = $this->assertAllowedGroup($groupId);
             $this->assertTenantUnit($unitId);
+            $planGroupId = $this->planGroupId($allowed);
+            if ($planGroupId !== null && $groupId !== $planGroupId) {
+                $this->assertNotTheLastAdministrator($userId, $planGroupId);
+            }
 
             $this->execute('UPDATE system_users SET name = ?, system_unit_id = ? WHERE id = ?', [trim($name), $unitId, $userId]);
 
@@ -195,6 +200,10 @@ final class ClinicTeamService
             $this->assertTenantUser($userId);
             if ($userId === $this->context->userId()) {
                 throw new InvalidArgumentException('You cannot deactivate your own user');
+            }
+            $planGroupId = $this->planGroupId($this->allowedGroups());
+            if ($planGroupId !== null) {
+                $this->assertNotTheLastAdministrator($userId, $planGroupId);
             }
 
             $this->execute("UPDATE tenant_user SET status = 'inactive' WHERE tenant_id = ? AND system_user_id = ?", [$this->tenantId(), $userId]);
@@ -293,6 +302,45 @@ final class ClinicTeamService
         }
 
         return $allowed;
+    }
+
+    /** @param array<int, string> $allowed saída de allowedGroups() */
+    private function planGroupId(array $allowed): ?int
+    {
+        foreach ($allowed as $id => $name) {
+            if (!in_array($name, ClinicRoleProfiles::groupNames(), true)) {
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Recusa tirar do grupo do plano (ou desativar) o último administrador
+     * ativo do tenant: sem ele ninguém mais gere equipe, assinatura e
+     * exportação. Vale também para o próprio usuário da sessão. Convidado
+     * ainda não conta. FOR UPDATE serializa duas trocas simultâneas.
+     */
+    private function assertNotTheLastAdministrator(int $userId, int $planGroupId): void
+    {
+        $isAdmin = $this->scalar(
+            'SELECT id FROM system_user_group WHERE system_user_id = ? AND system_group_id = ? LIMIT 1',
+            [$userId, $planGroupId],
+        ) !== null;
+        if (!$isAdmin) {
+            return;
+        }
+
+        $others = $this->pdo->prepare(
+            'SELECT u.id FROM tenant_user tu JOIN system_users u ON u.id = tu.system_user_id '
+            . 'JOIN system_user_group ug ON ug.system_user_id = u.id AND ug.system_group_id = ? '
+            . "WHERE tu.tenant_id = ? AND tu.status = 'active' AND u.active = 'Y' AND u.id <> ? FOR UPDATE",
+        );
+        $others->execute([$planGroupId, $this->tenantId(), $userId]);
+        if ($others->fetchAll(PDO::FETCH_COLUMN) === []) {
+            throw new DomainException('The clinic must keep at least one active administrator');
+        }
     }
 
     private function assertTenantUnit(int $unitId): void
