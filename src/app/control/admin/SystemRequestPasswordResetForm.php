@@ -1,5 +1,8 @@
 <?php
+use CentralVet\Communication\EmailProviderFactory;
+use CentralVet\Observability\Logging\JsonLogger;
 use CentralVet\Security\LoginRateLimiter;
+use CentralVet\Security\PasswordResetMailer;
 use CentralVet\Security\PasswordResetRequest;
 use CentralVet\Security\PasswordResetToken;
 use CentralVet\Security\PublicUrl;
@@ -122,10 +125,7 @@ class SystemRequestPasswordResetForm extends TPage
                     ];
                 },
                 static function (string $email, string $name, string $link): void {
-                    $html = new THtmlRenderer('app/resources/system/admin/reset_password.html');
-                    $html->enableSection('main', ['name' => $name, 'link' => $link]);
-                    
-                    MailService::send( $email, _t('Password reset'), $html->getContents(), 'html' );
+                    (new PasswordResetMailer(EmailProviderFactory::fromEnvironment(JsonLogger::fromEnvironment('password-reset')), Closure::fromCallable('_t')))->send($email, $name, $link);
                 },
                 time()
             );
