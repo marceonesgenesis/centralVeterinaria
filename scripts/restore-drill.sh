@@ -3,7 +3,7 @@
 #
 # Usage: scripts/restore-drill.sh [--keep] <file>
 #
-# Brings up mysql and redis of the project centralvet-drill (own volumes and
+# Brings up mysql, redis, app and worker of the project centralvet-drill (own volumes and
 # env-file var/drill/.env, generated once with random secrets, HTTP_PORT=18081),
 # restores <file> there with scripts/restore.sh, compares the MANIFEST counts
 # with what was restored and, unless --keep, removes the project with
@@ -17,7 +17,11 @@
 #
 # Output: `restore-drill verify <item> manifest=<n> restored=<n>` for
 # table_count, each `rows <table>`, files_count, documents_count and
-# migrations, then `restore-drill done elapsed_seconds=<n> decrypt_seconds=<n>
+# migrations, `restore-drill verify services_running manifest=<n> restored=<n>`
+# (app/worker running before and after the restore, which stops and restarts
+# them: T-18) and `restore-drill verify maintenance_flag manifest=0
+# restored=<0|1>` (var/maintenance/centralvet-drill.restore left behind),
+# then `restore-drill done elapsed_seconds=<n> decrypt_seconds=<n>
 # db_seconds=<n> files_seconds=<n> mismatches=<n>`.
 # Exit codes: 0 no mismatch; 1 mismatches; 2 usage or configuration;
 # 4 the drill project did not start; otherwise restore.sh's exit code.
@@ -96,7 +100,13 @@ finish() {
 trap finish EXIT
 trap 'exit 4' HUP INT TERM
 
-compose up -d --wait mysql redis >/dev/null || { echo "restore-drill: $project did not start" >&2; exit 4; }
+compose up -d --wait mysql redis app worker >/dev/null || { echo "restore-drill: $project did not start" >&2; exit 4; }
+
+# running_writers: how many of app/worker are running.
+running_writers() {
+    compose ps --services --status running </dev/null 2>/dev/null | grep -cxE 'app|worker'
+}
+writers_before=$(running_writers)
 
 RESTORE_MANIFEST_COPY="$work/MANIFEST" CONFIRM_RESTORE=RESTORE_CENTRALVET_DRILL \
     bash "$project_root/scripts/restore.sh" --project "$project" --env-file "$env_file" "$input" > "$work/restore.out"
@@ -156,6 +166,10 @@ done < <(grep -E '^rows [A-Za-z0-9_]+=[0-9]+$' "$work/MANIFEST")
 verify files_count "$(manifest_value files_count)" "$(restored_value files_count)"
 verify documents_count "$(manifest_value documents_count)" "$(restored_value documents_count)"
 verify migrations "$(grep -c '^migration ' "$work/MANIFEST")" "$(restored_value migrations)"
+verify services_running "$writers_before" "$(running_writers)"
+flag_left=0
+[ -e "${CENTRALVET_MAINTENANCE_DIR:-$project_root/var/maintenance}/$project.restore" ] && flag_left=1
+verify maintenance_flag 0 "$flag_left"
 [ "$mismatches" -eq 0 ] || sed 's/^/restore-drill: /' "$work/verify.err" >&2
 
 echo "restore-drill done elapsed_seconds=$((SECONDS - started)) decrypt_seconds=${decrypt_seconds:-0} db_seconds=${db_seconds:-0} files_seconds=${files_seconds:-0} mismatches=$mismatches"

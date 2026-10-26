@@ -24,9 +24,22 @@
 # RESTORE_MANIFEST_COPY=<path> (optional) receives a copy of the verified
 # MANIFEST (used by scripts/restore-drill.sh).
 #
-# Exit codes: 0 restored; 2 usage or configuration; 3 confirmation missing;
-# 5 wrong passphrase, failed decryption or integrity check (nothing written);
-# 6 a restore step failed after writing started.
+# Writers are stopped while the restore writes (T-18). After the checks, the
+# maintenance flag var/maintenance/<project>.restore (pid=, started_at=) is
+# created (scripts/cron-run.sh skips cron jobs while it exists; the directory
+# can be overridden by CENTRALVET_MAINTENANCE_DIR), then the services among
+# nginx, app, worker and minio that are running are stopped in this order
+# (`restore: stopped <services>`). An EXIT trap, which also runs on failure
+# and on INT/TERM, starts them again in reverse order (`restore: restarted
+# <services>`; `restore: could not restart <service>` on stderr) and removes
+# the flag. mysql and redis stay up. With the flag already present, the
+# restore refuses with exit 2 and stops nothing.
+#
+# Exit codes: 0 restored; 2 usage or configuration, or another restore of the
+# project is running; 3 confirmation missing; 5 wrong passphrase, failed
+# decryption or integrity check (nothing written, nothing stopped); 6 a
+# restore step failed after stopping/writing started (services restarted);
+# 7 restored, but some service did not restart.
 set -uo pipefail
 
 project_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -103,6 +116,9 @@ absolute() {
 [ -n "$project" ] || project=$(setting COMPOSE_PROJECT_NAME "$(basename "$project_root")")
 printf '%s' "$project" | grep -Eq '^[a-z0-9][a-z0-9_-]*$' || config_error "invalid project name: $project"
 
+maintenance_dir=${CENTRALVET_MAINTENANCE_DIR:-$project_root/var/maintenance}
+maintenance_flag="$maintenance_dir/$project.restore"
+
 backup_dir=$(absolute "$(setting BACKUP_DIR var/backups)")
 backup_dir=$(realpath -m "$backup_dir")
 case "$input" in /*) ;; *) input="$invocation_dir/$input" ;; esac
@@ -122,6 +138,11 @@ if [ "${CONFIRM_RESTORE:-}" != "$expected_confirm" ]; then
     echo "CONFIRM_RESTORE=$expected_confirm $0 --project $project $input" >&2
     exit 3
 fi
+
+another_restore() {
+    config_error "another restore is running for project $project ($maintenance_flag exists)"
+}
+[ ! -e "$maintenance_flag" ] || another_restore
 
 passphrase_file=''
 if [ "$kind" != legacy ]; then
@@ -147,9 +168,43 @@ compose() {
 
 cd "$project_root" || exit 2
 umask 077
-stage=$(mktemp -d "${TMPDIR:-/tmp}/centralvet-restore.XXXXXX") || config_error 'cannot create a staging directory'
-trap 'rm -rf "$stage"' EXIT
+stage=''
+flag_created=0
+stopped=()
+restart_done=0
+restart_failed=0
+
+# Starts the stopped services in reverse order, once.
+restart_services() {
+    [ "$restart_done" -eq 0 ] || return 0
+    restart_done=1
+    [ "${#stopped[@]}" -gt 0 ] || return 0
+    local i service restarted=()
+    for ((i = ${#stopped[@]} - 1; i >= 0; i--)); do
+        service=${stopped[$i]}
+        if compose start "$service" </dev/null >/dev/null 2>&1; then
+            restarted+=("$service")
+        else
+            echo "restore: could not restart $service" >&2
+            restart_failed=1
+        fi
+    done
+    [ "${#restarted[@]}" -eq 0 ] || echo "restore: restarted ${restarted[*]}"
+}
+
+finish() {
+    local code=$?
+    trap '' HUP INT TERM
+    trap - EXIT
+    restart_services
+    [ "$flag_created" -eq 1 ] && rm -f "$maintenance_flag"
+    [ -n "$stage" ] && rm -rf "$stage"
+    [ "$code" -eq 0 ] && [ "$restart_failed" -eq 1 ] && code=7
+    exit "$code"
+}
+trap finish EXIT
 trap 'exit 6' HUP INT TERM
+stage=$(mktemp -d "${TMPDIR:-/tmp}/centralvet-restore.XXXXXX") || config_error 'cannot create a staging directory'
 parts_dir="$stage/parts"
 mkdir "$parts_dir"
 
@@ -214,6 +269,23 @@ restore_error() {
     exit 6
 }
 
+# --- maintenance flag and stop of the writers -------------------------------
+mkdir -p -m 755 "$maintenance_dir" || config_error "cannot create $maintenance_dir"
+( set -o noclobber
+  printf 'pid=%s\nstarted_at=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$maintenance_flag" ) 2>/dev/null || another_restore
+flag_created=1
+running=$(compose ps --services --status running </dev/null 2>/dev/null) \
+    || config_error "cannot list the running services of project $project"
+to_stop=()
+for service in nginx app worker minio; do
+    printf '%s\n' "$running" | grep -qx "$service" && to_stop+=("$service")
+done
+if [ "${#to_stop[@]}" -gt 0 ]; then
+    stopped=("${to_stop[@]}")
+    compose stop "${to_stop[@]}" </dev/null >/dev/null 2>&1 || { echo "restore: could not stop ${to_stop[*]}" >&2; exit 6; }
+    echo "restore: stopped ${to_stop[*]}"
+fi
+
 # --- database -------------------------------------------------------------
 phase_start=$SECONDS
 gzip -dc "$parts_dir/db.sql.gz" | compose exec -T mysql sh -ceu '
@@ -244,6 +316,8 @@ if [ "$kind" != legacy ]; then
     fi
 fi
 files_seconds=$((SECONDS - phase_start))
+
+restart_services
 
 part_count=${#parts[@]}
 [ "$kind" != legacy ] && part_count=$((part_count + 1))
