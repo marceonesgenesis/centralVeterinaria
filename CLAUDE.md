@@ -1,5 +1,10 @@
 # Central Vet Pro — regras do projeto
 
+## Branches
+
+- Produção: `main`
+- Teste: `dev`
+
 ## Interface
 
 - Rótulos sempre alinhados à esquerda em todo formulário, grid, cortina lateral e view.
