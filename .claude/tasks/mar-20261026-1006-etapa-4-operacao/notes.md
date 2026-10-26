@@ -21,6 +21,9 @@
 - 2026-10-26 · T-01 · onda 1 — Achado plano-mandou: timestamp NOT NULL sem DEFAULT viraria ON UPDATE no MySQL 5.7; corrigido (2a4c63c) com DEFAULT CURRENT_TIMESTAMP(6) sem ON UPDATE; a 0019 foi editada e reaplicada só no `centralvet_test`.
 - 2026-10-26 · T-06 · onda 1 — Escopo extra autorizado: filtro por path em `BillingAcquisitionFlowIntegrationTest.php:195` (fecha a pendência calls[1] da Etapa 3) e limpeza de 62 tabelas com FK para tenant em `cleanup-zz-e3.sql` (5a7cc83).
 - 2026-10-26 · plano · onda 1 — Ambiente: MySQL e Redis sobem com `docker compose up -d` quando preciso.
+- 2026-10-26 · T-17 · onda 2 — O comando real com `--user 1000:33` (permissões de `var/drill` e do volume de documentos) é adaptação de ambiente, não falha; a T-16 deve registrá-lo no runbook.
+- 2026-10-26 · T-17 · onda 2 — A correção da asserção RED da 0019 para a lista completa de versões de `schema_migrations` é legítima.
+- 2026-10-26 · T-10 · onda 2 — O relatório cita o hash 31343ab por engano; a implementação é ce97252. Só divergência documental.
 
 ## Bloqueios
 - nenhum
@@ -39,6 +42,11 @@
 - [T-04] Reset de senha sai por `PasswordResetMailer` + `EmailProviderFactory` (`SMTP_FROM_*`); `FakeSmtpServer` disponível em `src/tests/Support`.
 - [T-05] `scripts/release/build-release.sh [--image] <commit>` e `smoke.sh <base-url>` prontos; manifesto `migration <NNNN> sha256=<hex>`; passar SHA fixo, não `HEAD`.
 - [T-06] `webhook-event.php` aceita `customer.subscription.deleted`, `--id` e `--timestamp`; runbook em `docs/runbooks/smoke-billing.md` (T-16 pode linkar no índice).
+- [T-08] `scripts/backup.sh` em bash: `.tar.gpg` com MANIFEST v1 (`parts=` conta o MANIFEST: 4 sem MinIO, 5 com), heartbeat `detail` = basename, código 4 (cópia externa) sem heartbeat; caminhos `BACKUP_*` relativos à raiz do projeto. Backup real do dev em `var/drill/backups/centralvet-20261026T140417Z.tar.gpg`, frase em `var/drill/passphrase` (não apagar).
+- [T-07] `CentralVet\Security\RequestScheme` (`isHttps`, `current`, `secureSessionCookie`); `SessionHandlerFactory::createFromEnvironment()` liga `session.cookie_secure` fora do CLI. T-16: em hospedagem sem nginx, `TRUST_FORWARDED_PROTO=true` só atrás de proxy que sobrescreve o cabeçalho.
+- [T-09] `php bin/preflight.php [--trusted-proxies-file=] [--with-db]`: sai 1 com FAIL, 0 sem FAIL, 2 em argumento inválido; no dev fail=9 warn=1 (esperado).
+- [T-10] `HeartbeatRepositoryInterface`, `AlertStateRepositoryInterface`, `PdoHeartbeatRepository`/`PdoAlertStateRepository`, `OperatorAlertNotifier` (reenvio após 21600 s); fakes em `src/tests/Support` (`FakeAlertStateRepository::sentCount`).
+- [T-17] `php bin/hosting-backup.php [--no-heartbeat]` e `--decrypt <in> <out>`; pacote `centralvet-<ts>.tar.gz.cvbk` (CVBK1). Linhas `migration` com a versão completa; triggers sem DEFINER entre `DELIMITER ;;` (restaurar com o cliente `mysql`). T-11/T-15/T-16: rodar com `--user 1000:33` por causa do volume de documentos 0750 www-data e `var/drill` 0700; arquivos com umask 077.
 
 ## Pendências
 - Banco dev `centralvet` com 3 migrations pendentes (0017, 0018, 0019); aplicar exige autorização do usuário.
@@ -49,6 +57,11 @@
 - T-04: `app/resources/system/admin/reset_password.html` ficou sem uso; remover ou atribuir a uma task.
 - T-05: o build real da imagem e a fumaça com a pilha no ar ficam para a T-15; `php_target=8.4` do manifesto é declarado, não verificado contra `config.platform.php` do lock.
 - T-06: `--id`, `--timestamp` e `customer.subscription.deleted` sem teste em `SmokeWebhookEventTest`; uma FK nova para `tenant` exige um DELETE novo em `cleanup-zz-e3.sql`.
+- T-08: teste não hermético (herda `BACKUP_*` do ambiente; `unset` no topo de `scripts/backup.test.sh`); projeto padrão do `-p` é o `basename` da raiz, mas o compose usa `centralvet` (`scripts/backup.sh:93`); qualquer saída ≠ 0 do tar do volume aborta o backup (tar 1 "file changed"); as contagens do inventário não saem do mesmo snapshot do dump (a T-11 deve tolerar ou derivar do dump).
+- T-09: cobertura do `ProductionPreflightTest` sem várias regras (public_url_https, app_seed, db_password, redis_password, smtp_driver, operator_email, stripe, trust_forwarded_proto, ai_provider, display_errors, `migrations_pending` com pendência); `trusted_proxies` só reprova as 4 faixas literais (`0.0.0.0/1`, `10.0.0.0/7`, `::/0` passam); `display_errors` reflete o PHP CLI (T-16 registra no runbook); `APP_DEBUG=1` passa como PASS.
+- T-10: `alert_key`/`job` são `varchar(64)` e o notifier não limita a chave (chave > 64 faz `markSent` lançar depois da entrega e o e-mail volta a cada cron).
+- T-17: `parts=` imprime 3 contra 4 da T-08; o dump fixa `SQL_MODE` e não restaura o `sql_mode` de cada trigger; `decryptFile` confere o HMAC e decifra em duas passadas (decifrar para `.part` numa passada); CLI sem teste automatizado para heartbeat bem-sucedido e códigos 2/5; o heartbeat nunca foi testado contra banco real.
+- T-17: o `--user 1000:33` do comando real deve entrar no runbook da T-16 (ruling da onda 2).
 
 ## Riscos
 - Ensaios e CI local (T-11, T-14, T-15) constroem imagens e sobem projetos Docker próprios: demoram e disputam CPU. Mitigação: projetos `centralvet-ci-local` e `centralvet-drill` com `down -v` no fim; o orquestrador pode serializar a Onda 4.
@@ -66,5 +79,6 @@
 - BASE da onda 1: 992877a
 - Commits por onda:
   - Onda 1: BASE 992877a → HEAD 5a7cc83 (66b71cd, 078436f, 11ae944, aea3174, e2c7664, 2646242, f512e7e, 445983e, 04e09a7, 360fd8e, 0c42ef8, c126fa8, f65190b, 50534eb, 2a4c63c, 5a7cc83)
-- Último status conhecido: onda 1 concluída (T-01 a T-06 [x]; gate SUITE 2327/2327; fix loop em T-01, T-05 e T-06).
-- Próxima onda recomendada: 2 (T-07, T-08, T-09, T-10, T-17; T-12 e T-13 dependem da T-10)
+  - Onda 2: BASE 0e8bd4f → HEAD 94ff476 (3dd059f, 523f277, 6ea7874, 343d933, 4956a7e, 1f4bfa2, 02b5d30, ce97252, 31343ab, af394ef, 0e7f03b, 94ff476)
+- Último status conhecido: onda 2 concluída (T-07, T-08, T-09, T-10, T-17 [x]; gate SUITE 2363/2363; fix loop na T-17).
+- Próxima onda recomendada: 3 (T-11, T-12, T-13; T-14 e T-15 dependem da T-11)
