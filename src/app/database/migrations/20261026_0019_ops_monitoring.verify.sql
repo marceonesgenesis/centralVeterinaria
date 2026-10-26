@@ -28,3 +28,19 @@ WHERE table_schema = DATABASE()
   AND table_name IN ('ops_heartbeat', 'ops_alert_state')
   AND constraint_name = 'PRIMARY'
 ORDER BY table_name;
+
+-- Timestamp auto-update (expected: 0 in both columns). Only ops_heartbeat.updated_at may
+-- carry ON UPDATE CURRENT_TIMESTAMP; last_success_at and last_sent_at must not (a NOT NULL
+-- timestamp without an explicit DEFAULT would get one on MySQL 5.7 with
+-- explicit_defaults_for_timestamp=OFF and break the alert deduplication window)
+SELECT (SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE table_schema = DATABASE()
+          AND table_name IN ('ops_heartbeat', 'ops_alert_state')
+          AND column_name <> 'updated_at'
+          AND LOWER(extra) LIKE '%on update%') AS unexpected_on_update_columns,
+       (SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE table_schema = DATABASE()
+          AND table_name IN ('ops_heartbeat', 'ops_alert_state')
+          AND data_type = 'timestamp'
+          AND is_nullable = 'NO'
+          AND column_default IS NULL) AS not_null_timestamps_without_default;

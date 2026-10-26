@@ -11,6 +11,11 @@
 --   * creates ops_alert_state: one row per alert key with the last time the operator
 --     was e-mailed, the subject sent and how many times it was sent (deduplication);
 --   * in total: 2 new tables, no foreign key, no CHECK, no change to existing tables.
+--   * last_success_at and last_sent_at carry an explicit DEFAULT CURRENT_TIMESTAMP(6)
+--     without ON UPDATE: on MySQL 5.7 with explicit_defaults_for_timestamp=OFF a NOT NULL
+--     timestamp without DEFAULT would get ON UPDATE CURRENT_TIMESTAMP, and any UPDATE of
+--     the row (e.g. only sent_count) would move the deduplication window. The application
+--     always writes both columns explicitly; only updated_at auto-updates.
 --
 -- No data is seeded by this migration. Existing rows are preserved.
 --
@@ -29,7 +34,7 @@
 
 CREATE TABLE ops_heartbeat (
     job varchar(64) NOT NULL,
-    last_success_at timestamp(6) NOT NULL,
+    last_success_at timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     detail varchar(190) NULL,
     updated_at timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (job)
@@ -37,7 +42,7 @@ CREATE TABLE ops_heartbeat (
 
 CREATE TABLE ops_alert_state (
     alert_key varchar(64) NOT NULL,
-    last_sent_at timestamp(6) NOT NULL,
+    last_sent_at timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     last_subject varchar(190) NOT NULL,
     sent_count int unsigned NOT NULL DEFAULT 1,
     PRIMARY KEY (alert_key)
