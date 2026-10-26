@@ -12,7 +12,12 @@
 # RELEASE_REPO (default: project root) and RELEASE_OUT_DIR (default:
 # var/releases under the project root) override source and destination.
 # Exit codes: 0 ok, 1 build failure, 2 unknown commit / usage.
+#
+# The umask is fixed at 022 before anything is created (export, vendor/, tar),
+# so the package has -rw-r--r-- files and drwxr-xr-x directories whatever the
+# caller's umask; with 077 the hosting web server could not read it (T-20).
 set -euo pipefail
+umask 022
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(cd "$script_dir/../.." && pwd)
