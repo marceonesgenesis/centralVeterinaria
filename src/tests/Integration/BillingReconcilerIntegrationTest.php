@@ -389,6 +389,37 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         $this->assertOnlyReadsAndPaymentIntents();
     }
 
+    public function testScheduledPixCancellationGetsNoInvoiceAndIsFinalizedAfterThePeriod(): void
+    {
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $periodEnd = $this->now->modify('+2 days');
+        $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $locked = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::true($locked?->requestCancellation(7, $this->now->modify('-1 day')) === true);
+        $this->subscriptions->save($locked);
+
+        $this->queueNoEvents();
+        $before = $this->reconciler()->run($this->now);
+
+        Assert::same(0, $before['pix_invoices_issued'], 'scheduled cancellation gets no new Pix invoice');
+        Assert::same(0, $before['cancellations_finalized'], 'the paid period is not over yet');
+        Assert::same([], $this->invoices->listBySubscription($subscriptionId, 10));
+        Assert::same(Subscription::STATUS_ACTIVE, $this->subscriptions->findByIdForUpdate($subscriptionId)?->status());
+
+        $after = $periodEnd->modify('+1 minute');
+        $this->queueNoEvents();
+        $result = $this->reconciler()->run($after);
+
+        Assert::same(1, $result['cancellations_finalized']);
+        Assert::same(0, $result['pix_invoices_issued']);
+        $saved = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::same(Subscription::STATUS_CANCELLED, $saved?->status());
+        Assert::same($after->format('Y-m-d H:i:s'), $saved?->cancelledAt()?->format('Y-m-d H:i:s'));
+        Assert::same(Subscription::ACCESS_BLOCKED, $saved?->accessLevel($after));
+        Assert::same([], $this->invoices->listBySubscription($subscriptionId, 10));
+        $this->assertOnlyReadsAndPaymentIntents();
+    }
+
     public function testPaidLoginConflictIsRefundedByTheReconcilerWithoutProvisioningAgain(): void
     {
         $previousErrorLog = (string) ini_set('error_log', '/dev/null');
@@ -438,7 +469,7 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'DELETE'));
         Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/refunds'));
         Assert::same(
-            ['events_fetched', 'events_ingested', 'orders_fulfilled', 'orders_failed', 'orders_refunded', 'pix_invoices_issued', 'pix_invoices_overdue', 'pix_intents_refreshed', 'subscriptions_suspended'],
+            ['events_fetched', 'events_ingested', 'orders_fulfilled', 'orders_failed', 'orders_refunded', 'pix_invoices_issued', 'pix_invoices_overdue', 'pix_intents_refreshed', 'subscriptions_suspended', 'cancellations_finalized'],
             array_keys($result),
         );
     }
