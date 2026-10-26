@@ -8,6 +8,7 @@ use CentralVet\Operations\BackupCipher;
 use CentralVet\Operations\HostingBackup;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\MysqlIntegrationTestCase;
+use CentralVet\Tests\Support\TestDatabase;
 use DateTimeImmutable;
 use DateTimeZone;
 use PharData;
@@ -99,6 +100,52 @@ final class HostingBackupIntegrationTest extends MysqlIntegrationTestCase
         Assert::same('%PDF-1.4 teste', file_get_contents($this->root . '/documents-out/1/receita.pdf'));
 
         Assert::same(['centralvet-20261026T120000Z.tar.gz.cvbk'], array_values(array_diff(scandir($this->root . '/backups'), ['.', '..'])));
+    }
+
+    /**
+     * Como em T-08: cópia externa com falha sai 4 antes do heartbeat e sem
+     * `Backup created`, para o `backup_stale` (T-12) avisar. A linha
+     * `backup` de ops_heartbeat fica travada pela transação deste teste:
+     * qualquer tentativa de heartbeat do subprocesso esperaria o lock e
+     * terminaria em `backup: heartbeat not recorded`, sem persistir nada.
+     */
+    public function testOffsiteFailureExitsFourWithoutHeartbeatOrSuccessLine(): void
+    {
+        $this->pdo->exec(
+            "INSERT INTO ops_heartbeat (job, last_success_at, detail) VALUES ('backup', NOW(6), 'held-by-test')"
+            . " ON DUPLICATE KEY UPDATE detail = 'held-by-test'",
+        );
+        file_put_contents($this->root . '/passphrase', self::PASSPHRASE . "\n");
+        mkdir($this->root . '/tmp', 0700);
+
+        $env = getenv();
+        $env['DB_DATABASE'] = TestDatabase::resolveName(getenv());
+        $env['BACKUP_DIR'] = $this->root . '/backups';
+        $env['BACKUP_PASSPHRASE_FILE'] = $this->root . '/passphrase';
+        $env['BACKUP_OFFSITE_DIR'] = $this->root . '/offsite-missing';
+        $env['DOCUMENT_STORAGE_LOCAL_ROOT'] = $this->root . '/documents';
+        $env['TMPDIR'] = $this->root . '/tmp';
+
+        $process = proc_open(
+            [PHP_BINARY, '-d', 'sys_temp_dir=' . $this->root . '/tmp', '-d', 'display_errors=0', dirname(__DIR__, 2) . '/bin/hosting-backup.php'],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            null,
+            $env,
+        );
+        Assert::true(is_resource($process), 'subprocess started');
+        fclose($pipes[0]);
+        $stdout = (string) stream_get_contents($pipes[1]);
+        $stderr = (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($process);
+
+        Assert::same(4, $code, "stdout: {$stdout} stderr: {$stderr}");
+        Assert::stringContains('backup: offsite copy failed ' . $this->root . '/offsite-missing/centralvet-', $stderr);
+        Assert::false(str_contains($stdout, 'Backup created'), 'success line printed after offsite failure');
+        Assert::false(str_contains($stderr, 'heartbeat not recorded'), 'heartbeat attempted after offsite failure');
+        Assert::count(1, glob($this->root . '/backups/centralvet-*.tar.gz.cvbk') ?: [], 'local backup must be kept');
     }
 
     private function removeTree(string $path): void
