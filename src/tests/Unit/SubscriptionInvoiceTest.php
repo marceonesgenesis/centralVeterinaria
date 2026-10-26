@@ -130,6 +130,23 @@ final class SubscriptionInvoiceTest
         Assert::null($invoice->id(), 'withId returns a copy');
     }
 
+    public function testVoidForCancellationOnlyVoidsAnOpenLocalInvoice(): void
+    {
+        $open = $this->pix();
+        Assert::true($open->voidForCancellation());
+        Assert::same(SubscriptionInvoice::STATUS_VOID, $open->status());
+        Assert::false($open->voidForCancellation(), 'already void');
+
+        $paid = $this->pix();
+        $paid->markPaidByPaymentIntent(5700, 100);
+        Assert::false($paid->voidForCancellation());
+        Assert::same(SubscriptionInvoice::STATUS_PAID, $paid->status());
+
+        $stripe = SubscriptionInvoice::fromStripe(5, $this->stripeInvoice('open', 0), 100);
+        Assert::false($stripe->voidForCancellation(), 'Stripe invoice is not local');
+        Assert::same(SubscriptionInvoice::STATUS_OPEN, $stripe->status());
+    }
+
     private function pix(): SubscriptionInvoice
     {
         return SubscriptionInvoice::issuePix(
