@@ -122,6 +122,8 @@ final class UserMessage
         'No plan group available for this clinic' => 'No plan group available for this clinic',
         'Unit name is required' => 'Unit name is required',
         'Unit name must have at most 120 characters' => 'Unit name must have at most 120 characters',
+        // Etapa 3, T-29 — TenantBoundaryViolation (recurso de outra clínica).
+        'Resource does not belong to the authenticated tenant' => 'The selected record does not belong to this clinic',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */

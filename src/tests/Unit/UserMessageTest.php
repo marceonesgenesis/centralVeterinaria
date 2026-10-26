@@ -119,11 +119,15 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(99, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades.
+        Assert::count(100, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant.
         Assert::count(110, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas).
 
         // Etapa 1, T-01: a mensagem crua cita campos técnicos; a chave é o texto para o usuário.
-        $renamed = ['patient_id is required when encounter_id is informed' => 'Select the patient of the encounter'];
+        $renamed = [
+            'patient_id is required when encounter_id is informed' => 'Select the patient of the encounter',
+            // Etapa 3, T-29: reaproveita a chave existente de translations.json.
+            'Resource does not belong to the authenticated tenant' => 'The selected record does not belong to this clinic',
+        ];
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($renamed[$message] ?? $message, $key);
         }
