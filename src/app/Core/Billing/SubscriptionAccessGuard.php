@@ -23,10 +23,14 @@ final class SubscriptionAccessGuard
     /**
      * Telas que seguem abertas com a assinatura bloqueada (login, assinatura,
      * senha) e os dropdowns de mensagens e notificações do shell, que só leem.
+     * Etapa 5 (T-19): suporte, exportação LGPD e cancelamento da assinatura
+     * também, para a clínica suspensa ou cancelada pedir ajuda, levar os
+     * dados e encerrar a assinatura.
      */
     public const ALWAYS_ALLOWED = [
         'LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm',
-        'SystemMessageDropdown', 'SystemNotificationDropdown',
+        'SystemMessageDropdown', 'SystemNotificationDropdown', 'SupportView', 'ClinicDataExportView',
+        'SubscriptionCancelForm',
     ];
 
     /**

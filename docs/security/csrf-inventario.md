@@ -47,7 +47,7 @@ resto era ruído de widget (`->clear()`, `->add()`, `TScript::create`).
 | `show` | Ciclo de vida do `TPage`; carregamentos de dropdown (`SystemMessageDropdown`, `SystemNotificationDropdown`) e `AdiantiUploaderService::show` (isento à parte). Nenhum `show` do projeto grava. |
 | `onContext` | `CvShellController::onContext` só monta o JSON da casca (`fetch` GET em `cv-shell.js`); o token é gerado na sessão se faltar, sem efeito para o usuário. |
 | `onPhoto` | `PatientForm::onPhoto` é `src` de `<img>` (`engine.php?...&method=onPhoto&static=1`): não pode ser POST. Só lê a foto do storage. |
-| `onDownload` | `DocumentList::onDownload` é link de download (`engine.php`); só monta a resposta do arquivo. |
+| `onDownload` | `DocumentList::onDownload` e `ClinicDataExportView::onDownload` (Etapa 5) são links de download (`engine.php?...&static=1`); só montam a resposta do arquivo (a exportação LGPD gera o ZIP temporário, envia e o apaga; só acrescenta a linha de auditoria da exportação, sem alterar dados da clínica — um GET forjado não lê a resposta de outra origem). |
 | `downloadFile` | `SystemDriveList`/`SystemMessageFormView::downloadFile` abrem por `TPage::openPage`/link; só chamam `SystemDocumentDownloaderService::download`. |
 | `onReport` | `ProductList::onReport` é link `engine.php` que gera PDF; só lê. |
 
@@ -152,6 +152,15 @@ renomeação de unidade) caem na regra geral: POST + token central da `MutationR
 (`X-CSRF-Token` = `cv_shell_csrf`), sem entrada em `EXEMPT_*` nem em `MUTATING_OVERRIDES`.
 `ClinicUserForm::onEdit`, `ClinicUnitForm::onEdit`, `ClinicUserList::onReload` e `ClinicUnitList::onReload`
 são leitura (prefixos `onEdit`/`onReload`).
+
+Telas da Etapa 5 (T-19): `ClinicProfileForm::onSave` (dados da clínica e da unidade),
+`FirstEncounterGuideView::onMarkRead` (marca o guia do 1º atendimento como lido),
+`OnboardingChecklistView::onMarkTeamReviewed` (marca a revisão da equipe no checklist) e
+`SubscriptionCancelForm::onConfirm` (agenda o cancelamento da assinatura no fim do período) gravam e
+caem na regra geral: POST de formulário + token, sem entrada em `EXEMPT_*` nem em `MUTATING_OVERRIDES`.
+`ClinicProfileForm::onEdit` (prefixo `onEdit`) e `ClinicDataExportView::onDownload` (`READ_METHODS`) são
+leitura; `SupportView`, `OnboardingChecklistView`, `FirstEncounterGuideView`, `ClinicDataExportView` e
+`SubscriptionCancelForm` só leem no construtor.
 
 ## Copiloto IA
 
