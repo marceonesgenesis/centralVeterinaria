@@ -572,3 +572,38 @@ endpoint):
   `invoice.payment_failed`, `invoice.voided`, `invoice.marked_uncollectible`,
   `customer.subscription.updated`, `customer.subscription.deleted`,
   `payment_intent.succeeded` e `charge.refunded`.
+
+## Migration 0018 (estorno do pedido com e-mail já cadastrado)
+
+A `20261026_0018_billing_order_refund.sql` acrescenta a `billing_order` as
+colunas `subscription_cancelled_at`, `stripe_refund_id` e `refunded_at` (todas
+nulas, depois de `invite_sent_at`) e amplia o CHECK `billing_order_status_ck`
+com `refunded` (DROP CHECK seguido de ADD CONSTRAINT, 2 triggers no 5.7). É o
+estado terminal do pedido pago cujo e-mail do responsável já é login
+(`provisioning_failed`/`login_conflict`): o estorno (cancelar a assinatura do
+cartão, registrar o reembolso do Stripe e marcar o pedido `refunded`) grava o
+progresso nessas colunas, e o provisionamento deixa de reprocessar esse
+pedido. Não cria tabela nem semeia dados; os
+pedidos existentes ficam com as 3 colunas nulas. **Aplique a 0018 antes de
+subir o código desta onda**: todo INSERT/UPDATE em `billing_order` grava as 3
+colunas e, sem elas, falha com `Unknown column`.
+
+Copie a migration com o prefixo `22-` (depois do `21-` da 0017) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261026_0018_billing_order_refund.sql \
+  "$d/22-20261026_0018_billing_order_refund.sql"
+cp src/app/database/migrations/20261026_0018_billing_order_refund.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 1 checks and 2 triggers`.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM billing_order` e exija o **mesmo número**. Na
+conferência, use o verify adaptado de `$d/out/manifest.json` (chave
+`verification`), como na 0015: a consulta de CHECKs vira
+`information_schema.TRIGGERS`; as linhas de violação devem dar 0 e as 3 colunas
+novas aparecem.
