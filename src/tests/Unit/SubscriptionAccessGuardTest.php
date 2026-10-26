@@ -98,7 +98,10 @@ final class SubscriptionAccessGuardTest
         $now = $failedAt->modify('+9 days');
 
         Assert::same(
-            ['LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm', 'SystemMessageDropdown', 'SystemNotificationDropdown'],
+            [
+                'LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm',
+                'SystemMessageDropdown', 'SystemNotificationDropdown', 'SupportView', 'ClinicDataExportView', 'SubscriptionCancelForm',
+            ],
             SubscriptionAccessGuard::ALWAYS_ALLOWED,
         );
 
