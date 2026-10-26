@@ -15,6 +15,7 @@ use CentralVet\Landing\LeadResponse;
 use CentralVet\Security\LoginRateLimiter;
 use CentralVet\Security\PublicUrl;
 use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\FakeAccountEmailReader;
 use CentralVet\Tests\Support\FakeBillingOrderRepository;
 use CentralVet\Tests\Support\FakeRedis;
 use CentralVet\Tests\Support\FakeStripeClient;
@@ -36,6 +37,7 @@ final class CheckoutStartHandlerTest
     private LeadFormToken $tokens;
     private FakeBillingOrderRepository $orders;
     private FakeStripeClient $stripe;
+    private FakeAccountEmailReader $emails;
     private CheckoutStartHandler $handler;
 
     public function setUp(): void
@@ -48,20 +50,75 @@ final class CheckoutStartHandlerTest
         $this->tokens = new LeadFormToken($this->redis);
         $this->orders = new FakeBillingOrderRepository();
         $this->stripe = new FakeStripeClient();
-        $this->handler = new CheckoutStartHandler(
-            $this->tokens,
-            new LoginRateLimiter($this->redis, 10, 3600, 'centralvet:checkout-throttle:'),
-            $this->orders,
-            $this->stripe,
-            new StripeConfig('placeholder-secret', 'placeholder-webhook', [
-                'starter' => 'price_starter_placeholder',
-                'pro' => 'price_pro_placeholder',
-                'business' => 'price_business_placeholder',
-                'enterprise' => 'price_enterprise_placeholder',
-            ]),
-            new PublicUrl('https://app.centralvet.test'),
-            static fn (): string => self::PUBLIC_ID,
+        $this->emails = new FakeAccountEmailReader();
+        $this->handler = $this->handlerWith(new StripeConfig('placeholder-secret', 'placeholder-webhook', [
+            'starter' => 'price_starter_placeholder',
+            'pro' => 'price_pro_placeholder',
+            'business' => 'price_business_placeholder',
+            'enterprise' => 'price_enterprise_placeholder',
+        ]));
+    }
+
+    public function testTakenEmailAnswers422WithoutOrderNorStripeAndKeepsTheToken(): void
+    {
+        $this->emails->taken = ['maria@example.com'];
+        $token = $this->tokens->issue(self::ISSUED_AT);
+
+        $response = $this->post(['responsible_email' => ' Maria@Example.COM '] + $this->validPayload('card'), $token);
+
+        Assert::same(422, $response->status);
+        Assert::same(['errors' => ['responsible_email' => CheckoutStartHandler::EMAIL_TAKEN_MESSAGE]], $response->body);
+        Assert::same(
+            'Este e-mail já está cadastrado no Central Vet Pro. Entre com ele ou use outro e-mail.',
+            CheckoutStartHandler::EMAIL_TAKEN_MESSAGE,
         );
+        Assert::count(0, $this->stripe->calls);
+        Assert::null($this->orders->findByPublicId(self::PUBLIC_ID));
+        Assert::same(1, $this->emails->calls);
+        Assert::true($this->tokens->isUsable($token, self::ISSUED_AT + 10), 'Taken e-mail keeps the token for the retry');
+
+        $this->queueStripeSuccess();
+        $retry = $this->post(['responsible_email' => 'outra@example.com'] + $this->validPayload('card'), $token);
+
+        Assert::same(201, $retry->status);
+        Assert::same('outra@example.com', $this->orders->findByPublicId(self::PUBLIC_ID)?->responsibleEmail());
+        Assert::count(2, $this->stripe->calls);
+    }
+
+    public function testValidationErrorsDoNotQueryTheAccountEmails(): void
+    {
+        $this->emails->taken = ['maria@example.com'];
+
+        $response = $this->post(['terms_accepted' => false] + $this->validPayload('card'));
+
+        Assert::same(422, $response->status);
+        Assert::false(isset($response->body['errors']['responsible_email']), 'taken check runs only after validate()');
+        Assert::same(0, $this->emails->calls);
+    }
+
+    public function testMissingCardPriceAnswers502BeforeOrderAndStripeButPixStillOpens(): void
+    {
+        $this->handler = $this->handlerWith(new StripeConfig('placeholder-secret', 'placeholder-webhook', [
+            'starter' => 'price_starter_placeholder',
+            'pro' => '',
+            'business' => 'price_business_placeholder',
+            'enterprise' => 'price_enterprise_placeholder',
+        ]));
+        $token = $this->tokens->issue(self::ISSUED_AT);
+
+        $response = $this->silently(fn (): LeadResponse => $this->post($this->validPayload('card'), $token));
+
+        Assert::same(502, $response->status);
+        Assert::same(['error' => 'gateway_unavailable'], $response->body);
+        Assert::count(0, $this->stripe->calls);
+        Assert::null($this->orders->findByPublicId(self::PUBLIC_ID));
+        Assert::true($this->tokens->isUsable($token, self::ISSUED_AT + 10), 'Missing price keeps the token');
+
+        $this->queueStripeSuccess();
+        $pix = $this->post($this->validPayload('pix'), $token);
+
+        Assert::same(201, $pix->status);
+        Assert::same(BillingOrder::STATUS_CHECKOUT_OPEN, $this->orders->findByPublicId(self::PUBLIC_ID)?->status());
     }
 
     public function testCardCheckoutIgnoresClientPriceAndOpensSubscriptionSession(): void
@@ -225,6 +282,7 @@ final class CheckoutStartHandlerTest
             $config,
             new PublicUrl('https://app.centralvet.test'),
             static fn (): string => self::PUBLIC_ID,
+            $this->emails,
         );
         $this->handler = $handler;
 
@@ -287,6 +345,20 @@ final class CheckoutStartHandlerTest
         Assert::same(429, $response->status);
         Assert::same('3600', $response->headers['Retry-After'] ?? null);
         Assert::true($this->redis->hasKey('centralvet:checkout-throttle:' . hash('sha256', 'checkout|' . self::IP)), 'bucket uses the checkout| prefix');
+    }
+
+    private function handlerWith(StripeConfig $config): CheckoutStartHandler
+    {
+        return new CheckoutStartHandler(
+            $this->tokens,
+            new LoginRateLimiter($this->redis, 10, 3600, 'centralvet:checkout-throttle:'),
+            $this->orders,
+            $this->stripe,
+            $config,
+            new PublicUrl('https://app.centralvet.test'),
+            static fn (): string => self::PUBLIC_ID,
+            $this->emails,
+        );
     }
 
     private function queueStripeSuccess(): void
