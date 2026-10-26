@@ -571,8 +571,9 @@ meio de pagamento e id do estorno) e, com `BILLING_OPERATOR_EMAIL` preenchido
 no ambiente do cron, sai um e-mail de alerta ao operador com o pedido, o
 plano, o valor, a clínica e o e-mail do responsável (vazio: só o log; a falha
 do e-mail não desfaz o estorno). Falha no Stripe sai no log como
-`login_conflict_refund_failed` com o passo (`cancel_subscription`, `refund` ou
-`mark_refunded`) e o pedido continua `provisioning_failed` até a próxima
+`login_conflict_refund_failed` com o passo (`cancel_subscription` ou `refund`,
+os dois que chamam o Stripe; a gravação final do estorno é local e não falha
+por erro do Stripe) e o pedido continua `provisioning_failed` até a próxima
 rodada. Avise o cliente: o e-mail já tinha login, então ele deve entrar com a
 conta existente ou comprar com outro e-mail.
 
@@ -625,3 +626,146 @@ conferência, use o verify adaptado de `$d/out/manifest.json` (chave
 `verification`), como na 0015: a consulta de CHECKs vira
 `information_schema.TRIGGERS`; as linhas de violação devem dar 0 e as 3 colunas
 novas aparecem.
+
+## Migration 0019 (monitoramento operacional)
+
+A `20261026_0019_ops_monitoring.sql` cria 2 tabelas novas e vazias, sem chave
+estrangeira nem CHECK (0 triggers no 5.7): `ops_heartbeat` (uma linha por rotina,
+com o último sucesso e um detalhe curto: `backup`, `billing-reconcile`,
+`billing-event-retention`, `ops-monitor`) e `ops_alert_state` (uma linha por
+chave de alerta, com o último envio ao operador e a contagem, para a
+deduplicação de 6 h). Não altera tabela existente nem semeia dados, e não guarda
+dado pessoal. **Aplique a 0019 antes de agendar** o `ops-monitor`, o backup com
+heartbeat e a retenção (ver [`cron.md`](./cron.md)): sem as tabelas, o
+`ops-monitor` falha e o `backup_stale` fica de pé. No 5.7 só a collation é
+convertida (as colunas de data têm `DEFAULT CURRENT_TIMESTAMP(6)` explícito).
+
+Copie a migration com o prefixo `23-` (depois do `22-` da 0018) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261026_0019_ops_monitoring.sql \
+  "$d/23-20261026_0019_ops_monitoring.sql"
+cp src/app/database/migrations/20261026_0019_ops_monitoring.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 0 checks and 0 triggers`.
+
+Aplique só com autorização SQL específica, depois do backup. Antes e depois,
+anote `SELECT COUNT(*) FROM tenant` e exija o **mesmo número**; na conferência,
+use o verify adaptado de `$d/out/manifest.json` (chave `verification`): as 2
+tabelas novas existem e estão vazias. Rollback: restaurar o backup anterior
+(ver [`restore-backup.md`](./restore-backup.md)) ou uma migration reversa
+numerada; apagar as duas tabelas só perde heartbeat e deduplicação.
+
+## Migrations pendentes e preflight na hospedagem
+
+Sem Docker, a pendência de migrations e a configuração se conferem por PHP CLI,
+a partir da raiz de `src/`:
+
+```bash
+php bin/migration-status.php
+php bin/preflight.php --with-db
+```
+
+- `bin/migration-status.php` compara os arquivos de
+  `src/app/database/migrations/` com `schema_migrations` e imprime `applied`,
+  `pending` e `unknown` por versão e, por último, `migration-status
+  database=<nome> applied=<n> pending=<n> unknown=<n>`; sai 0 só com
+  `pending=0 unknown=0`, 1 com pendência e 2 em erro. Só lê. As migrations da
+  hospedagem entram em `schema_migrations` pelo preparador 5.7 com a versão
+  completa (ex.: `20261026_0019_ops_monitoring`).
+- `bin/preflight.php --with-db` confere ambiente, PHP, extensões e, pelo `DB_*`
+  de runtime, a versão do MySQL (5.7 com `DB_STRICT_MODE=false` dá WARN) e as
+  migrations pendentes. Em hospedagem sem nginx, `TRUST_FORWARDED_PROTO=true`
+  só é seguro atrás de um proxy que sobrescreve `X-Forwarded-Proto`; o cookie de
+  sessão `Secure` depende de a requisição ser HTTPS (ver
+  [`environments.md`](./environments.md)). Códigos e checagens:
+  [`release.md`](./release.md).
+
+Rode os dois depois de cada atualização do pacote e de cada migration.
+
+## Backup e restauração na hospedagem
+
+### Gerar
+
+`bin/hosting-backup.php` não usa Docker, `gpg` nem `mysqldump`: faz o dump por
+PDO (tabelas, dados em lotes de 500 linhas e triggers), empacota `src/files` e a
+pasta de documentos (`DOCUMENT_STORAGE_LOCAL_ROOT`) e cifra com `openssl` no
+formato `CVBK1` (AES-256-CTR + HMAC-SHA256, chave derivada da frase por PBKDF2).
+Agende pelo painel ([`cron.md`](./cron.md)); para rodar à mão:
+
+```bash
+cd /caminho/da/aplicacao/src
+php bin/hosting-backup.php
+```
+
+Variáveis no ambiente do cron: `BACKUP_PASSPHRASE_FILE` (obrigatória; arquivo
+fora do `public_html`, permissão 0600, fora do repositório e do backup),
+`BACKUP_DIR` (padrão `var/backups` na raiz do projeto, fora do `public_html`),
+`BACKUP_RETENTION_DAYS` (padrão 14) e `BACKUP_OFFSITE_DIR` (opcional). Saída e
+códigos (0, 2, 3, 4) como em [`restore-backup.md`](./restore-backup.md); o
+`Backup created: <caminho>` indica o `centralvet-<data>.tar.gz.cvbk`. O
+heartbeat `backup` depende da migration 0019. Baixe os arquivos por SFTP para
+fora do provedor com frequência: o disco da hospedagem não é cópia externa.
+
+### Restaurar (decifrar com `--decrypt`)
+
+O agendador não restaura sozinho. Com autorização explícita e um backup do
+estado atual:
+
+1. Decifre o pacote (a frase vem do mesmo `BACKUP_PASSPHRASE_FILE`):
+
+   ```bash
+   cd /caminho/da/aplicacao/src
+   php bin/hosting-backup.php --decrypt ../var/backups/centralvet-<data>.tar.gz.cvbk /caminho/privado/restore.tar.gz
+   ```
+
+   Sai 5 (e não cria a saída) com frase errada ou arquivo alterado; 2 por
+   argumento e 3 por arquivo.
+2. Extraia fora do `public_html` e confira o `MANIFEST`
+   (`format=centralvet-backup-v1`, `rows <tabela>=<n>` e um `sha256` por parte):
+
+   ```bash
+   mkdir /caminho/privado/restore && tar -xzf /caminho/privado/restore.tar.gz -C /caminho/privado/restore
+   cat /caminho/privado/restore/MANIFEST
+   (cd /caminho/privado/restore && sha256sum db.sql.gz files.tar.gz documents.tar.gz)
+   ```
+3. Importe o banco com o cliente disponível: `db.sql.gz` traz `DROP TABLE IF
+   EXISTS`, `CREATE TABLE`, `INSERT` e os triggers entre `DELIMITER ;;`, sem
+   `DEFINER`. Com o cliente `mysql` (SSH ou máquina com acesso remoto):
+
+   ```bash
+   gunzip -c /caminho/privado/restore/db.sql.gz | mysql -h <host> -u <usuario> -p <banco>
+   ```
+
+   Sem `mysql`, use o importador do painel (phpMyAdmin) com o `.sql`
+   descompactado, conferindo que o cliente respeita `DELIMITER` (senão os
+   triggers falham: importe-os à parte). O usuário precisa de `DROP`, `CREATE`,
+   `INSERT` e `TRIGGER` no banco; use o usuário de migration, nunca o de runtime.
+4. Reponha os arquivos: `files.tar.gz` em `src/files` e `documents.tar.gz` na
+   pasta `DOCUMENT_STORAGE_LOCAL_ROOT` (0750, dono do usuário do PHP):
+
+   ```bash
+   tar -xzf /caminho/privado/restore/files.tar.gz -C /caminho/da/aplicacao/src/files
+   tar -xzf /caminho/privado/restore/documents.tar.gz -C <DOCUMENT_STORAGE_LOCAL_ROOT>
+   ```
+
+   Confira a raiz interna de cada tar (`tar -tzf ... | head`) antes de extrair,
+   para não aninhar uma pasta dentro da outra.
+5. Apague `/caminho/privado/restore*` (contêm dado pessoal em claro) e rode
+   `php bin/migration-status.php`, `php bin/preflight.php --with-db` e a fumaça
+   ([`release.md`](./release.md)). Rode `bin/billing-reconcile.php` uma vez para
+   recuperar do Stripe os eventos posteriores ao backup.
+
+### Ensaiar
+
+O ensaio automatizado desse formato roda pela pilha Docker, em um projeto
+descartável: `scripts/restore-drill.sh var/drill/backups-hosting/<arquivo>.tar.gz.cvbk`
+decifra o pacote, restaura e compara com o `MANIFEST` (medido: 13 s,
+`mismatches=0`). Gere o backup do ensaio com `php bin/hosting-backup.php
+--no-heartbeat` e `BACKUP_DIR` apontando para `var/drill/backups-hosting`.
+Resultados e passo a passo:
+[`ensaio-restauracao-rollback.md`](./ensaio-restauracao-rollback.md).

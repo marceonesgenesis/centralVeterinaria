@@ -86,49 +86,41 @@ arquivos por serviço.
 
 ## Backup e restauração
 
-Crie um dump consistente do banco em `var/backups/`:
+Backup cifrado (frase em `BACKUP_PASSPHRASE_FILE`, fora do repositório) em
+`var/backups/`, com `MANIFEST` e `sha256` por parte:
 
 ```bash
-make backup
+make backup                  # Docker/VPS: centralvet-<data>.tar.gpg
+php bin/hosting-backup.php   # hospedagem compartilhada (de src/): .tar.gz.cvbk
 ```
 
-Teste o arquivo sem restaurá-lo:
+A restauração recria o banco e substitui `files` e `documents`; exige
+autorização explícita e `CONFIRM_RESTORE`:
 
 ```bash
-gzip -t var/backups/centralvet-AAAAmmddTHHMMSSZ.sql.gz
+CONFIRM_RESTORE=RESTORE_CENTRALVET ./scripts/restore.sh var/backups/<arquivo>
+make restore-drill FILE=var/backups/<arquivo>   # ensaio descartável, sem tocar o dev
 ```
 
-A restauração altera o banco e exige autorização explícita. Depois de obtê-la,
-execute:
-
-```bash
-CONFIRM_RESTORE=RESTORE_CENTRALVET ./scripts/restore.sh var/backups/arquivo.sql.gz
-```
-
-Backups locais são ignorados pelo Git. Em produção, eles devem ser criptografados,
-copiados para armazenamento externo e submetidos regularmente a teste de
-restauração, de acordo com o RPO/RTO definido no PRD.
-
-Limitações desta rotina de desenvolvimento:
-
-- o backup é um dump lógico apenas do MySQL; volumes Redis não são incluídos;
-- não há criptografia, envio para storage externo, retenção automática ou PITR;
-- backup e restore exigem que o serviço MySQL esteja em execução e usam a
-  credencial root disponível somente dentro do container;
-- o restore não cria snapshot anterior nem oferece rollback automático;
-- `gzip -t` valida o arquivo, mas um teste real de recuperação exige restaurá-lo
-  em um banco descartável e conferir a aplicação, operação ainda não automatizada.
+Retenção (`BACKUP_RETENTION_DAYS`), cópia externa, agendamento e a restauração
+na hospedagem estão em [`docs/runbooks/restore-backup.md`](docs/runbooks/restore-backup.md)
+e [`docs/runbooks/cron.md`](docs/runbooks/cron.md). Backups locais são ignorados
+pelo Git. Medido no ensaio (volume do dev): RTO de 20 s no Docker e 13 s na
+hospedagem; RPO de 24 h (backup diário). Redis não entra no backup e não há PITR.
 
 ## CI/CD e runbooks
 
-O pipeline em `.github/workflows/ci.yml` builda `app`/`worker`, sobe
-`mysql`/`redis`/`app`/`worker` e roda `php tests/run.php` dentro do
-container — sem publicar imagem nem se conectar a nenhum registry externo.
-Ele está pronto para ativar sozinho quando o repositório remoto existir.
+A CI é o script `scripts/ci/run.sh`, o mesmo no GitHub Actions
+(`.github/workflows/ci.yml`) e na máquina local: projeto Compose e env-file
+próprios, banco `centralvet_test`, schema conferido, lint e suíte completa, sem
+publicar imagem nem usar registry. Termina em `ci: passed` ou
+`ci: failed step=<nome>`; ver `docs/runbooks/tests.md`. O release por commit
+(pacote da hospedagem, imagem `centralvet/app:<sha40>`, preflight de produção,
+fumaça e rollback) está em [`docs/runbooks/release.md`](docs/runbooks/release.md).
 
 Procedimentos práticos (subir o ambiente, rodar testes, aplicar/reverter
-migration, restaurar backup, estratégia de build versionado e diferenças por
-ambiente) estão em [`docs/runbooks/`](docs/runbooks/README.md).
+migration, backup e restauração, release, agendamento, alertas, estratégia de
+build versionado e diferenças por ambiente) estão em [`docs/runbooks/`](docs/runbooks/README.md).
 
 ## Estrutura
 
@@ -139,7 +131,7 @@ ambiente) estão em [`docs/runbooks/`](docs/runbooks/README.md).
 - `src/app/database/*.sql`: schemas de referência do template; não são executados automaticamente
 - `src/`: demais bootstrap, configuração e worker provisório
 - `docker/`: imagem PHP e configuração Nginx/PHP-FPM
-- `scripts/`: diagnóstico, backup e restauração
+- `scripts/`: diagnóstico, backup, restauração, release, CI e `migration-status`
 - `var/`: artefatos locais não versionados
 
 O worker atual fornece ciclo de vida e heartbeat para validar a infraestrutura.

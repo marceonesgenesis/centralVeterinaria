@@ -42,17 +42,45 @@ Tudo o que vale para staging, mais:
 
 - Segredos rotacionados e nunca compartilhados com staging/dev.
 - `APP_PUBLIC_URL=https://<domínio de produção>`, sempre com `https`.
-- Backups (ver [`restore-backup.md`](./restore-backup.md)) criptografados,
-  copiados para armazenamento externo e testados periodicamente, conforme
-  RPO/RTO do PRD — a rotina atual (`scripts/backup.sh`) é só a base local.
-- Promoção de imagem por tag imutável (o mesmo `IMAGE_TAG` testado em CI é
-  promovido, nunca reconstruído a partir do código-fonte de novo).
+- Backups (ver [`restore-backup.md`](./restore-backup.md)) cifrados, com
+  `BACKUP_PASSPHRASE_FILE` fora do repositório, cópia externa
+  (`BACKUP_OFFSITE_DIR` ou S3) e ensaio periódico de restauração; agendados
+  conforme [`cron.md`](./cron.md).
+- Promoção de imagem por tag imutável: `centralvet/app:<sha40>` construída por
+  `scripts/release/build-release.sh --image <commit>` (ver
+  [`release.md`](./release.md)); o `IMAGE_TAG` promovido é o SHA completo do
+  commit testado, nunca `latest`.
+- Alertas ao operador: `BILLING_OPERATOR_EMAIL` preenchido e SMTP real
+  (`COMMUNICATION_EMAIL_DRIVER=smtp`), conforme
+  [`observabilidade.md`](./observabilidade.md).
+- Rode `php bin/preflight.php --with-db` (e `--trusted-proxies-file=<caminho>`
+  no Docker) antes de liberar tráfego: ver [`release.md`](./release.md).
 - Acesso de rede e privilégios de banco ainda mais restritos que o já
   aplicado em `docker-compose.yml` (`read_only`, `cap_drop: ALL`,
   `no-new-privileges`, rede `backend` interna).
 - Qualquer aplicação de migration em produção segue
   [`migrations.md`](./migrations.md) sem exceção, com backup e autorização
   específica antes de cada execução.
+
+## Cookies Secure, proxy e IP do visitante (produção)
+
+- **Cookie de sessão `Secure`**: ligado automaticamente fora do CLI quando a
+  requisição é HTTPS (`CentralVet\Security\RequestScheme`); o cookie `cv_csrf`
+  segue a mesma regra. Em produção o `APP_PUBLIC_URL` precisa ser `https://`.
+- **`TRUST_FORWARDED_PROTO`** (padrão `false`): só com `true` o PHP aceita
+  `X-Forwarded-Proto` como prova de HTTPS. No compose, o nginx traduz o
+  cabeçalho em `HTTPS=on` apenas quando a requisição vem de um proxy listado
+  em `NGINX_TRUSTED_PROXIES_FILE`, então prefira manter o PHP em `false` e
+  confiar no nginx. Em hospedagem sem nginx, `true` só é seguro atrás de um
+  proxy que **sobrescreve** o cabeçalho; o preflight dá WARN com `true`.
+- **`NGINX_TRUSTED_PROXIES_FILE`**: arquivo de `set_real_ip_from` montado em
+  `/etc/nginx/trusted-proxies.conf`. O padrão
+  (`docker/nginx/trusted-proxies.dev.conf`) confia nas faixas RFC1918 e só vale
+  em desenvolvimento. Em produção, copie
+  `docker/nginx/trusted-proxies.production.conf.example` para um arquivo fora
+  do Git, liste **só o IP do proxy da frente** e aponte a variável para ele no
+  `.env` do servidor; qualquer endereço listado pode forjar o IP do visitante
+  via `X-Forwarded-For`. O preflight `trusted_proxies` reprova faixas amplas.
 
 ## APP_PUBLIC_URL
 
