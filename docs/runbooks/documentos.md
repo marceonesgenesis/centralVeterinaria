@@ -67,7 +67,7 @@ republica o job.
 - **`s3`**: usa as variáveis `S3_*` já existentes (bucket `S3_BUCKET`). O
   bucket precisa existir antes: no ambiente local suba o MinIO com
   `docker compose --profile minio up -d` e crie o bucket. `STORAGE_DRIVER`
-  dos anexos existentes não muda.
+  dos anexos é independente de `DOCUMENT_STORAGE_DRIVER` (ver `StorageFactory`).
 - **Hospedagem compartilhada**: pasta acima do `public_html` com permissão
   0750 (ver [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md)).
 
@@ -144,6 +144,6 @@ PDF são dados pessoais do histórico da clínica.
   política antes de produção.
 - Templates só para `medical_certificate`, com placeholders fechados.
 - Sem assinatura digital, sem envio do PDF ao tutor e sem URL pública.
-- Os anexos existentes continuam no `STORAGE_DRIVER`; migrá-los para a fábrica
-  de documentos é pendência da hospedagem sem S3.
+- Anexos e fotos usam a `StorageFactory` (`STORAGE_DRIVER`, `STORAGE_LOCAL_ROOT`);
+  os PDFs gerados seguem `DOCUMENT_STORAGE_DRIVER`.
 - Sem tela para apagar documento ou versão.

@@ -113,6 +113,25 @@ final class DocumentTemplateService
         }
     }
 
+    /**
+     * One template of the tenant, any status.
+     *
+     * @throws CrossTenantReferenceException when `$id` is not a template of the tenant.
+     * @throws \CentralVet\Authorization\Exception\AuthorizationDenied (nothing is read)
+     */
+    public function findById(int $id, string $action): DocumentTemplate
+    {
+        $this->authorize($action, $id);
+
+        $template = $this->templates->findById($id);
+
+        if (!$template instanceof DocumentTemplate) {
+            throw new CrossTenantReferenceException("template_id {$id} was not found for the authenticated tenant");
+        }
+
+        return $template;
+    }
+
     /** @return list<DocumentTemplate> every template of the tenant, any status, ordered by name. */
     public function listAll(string $action): array
     {

@@ -1087,3 +1087,8 @@ a.cv-tab:hover {
 .cv-ai-copilot__link small {
     color: var(--cv-color-text-muted);
 }
+/* Busca global (T-07 da rodada 4): custom.css fixa 2.5rem; sobe para 44 px. */
+.cv-global-search__input {
+    height: var(--cv-touch-target);
+    min-height: var(--cv-touch-target);
+}

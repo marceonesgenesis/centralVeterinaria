@@ -41,7 +41,7 @@ final class S3CompatibleStorage implements StorageInterface
             ObjectKeyNamespace::fromEnvironmentVariable(),
             $tenant,
             $config->bucket,
-            (string) (getenv('STORAGE_DRIVER') ?: 's3'),
+            strtolower(trim((string) getenv('STORAGE_DRIVER'))) ?: 's3',
         );
     }
 
