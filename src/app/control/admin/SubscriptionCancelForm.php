@@ -99,6 +99,7 @@ class SubscriptionCancelForm extends TPage
                 new CentralVet\Persistence\SubscriptionRepository($pdo),
                 new CentralVet\Billing\Stripe\CurlStripeClient(CentralVet\Billing\Stripe\StripeConfig::fromEnvironment()),
                 new CentralVet\Billing\TransactionRunner($pdo),
+                new CentralVet\Persistence\SubscriptionInvoiceRepository($pdo),
             );
 
             $result = $service->request($tenantId, $userId, new DateTimeImmutable());
