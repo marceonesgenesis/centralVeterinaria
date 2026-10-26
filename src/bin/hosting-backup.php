@@ -23,7 +23,7 @@ declare(strict_types=1);
  * `Backup created: <caminho> parts=<n> bytes=<n>`. Códigos: 0 criado; 2
  * configuração (frase ausente ou ilegível, opção inválida); 3 falha de dump
  * ou de arquivo (nada parcial fica em BACKUP_DIR); 4 cópia externa falhou
- * (o arquivo local fica). A retenção só apaga `centralvet-*.tar.gz.cvbk`
+ * (o arquivo local fica; sai antes do heartbeat e sem `Backup created`). A retenção só apaga `centralvet-*.tar.gz.cvbk`
  * mais antigos que BACKUP_RETENTION_DAYS, nunca o recém-criado. Sem
  * `--no-heartbeat`, grava `ops_heartbeat` (`job = 'backup'`) pelo PDO da
  * aplicação; a falha desse INSERT não muda o código. `--decrypt` sai 0, 2
@@ -129,8 +129,6 @@ try {
     exit(3);
 }
 
-$exitCode = 0;
-
 $cutoff = time() - $retentionDays * 86400;
 foreach (glob(rtrim($backupDir, '/') . '/centralvet-*.tar.gz.cvbk') ?: [] as $old) {
     if ($old !== $path && is_file($old) && filemtime($old) < $cutoff && @unlink($old)) {
@@ -146,7 +144,9 @@ if ($offsiteDir !== '') {
     } else {
         @unlink($partial);
         fwrite(STDERR, 'backup: offsite copy failed ' . $destination . PHP_EOL);
-        $exitCode = 4;
+        // Como em T-08: sem heartbeat nem `Backup created`, para o backup_stale avisar.
+        fwrite(STDERR, 'backup: local backup kept at ' . $path . PHP_EOL);
+        exit(4);
     }
 }
 
@@ -162,4 +162,4 @@ if (!in_array('--no-heartbeat', $args, true)) {
 }
 
 fwrite(STDOUT, sprintf('Backup created: %s parts=%d bytes=%d', $path, count(HostingBackup::PARTS), (int) filesize($path)) . PHP_EOL);
-exit($exitCode);
+exit(0);
