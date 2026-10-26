@@ -556,7 +556,8 @@ Stripe são esse `DELETE`, esse `POST /v1/refunds` e o `POST
 A saída é uma linha de contadores (`billing-reconcile events_fetched=<n>
 events_ingested=<n> orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
 pix_invoices_issued=<n> pix_invoices_overdue=<n> pix_intents_refreshed=<n>
-subscriptions_suspended=<n>`), sem dado pessoal; sai 0, ou 1 em erro de Stripe
+subscriptions_suspended=<n> cancellations_finalized=<n>
+cancelled_pix_refunded=<n>`), sem dado pessoal; sai 0, ou 1 em erro de Stripe
 ou de banco (`billing-reconcile error=<classe>`, só a classe da exceção). Cada
 pedido, fatura ou assinatura roda em transação própria: a falha de um item vai
 para o log e não interrompe os outros. Execuções sobrepostas não acumulam (trava
@@ -564,6 +565,12 @@ de arquivo `flock` no diretório temporário; a segunda sai 0 com
 `billing-reconcile skipped_locked`). O ambiente do cron precisa de `DB_*`,
 `STRIPE_*`, `SMTP_*`/`COMMUNICATION_*` e `APP_PUBLIC_URL`, como o webhook (nunca na
 linha do crontab).
+
+`cancellations_finalized` conta as assinaturas com cancelamento agendado pelo
+app (`cancel_at_period_end`) que viraram `cancelled` no fim do período.
+`cancelled_pix_refunded` conta os Pix pagos depois do cancelamento e estornados
+sozinhos na rodada; cada um gera o alerta `cancelled-pix-refund-<id>` ao
+operador (ver [`observabilidade.md`](./observabilidade.md)).
 
 `orders_refunded` conta os pedidos estornados na rodada. Cada estorno vai ao log
 como `[LoginConflictRefund] {"event":"login_conflict_refunded",...}` (pedido,

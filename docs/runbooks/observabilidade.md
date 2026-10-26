@@ -46,6 +46,17 @@ O probe usa o tenant 1 e `DOCUMENT_SYSTEM_USER_ID`. Os limiares estão em
 `CentralVet\Operations\OperationalMonitor` (reconciliador 45 min com cron de
 15 min; backup 26 h com cron diário).
 
+## Alerta de estorno automático do Pix após o cancelamento
+
+Além das 9 chaves, o reconciliador (`bin/billing-reconcile.php`) avisa o
+operador quando estorna sozinho um Pix pago depois do cancelamento da
+assinatura. O e-mail usa `BILLING_OPERATOR_EMAIL`, tem assunto próprio de
+estorno de Pix pós-cancelamento e referência `cancelled-pix-refund-<id>`
+(`<id>` é o da fatura). Vazio o destinatário, só vai ao `error_log`. A rodada
+conta o estorno em `cancelled_pix_refunded` (ver "Reconciliação da cobrança" em
+[`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md)). Confira o estorno no
+painel do Stripe e avise o cliente.
+
 ## Validar o canal de alerta
 
 1. Em um ambiente que **não** seja produção, defina `BILLING_OPERATOR_EMAIL`
@@ -58,7 +69,9 @@ O probe usa o tenant 1 e `DOCUMENT_SYSTEM_USER_ID`. Os limiares estão em
 ## Preflight de produção
 
 `php bin/preflight.php [--trusted-proxies-file=<caminho>] [--with-db]` confere
-a configuração sem imprimir valores. Ver [`release.md`](./release.md) e
+a configuração sem imprimir valores. Em produção o achado `support_email` é
+FAIL quando `SUPPORT_EMAIL` (o e-mail de suporte exibido ao cliente) está vazio,
+é inválido ou termina em `.invalid`. Ver [`release.md`](./release.md) e
 [`environments.md`](./environments.md).
 
 ## Outros sinais

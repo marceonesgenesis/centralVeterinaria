@@ -61,6 +61,7 @@ FAIL, 0 sem FAIL e 2 em argumento inválido. Checagens:
 | `db_password`, `redis_password` | senha vazia ou `change-this...` (Redis: WARN se vazia) |
 | `smtp_driver`, `smtp_from` | `COMMUNICATION_EMAIL_DRIVER` não é `smtp`, ou remetente vazio/`.invalid` |
 | `operator_email` | `BILLING_OPERATOR_EMAIL` vazio |
+| `support_email` | `SUPPORT_EMAIL` (e-mail de suporte mostrado ao cliente) vazio, inválido ou terminado em `.invalid` |
 | `storage_credentials` | S3 com credencial vazia ou de exemplo (`minioadmin`) |
 | `stripe_secret_key`, `stripe_webhook_secret` | chave ou segredo ausente (chave que não é de produção: WARN) |
 | `trust_forwarded_proto` | WARN com `TRUST_FORWARDED_PROTO=true` (ver "Produção" em [`environments.md`](./environments.md)) |
