@@ -13,7 +13,8 @@ declare(strict_types=1);
  * Imprime `billing-reconcile events_fetched=<n> events_ingested=<n>
  * orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
  * pix_invoices_issued=<n> pix_invoices_overdue=<n>
- * pix_intents_refreshed=<n> subscriptions_suspended=<n>` e sai 0; sai 1 em erro de Stripe ou de banco
+ * pix_intents_refreshed=<n> subscriptions_suspended=<n>`, grava o heartbeat
+ * `billing-reconcile` (Etapa 4, T-13; falha dele só vai ao log) e sai 0; sai 1 em erro de Stripe ou de banco
  * (só a classe da exceção vai para o log, nunca a mensagem). Execuções
  * sobrepostas não acumulam: a trava de arquivo (`flock` no diretório
  * temporário, como `worker.php --once`) faz a segunda sair 0.
@@ -31,8 +32,10 @@ use CentralVet\Billing\TenantProvisioningService;
 use CentralVet\Billing\TransactionRunner;
 use CentralVet\Communication\EmailProviderFactory;
 use CentralVet\Observability\Logging\JsonLogger;
+use CentralVet\Operations\Contract\HeartbeatRepositoryInterface;
 use CentralVet\Persistence\BillingEventRepository;
 use CentralVet\Persistence\BillingOrderRepository;
+use CentralVet\Persistence\PdoHeartbeatRepository;
 use CentralVet\Persistence\SubscriptionInvoiceRepository;
 use CentralVet\Persistence\SubscriptionRepository;
 use CentralVet\Security\PasswordResetToken;
@@ -122,5 +125,15 @@ $pairs = [];
 foreach ($result as $name => $value) {
     $pairs[] = $name . '=' . $value;
 }
-fwrite(STDOUT, 'billing-reconcile ' . implode(' ', $pairs) . PHP_EOL);
+$line = 'billing-reconcile ' . implode(' ', $pairs);
+
+// Heartbeat só no caminho de sucesso (o monitor alerta sem ele); a falha ao
+// gravá-lo não desfaz a reconciliação, que já terminou: só vai ao log.
+try {
+    (new PdoHeartbeatRepository($pdo))->record(HeartbeatRepositoryInterface::JOB_BILLING_RECONCILE, new DateTimeImmutable(), $line);
+} catch (Throwable $exception) {
+    error_log('billing-reconcile heartbeat_failed=' . $exception::class);
+}
+
+fwrite(STDOUT, $line . PHP_EOL);
 exit(0);
