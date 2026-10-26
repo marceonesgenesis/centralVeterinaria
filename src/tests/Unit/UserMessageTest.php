@@ -119,8 +119,21 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(100, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant.
+        Assert::count(106, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant. Etapa 5, T-02: +6 (cancelamento, onboarding, piloto).
         Assert::count(110, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas).
+
+        // Etapa 5, T-02: mensagens de domínio estáticas que chegam traduzidas à tela.
+        $etapa5 = [
+            'No active subscription to cancel',
+            'The payment provider did not confirm the cancellation. Try again in a few minutes',
+            'The subscription is already scheduled for cancellation',
+            'Enter the clinic legal name',
+            'Enter the unit name',
+            'This module is not available in the pilot yet',
+        ];
+        foreach ($etapa5 as $message) {
+            Assert::same($message, UserMessage::STATIC[$message] ?? null, "Etapa 5 contract entry missing: {$message}");
+        }
 
         // Etapa 1, T-01: a mensagem crua cita campos técnicos; a chave é o texto para o usuário.
         $renamed = [
