@@ -30,6 +30,8 @@
 - 2026-10-26 · T-19 · onda 4 — Seeds aplicados 2x no centralvet_test: evidência do implementador aceita; banco voltou à linha de base (64/73/6/1).
 - 2026-10-26 · T-19 · onda 4 — Sessão interrompida durante a T-19; agente retomado, código já commitado e relatório completado depois.
 - 2026-10-26 · T-19 · onda 4 — `AiNavigationIntegrationTest` não é defeito do seed: depende do estado do banco (AiToolCallList já ligado ao Enterprise antes da T-19); grants amplos de IA excluem `Central Vet - Perfil %`, risco da T-04 resolvido.
+- 2026-10-26 · T-20 · onda 5 — T-20 é só docs e não tem RED (plano).
+- 2026-10-26 · T-20 · onda 5 — A suíte não rodou de novo depois de 9241e16, porque a mudança foi só de docs (gate anterior: 2518/2518).
 
 ## Bloqueios
 - nenhum
@@ -54,6 +56,7 @@
 - [T-18] Defeito de produto (não corrigido, só teste nesta task): `PaymentService::register` sobre recebível de outro tenant lança `InvalidArgumentException("Receivable <id> not found")` (PaymentService.php ~linha 127) e `UserMessage::resolve` devolve null — não há padrão para `Receivable \d+ not found` (a chave "Receivable not found" já existe em translations.json). `PilotJourneyIntegrationTest::testTenantBNeitherSeesThePatientNorPaysTheReceivableOfA` fica FAIL até uma task acrescentar o padrão em `UserMessage::PATTERNS` (ex.: `'/^Receivable \d+ not found$/D' => 'Receivable not found'`); `Cash session \d+ not found` (mesmo método) também não tem padrão.
 - [T-19] Telas da Etapa 5 registradas (a23d09f RED, 256b9f4): 6 programas no seed inicial e nos 4 planos; menu `First steps` no topo (sai Dashboard), `Clinic data`/`Export clinic data` em Settings, `Help` → SupportView; ALWAYS_ALLOWED + SupportView, ClinicDataExportView, SubscriptionCancelForm; grants amplos de IA excluem `Central Vet - Perfil %`.
 - [T-19] Aplicar `plan-groups.sql` no `centralvet_test` quebra `AiNavigationIntegrationTest::testCopilotSeedBlockGrantsByEncounterViewAndIsIdempotent` (Enterprise também tem AiToolCallList); banco devolvido à linha de base 64/73/6/1.
+- [T-20] Runbooks `piloto-homologacao.md`, `piloto-go-live.md`, `piloto-operacao.md` e README prontos (e711679, 9241e16); rodada 1 reprovou o passo 4.3 (recibo ao Financeiro, fora do perfil), corrigido; CI local `ci: passed`, sem chave sk_/rk_ no diff, schema_migrations do dev em 19 (0020 não aplicada no dev).
 
 ## Pendências
 - T-01: testes de schema só afirmam nome/ordem das colunas; tipo, nulidade, DEFAULT e ON UPDATE só no .verify.sql manual.
@@ -87,6 +90,9 @@
 - T-19: comentário da linha 10 de `role-groups.sql` desatualizado ("até T-19 registrá-los").
 - T-19: comentário da Fase 8B em `initial-application-programs.sql:1056` não cita a exclusão de `Central Vet - Perfil %`.
 - T-19: exclusão dos perfis nos grants de IA só tem prova textual (falta teste com banco).
+- T-20: `release.md` e `observabilidade.md` sem `support_email`; `shared-hosting-mysql57.md` e docblock de `bin/billing-reconcile.php` sem `cancellations_finalized` (sem ruling; fora dos 4 arquivos de T-20).
+- T-20: prazos de resposta do suporte e atualização a cada 2 h úteis estão "propostos, a confirmar com o dono do piloto" (decisão do usuário).
+- T-20: seção de mensagens de erro e prazos de suporte já tratados na rodada 2; demais sugestões das revisões sem pendência adicional.
 
 ## Riscos
 - Divergência de base: o checkout explorado (`merge/task/etapa-4-operacao-dev`) traz `origin/dev`; em relação a `task/etapa-4-operacao`, `.env.example` e `docs/runbooks/shared-hosting-mysql57.md` diferem e podem conflitar no PR para `dev` (T-01 e T-03 os tocam). Mitigação: mudanças em blocos novos no fim de cada arquivo.
@@ -106,5 +112,6 @@
   - Onda 2: BASE 2cb9000 → HEAD 8745709 (deaf41d 1df3ae9 560f220 a9bc4ff 7fd7d15 f3e2624 ac90687 5dc6266 3305af8 b2272f8 6d5be2c 9e8a532 3db1aa4 1f5af36 6c04115 f2a951a 8745709)
   - Onda 3: BASE f51adf8 → HEAD 8593cc1 (37301a8 5ae5c0f afd3028 45d94f7 1a06956 1764649 0c3447e d895460 a45f316 d4d7d9d 8593cc1)
   - Onda 4: BASE 96e419e → HEAD 256b9f4 (a23d09f 256b9f4)
-- Último status conhecido: onda 4 concluída (T-19 [x]); gate SUITE 2518/2518, LINT e BASHN 0 linhas
-- Próxima onda recomendada: onda 5 (T-20)
+  - Onda 5: BASE c854541 → HEAD 9241e16 (e711679 9241e16)
+- Último status conhecido: onda 5 concluída (T-20 [x]); gate SUITE 2518/2518, LINT e BASHN 0 linhas; CI local passed
+- Próxima onda recomendada: nenhuma (revisão final)

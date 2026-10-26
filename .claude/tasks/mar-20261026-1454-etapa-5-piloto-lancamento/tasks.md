@@ -38,7 +38,7 @@ Comandos usados em Teste RED e Validação (copiados da Etapa 4, `.claude/tasks/
 | T-17 | frontend | Telas de suporte e de exportação dos dados | T-02, T-03, T-06, T-11 | sim | média | Platão | [x] |
 | T-18 | qa | Jornada do piloto por perfil com 2 tenants (teste de integração) | T-04, T-12 | sim | alta | Saitama | [x] |
 | T-19 | backend | Registro das telas novas: programas, grupos, menu, guarda e CSRF | T-04, T-07, T-14, T-15, T-17 | não | média | Levi | [x] |
-| T-20 | docs | Roteiro de homologação, checklist de go-live e runbook do piloto | T-05, T-08, T-11, T-13, T-17, T-18, T-19 | não | média | Gandalf | [ ] |
+| T-20 | docs | Roteiro de homologação, checklist de go-live e runbook do piloto | T-05, T-08, T-11, T-13, T-17, T-18, T-19 | não | média | Gandalf | [x] |
 
 ## Detalhamento
 
