@@ -99,3 +99,66 @@ Branch task/etapa-4-operacao (36a7407) contra task/etapa-3-contratacao (992877a)
 - Conteúdo de docs/runbooks/observabilidade.md e de ensaio-restauracao-rollback.md:44-71
 - Restauração de um dump real gerado em MySQL 5.7 (só dumps do dev em 8.0 foram ensaiados)
 - Execução do workflow no GitHub Actions
+
+## Revisão final — rodada 2
+Escopo: diff 36a7407..4571d0e (Onda 6: T-18, T-19, T-20) e re-triagem de notes.md § Pendências. Branch task/etapa-4-operacao contra task/etapa-3-contratacao (992877a).
+
+### Bloqueante da rodada 1
+- [resolvida] Restore com o projeto no ar. Depois das checagens (código 5 não para nada: restore.test.sh:175), restore.sh cria o flag var/maintenance/<projeto>.restore com noclobber, para os serviços em execução entre nginx, app, worker e minio, restaura e religa na ordem inversa pelo trap EXIT, que também roda em falha e em INT/TERM, e remove o flag. Código 7 se algum serviço não religar; flag já existente → código 2, sem parar nada → scripts/restore.sh:171-207,272-287,320. Os volumes são repostos por `compose run --rm --no-deps app`, então funcionam com o app parado (restore.sh:297-313), e `restart: unless-stopped` não religa serviço parado com `stop` (docker-compose.yml:7,98,164,196,224). cron-run.sh pula o job com o flag presente (scripts/cron-run.sh:50-53); as 6 linhas do crontab passam pelo wrapper (docs/runbooks/cron.md:56-78; nenhuma linha `docker compose` de cron em docs/ fica fora dele). O restore-drill agora sobe app e worker e verifica services_running e maintenance_flag (scripts/restore-drill.sh:103-109,169-172). Runbook: restore-backup.md § 4 descreve parada, religamento, flag e código 7; § 5 e shared-hosting-mysql57.md passo 0/6 mandam pausar o agendador e pôr o site em manutenção.
+- Reproduzido: `bash scripts/restore.test.sh` → Failed: 0 (inclui "stop app worker comes before the first mysql/tar -x", "failing mysql exits 6, still restarts app and worker and removes the flag", "an existing flag refuses with exit 2", "mysql and redis are never stopped"); `bash scripts/cron-run.test.sh` → Failed: 0; `bash scripts/release/build-release.test.sh` → "umask 077: files -rw-r--r-- and dirs drwxr-xr-x in the tar", Failed: 0.
+
+### Triagem (rodada 2)
+- [aberta] Banco dev `centralvet` com 0017–0019 pendentes → item de Excluído; exige autorização
+- [resolvida] T-01: .verify.sql da 0019 → já resolvida na rodada 1
+- [aberta] T-02: X-Forwarded-Proto de qualquer cliente → docker/nginx/default.conf:13-16 (fora do diff da Onda 6)
+- [aberta] T-02: trusted-proxies.production.conf não ignorado → .gitignore só ganhou var/maintenance/
+- [aberta] T-03: códigos de saída de migration-status.php sem teste
+- [aberta] T-04: reset_password.html sem uso
+- [aberta] T-05: php_target=8.4 declarado e não conferido → scripts/release/build-release.sh (a T-20 só fixou a umask)
+- [aberta] T-06: --id, --timestamp e subscription.deleted sem teste
+- [aberta] T-08: teste não hermético, projeto padrão, tar 1, contagens fora do snapshot
+- [aberta] T-09: cobertura parcial do preflight
+- [aberta] T-10: alert_key varchar(64) sem limite
+- [aberta] T-17: parts=3, sql_mode, decrypt em duas passadas, CLI sem teste
+- [resolvida] T-17: --user 1000:33 no runbook → já resolvida na rodada 1
+- [aberta] T-11: sem caso de parte trocada no .cvbk
+- [resolvida] T-11: restore com o projeto vivo → scripts/restore.sh:272-287,320; docs/runbooks/restore-backup.md § 4 e § 5 (ver acima)
+- [aberta] T-11: `trap 'exit 6'` antes de qualquer escrita → restore.sh:207 (inalterado; agora o trap EXIT também religa e remove o flag)
+- [aberta] T-11: stderr de gpg/tar silenciado; disco cheio vira código 5
+- [aberta] T-11: decrypt do .cvbk usa o src/ do checkout; runbook não registra
+- [aberta] T-11: uso do alvo restore-drill lista file.sql.gz → Makefile:37 fora do diff
+- [aberta] T-12: OpsMonitorWiringTest sem o catch de StorageException
+- [aberta] T-12: probe fica no storage se get lança
+- [aberta] T-12: sem teste do ramo "conteúdo lido diferente"
+- [resolvida] T-05: build-release.sh herda a umask → scripts/release/build-release.sh:20 (`umask 022` logo após `set -euo pipefail`); build-release.test.sh com umask 077 → Failed: 0
+- [resolvida] T-16: tests.md/build-versioning.md e índice → já resolvida na rodada 1
+- [aberta] Workflow .github/workflows/ci.yml nunca rodou no GitHub
+- [resolvida] T-14: rm -rf do workdir amplo → scripts/ci/run.sh:66-98 só aceita var/ci (ou abaixo) do projeto, ou abaixo de RUNNER_TEMP/TMPDIR; recusa `.`/`..`, diretório que contém o projeto, symlink e diretório não vazio sem .ci-workdir; CI_WORKDIR=var, docs ou .git cai em "inside the project, outside var/ci"
+- [aberta] T-14: falha de openssl rand grava segredo vazio → scripts/ci/run.sh:139-141,162-169 (`fail` dentro de `$(secret N)` só encerra o subshell; inalterado)
+- [aberta] T-14: CI_PROJECT só recusa `centralvet` → scripts/ci/run.sh:36
+- [aberta] T-15: bloco "saída" do runbook sem as timings do restore
+- [aberta] T-15: pre_backup herda BACKUP_OFFSITE_*
+- [aberta] T-15: GRANT fixa `centralvet`.*
+- [aberta] T-15: senha do usuário de migration em `-e`
+- [resolvida] T-16: códigos de saída imprecisos → docs/runbooks/cron.md:27-34,89-93,146-150 e shared-hosting-mysql57.md:708-712,721-725 agora dizem 3 para falha de leitura/escrita e descrevem a trava por script; batem com src/bin/hosting-backup.php:50,61,93,102,129,149
+- [aberta] T-16: cron e restauração nunca executados em hospedagem compartilhada real
+- [aberta] T-18: flag órfão (SIGKILL/queda do host) faz o cron-run pular todos os jobs, inclusive ops-monitor e backup, com código 0 e sem alerta → scripts/cron-run.sh:50-53; o runbook manda conferir o pid à mão (restore-backup.md § 4), e um restore seguinte sai 2, o que deixa o problema visível só para quem tentar restaurar de novo
+- [aberta] T-18: projeto padrão diverge: cron-run cai em `centralvet`, restore.sh em basename da raiz → cron-run.sh:47; restore.sh:116 (coincidem quando a raiz se chama centralvet ou o .env define COMPOSE_PROJECT_NAME)
+- [aberta] T-18: sem teste de falha de `compose ps` (2), de `compose stop` (6) e de INT/TERM durante a carga
+- [aberta] T-18: CENTRALVET_MAINTENANCE_DIR não citado em restore-backup.md § 4
+- [aberta] T-19: var/ci/local antigo sem .ci-workdir recusado até apagar à mão
+- [aberta] T-19: tests.md:32-34 não descreve a restrição do CI_WORKDIR nem a descoberta por find → conferido, o trecho segue igual
+- [aberta] T-19: guarda de symlink só no último componente → run.sh:92-93
+- [aberta] T-19: `for test_file in $script_tests` quebra com espaço no nome
+- [aberta] T-19: CI_WORKDIR=var rodado só pelo implementador
+- [aberta] T-20: contorno de umask redundante em release.md e rollback-drill.sh
+- [aberta] Onda 6: código de saída do restore-drill não capturado no gate
+
+### Achados (rodada 2)
+- [sugestão] Flag órfão silencia o ops-monitor junto com os demais crons: a falha deixa de ser visível justamente pelo canal de alerta. Conferir `pid=` (kill -0) ou a idade do flag no cron-run, ou isentar o ops-monitor → scripts/cron-run.sh:50-53
+- [sugestão] O restore-drill exercita a parada só de app e worker; nginx e minio ficam cobertos apenas pelo teste com docker falso → scripts/restore-drill.sh:103; restore.test.sh "stops nginx app worker minio in this order"
+
+### Não verificado (rodada 2)
+- Não rodei o restore-drill, o rollback-drill nem o scripts/ci/run.sh com Docker real; a parada e o religamento reais (compose stop/start em containers vivos) vêm do relatório da T-18 e do gate, cujo código de saída do drill não foi capturado
+- Não rodei scripts/ci/run.test.sh
+- Não reexplorei a branch fora de 36a7407..HEAD; as pendências abertas fora desse diff mantêm a evidência da rodada 1
