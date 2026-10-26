@@ -15,10 +15,12 @@ final class AccessDecision
     public const REASON_GRACE = 'grace';
     public const REASON_BLOCKED_STATUS = 'blocked_status';
     public const REASON_BLOCKED_PLAN = 'blocked_plan';
+    public const REASON_NOT_RELEASED = 'not_released';
 
     private const MESSAGE_KEYS = [
         self::REASON_BLOCKED_STATUS => 'Your subscription is suspended. Regularize the payment to continue',
         self::REASON_BLOCKED_PLAN => 'Your plan does not include this feature',
+        self::REASON_NOT_RELEASED => 'This module is not available in the pilot yet',
     ];
 
     private function __construct(private readonly bool $allowed, private readonly string $reason)
@@ -48,6 +50,12 @@ final class AccessDecision
     public static function blockedPlan(): self
     {
         return new self(false, self::REASON_BLOCKED_PLAN);
+    }
+
+    /** Plano inclui o controller, mas a feature está fora do recorte do piloto (OfferScope). */
+    public static function notReleased(): self
+    {
+        return new self(false, self::REASON_NOT_RELEASED);
     }
 
     public function allowed(): bool

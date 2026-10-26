@@ -15,7 +15,8 @@ use DateTimeImmutable;
  * e full nos demais estados (inclusive bloqueado: a tela da assinatura e a
  * troca de senha seguem abertas);
  * accessLevel blocked → blocked_status; controller fora do plano →
- * blocked_plan; senão full ou grace.
+ * blocked_plan; feature fora do recorte do piloto (OfferScope, Etapa 5
+ * T-07) → not_released; senão full ou grace.
  */
 final class SubscriptionAccessGuard
 {
@@ -35,8 +36,12 @@ final class SubscriptionAccessGuard
      */
     public const ALWAYS_ALLOWED_METHODS = ['CvShellController' => ['onContext']];
 
-    public function __construct(private readonly SubscriptionRepositoryInterface $subscriptions)
+    private readonly OfferScope $offer;
+
+    /** Sem $offer, o recorte vem do ambiente (OfferScope::fromEnvironment()). */
+    public function __construct(private readonly SubscriptionRepositoryInterface $subscriptions, ?OfferScope $offer = null)
     {
+        $this->offer = $offer ?? OfferScope::fromEnvironment();
     }
 
     /**
@@ -96,6 +101,10 @@ final class SubscriptionAccessGuard
 
         if (!PlanEntitlements::forPlan($subscription->planId())->allowsProgram($controller)) {
             return AccessDecision::blockedPlan();
+        }
+
+        if (!$this->offer->isProgramReleased($controller)) {
+            return AccessDecision::notReleased();
         }
 
         return $level === Subscription::ACCESS_GRACE ? AccessDecision::grace() : AccessDecision::full();
