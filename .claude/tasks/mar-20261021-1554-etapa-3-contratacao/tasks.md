@@ -43,7 +43,7 @@ Comandos usados em Teste RED e Validação:
 | T-28 | backend | Correção (revisão final): eventos Stripe de outra integração saem ignored; fora de ordem real mantido | T-14 | sim | média | Hegel | [x] |
 | T-29 | shared | Correção (revisão final): "Resource does not belong to the authenticated tenant" em pt-BR via UserMessage | T-01 | sim | simples | Maquiavel | [x] |
 | T-30 | docs | Correção (revisão final): README e inventário CSRF sem download.php como caminho de download | T-05 | sim | simples | Gandalf (docs) | [x] |
-| T-31 | backend | Correção (revisão final): LoginConflictRefundService no reconciliador — cancela a Subscription, estorna, cancela a assinatura local e alerta o operador | T-26 | não | alta | Naruto | [ ] |
+| T-31 | backend | Correção (revisão final): LoginConflictRefundService no reconciliador — cancela a Subscription, estorna, cancela a assinatura local e alerta o operador | T-26 | não | alta | Naruto | [x] |
 
 ## Detalhamento
 

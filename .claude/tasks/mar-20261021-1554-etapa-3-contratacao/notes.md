@@ -53,6 +53,7 @@
 - 2026-10-26 · plano · onda 7 — Correção dividida em Onda 7 (T-26..T-30) e Onda 8 (T-31), porque a T-31 consome produtos da T-26.
 - 2026-10-26 · T-26 · onda 7 — Ambiente: MySQL e Redis subidos com docker compose up -d (não destrutivo) durante a onda.
 - 2026-10-26 · T-30 · onda 7 — Relatório ficou staged sem commit; incluído no commit de fechamento (chore(tasks)).
+- 2026-10-26 · T-31 · onda 8 — Cancelamento e estorno automáticos pelo reconciliador para o pedido pago com login_conflict, conforme a decisão do usuário registrada na onda 7.
 
 ## Bloqueios
 - nenhum
@@ -138,6 +139,9 @@
 - T-27: o 422 de e-mail tomado sem consumir o form_token permite sondar e-mails com um token (oráculo de conta), contido só pelo limite de 10/h por IP; registrar como risco aceito (CheckoutStartHandler.php:110-112).
 - T-27: BillingAcquisitionFlowIntegrationTest falhou de forma intermitente por suítes paralelas no centralvet_test; rodar o gate isolado.
 - Ambiente (onda 7): falhas intermitentes 1213/1412/"requires an open transaction" no centralvet_test por suítes paralelas dos implementadores; sumiram no gate isolado (SUITE 2297/2297).
+- T-31: cartão pago sem `stripe_subscription_id` pula GET/DELETE e grava `subscription_cancelled_at` sem cancelar nada; melhor buscar `subscription` da sessão ou lançar StripeApiException (LoginConflictRefundService.php:735-740).
+- T-31: falha permanente (sessão sem `invoice`/`payment_intent`) mantém o pedido na lista; `listLoginConflictsToRefund` ordena por id ASC LIMIT 50, então 50 falhas permanentes bloqueiam os seguintes (BillingOrderRepository.php:118-122).
+- T-31: runbook lista `mark_refunded` entre os passos de "Falha no Stripe", mas ele não chama o Stripe; só `cancel_subscription` e `refund` geram `login_conflict_refund_failed` (docs/runbooks/shared-hosting-mysql57.md:573-575).
 
 ## Riscos
 - RISCO Pix: o limite de `payment_method_options[pix][expires_after_seconds]` do PaymentIntent no Stripe precisa aceitar 864000 s (10 dias). Se a API recusar, T-23 usa o máximo aceito, e o reconciliador regenera o Pix expirado, o que já está previsto. A renovação Pix depende do cron do reconciliador (a cada 15 min): sem o cron, nenhuma fatura de renovação é emitida.
@@ -163,5 +167,6 @@
   - Onda 5: BASE e26d543 → HEAD 52ca85a (aa007bf, 6302b07, f5aeb13, 84c01db, ceb0288, 52ca85a)
   - Onda 6: BASE d757a4d → HEAD 94008c4 (4d5353f, a950a87, a80a2ef, 51b8fbc, 3bb0850, 0801de1, d62da62, 9323c8e, ad5a00d, fb7ecd7, 238ba95, df743de, a690350, 94008c4)
   - Onda 7: BASE fbe280f → HEAD 0d5560e (0d5560e, f38cfb1, 50147c3, 6dc73a2, e12fa5f, 222b6dc, 2cf96eb, df84e27, 34c6292, 498bb35)
-- Último status conhecido: onda 7 concluída (T-26..T-30 [x]; SUITE 2297/2297, LINT 20 arquivos OK); falta a Onda 8 (T-31)
-- Próxima onda recomendada: Onda 8 — T-31 (LoginConflictRefundService no reconciliador)
+  - Onda 8: BASE 54cabf7 → HEAD e1a2e46 (e1a2e46, 9e60670)
+- Último status conhecido: onda 8 concluída (T-31 [x]; SUITE 2307/2307, LINT 6 PHP OK); correção da revisão final completa
+- Próxima onda recomendada: nenhuma (reexecutar a revisão final / entrega)
