@@ -25,6 +25,11 @@
 - 2026-10-26 · T-18 · onda 3 — Defeito de produto achado pela jornada: `Receivable N not found` e `Cash session N not found` sem padrão em `UserMessage::PATTERNS`; T-18 autorizada a corrigir em `UserMessage.php` e `UserMessageTest.php` (d4d7d9d RED, 8593cc1); `Cash session` mapeia para "Record not found".
 - 2026-10-26 · T-15 · onda 3 — Três desvios aceitos: `tenantContext(PDO)` público, transação no `onSave` e toast com a chave `Record saved`.
 - 2026-10-26 · T-14..T-17 · onda 3 — Registro em menu, grupos, CSRF e ALWAYS_ALLOWED fica com a T-19 (onda 4).
+- 2026-10-26 · T-19 · onda 4 — `SubscriptionAccessGuardTest.php` no RED aceito: fixava a lista exata de ALWAYS_ALLOWED.
+- 2026-10-26 · T-19 · onda 4 — `CommunicationNavigationIntegrationTest.php` fora do escopo aceito: Dashboard virou First steps.
+- 2026-10-26 · T-19 · onda 4 — Seeds aplicados 2x no centralvet_test: evidência do implementador aceita; banco voltou à linha de base (64/73/6/1).
+- 2026-10-26 · T-19 · onda 4 — Sessão interrompida durante a T-19; agente retomado, código já commitado e relatório completado depois.
+- 2026-10-26 · T-19 · onda 4 — `AiNavigationIntegrationTest` não é defeito do seed: depende do estado do banco (AiToolCallList já ligado ao Enterprise antes da T-19); grants amplos de IA excluem `Central Vet - Perfil %`, risco da T-04 resolvido.
 
 ## Bloqueios
 - nenhum
@@ -47,6 +52,8 @@
 - [T-14] `SubscriptionCancelForm` pronto (d895460): página inteira (não cortina), `public function onConfirm($param)` de instância (mutação; sai do padrão `onEdit`); construtor só lê. Presenter expõe `SubscriptionStatusPresenter::canCancel(?Subscription): bool` e `::cancelScheduledFor(?Subscription): ?string` (estáticos, fora do array de `summary()`). Para T-19: registrar `SubscriptionCancelForm` em `system_program`/grupos (admin e planos), ALWAYS_ALLOWED se a clínica suspensa deve poder cancelar, e `SubscriptionCancelForm::onConfirm` no inventário CSRF. Link de exportação aponta para `index.php?class=ClinicDataExportView` (T-17); termos `legal.php?doc=termos`. Sem chave nova.
 - [T-17] `SupportView` e `ClinicDataExportView` prontos; download em `engine.php?class=ClinicDataExportView&method=onDownload&static=1` (estático, leitura). Para T-19: registrar os 2 programas e pôr `ClinicDataExportView` em `ALWAYS_ALLOWED` da guarda (exportação após cancelamento). O link "Política de cancelamento" usa `legal.php?doc=termos#cancelamento`, mas `app/view/legal/termos-de-uso.html` (T-06) não tem `id="cancelamento"` no `<h2>Planos, cobrança e cancelamento</h2>`; a âncora não posiciona até alguém acrescentá-lo. Card legal usa as chaves existentes `Terms of use`/`Privacy policy`; rótulo `WhatsApp` fica sem `_t()` (nome próprio).
 - [T-18] Defeito de produto (não corrigido, só teste nesta task): `PaymentService::register` sobre recebível de outro tenant lança `InvalidArgumentException("Receivable <id> not found")` (PaymentService.php ~linha 127) e `UserMessage::resolve` devolve null — não há padrão para `Receivable \d+ not found` (a chave "Receivable not found" já existe em translations.json). `PilotJourneyIntegrationTest::testTenantBNeitherSeesThePatientNorPaysTheReceivableOfA` fica FAIL até uma task acrescentar o padrão em `UserMessage::PATTERNS` (ex.: `'/^Receivable \d+ not found$/D' => 'Receivable not found'`); `Cash session \d+ not found` (mesmo método) também não tem padrão.
+- [T-19] Telas da Etapa 5 registradas (a23d09f RED, 256b9f4): 6 programas no seed inicial e nos 4 planos; menu `First steps` no topo (sai Dashboard), `Clinic data`/`Export clinic data` em Settings, `Help` → SupportView; ALWAYS_ALLOWED + SupportView, ClinicDataExportView, SubscriptionCancelForm; grants amplos de IA excluem `Central Vet - Perfil %`.
+- [T-19] Aplicar `plan-groups.sql` no `centralvet_test` quebra `AiNavigationIntegrationTest::testCopilotSeedBlockGrantsByEncounterViewAndIsIdempotent` (Enterprise também tem AiToolCallList); banco devolvido à linha de base 64/73/6/1.
 
 ## Pendências
 - T-01: testes de schema só afirmam nome/ordem das colunas; tipo, nulidade, DEFAULT e ON UPDATE só no .verify.sql manual.
@@ -76,6 +83,10 @@
 - Para T-19: registrar SubscriptionCancelForm, OnboardingChecklistView, ClinicProfileForm, FirstEncounterGuideView, SupportView e ClinicDataExportView em programa, grupos e menu; inventário CSRF: onConfirm, onSave, onMarkTeamReviewed, onMarkRead e os da exportação; ClinicDataExportView em ALWAYS_ALLOWED.
 - Diálogo de aceite e telas da onda 3 sem fumaça no navegador (imagem :8081 sem rebuild); download real da exportação só conferido por leitura do código.
 - A idempotência dos vínculos da T-04 segue sem cobertura.
+- T-19: `AiNavigationIntegrationTest` deve filtrar os grupos "Plano" (dívida para T-20/CI).
+- T-19: comentário da linha 10 de `role-groups.sql` desatualizado ("até T-19 registrá-los").
+- T-19: comentário da Fase 8B em `initial-application-programs.sql:1056` não cita a exclusão de `Central Vet - Perfil %`.
+- T-19: exclusão dos perfis nos grants de IA só tem prova textual (falta teste com banco).
 
 ## Riscos
 - Divergência de base: o checkout explorado (`merge/task/etapa-4-operacao-dev`) traz `origin/dev`; em relação a `task/etapa-4-operacao`, `.env.example` e `docs/runbooks/shared-hosting-mysql57.md` diferem e podem conflitar no PR para `dev` (T-01 e T-03 os tocam). Mitigação: mudanças em blocos novos no fim de cada arquivo.
@@ -94,5 +105,6 @@
   - Onda 1: BASE fbd6d51 → HEAD 74f5bc7 (6c0f1a2 5ee88dc ce5462d 66409bb 7b6ecaa c7f589b fc738a5 c7cd766 fecdf22 76a59a6 875367d 0982a23 74f5bc7)
   - Onda 2: BASE 2cb9000 → HEAD 8745709 (deaf41d 1df3ae9 560f220 a9bc4ff 7fd7d15 f3e2624 ac90687 5dc6266 3305af8 b2272f8 6d5be2c 9e8a532 3db1aa4 1f5af36 6c04115 f2a951a 8745709)
   - Onda 3: BASE f51adf8 → HEAD 8593cc1 (37301a8 5ae5c0f afd3028 45d94f7 1a06956 1764649 0c3447e d895460 a45f316 d4d7d9d 8593cc1)
-- Último status conhecido: onda 3 concluída (T-14 a T-18 [x]); gate SUITE 2511/2511, LINT e BASHN 0 linhas; PilotJourney passou 2x
-- Próxima onda recomendada: onda 4 (T-19)
+  - Onda 4: BASE 96e419e → HEAD 256b9f4 (a23d09f 256b9f4)
+- Último status conhecido: onda 4 concluída (T-19 [x]); gate SUITE 2518/2518, LINT e BASHN 0 linhas
+- Próxima onda recomendada: onda 5 (T-20)
