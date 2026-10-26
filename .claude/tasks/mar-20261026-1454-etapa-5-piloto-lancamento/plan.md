@@ -60,7 +60,7 @@ Fechar a última etapa do plano de conclusão do MVP (`.docs/audits/2026-10-09-p
 | `src/app/database/migrations/20261026_0020_etapa5_piloto.sql` | colunas de cancelamento, `legal_acceptance`, `tenant_onboarding` | criar | T-01 |
 | `src/app/database/migrations/20261026_0020_etapa5_piloto.verify.sql` | verificação só leitura da 0020 | criar | T-01 |
 | `scripts/test-db/provision.sh` | lista de migrations do banco de teste e da CI | modificar | T-01 |
-| `docs/runbooks/shared-hosting-mysql57.md` | seção da 0020 na hospedagem MySQL 5.7 | modificar | T-01 |
+| ⚠ `docs/runbooks/shared-hosting-mysql57.md` | seção da 0020; contadores do reconciliador | modificar | T-01, T-23 |
 | `src/tests/Integration/Etapa5SchemaIntegrationTest.php` | schema da 0020 no `centralvet_test` | criar | T-01 |
 | ⚠ `src/app/config/translations.json` | textos pt-BR da etapa | modificar | T-02, T-19 |
 | `src/app/Core/Presentation/UserMessage.php` | mensagens de domínio traduzidas | modificar | T-02 |
@@ -84,22 +84,22 @@ Fechar a última etapa do plano de conclusão do MVP (`.docs/audits/2026-10-09-p
 | `src/app/Core/Legal/LegalDocuments.php` | versões e URLs dos documentos | criar | T-06 |
 | `src/app/Core/Legal/LegalPage.php` | renderização pública dos documentos | criar | T-06 |
 | `src/legal.php` | entrada pública com CSP | criar | T-06 |
-| `src/app/view/legal/termos-de-uso.html` | termos de uso (rascunho) | criar | T-06 |
+| ⚠ `src/app/view/legal/termos-de-uso.html` | termos de uso (rascunho); âncora `#cancelamento` | criar | T-06, T-23 |
 | `src/app/view/legal/politica-de-privacidade.html` | política de privacidade (rascunho) | criar | T-06 |
-| `src/tests/Unit/LegalPageTest.php` | teste da página legal | criar | T-06 |
+| ⚠ `src/tests/Unit/LegalPageTest.php` | teste da página legal | criar | T-06, T-23 |
 | `src/app/Core/Billing/AccessDecision.php` | motivo `not_released` | modificar | T-07 |
 | ⚠ `src/app/Core/Billing/SubscriptionAccessGuard.php` | guarda com recorte; `ALWAYS_ALLOWED` | modificar | T-07, T-19 |
 | `src/tests/Unit/SubscriptionAccessGuardTest.php` | teste da guarda | modificar | T-07 |
-| `src/app/Core/Billing/Subscription.php` | cancelamento agendado | modificar | T-08 |
+| ⚠ `src/app/Core/Billing/Subscription.php` | cancelamento agendado; período posterior não reativa | modificar | T-08, T-22 |
 | `src/app/Core/Billing/Contract/SubscriptionRepositoryInterface.php` | listagem de cancelamentos vencidos | modificar | T-08 |
 | `src/app/Core/Persistence/SubscriptionRepository.php` | colunas novas e filtros | modificar | T-08 |
 | `src/tests/Support/FakeSubscriptionRepository.php` | dublê do repositório | modificar | T-08 |
-| `src/app/Core/Billing/SubscriptionCancellationService.php` | cancelamento pelo cliente | criar | T-08 |
+| ⚠ `src/app/Core/Billing/SubscriptionCancellationService.php` | cancelamento pelo cliente; anula fatura Pix futura | criar | T-08, T-21 |
 | `src/app/Core/Billing/SubscriptionCancellationException.php` | erro de domínio do cancelamento | criar | T-08 |
-| `src/app/Core/Billing/BillingReconciler.php` | finaliza cancelamento Pix | modificar | T-08 |
-| `src/tests/Unit/SubscriptionCancellationServiceTest.php` | teste do serviço | criar | T-08 |
+| ⚠ `src/app/Core/Billing/BillingReconciler.php` | finaliza cancelamento Pix; estorna Pix pago após cancelamento | modificar | T-08, T-22 |
+| ⚠ `src/tests/Unit/SubscriptionCancellationServiceTest.php` | teste do serviço | criar | T-08, T-21 |
 | `src/tests/Integration/SubscriptionRepositoryIntegrationTest.php` | colunas e filtros no MySQL | modificar | T-08 |
-| `src/tests/Integration/BillingReconcilerIntegrationTest.php` | passo de finalização | modificar | T-08 |
+| ⚠ `src/tests/Integration/BillingReconcilerIntegrationTest.php` | passo de finalização; estorno | modificar | T-08, T-22 |
 | `src/app/Core/Onboarding/OnboardingChecklistService.php` | checklist do primeiro acesso | criar | T-09 |
 | `src/app/Core/Onboarding/ClinicProfileService.php` | dados da clínica e unidade | criar | T-09 |
 | `src/tests/Integration/OnboardingChecklistIntegrationTest.php` | teste do onboarding | criar | T-09 |
@@ -118,9 +118,9 @@ Fechar a última etapa do plano de conclusão do MVP (`.docs/audits/2026-10-09-p
 | `src/tests/Unit/LandingOfferAlignmentTest.php` | teste da oferta alinhada | criar | T-13 |
 | `src/tests/Unit/LandingCatalogTest.php` | versão e texto dos termos | modificar | T-13 |
 | `src/tests/Unit/CheckoutStartHandlerTest.php` | versão dos termos e plano ofertado | modificar | T-13 |
-| `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` | versão dos termos | modificar | T-13 |
+| ⚠ `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php` | versão dos termos; construtor do reconciliador | modificar | T-13, T-22 |
 | `src/app/control/admin/SubscriptionStatusView.php` | botão e aviso de cancelamento | modificar | T-14 |
-| `src/app/control/admin/SubscriptionCancelForm.php` | confirmação do cancelamento | criar | T-14 |
+| ⚠ `src/app/control/admin/SubscriptionCancelForm.php` | confirmação do cancelamento; repositório de faturas | criar | T-14, T-21 |
 | `src/app/Core/Presentation/SubscriptionStatusPresenter.php` | estado de cancelamento | modificar | T-14 |
 | `src/tests/Unit/SubscriptionStatusPresenterTest.php` | teste do presenter | modificar | T-14 |
 | `src/tests/Unit/SubscriptionCancelFormWiringTest.php` | wiring da tela | criar | T-14 |
@@ -144,8 +144,22 @@ Fechar a última etapa do plano de conclusão do MVP (`.docs/audits/2026-10-09-p
 | `docs/runbooks/piloto-go-live.md` | checklist de go-live | criar | T-20 |
 | `docs/runbooks/piloto-operacao.md` | runbook do piloto | criar | T-20 |
 | `docs/runbooks/README.md` | índice | modificar | T-20 |
+| `src/app/Core/Billing/SubscriptionInvoice.php` | `voidForCancellation()` | modificar | T-21 |
+| `src/app/Core/Billing/PixInvoiceIssuer.php` | não emite com cancelamento agendado | modificar | T-21 |
+| `src/tests/Unit/SubscriptionInvoiceTest.php` | teste da anulação | modificar | T-21 |
+| `src/tests/Unit/PixInvoiceIssuerTest.php` | teste da emissão | modificar | T-21 |
+| `src/app/Core/Billing/BillingEventProcessor.php` | Pix pago após cancelamento não avança a assinatura | modificar | T-22 |
+| `src/app/Core/Billing/CancelledPixRefundService.php` | estorno automático com alerta | criar | T-22 |
+| `src/app/Core/Billing/Contract/SubscriptionInvoiceRepositoryInterface.php` | `listPaidPixAfterCancellation` | modificar | T-22 |
+| `src/app/Core/Persistence/SubscriptionInvoiceRepository.php` | consulta do estorno | modificar | T-22 |
+| `src/tests/Support/FakeSubscriptionInvoiceRepository.php` | dublê | modificar | T-22 |
+| `src/bin/billing-reconcile.php` | monta o serviço; docblock dos contadores | modificar | T-22 |
+| `src/tests/Unit/CancelledPixRefundServiceTest.php` | teste do estorno | criar | T-22 |
+| `src/tests/Unit/BillingEventProcessorTest.php` | Pix pago após cancelamento | modificar | T-22 |
+| `docs/runbooks/release.md` | `support_email` no preflight | modificar | T-23 |
+| `docs/runbooks/observabilidade.md` | `support_email`; alerta do estorno | modificar | T-23 |
 
-Arquivo tocado por mais de uma task leva ⚠ na linha e a resolução fica em "Estratégia de execução": os três ⚠ (`translations.json`, `Etapa5MessagesTest.php`, `SubscriptionAccessGuard.php`) são serializados em ondas diferentes (T-02/T-07 antes, T-19 na Onda 4).
+Arquivo tocado por mais de uma task leva ⚠ na linha e a resolução fica em "Estratégia de execução": os três ⚠ (`translations.json`, `Etapa5MessagesTest.php`, `SubscriptionAccessGuard.php`) são serializados em ondas diferentes (T-02/T-07 antes, T-19 na Onda 4); os ⚠ da Onda 6 dividem o arquivo entre a task nova (T-21, T-22 ou T-23) e uma task original de onda anterior, e na Onda 6 cada arquivo tem uma só task.
 
 ## Decisões de arquitetura
 
@@ -175,6 +189,7 @@ T-04 → T-12 → T-18 (+T-04)
 T-03,T-06 → T-13
 T-04,T-07,T-14,T-15,T-17 → T-19
 T-05,T-08,T-11,T-13,T-17,T-18,T-19 → T-20
+Onda 6 (correção): T-08,T-14 → T-21; T-08 → T-22; T-03,T-06,T-08,T-17 → T-23
 ```
 
 ## Estratégia de execução
@@ -185,6 +200,7 @@ T-05,T-08,T-11,T-13,T-17,T-18,T-19 → T-20
 - Pré-condição da Onda 2: a 0020 aplicada ao `centralvet_test` (T-01). Sem ela, os testes de integração de T-08, T-09 e T-10 saem `FAIL`.
 - Pré-condição da Onda 3: `role-groups.sql` não precisa estar no banco (T-12 e T-18 criam os grupos no próprio teste pelo nome exato).
 - Pré-condição do critério de T-06 e T-13 (`curl`): pilha local no ar em `http://localhost:8081`; o código servido é o do checkout (bind mount do dev).
+- Onda 6 — correção (revisão final), BASE `a852e0e`: origem `reviews/final.md` (bloqueante e pendência promovida de T-08: Pix cancelado na janela de emissão antecipada; pendências abertas de T-03, T-08 e T-17). T-21, T-22 e T-23 têm caminhos disjuntos (caminho exclusivo). Nenhuma chamada real ao Stripe (só `FakeStripeClient`) e nada no banco `centralvet` (dev). Validação cruzada da Onda 6: SUITE completo, LINTALL, BASHN, CI local (`scripts/ci/run.sh`) e `git diff task/etapa-4-operacao..HEAD | grep -cE '^[+].*(sk_live_|sk_test_|rk_live_)[A-Za-z0-9]+'` = `0`.
 - Validação cruzada de cada onda: SUITE completo sem filtro de classe (`Failed: 0`, nenhuma classe de integração nova em `SKIP`), LINTALL contra `baseline/php-lint-all.txt` e BASHN contra `baseline/bash-n.txt`. Falhas intermitentes 1213/1205 no `centralvet_test` por suítes paralelas: rodar de novo isolado. Na Onda 5, além disso, CI (`scripts/ci/run.sh` local) termina com código 0.
 
 ## Ondas de execução
@@ -203,6 +219,9 @@ T-05,T-08,T-11,T-13,T-17,T-18,T-19 → T-20
 
 ### Onda 5
 - T-20
+
+### Onda 6 — correção (revisão final)
+- T-21, T-22, T-23
 
 ## Agentes
 
@@ -229,6 +248,9 @@ T-05,T-08,T-11,T-13,T-17,T-18,T-19 → T-20
 | Saitama | general-purpose | inherit | T-18 |
 | Levi | general-purpose | inherit | T-19 |
 | Gandalf (docs) | geduc:documentador | sonnet | T-20 |
+| Arquimedes (correção) | general-purpose | inherit | T-21 |
+| Sherlock (correção) | general-purpose | inherit | T-22 |
+| Gandalf (correção docs) | geduc:documentador | sonnet | T-23 |
 
 ## Review Focus
 - Administrador de tenant `enterprise`/`pro` abre `HospitalizationBoard`, `AiCopilotPanel` ou `CommunicationComposeForm`; tenant sem assinatura (legado) abre os mesmos → bloqueio com `Este módulo ainda não está disponível no piloto` só para o primeiro; o legado segue com acesso → T-07

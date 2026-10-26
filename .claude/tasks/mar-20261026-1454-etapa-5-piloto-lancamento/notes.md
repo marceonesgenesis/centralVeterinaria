@@ -33,6 +33,12 @@
 - 2026-10-26 · T-20 · onda 5 — T-20 é só docs e não tem RED (plano).
 - 2026-10-26 · T-20 · onda 5 — A suíte não rodou de novo depois de 9241e16, porque a mudança foi só de docs (gate anterior: 2518/2518).
 
+- 2026-10-26 · plano · onda 6 — Onda 6 — correção (revisão final), BASE `a852e0e`. T-21 anula a fatura Pix futura aberta e cancela o PaymentIntent ao agendar o cancelamento (Idempotency-Key `cancel-pix-intent-<fatura>`); T-22 é a rede de segurança: Pix pago após o cancelamento não reativa nem prolonga a assinatura e é estornado pelo reconciliador (`CancelledPixRefundService`, padrão do `LoginConflictRefundService`, chave `refund-cancelled-pix-<fatura>`, alerta ao operador, contador `cancelled_pix_refunded`); sem migration (o critério usa `cancel_at_period_end`/`status` e `period_start >= current_period_end`). T-23 fecha as docs baratas; o texto dos termos não muda (só a âncora `id="cancelamento"`), então `TERMS_VERSION` segue `termos-uso-2026-10`.
+- 2026-10-26 · T-21 · onda 6 — Linhas `Task:` dos commits RED (d6b9eb2) e de b985e48 ficam em parágrafo separado e o git não as lê como trailer; pela inspeção são o RED e vêm antes da implementação. Aceito, sem reescrever o histórico.
+- 2026-10-26 · T-22 · onda 6 — Idem para 76a1ec6 e 0fc7b16: aceito, sem reescrever o histórico.
+- 2026-10-26 · T-23 · onda 6 — O orquestrador pediu complemento para incluir `cancelled_pix_refunded` no runbook mysql57 (corrigido o alcance após a rodada 1).
+- 2026-10-26 · plano · onda 6 — Caminho da skill: o g4 não existe mais, usar o g3.
+
 ## Bloqueios
 - nenhum
 
@@ -57,6 +63,8 @@
 - [T-19] Telas da Etapa 5 registradas (a23d09f RED, 256b9f4): 6 programas no seed inicial e nos 4 planos; menu `First steps` no topo (sai Dashboard), `Clinic data`/`Export clinic data` em Settings, `Help` → SupportView; ALWAYS_ALLOWED + SupportView, ClinicDataExportView, SubscriptionCancelForm; grants amplos de IA excluem `Central Vet - Perfil %`.
 - [T-19] Aplicar `plan-groups.sql` no `centralvet_test` quebra `AiNavigationIntegrationTest::testCopilotSeedBlockGrantsByEncounterViewAndIsIdempotent` (Enterprise também tem AiToolCallList); banco devolvido à linha de base 64/73/6/1.
 - [T-20] Runbooks `piloto-homologacao.md`, `piloto-go-live.md`, `piloto-operacao.md` e README prontos (e711679, 9241e16); rodada 1 reprovou o passo 4.3 (recibo ao Financeiro, fora do perfil), corrigido; CI local `ci: passed`, sem chave sk_/rk_ no diff, schema_migrations do dev em 19 (0020 não aplicada no dev).
+- [T-21] `SubscriptionCancellationService` ganhou o 4º parâmetro `SubscriptionInvoiceRepositoryInterface`; `SubscriptionInvoice::voidForCancellation()` anula a fatura Pix futura aberta e cancela o PaymentIntent (b985e48).
+- [T-22] `CancelledPixRefundService` estorna Pix pago após o cancelamento; `BillingReconciler` recebe o serviço como último parâmetro e ganhou a fase `refund` (0fc7b16).
 
 ## Pendências
 - T-01: testes de schema só afirmam nome/ordem das colunas; tipo, nulidade, DEFAULT e ON UPDATE só no .verify.sql manual.
@@ -93,6 +101,15 @@
 - T-20: `release.md` e `observabilidade.md` sem `support_email`; `shared-hosting-mysql57.md` e docblock de `bin/billing-reconcile.php` sem `cancellations_finalized` (sem ruling; fora dos 4 arquivos de T-20).
 - T-20: prazos de resposta do suporte e atualização a cada 2 h úteis estão "propostos, a confirmar com o dono do piloto" (decisão do usuário).
 - T-20: seção de mensagens de erro e prazos de suporte já tratados na rodada 2; demais sugestões das revisões sem pendência adicional.
+- T-21: Corrida com a fase 3 do reconciliador: `request()` lista as faturas sem trava (`futurePixInvoices`) antes da transação; se `issuePixInvoices` estiver com a assinatura travada emitindo a fatura futura + PI nesse instante, a transação do canc
+- T-21: Ordem de trava invertida: a transação trava assinatura → fatura (`findByIdForUpdate` da assinatura e depois de cada fatura), enquanto o BillingReconciler fase 4 e o BillingEventProcessor travam fatura → assinatura (docblock do reconciliador
+- T-21: O ramo `payment_intent_unexpected_state` + GET `succeeded` (contrato: "segue") não tem teste; só `canceled` e `processing` são cobertos → src/tests/Unit/SubscriptionCancellationServiceTest.php:209-245
+- T-22: O guarda novo de `Subscription::markInvoicePaid` (cancelamento agendado e `$periodStart >= currentPeriodEnd()` → false), que faz parte de Produz, não tem teste. O teste do processador com cancelamento agendado usa só fatura `void` (`pixWith
+- T-22: O docblock de `paidAfterCancellation` entrou entre o docblock T-28 de `marked()` e a função. Com isso ficam dois docblocks seguidos, e `marked()` perde a documentação. → src/app/Core/Billing/BillingEventProcessor.php:347-355
+- T-22: No processador, `$wasVoid` sozinho já leva ao ramo que não avança a assinatura, sem conferir o cancelamento. Já `listPaidPixAfterCancellation` exige `cancel_at_period_end = 1` ou `cancelled`. Uma fatura `void` paga com a assinatura sem canc
+- T-23: observabilidade.md:55 diz que, sem `BILLING_OPERATOR_EMAIL`, o alerta "só vai ao `error_log`"; o código apenas não envia e retorna (alertOperator), e o que vai ao `error_log` é o evento `cancelled_pix_refunded` do estorno, sempre → src/app/
+- T-23: observabilidade.md cita `bin/billing-reconcile.php`; o arquivo está em `src/bin/billing-reconcile.php` (padrão do restante do runbook, conferir) → docs/runbooks/observabilidade.md:51
+- T-23: `observabilidade.md:51` cita `bin/billing-reconcile.php` (o arquivo é `src/bin/`) e `:55` diz que sem `BILLING_OPERATOR_EMAIL` o alerta vai ao `error_log` (o código só não envia); sugestões abertas.
 
 ## Riscos
 - Divergência de base: o checkout explorado (`merge/task/etapa-4-operacao-dev`) traz `origin/dev`; em relação a `task/etapa-4-operacao`, `.env.example` e `docs/runbooks/shared-hosting-mysql57.md` diferem e podem conflitar no PR para `dev` (T-01 e T-03 os tocam). Mitigação: mudanças em blocos novos no fim de cada arquivo.
@@ -113,5 +130,6 @@
   - Onda 3: BASE f51adf8 → HEAD 8593cc1 (37301a8 5ae5c0f afd3028 45d94f7 1a06956 1764649 0c3447e d895460 a45f316 d4d7d9d 8593cc1)
   - Onda 4: BASE 96e419e → HEAD 256b9f4 (a23d09f 256b9f4)
   - Onda 5: BASE c854541 → HEAD 9241e16 (e711679 9241e16)
-- Último status conhecido: onda 5 concluída (T-20 [x]); gate SUITE 2518/2518, LINT e BASHN 0 linhas; CI local passed
-- Próxima onda recomendada: nenhuma (revisão final)
+  - Onda 6: BASE a852e0e → HEAD 8f15c3f (af34ae6 d6b9eb2 7d260f4 b985e48 76a1ec6 0fc7b16 4b35feb eee37e0 8f15c3f)
+- Último status conhecido: onda 6 concluída (T-21, T-22, T-23 [x]); gate SUITE 2541/2541, LINT e BASHN 0 linhas; CI local passed
+- Próxima onda recomendada: nenhuma (revisão final concluída)

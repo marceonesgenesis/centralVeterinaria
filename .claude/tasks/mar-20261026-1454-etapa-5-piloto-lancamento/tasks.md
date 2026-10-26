@@ -39,6 +39,9 @@ Comandos usados em Teste RED e Validação (copiados da Etapa 4, `.claude/tasks/
 | T-18 | qa | Jornada do piloto por perfil com 2 tenants (teste de integração) | T-04, T-12 | sim | alta | Saitama | [x] |
 | T-19 | backend | Registro das telas novas: programas, grupos, menu, guarda e CSRF | T-04, T-07, T-14, T-15, T-17 | não | média | Levi | [x] |
 | T-20 | docs | Roteiro de homologação, checklist de go-live e runbook do piloto | T-05, T-08, T-11, T-13, T-17, T-18, T-19 | não | média | Gandalf | [x] |
+| T-21 | backend | Cancelamento Pix anula a fatura futura aberta e cancela o PaymentIntent (correção da revisão final) | T-08, T-14 | sim | alta | Arquimedes (correção) | [x] |
+| T-22 | backend | Estorno automático de Pix pago depois do cancelamento (correção da revisão final) | T-08 | sim | alta | Sherlock (correção) | [x] |
+| T-23 | docs | Docs da revisão final: `support_email`, contadores do reconciliador e âncora do cancelamento | T-03, T-06, T-08, T-17 | sim | simples | Gandalf (correção docs) | [x] |
 
 ## Detalhamento
 
@@ -714,6 +717,132 @@ Documentação versionada do piloto em `docs/runbooks/` (kebab-case, pt-BR), apo
 **Validação**
 - os `grep` do critério (evidência: as contagens e nenhuma linha no grep de credencial)
 - SUITE completo sem filtro de classe (evidência: `Failed: 0` — os testes que leem `docs/` seguem verdes)
+
+### T-21 — Cancelamento Pix anula a fatura futura aberta e cancela o PaymentIntent
+
+**Camada:** backend
+**Dependências:** T-08, T-14
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Arquimedes (correção)
+
+Origem: `reviews/final.md` § Bloqueantes e § Pendências promovidas (T-08). Achado: a fatura Pix do período seguinte é emitida 3 dias antes do fim do período (`PixInvoiceIssuer::ISSUE_DAYS_BEFORE = 3`) e o QR vale 10 dias (`PIX_EXPIRES_AFTER_SECONDS = 864000`). Quando o cliente cancela nessa janela, `SubscriptionCancellationService::request` só grava a marca local no Pix: a fatura e o PaymentIntent seguem abertos e pagáveis depois de `cancelled`, contra os Termos (`termos-de-uso.html:34`, "não há nova cobrança depois dela"). Reprodução exigida: assinatura Pix ativa com `current_period_end` em 2026-11-26 e fatura `pix:<id>:2026-11-26` aberta com PaymentIntent; `request()` agenda o cancelamento e a fatura continua `open`, com o PI sem cancelamento no Stripe. Veredito: bloqueante, corrigir antes do piloto. A rede de segurança para o pagamento que ainda chegar fica em T-22.
+
+**Arquivos prováveis**
+- `src/app/Core/Billing/SubscriptionCancellationService.php`
+- `src/app/Core/Billing/SubscriptionInvoice.php`
+- `src/app/Core/Billing/PixInvoiceIssuer.php`
+- `src/app/control/admin/SubscriptionCancelForm.php`
+- `src/tests/Unit/SubscriptionCancellationServiceTest.php`
+- `src/tests/Unit/SubscriptionInvoiceTest.php`
+- `src/tests/Unit/PixInvoiceIssuerTest.php`
+
+**Interface**
+- Produz: `SubscriptionInvoice::voidForCancellation(): bool` — fatura local (`localKey() !== null`) com status `open` vira `void` e devolve true; em qualquer outro status devolve false e não muda nada
+- Produz: `SubscriptionCancellationService::__construct(SubscriptionRepositoryInterface $subscriptions, StripeClientInterface $stripe, TransactionRunner $tx, SubscriptionInvoiceRepositoryInterface $invoices)`
+- Produz: no Pix, `request()` busca em `$invoices->listBySubscription(<id>, 10)` as faturas futuras: `localKey() !== null`, status `open` e `periodStart() >= currentPeriodEnd()` da assinatura. Para cada uma com PaymentIntent, chama antes da transação `request('POST', '/v1/payment_intents/<pi>/cancel', [], 'cancel-pix-intent-<id da fatura>')`. Uma `StripeApiException` com `stripeCode()` = `payment_intent_unexpected_state` é seguida de `GET /v1/payment_intents/<pi>`: status `canceled` ou `succeeded` segue (o `succeeded` é estornado por T-22); qualquer outra falha lança `SubscriptionCancellationException(PROVIDER_FAILED)` sem gravar nada. Na mesma transação de `requestCancellation`, cada fatura é relida com `findByIdForUpdate`, anulada por `voidForCancellation()` e salva. Fatura do período corrente (`periodStart() < currentPeriodEnd()`) não é tocada.
+- Produz: idempotente e retomável — com o cancelamento já agendado, o Pix ainda anula a fatura futura aberta que sobrou (mesma chave de idempotência) e devolve `already_scheduled`; repetir depois de uma falha repete o Stripe com a mesma chave
+- Produz: `PixInvoiceIssuer::issueNext()` devolve null, sem chamar o Stripe, para assinatura com `cancelAtPeriodEnd()` true (defesa além do filtro de `listPixDueForIssue`)
+- Produz: `SubscriptionCancelForm` passa `new SubscriptionInvoiceRepository(<pdo>)` ao serviço
+- Consome: T-08 `public function request(int $tenantId, int $userId, DateTimeImmutable $now): string`, T-08 `public const RESULT_SCHEDULED = 'scheduled';`, T-14 `SubscriptionCancelForm`
+
+**Teste RED**
+- `src/tests/Unit/SubscriptionCancellationServiceTest.php`, `src/tests/Unit/SubscriptionInvoiceTest.php`, `src/tests/Unit/PixInvoiceIssuerTest.php` — usam `FakeStripeClient`, `FakeSubscriptionRepository` e `FakeSubscriptionInvoiceRepository`. Cenário base: assinatura Pix ativa com `current_period_end` 2026-11-26 e fatura futura aberta (`period_start` 2026-11-26) com PI `pi_zz_t21`. `request()` devolve `scheduled`, `FakeStripeClient::$calls` tem `POST /v1/payment_intents/pi_zz_t21/cancel` com a chave `cancel-pix-intent-<id da fatura>` e a fatura fica `void`. Com o Stripe lançando `StripeApiException` genérica: `SubscriptionCancellationException` com `PROVIDER_FAILED`, assinatura sem agendamento e fatura `open`. Com `payment_intent_unexpected_state` e o `GET` devolvendo `canceled`: `scheduled` e fatura `void`. Fatura futura sem PI: anulada sem chamar o Stripe. Fatura do período corrente (`period_start` 2026-10-26, aberta): fica `open`. Segunda chamada: `already_scheduled` sem nova chamada ao Stripe. Cartão: segue com só `POST /v1/subscriptions/…`. `voidForCancellation()`: `open` → `void` com true; `paid` → false. `issueNext()` de assinatura com cancelamento agendado: null e nenhuma chamada. (comando: `SUITE com <Classe> = SubscriptionCancellationServiceTest|SubscriptionInvoiceTest|PixInvoiceIssuerTest`)
+
+**Critério de aceite**
+- SUITE com `SubscriptionCancellationServiceTest|SubscriptionInvoiceTest|PixInvoiceIssuerTest|SubscriptionCancelFormWiringTest|BillingReconcilerIntegrationTest` mostra `PASS` em todos os métodos, sem `SKIP` na integração, e `Failed: 0`.
+- `grep -c 'SubscriptionInvoiceRepository' src/app/control/admin/SubscriptionCancelForm.php` imprime ≥ 1.
+
+**Validação**
+- SUITE com `<Classe>` = `SubscriptionCancellationServiceTest|SubscriptionInvoiceTest|PixInvoiceIssuerTest|SubscriptionCancelFormWiringTest|BillingReconcilerIntegrationTest` (evidência: `PASS` em cada método, inclusive o caso da reprodução exigida, e `Failed: 0`)
+- `git diff a852e0e -- src | grep -cE '^[+].*(sk_live_|sk_test_|rk_live_)[A-Za-z0-9]+'` (evidência: `0`)
+- LINT de `app/Core/Billing/SubscriptionCancellationService.php`, `app/Core/Billing/SubscriptionInvoice.php`, `app/Core/Billing/PixInvoiceIssuer.php`, `app/control/admin/SubscriptionCancelForm.php` e dos 3 testes (evidência: `No syntax errors detected`)
+
+### T-22 — Estorno automático de Pix pago depois do cancelamento
+
+**Camada:** backend
+**Dependências:** T-08
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Sherlock (correção)
+
+Origem: `reviews/final.md` § Bloqueantes (T-08, promovida). É a rede de segurança de T-21 para o pagamento que chega mesmo assim (corrida entre o cliente pagar e o PI ser cancelado, ou PI já `succeeded`). Achado: `BillingEventProcessor.php:278-282` marca paga a fatura, e `Subscription::markInvoicePaid` não reativa assinatura `cancelled` nem estorna. Com o cancelamento só agendado, `markInvoicePaid` ainda avança o período e prolonga uma assinatura que o cliente cancelou. Resultado: dinheiro capturado sem serviço. Reprodução exigida: assinatura Pix com cancelamento agendado (ou já `cancelled`) e `payment_intent.succeeded` de uma fatura com `period_start >= current_period_end`. Hoje a fatura vira `paid` e nada estorna; no agendado, o período avança. Veredito: bloqueante. O padrão é o do `LoginConflictRefundService` da Etapa 3 (passos retomáveis com `TransactionRunner`, Idempotency-Key, `charge_already_refunded`, alerta ao operador), chamado pelo reconciliador fora da requisição do Stripe.
+
+**Arquivos prováveis**
+- `src/app/Core/Billing/Subscription.php`
+- `src/app/Core/Billing/BillingEventProcessor.php`
+- `src/app/Core/Billing/CancelledPixRefundService.php`
+- `src/app/Core/Billing/BillingReconciler.php`
+- `src/app/Core/Billing/Contract/SubscriptionInvoiceRepositoryInterface.php`
+- `src/app/Core/Persistence/SubscriptionInvoiceRepository.php`
+- `src/tests/Support/FakeSubscriptionInvoiceRepository.php`
+- `src/bin/billing-reconcile.php`
+- `src/tests/Unit/CancelledPixRefundServiceTest.php`
+- `src/tests/Unit/BillingEventProcessorTest.php`
+- `src/tests/Integration/BillingReconcilerIntegrationTest.php`
+- `src/tests/Integration/BillingAcquisitionFlowIntegrationTest.php`
+
+**Interface**
+- Produz: `Subscription::markInvoicePaid()` devolve false, sem mudar nada, quando `cancelAtPeriodEnd()` é true e o `$periodStart` da fatura é `>= currentPeriodEnd()`, porque o período posterior ao cancelamento não reativa nem prolonga a assinatura; o comportamento com `cancelled` não muda
+- Produz: em `BillingEventProcessor::paymentIntentSucceeded`, a fatura `void` ou de período posterior ao cancelamento é marcada `paid` (o dinheiro entrou), a assinatura não avança e sai um `error_log` `[BillingEventProcessor] {"event":"pix_paid_after_cancellation","invoice":<id>}`; o resultado é `processed`
+- Produz: `SubscriptionInvoiceRepositoryInterface::listPaidPixAfterCancellation(int $limit): array` — ids das faturas com `local_key IS NOT NULL`, `status = 'paid'`, `amount_refunded_cents = 0` e `stripe_payment_intent_id IS NOT NULL` cuja assinatura tem `cancel_at_period_end = 1` ou `status = 'cancelled'` e `i.period_start >= s.current_period_end`, por id ascendente
+- Produz: `final class CentralVet\Billing\CancelledPixRefundService`:
+  - Constantes: `public const RESULT_REFUNDED = 'refunded';` e `public const RESULT_NOT_APPLICABLE = 'not_applicable';`.
+  - Construtor: `public function __construct(TransactionRunner $tx, SubscriptionInvoiceRepositoryInterface $invoices, SubscriptionRepositoryInterface $subscriptions, StripeClientInterface $stripe, MessageChannelProviderInterface $email, string $operatorEmail)`.
+  - `public function refund(int $invoiceId, DateTimeImmutable $now): string` — relê a fatura `FOR UPDATE` e confere de novo o critério; sem ele, `not_applicable`.
+  - Estorno: `POST /v1/refunds` com `payment_intent`, `reason=requested_by_customer` e `metadata[subscription_invoice]`, mais `metadata[reason]=subscription_cancelled`, com a chave `refund-cancelled-pix-<id da fatura>`. `charge_already_refunded` reaproveita o estorno de `GET /v1/refunds`.
+  - Gravação: `applyRefund(amountPaidCents, max(lastEventCreated, $now->getTimestamp()))` deixa a fatura `refunded`.
+  - Depois do commit: `error_log` `[CancelledPixRefund]` e, com `$operatorEmail`, e-mail com assunto `Central Vet Pro: pagamento Pix estornado (assinatura cancelada)` e referência `cancelled-pix-refund-<id da fatura>`. A falha do e-mail só vai ao log.
+  - `StripeApiException` é logada e relançada.
+- Produz: o `BillingReconciler` recebe `CancelledPixRefundService $cancelledPixRefunds` como último parâmetro do construtor; a fase `refundCancelledPixPayments` vem logo depois de `reconcileEvents`, usa lote `REFUND_BATCH` e alimenta o contador `cancelled_pix_refunded`
+- Produz: `src/bin/billing-reconcile.php` monta o serviço com `BILLING_OPERATOR_EMAIL`, e o docblock lista a saída com `cancellations_finalized=<n> cancelled_pix_refunded=<n>`
+- Consome: T-08 `Subscription::cancelAtPeriodEnd(): bool`, T-08 `cancellations_finalized`
+
+**Teste RED**
+- `src/tests/Unit/CancelledPixRefundServiceTest.php`, `src/tests/Unit/BillingEventProcessorTest.php`, `src/tests/Integration/BillingReconcilerIntegrationTest.php` — `CancelledPixRefundServiceTest` (fakes): fatura Pix `paid` de 9700 com `period_start` igual ao `current_period_end` de uma assinatura com cancelamento agendado → `refund()` devolve `refunded`, há 1 `POST /v1/refunds` com a chave `refund-cancelled-pix-<id>` e `payment_intent` da fatura, a fatura fica `refunded` com `amountRefundedCents()` 9700, e o operador recebe 1 e-mail com a referência `cancelled-pix-refund-<id>`. Retomada: segunda chamada devolve `not_applicable` sem nova chamada; Stripe com falha genérica relança `StripeApiException` e a fatura segue `paid`; `charge_already_refunded` usa o `GET /v1/refunds` e deixa `refunded`; operador vazio estorna sem e-mail. `BillingEventProcessorTest`: `payment_intent.succeeded` de fatura `void` de período posterior com assinatura agendada deixa a fatura `paid`, sem mudar `current_period_end` nem o status `active`, e mantém `cancelAtPeriodEnd()` true; com assinatura `cancelled`, a fatura fica `paid` e o status segue `cancelled`. `BillingReconcilerIntegrationTest` (MySQL): `listPaidPixAfterCancellation` devolve só a fatura posterior paga — não devolve a do período corrente, nem a de assinatura sem cancelamento, nem a já estornada; `run()` com `FakeStripeClient` deixa a fatura `refunded` e `cancelled_pix_refunded` = 1, e a 2ª execução dá 0. (comando: `SUITE com <Classe> = CancelledPixRefundServiceTest|BillingEventProcessorTest|BillingReconcilerIntegrationTest`)
+
+**Critério de aceite**
+- SUITE com `CancelledPixRefundServiceTest|BillingEventProcessorTest|BillingReconcilerIntegrationTest|BillingAcquisitionFlowIntegrationTest|SubscriptionRepositoryIntegrationTest|LoginConflictRefundIntegrationTest|SubscriptionTest` mostra `PASS` em todos os métodos, sem `SKIP` na integração, e `Failed: 0`.
+
+**Validação**
+- SUITE com `<Classe>` = `CancelledPixRefundServiceTest|BillingEventProcessorTest|BillingReconcilerIntegrationTest|BillingAcquisitionFlowIntegrationTest|SubscriptionRepositoryIntegrationTest|LoginConflictRefundIntegrationTest|SubscriptionTest` (evidência: `PASS` em cada método, inclusive a reprodução exigida e a 2ª execução sem estorno duplicado, e `Failed: 0`)
+- `printf 'SELECT COUNT(*) FROM subscription_invoice; SELECT COUNT(*) FROM subscription;\n' |` MYSQLTEST antes e depois do SUITE (evidência: contagens iguais, porque o teste não deixa dado nem apaga registro existente)
+- `grep -c 'cancelled_pix_refunded' src/bin/billing-reconcile.php` (evidência: ≥ 1) e LINT de `app/Core/Billing/{Subscription,BillingEventProcessor,CancelledPixRefundService,BillingReconciler}.php`, `app/Core/Persistence/SubscriptionInvoiceRepository.php`, `bin/billing-reconcile.php` e dos testes (evidência: `No syntax errors detected`)
+
+### T-23 — Docs da revisão final: `support_email`, contadores do reconciliador e âncora do cancelamento
+
+**Camada:** docs
+**Dependências:** T-03, T-06, T-08, T-17
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Gandalf (correção docs)
+
+Origem: `reviews/final.md`, pendências abertas confirmadas: T-03 (`release.md` e `observabilidade.md` sem `support_email`), T-08 (runbook mysql57 sem `cancellations_finalized`) e T-17 (âncora `#cancelamento` da `SupportView` sem alvo nos termos). Reprodução exigida: `grep -c support_email docs/runbooks/release.md docs/runbooks/observabilidade.md` dá 0 nos dois; `grep -c 'id="cancelamento"' src/app/view/legal/termos-de-uso.html` dá 0. Veredito: corrigir na onda (barato). O docblock de `bin/billing-reconcile.php` fica com T-22, que já edita o arquivo. O contador `cancelled_pix_refunded` e o alerta `cancelled-pix-refund-<id>` seguem os nomes fixados na Interface de T-22. O texto dos termos não muda, só ganha a âncora, então a `TERMS_VERSION` continua a mesma.
+
+**Arquivos prováveis**
+- `docs/runbooks/release.md`
+- `docs/runbooks/observabilidade.md`
+- `docs/runbooks/shared-hosting-mysql57.md`
+- `src/app/view/legal/termos-de-uso.html`
+- `src/tests/Unit/LegalPageTest.php`
+
+**Interface**
+- Produz: `release.md` § 2 e `observabilidade.md` § Preflight de produção citam o achado `support_email` (`SUPPORT_EMAIL` vazio, inválido ou `.invalid` → FAIL em produção)
+- Produz: `observabilidade.md` descreve o alerta do estorno automático do Pix pago depois do cancelamento (assunto e referência `cancelled-pix-refund-<id>`)
+- Produz: a seção do reconciliador em `shared-hosting-mysql57.md` lista a saída com `cancellations_finalized=<n>` e `cancelled_pix_refunded=<n>`
+- Produz: `<h2 id="cancelamento">Planos, cobrança e cancelamento</h2>` em `termos-de-uso.html`
+- Consome: T-03 `support_email`, T-08 `cancellations_finalized`, T-17 `SupportView`
+
+**Teste RED**
+- `src/tests/Unit/LegalPageTest.php` — `LegalPage::render('termos')['body']` contém `id="cancelamento"` no `<h2>` da seção `Planos, cobrança e cancelamento` e continua contendo `TERMS_VERSION`; falha antes da âncora (comando: `SUITE com <Classe> = LegalPageTest`)
+
+**Critério de aceite**
+- SUITE com `LegalPageTest|SupportAndExportScreensWiringTest` mostra `PASS` em todos os métodos e `Failed: 0`.
+- `grep -c support_email docs/runbooks/release.md docs/runbooks/observabilidade.md` dá ≥ 1 em cada arquivo; `grep -c 'cancellations_finalized' docs/runbooks/shared-hosting-mysql57.md` dá ≥ 1.
+
+**Validação**
+- SUITE com `<Classe>` = `LegalPageTest|SupportAndExportScreensWiringTest` (evidência: `PASS` em cada método e `Failed: 0`)
+- os `grep` do critério (evidência: as contagens) e `grep -rnE '(sk_live_|sk_test_)[A-Za-z0-9]+' docs/runbooks/release.md docs/runbooks/observabilidade.md docs/runbooks/shared-hosting-mysql57.md` (evidência: nenhuma linha)
 
 ## Legenda
 
