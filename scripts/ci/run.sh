@@ -6,6 +6,8 @@
 #
 # CI_WORKDIR (relativo à raiz do projeto) é apagado e recriado no início e
 # recebe o .env gerado (segredos de `openssl rand`) e o bootstrap do Adianti.
+# Só é aceito em var/ci/ do projeto ou abaixo de RUNNER_TEMP/TMPDIR; um
+# diretório existente e não vazio precisa do marcador .ci-workdir.
 # Exporta COMPOSE_PROJECT_NAME=$CI_PROJECT e COMPOSE_ENV_FILES=$CI_WORKDIR/.env:
 # o .env da raiz nunca é lido nem escrito, e o projeto `centralvet` (dev) é
 # recusado. Etapas, cada uma anunciada por `ci: step <nome>`:
@@ -13,8 +15,9 @@
 # O projeto é derrubado com `down -v --remove-orphans` num trap (com os logs
 # de mysql/redis antes, em falha). Última linha: `ci: passed` (código 0) ou
 # `ci: failed step=<nome>` (código 1).
-# CI_SCRIPT_TESTS (lista separada por espaço) substitui os testes de shell da
-# etapa script-tests; usado por scripts/ci/run.test.sh para não recursar.
+# A etapa script-tests roda todo scripts/**/*.test.sh (find | sort);
+# CI_SCRIPT_TESTS (lista separada por espaço) substitui essa lista; usado por
+# scripts/ci/run.test.sh para não recursar.
 set -uo pipefail
 
 project_root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -24,8 +27,7 @@ test_database=centralvet_test
 ci_project=${CI_PROJECT:-centralvet-ci}
 ci_workdir=${CI_WORKDIR:-var/ci}
 image_tag=${IMAGE_TAG:-ci}
-default_script_tests='scripts/test-db/provision-check.test.sh scripts/db/migration-status.test.sh scripts/backup.test.sh scripts/restore.test.sh scripts/release/build-release.test.sh scripts/release/smoke.test.sh scripts/ci/run.test.sh'
-script_tests=${CI_SCRIPT_TESTS:-$default_script_tests}
+script_tests=${CI_SCRIPT_TESTS:-}
 
 current_step=''
 compose_ready=0
@@ -42,17 +44,57 @@ if ! printf '%s' "$image_tag" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; 
     exit 1
 fi
 
+refuse_workdir() {
+    echo "ci: refusing CI_WORKDIR '$ci_workdir'${1:+ ($1)}" >&2
+    echo "ci: failed step=env"
+    exit 1
+}
+
+# True when $1 is $2 or below it (lexical; both absolute, no trailing slash).
+path_within() {
+    [ "$1" = "$2" ] || case "$1" in "$2"/*) true ;; *) false ;; esac
+}
+
+# True when $1 is strictly below the temporary base $2 ('' or '/' never counts).
+path_below_base() {
+    local base=${2%/}
+    [ -n "$base" ] || return 1
+    case "$base" in /*) ;; *) return 1 ;; esac
+    case "$1" in "$base"/?*) true ;; *) false ;; esac
+}
+
+# The workdir is wiped with rm -rf: it is accepted only as var/ci (or below)
+# of this project, or below RUNNER_TEMP / TMPDIR, never with `.`/`..`
+# components, and an existing non-empty directory must carry .ci-workdir.
 case "$ci_workdir" in
     /*) workdir=$ci_workdir ;;
     *) workdir=$project_root/$ci_workdir ;;
 esac
-workdir=${workdir%/}
-case "$workdir" in
-    ''|/|"$project_root"|"$project_root/src"|"$project_root/scripts"|*/..|*/../*)
-        echo "ci: refusing CI_WORKDIR '$ci_workdir'" >&2
-        echo "ci: failed step=env"
-        exit 1 ;;
+while :; do
+    case "$workdir" in
+        */) workdir=${workdir%/} ;;
+        *//*) workdir=${workdir//\/\//\/} ;;
+        *) break ;;
+    esac
+done
+case "/$ci_workdir/" in
+    */./*|*/../*) refuse_workdir 'dot components' ;;
 esac
+[ -n "$workdir" ] || refuse_workdir
+ci_base=$project_root/var/ci
+if path_within "$workdir" "$project_root"; then
+    path_within "$workdir" "$ci_base" || refuse_workdir "inside the project, outside var/ci"
+elif path_within "$project_root" "$workdir"; then
+    refuse_workdir 'contains the project'
+elif ! path_below_base "$workdir" "${RUNNER_TEMP:-}" && ! path_below_base "$workdir" "${TMPDIR:-/tmp}"; then
+    refuse_workdir 'outside var/ci, RUNNER_TEMP and TMPDIR'
+fi
+if [ -e "$workdir" ] || [ -L "$workdir" ]; then
+    { [ -d "$workdir" ] && [ ! -L "$workdir" ]; } || refuse_workdir 'not a directory'
+    if [ ! -e "$workdir/.ci-workdir" ] && [ -n "$(ls -A -- "$workdir" 2>/dev/null)" ]; then
+        refuse_workdir 'non-empty without .ci-workdir'
+    fi
+fi
 ci_env=$workdir/.env
 
 export COMPOSE_PROJECT_NAME=$ci_project
@@ -111,6 +153,7 @@ root_sql() {
 step env
 rm -rf -- "$workdir" || fail "could not remove $workdir"
 mkdir -p -- "$workdir" || fail "could not create $workdir"
+: > "$workdir/.ci-workdir" || fail "could not write $workdir/.ci-workdir"
 umask 077
 {
     echo "COMPOSE_PROJECT_NAME=$ci_project"
@@ -199,6 +242,9 @@ done < <(find scripts -name '*.sh' -print0 | LC_ALL=C sort -z)
 echo "lint: bash -n ok files=$bash_files"
 
 step script-tests
+if [ -z "$script_tests" ]; then
+    script_tests=$(find scripts -name '*.test.sh' | LC_ALL=C sort)
+fi
 for test_file in $script_tests; do
     echo "script-tests: $test_file"
     test_output=$(env -u COMPOSE_PROJECT_NAME -u COMPOSE_ENV_FILES bash "$test_file" </dev/null 2>&1)
