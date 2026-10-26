@@ -12,7 +12,9 @@ use DateTimeImmutable;
 
 /**
  * T-21 (Etapa 3): resumo da assinatura e linhas de fatura da
- * SubscriptionStatusView. O presenter não traduz: devolve as chaves em
+ * SubscriptionStatusView. Etapa 5, T-14: `canCancel` e `cancelScheduledFor`
+ * decidem o botão "Cancelar assinatura" e o aviso do cancelamento agendado.
+ * O presenter não traduz: devolve as chaves em
  * inglês da T-01 e a view passa por _t(). O link de pagamento só aparece em
  * fatura `open` com URL e Pix ainda válido.
  */
@@ -111,6 +113,39 @@ final class SubscriptionStatusPresenterTest
         Assert::null($rows[1]['pay_url']);
     }
 
+    public function testActiveSubscriptionWithoutScheduleCanBeCancelled(): void
+    {
+        $subscription = $this->subscription('active', null);
+
+        Assert::true(SubscriptionStatusPresenter::canCancel($subscription));
+        Assert::null(SubscriptionStatusPresenter::cancelScheduledFor($subscription));
+    }
+
+    public function testPastDueAndSuspendedCanBeCancelledButIncompleteAndMissingCannot(): void
+    {
+        Assert::true(SubscriptionStatusPresenter::canCancel($this->subscription('past_due', '2026-10-25 08:00:00')));
+        Assert::true(SubscriptionStatusPresenter::canCancel($this->subscription('suspended', '2026-10-10 08:00:00')));
+        Assert::false(SubscriptionStatusPresenter::canCancel($this->subscription('incomplete', null)));
+        Assert::false(SubscriptionStatusPresenter::canCancel(null));
+        Assert::null(SubscriptionStatusPresenter::cancelScheduledFor(null));
+    }
+
+    public function testScheduledCancellationShowsPeriodEndAndCannotBeCancelledAgain(): void
+    {
+        $subscription = $this->subscription('active', null, true, '2026-11-26 00:00:00');
+
+        Assert::same('26/11/2026', SubscriptionStatusPresenter::cancelScheduledFor($subscription));
+        Assert::false(SubscriptionStatusPresenter::canCancel($subscription));
+    }
+
+    public function testCancelledSubscriptionCannotBeCancelled(): void
+    {
+        $subscription = $this->subscription('cancelled', null);
+
+        Assert::false(SubscriptionStatusPresenter::canCancel($subscription));
+        Assert::null(SubscriptionStatusPresenter::cancelScheduledFor($subscription));
+    }
+
     public function testSeedsContainSubscriptionStatusView(): void
     {
         $seeds = dirname(__DIR__, 2) . '/app/database/seeds/';
@@ -136,7 +171,7 @@ final class SubscriptionStatusPresenterTest
         return new DateTimeImmutable(self::NOW);
     }
 
-    private function subscription(string $status, ?string $graceUntil): Subscription
+    private function subscription(string $status, ?string $graceUntil, bool $cancelAtPeriodEnd = false, string $periodEnd = '2026-11-01 00:00:00'): Subscription
     {
         return Subscription::fromRow([
             'id' => 7,
@@ -148,10 +183,13 @@ final class SubscriptionStatusPresenterTest
             'stripe_customer_id' => 'cus_test_t21',
             'stripe_subscription_id' => 'sub_test_t21',
             'current_period_start' => '2026-10-01 00:00:00',
-            'current_period_end' => '2026-11-01 00:00:00',
+            'current_period_end' => $periodEnd,
             'grace_until' => $graceUntil,
             'cancelled_at' => null,
             'last_event_created' => 100,
+            'cancel_at_period_end' => $cancelAtPeriodEnd ? 1 : 0,
+            'cancel_requested_at' => $cancelAtPeriodEnd ? '2026-10-20 10:00:00' : null,
+            'cancel_requested_by' => $cancelAtPeriodEnd ? 5 : null,
         ]);
     }
 
