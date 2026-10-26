@@ -9,6 +9,7 @@ use CentralVet\Billing\BillingEventIngestor;
 use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
+use CentralVet\Billing\CancelledPixRefundService;
 use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\PlanEntitlements;
@@ -469,9 +470,60 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'DELETE'));
         Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/refunds'));
         Assert::same(
-            ['events_fetched', 'events_ingested', 'orders_fulfilled', 'orders_failed', 'orders_refunded', 'pix_invoices_issued', 'pix_invoices_overdue', 'pix_intents_refreshed', 'subscriptions_suspended', 'cancellations_finalized'],
+            ['events_fetched', 'events_ingested', 'orders_fulfilled', 'orders_failed', 'orders_refunded', 'pix_invoices_issued', 'pix_invoices_overdue', 'pix_intents_refreshed', 'subscriptions_suspended', 'cancellations_finalized', 'cancelled_pix_refunded'],
             array_keys($result),
         );
+    }
+
+    public function testListPaidPixAfterCancellationReturnsOnlyThePaidInvoiceOfALaterPeriod(): void
+    {
+        $periodEnd = $this->now->modify('+2 days');
+        [$scheduledId, $afterId] = $this->paidPixAfterCancellation($periodEnd, 'pi_t22_after');
+        $current = SubscriptionInvoice::issuePix($scheduledId, 9700, $periodEnd->modify('-1 month'), $periodEnd, $periodEnd->modify('-1 month'));
+        $current->attachPaymentIntent('pi_t22_current_' . bin2hex(random_bytes(4)), null, null);
+        Assert::true($current->markPaidByPaymentIntent(9700, 100));
+        $currentId = $this->invoices->insert($current);
+
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $plainId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $plainInvoiceId = $this->paidInvoice($plainId, $periodEnd, 'pi_t22_plain');
+
+        [, $refundedId] = $this->paidPixAfterCancellation($periodEnd, 'pi_t22_refunded');
+        $locked = $this->invoices->findByIdForUpdate($refundedId);
+        Assert::true($locked?->applyRefund(9700, 200) === true);
+        $this->invoices->save($locked);
+
+        $listed = $this->invoices->listPaidPixAfterCancellation(BillingReconciler::REFUND_BATCH);
+
+        Assert::true(in_array($afterId, $listed, true), 'the paid invoice after the cancellation is listed');
+        Assert::false(in_array($currentId, $listed, true), 'the current period is not listed');
+        Assert::false(in_array($plainInvoiceId, $listed, true), 'a subscription without cancellation is not listed');
+        Assert::false(in_array($refundedId, $listed, true), 'an already refunded invoice is not listed');
+    }
+
+    public function testPaidPixAfterCancellationIsRefundedOnceByTheReconciler(): void
+    {
+        $previousErrorLog = (string) ini_set('error_log', '/dev/null');
+        try {
+            [, $invoiceId] = $this->paidPixAfterCancellation($this->now->modify('+2 days'), 'pi_t22_run');
+            $this->queueNoEvents();
+            $this->stripe->queue('POST', '/v1/refunds', ['id' => 're_t22_run', 'object' => 'refund']);
+            $first = $this->reconciler()->run($this->now);
+
+            $this->queueNoEvents();
+            $second = $this->reconciler()->run($this->now->modify('+15 minutes'));
+        } finally {
+            ini_set('error_log', $previousErrorLog);
+        }
+
+        Assert::same(1, $first['cancelled_pix_refunded']);
+        $saved = $this->invoices->findByIdForUpdate($invoiceId);
+        Assert::same(SubscriptionInvoice::STATUS_REFUNDED, $saved?->status());
+        Assert::same(9700, $saved?->amountRefundedCents());
+        Assert::same(0, $second['cancelled_pix_refunded'], 'the second run does not refund again');
+        $refunds = array_values(array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/refunds'));
+        Assert::count(1, $refunds);
+        Assert::same('refund-cancelled-pix-' . $invoiceId, $refunds[0]['idempotencyKey']);
     }
 
     private function reconciler(): BillingReconciler
@@ -507,6 +559,7 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
             $provisioning,
             $tx,
             new LoginConflictRefundService($tx, $this->orders, $this->subscriptions, $this->stripe, $this->email, ''),
+            new CancelledPixRefundService($tx, $this->invoices, $this->subscriptions, $this->stripe, $this->email, ''),
         );
     }
 
@@ -577,6 +630,32 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
             $periodEnd,
             $this->now->getTimestamp() - 86400,
         ));
+    }
+
+    /**
+     * Assinatura Pix com cancelamento agendado e a fatura do período
+     * seguinte (`period_start` = `current_period_end`) já paga.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function paidPixAfterCancellation(DateTimeImmutable $periodEnd, string $paymentIntent): array
+    {
+        [$orderId] = $this->order('pro', BillingOrder::METHOD_PIX, false);
+        $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_PIX, null, $periodEnd);
+        $locked = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::true($locked?->requestCancellation(7, $this->now->modify('-1 day')) === true);
+        $this->subscriptions->save($locked);
+
+        return [$subscriptionId, $this->paidInvoice($subscriptionId, $periodEnd, $paymentIntent)];
+    }
+
+    private function paidInvoice(int $subscriptionId, DateTimeImmutable $periodStart, string $paymentIntent): int
+    {
+        $invoice = SubscriptionInvoice::issuePix($subscriptionId, 9700, $periodStart, $periodStart->modify('+1 month'), $periodStart);
+        $invoice->attachPaymentIntent($paymentIntent . '_' . bin2hex(random_bytes(4)), null, $periodStart->modify('+7 days'));
+        Assert::true($invoice->markPaidByPaymentIntent(9700, 100));
+
+        return $this->invoices->insert($invoice);
     }
 
     private function createPlanGroups(): void

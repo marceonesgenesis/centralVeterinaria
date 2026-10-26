@@ -225,6 +225,62 @@ final class BillingEventProcessorTest
         Assert::same($start->format(self::DATE), $after->currentPeriodStart()->format(self::DATE));
     }
 
+    public function testPixPaidAfterScheduledCancellationMarksTheVoidInvoicePaidWithoutAdvancingTheSubscription(): void
+    {
+        // T-22: pagamento que chega depois de o cancelamento anular a fatura futura.
+        [$subscriptionId, $invoiceId, $price] = $this->pixWithFutureInvoice('cs_pix_t22_sched', 'pi_pix_t22_sched', void: true);
+        $locked = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::true($locked->requestCancellation(7, $this->now));
+        $this->subscriptions->save($locked);
+        $periodEnd = $locked->currentPeriodEnd()->format(self::DATE);
+
+        $previousErrorLog = (string) ini_set('error_log', '/dev/null');
+        try {
+            $outcome = $this->processor->process(
+                ($this->events['paymentIntentSucceeded'])('pi_pix_t22_sched', $price, ['subscription_invoice' => (string) $invoiceId], 1_790_100_000),
+                $this->now,
+            );
+        } finally {
+            ini_set('error_log', $previousErrorLog);
+        }
+
+        Assert::same('processed', $outcome->status());
+        $invoice = $this->invoices->findByIdForUpdate($invoiceId);
+        Assert::same(SubscriptionInvoice::STATUS_PAID, $invoice->status(), 'the money came in');
+        Assert::same($price, $invoice->amountPaidCents());
+
+        $after = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::same(Subscription::STATUS_ACTIVE, $after->status());
+        Assert::same($periodEnd, $after->currentPeriodEnd()->format(self::DATE), 'the cancelled period must not extend the subscription');
+        Assert::true($after->cancelAtPeriodEnd(), 'the cancellation stays scheduled');
+    }
+
+    public function testPixPaidAfterTheSubscriptionIsCancelledKeepsItCancelled(): void
+    {
+        [$subscriptionId, $invoiceId, $price] = $this->pixWithFutureInvoice('cs_pix_t22_done', 'pi_pix_t22_done', void: false);
+        $locked = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::true($locked->requestCancellation(7, $this->now));
+        Assert::true($locked->finalizeScheduledCancellation($locked->currentPeriodEnd()->modify('+1 minute')));
+        $this->subscriptions->save($locked);
+        $periodEnd = $locked->currentPeriodEnd()->format(self::DATE);
+
+        $previousErrorLog = (string) ini_set('error_log', '/dev/null');
+        try {
+            $outcome = $this->processor->process(
+                ($this->events['paymentIntentSucceeded'])('pi_pix_t22_done', $price, ['subscription_invoice' => (string) $invoiceId], 1_790_100_000),
+                $this->now,
+            );
+        } finally {
+            ini_set('error_log', $previousErrorLog);
+        }
+
+        Assert::same('processed', $outcome->status());
+        Assert::same(SubscriptionInvoice::STATUS_PAID, $this->invoices->findByIdForUpdate($invoiceId)->status());
+        $after = $this->subscriptions->findByIdForUpdate($subscriptionId);
+        Assert::same(Subscription::STATUS_CANCELLED, $after->status());
+        Assert::same($periodEnd, $after->currentPeriodEnd()->format(self::DATE));
+    }
+
     public function testPaymentIntentWithoutInvoiceMetadataOrWithAnotherIntentIsIgnored(): void
     {
         $orderId = $this->placeOrder('cs_pix_first', 'pix');
@@ -447,6 +503,32 @@ final class BillingEventProcessorTest
         $order->attachCheckout($checkoutSessionId, 'cus_test_1');
 
         return $this->orders->insert($order);
+    }
+
+    /**
+     * Assinatura Pix ativa (checkout pago em 1_790_000_000) com a fatura do
+     * período seguinte (`period_start` = `current_period_end`) e PI anexado;
+     * `void` como a deixa o cancelamento agendado (T-21).
+     *
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function pixWithFutureInvoice(string $sessionId, string $paymentIntent, bool $void): array
+    {
+        $orderId = $this->placeOrder($sessionId, 'pix');
+        $price = $this->orders->findByIdForUpdate($orderId)->priceCents();
+        $this->processor->process(($this->events['checkoutAsyncSucceeded'])($sessionId, $paymentIntent . '_first', $price, 1_790_000_000), $this->now);
+        $subscription = $this->subscriptions->findByBillingOrderId($orderId);
+        $periodEnd = $subscription->currentPeriodEnd();
+
+        $next = SubscriptionInvoice::issuePix($subscription->id(), $price, $periodEnd, $periodEnd->modify('+1 month'), $periodEnd);
+        $next->attachPaymentIntent($paymentIntent, null, $periodEnd->modify('+7 days'));
+        if ($void) {
+            $row = $next->toRow();
+            $row['status'] = SubscriptionInvoice::STATUS_VOID;
+            $next = SubscriptionInvoice::fromRow($row);
+        }
+
+        return [(int) $subscription->id(), $this->invoices->insert($next), $price];
     }
 
     private function startCardSubscription(string $sessionId, string $subscriptionId, int $created): void
