@@ -30,6 +30,16 @@ if [ "\${1:-}" = build ]; then
     ctx=\${@: -1}
     [ -f "\$ctx/docker/php/Dockerfile" ] || { echo 'fake docker: context without Dockerfile' >&2; exit 98; }
     echo "context \$ctx" >> "$work/docker-calls"
+    # Like the real docker, a relative -f resolves against the current
+    # directory, not against the build context.
+    dockerfile=
+    prev=
+    for arg in "\$@"; do
+        if [ "\$prev" = -f ]; then dockerfile=\$arg; fi
+        prev=\$arg
+    done
+    [ -f "\$dockerfile" ] || { echo "fake docker: lstat \$dockerfile: no such file" >&2; exit 1; }
+    echo "dockerfile \$(cat "\$dockerfile")" >> "$work/docker-calls"
     exit 0
 fi
 exit 97
@@ -44,7 +54,7 @@ mkdir -p "$repo/src/app/database/migrations" "$repo/docker/php"
 printf '{"name":"fake/app"}\n' > "$repo/src/composer.json"
 printf '{"packages":[]}\n' > "$repo/src/composer.lock"
 printf 'committed\n' > "$repo/src/index.txt"
-printf 'FROM scratch\n' > "$repo/docker/php/Dockerfile"
+printf 'FROM committed\n' > "$repo/docker/php/Dockerfile"
 printf 'SELECT 1;\n' > "$repo/src/app/database/migrations/20260101_0001_first.sql"
 printf 'SELECT 1;\n' > "$repo/src/app/database/migrations/20260101_0001_first.verify.sql"
 printf 'SELECT 2;\n' > "$repo/src/app/database/migrations/20260102_0002_second.sql"
@@ -56,6 +66,7 @@ sha7=${sha:0:7}
 # Working-tree noise that must never reach the release.
 printf 'uncommitted\n' > "$repo/src/index.txt"
 printf 'untracked\n' > "$repo/src/untracked.txt"
+printf 'FROM uncommitted\n' > "$repo/docker/php/Dockerfile"
 
 failures=0
 pass() { echo "PASS  $1"; }
@@ -116,6 +127,26 @@ if [ "$status" -eq 0 ] \
     pass '--image builds app and worker tagged with the sha from the export'
 else
     fail "--image builds app and worker tagged with the sha from the export (exit $status): $output / $calls"
+fi
+
+: > "$work/docker-calls"
+output=$(cd "$work" && run_build --image HEAD)
+status=$?
+calls=$(cat "$work/docker-calls")
+if [ "$status" -eq 0 ] && printf '%s\n' "$calls" | grep -qx 'dockerfile FROM committed'; then
+    pass '--image uses the Dockerfile from the export, from any cwd'
+else
+    fail "--image uses the Dockerfile from the export, from any cwd (exit $status): $output / $calls"
+fi
+
+: > "$work/docker-calls"
+output=$(cd "$repo" && run_build --image HEAD)
+status=$?
+calls=$(cat "$work/docker-calls")
+if [ "$status" -eq 0 ] && printf '%s\n' "$calls" | grep -qx 'dockerfile FROM committed'; then
+    pass '--image ignores the working-tree Dockerfile when run from the repo'
+else
+    fail "--image ignores the working-tree Dockerfile when run from the repo (exit $status): $output / $calls"
 fi
 
 echo "Failed: $failures"
