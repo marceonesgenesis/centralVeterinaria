@@ -44,6 +44,22 @@ final class PasswordResetFormsWiringTest
         Assert::stringContains('TooManyPasswordResetAttempts', $source);
     }
 
+    /**
+     * Etapa 4, T-04: o reset sai pelo provedor de e-mail do núcleo (remetente
+     * SMTP_FROM_ADDRESS/SMTP_FROM_NAME), não pelo MailService com mail_from.
+     */
+    public function testRequestFormSendsThroughPasswordResetMailer(): void
+    {
+        $source = $this->requestForm();
+
+        Assert::stringContains(
+            "(new PasswordResetMailer(EmailProviderFactory::fromEnvironment(JsonLogger::fromEnvironment('password-reset')), Closure::fromCallable('_t')))->send(\$email, \$name, \$link)",
+            $source,
+        );
+        Assert::false(str_contains($source, 'MailService::send'), 'MailService::send ainda é chamado');
+        Assert::false(str_contains($source, 'mail_from'), 'mail_from ainda é lido');
+    }
+
     public function testResetFormChecksTheTokenIsSingleUse(): void
     {
         $source = $this->source(dirname(__DIR__, 2) . '/app/control/admin/SystemPasswordResetForm.php');
