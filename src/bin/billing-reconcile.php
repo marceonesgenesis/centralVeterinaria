@@ -5,13 +5,15 @@ declare(strict_types=1);
 /**
  * Reconciliação da cobrança (Etapa 3, T-18), para o cron da hospedagem
  * (a cada 15 minutos, a partir da raiz de src/): eventos do Stripe
- * perdidos, provisionamentos pendentes, faturas Pix e fim da tolerância.
+ * perdidos, estorno do pedido pago com e-mail já cadastrado (T-31),
+ * provisionamentos pendentes, faturas Pix e fim da tolerância. O alerta do
+ * estorno vai para BILLING_OPERATOR_EMAIL (vazio: só o error_log).
  * Regras em CentralVet\Billing\BillingReconciler.
  *
  * Imprime `billing-reconcile events_fetched=<n> events_ingested=<n>
- * orders_fulfilled=<n> orders_failed=<n> pix_invoices_issued=<n>
- * pix_invoices_overdue=<n> pix_intents_refreshed=<n>
- * subscriptions_suspended=<n>` e sai 0; sai 1 em erro de Stripe ou de banco
+ * orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
+ * pix_invoices_issued=<n> pix_invoices_overdue=<n>
+ * pix_intents_refreshed=<n> subscriptions_suspended=<n>` e sai 0; sai 1 em erro de Stripe ou de banco
  * (só a classe da exceção vai para o log, nunca a mensagem). Execuções
  * sobrepostas não acumulam: a trava de arquivo (`flock` no diretório
  * temporário, como `worker.php --once`) faz a segunda sair 0.
@@ -21,6 +23,7 @@ use CentralVet\Billing\AccountInviteService;
 use CentralVet\Billing\BillingEventIngestor;
 use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingReconciler;
+use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\Stripe\CurlStripeClient;
 use CentralVet\Billing\Stripe\StripeConfig;
@@ -100,6 +103,14 @@ try {
         new PixInvoiceIssuer($stripe, $invoices, $email, $translate),
         $provisioning,
         $tx,
+        new LoginConflictRefundService(
+            $tx,
+            $orders,
+            $subscriptions,
+            $stripe,
+            $email,
+            (string) (getenv('BILLING_OPERATOR_EMAIL') ?: ''),
+        ),
     ))->run(new DateTimeImmutable());
 } catch (Throwable $exception) {
     error_log(sprintf('billing-reconcile.php: %s', $exception::class));

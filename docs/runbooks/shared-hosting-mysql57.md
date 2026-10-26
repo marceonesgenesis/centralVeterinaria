@@ -538,8 +538,15 @@ retoma pedidos pagos sem provisionamento, provisionamentos falhos e convites
 não enviados; emite a fatura Pix 3 dias antes do fim do período, marca a
 assinatura `past_due` quando a fatura Pix vence e gera PaymentIntent novo
 quando o Pix expira; e suspende a assinatura cuja tolerância de 7 dias acabou.
-A única escrita no Stripe é o `POST /v1/payment_intents` do Pix, com
-`Idempotency-Key`. Rode por cron a cada 15 minutos, a partir da raiz de `src/`:
+Também estorna o pedido pago cujo e-mail do responsável já é login
+(`provisioning_failed`/`login_conflict`, a corrida em que o e-mail vira login
+entre o checkout e o webhook): no cartão, cancela a Subscription do Stripe
+(`GET` e, se ainda ativa, `DELETE /v1/subscriptions/<id>`); nos dois meios,
+estorna o pagamento inteiro (`POST /v1/refunds`), cancela a assinatura local
+(o Pix não ganha fatura nova) e marca o pedido `refunded`. Cada passo fica
+gravado no pedido e a rodada seguinte retoma do passo pendente. As escritas no
+Stripe são esse `DELETE`, esse `POST /v1/refunds` e o `POST
+/v1/payment_intents` do Pix, todas com `Idempotency-Key`. Rode por cron a cada 15 minutos, a partir da raiz de `src/`:
 
 ```cron
 # Reconciliação da cobrança (a cada 15 minutos)
@@ -547,7 +554,7 @@ A única escrita no Stripe é o `POST /v1/payment_intents` do Pix, com
 ```
 
 A saída é uma linha de contadores (`billing-reconcile events_fetched=<n>
-events_ingested=<n> orders_fulfilled=<n> orders_failed=<n>
+events_ingested=<n> orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
 pix_invoices_issued=<n> pix_invoices_overdue=<n> pix_intents_refreshed=<n>
 subscriptions_suspended=<n>`), sem dado pessoal; sai 0, ou 1 em erro de Stripe
 ou de banco (`billing-reconcile error=<classe>`, só a classe da exceção). Cada
@@ -557,6 +564,17 @@ de arquivo `flock` no diretório temporário; a segunda sai 0 com
 `billing-reconcile skipped_locked`). O ambiente do cron precisa de `DB_*`,
 `STRIPE_*`, `SMTP_*`/`COMMUNICATION_*` e `APP_PUBLIC_URL`, como o webhook (nunca na
 linha do crontab).
+
+`orders_refunded` conta os pedidos estornados na rodada. Cada estorno vai ao log
+como `[LoginConflictRefund] {"event":"login_conflict_refunded",...}` (pedido,
+meio de pagamento e id do estorno) e, com `BILLING_OPERATOR_EMAIL` preenchido
+no ambiente do cron, sai um e-mail de alerta ao operador com o pedido, o
+plano, o valor, a clínica e o e-mail do responsável (vazio: só o log; a falha
+do e-mail não desfaz o estorno). Falha no Stripe sai no log como
+`login_conflict_refund_failed` com o passo (`cancel_subscription`, `refund` ou
+`mark_refunded`) e o pedido continua `provisioning_failed` até a próxima
+rodada. Avise o cliente: o e-mail já tinha login, então ele deve entrar com a
+conta existente ou comprar com outro e-mail.
 
 Endpoint do webhook no painel do Stripe (Developers → Webhooks → Add
 endpoint):

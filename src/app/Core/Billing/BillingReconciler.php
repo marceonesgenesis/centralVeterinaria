@@ -20,6 +20,9 @@ use Throwable;
  *    (sem eventos: `now - 3 dias`), paginado por `starting_after`, aplicados
  *    do mais antigo ao mais novo por BillingEventIngestor::ingest (o
  *    duplicado sai `duplicate` e não conta como ingerido).
+ * 1b. Pedidos pagos com login_conflict (T-31): LoginConflictRefundService
+ *    cancela a Subscription do cartão, estorna e marca refunded; o erro de
+ *    um pedido não interrompe os demais e o primeiro sobe no fim da fase.
  * 2. Pedidos pagos sem provisionamento, provisionamento falho ou convite não
  *    enviado: TenantProvisioningService::fulfill (abre a própria transação).
  * 3. Emissão Pix: assinatura e pedido travados (nessa ordem), issueNext
@@ -39,8 +42,9 @@ use Throwable;
  * seguintes; depois da última, a primeira dessas falhas sobe.
  *
  * ingest() e fulfill() são chamados fora de transação aberta pelo
- * reconciliador (o convite sai depois do commit). A única escrita no
- * Stripe é o POST /v1/payment_intents do PixInvoiceIssuer, com
+ * reconciliador (o convite sai depois do commit). As escritas no Stripe
+ * são o POST /v1/payment_intents do PixInvoiceIssuer e, no login_conflict,
+ * o DELETE /v1/subscriptions e o POST /v1/refunds, todas com
  * Idempotency-Key.
  */
 final class BillingReconciler
@@ -52,6 +56,7 @@ final class BillingReconciler
     public const FULFILLMENT_BATCH = 50;
     public const PIX_BATCH = 100;
     public const GRACE_BATCH = 100;
+    public const REFUND_BATCH = 50;
 
     private const REFRESHABLE_STATUSES = [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE];
 
@@ -65,11 +70,12 @@ final class BillingReconciler
         private readonly PixInvoiceIssuer $pixIssuer,
         private readonly TenantProvisioningService $provisioning,
         private readonly TransactionRunner $tx,
+        private readonly LoginConflictRefundService $refunds,
     ) {
     }
 
     /**
-     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int}
+     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, orders_refunded: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int}
      */
     public function run(DateTimeImmutable $now): array
     {
@@ -78,6 +84,7 @@ final class BillingReconciler
             'events_ingested' => 0,
             'orders_fulfilled' => 0,
             'orders_failed' => 0,
+            'orders_refunded' => 0,
             'pix_invoices_issued' => 0,
             'pix_invoices_overdue' => 0,
             'pix_intents_refreshed' => 0,
@@ -85,7 +92,7 @@ final class BillingReconciler
         ];
         $phaseFailure = null;
 
-        foreach (['reconcileEvents', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired'] as $phase) {
+        foreach (['reconcileEvents', 'refundLoginConflicts', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired'] as $phase) {
             try {
                 $this->{$phase}($now, $counters);
             } catch (Throwable $e) {
@@ -151,6 +158,32 @@ final class BillingReconciler
             } catch (Throwable $e) {
                 self::log(sprintf('event %s failed: %s', (string) ($event['id'] ?? '?'), $e::class));
             }
+        }
+    }
+
+    /**
+     * Pedido pago com login_conflict: cancelamento e estorno (T-31). Um
+     * pedido que falha não impede os demais; o primeiro erro sobe no fim.
+     *
+     * @param array<string, int> $counters
+     */
+    private function refundLoginConflicts(DateTimeImmutable $now, array &$counters): void
+    {
+        $failure = null;
+
+        foreach ($this->orders->listLoginConflictsToRefund(self::REFUND_BATCH) as $orderId) {
+            try {
+                if ($this->refunds->refund($orderId, $now) === LoginConflictRefundService::RESULT_REFUNDED) {
+                    $counters['orders_refunded']++;
+                }
+            } catch (Throwable $e) {
+                self::log(sprintf('refund of billing order %d failed: %s', $orderId, $e::class));
+                $failure ??= $e;
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 

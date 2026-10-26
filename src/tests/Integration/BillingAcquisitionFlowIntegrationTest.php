@@ -12,8 +12,10 @@ use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
 use CentralVet\Billing\BillingWebhookHandler;
 use CentralVet\Billing\CheckoutStartHandler;
+use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\PlanEntitlements;
+use CentralVet\Billing\ProvisioningConflict;
 use CentralVet\Billing\QuotaExceededException;
 use CentralVet\Billing\QuotaGuard;
 use CentralVet\Billing\Stripe\StripeApiException;
@@ -60,7 +62,8 @@ use DateTimeImmutable;
  * src/billing-webhook.php e src/bin/billing-reconcile.php. O Stripe é o
  * FakeStripeClient (nenhuma chamada de rede). O TransactionRunner usa
  * SAVEPOINT dentro da transação do teste, desfeita no tearDown() — nada é
- * commitado. Cada método cobre uma letra da lista da auditoria (a..p).
+ * commitado. Cada método cobre uma letra da lista da auditoria (a..p); (q)
+ * é o estorno do login_conflict pago (T-31).
  */
 final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCase
 {
@@ -563,6 +566,62 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
         Assert::same([$this->groups['starter'] => 'Central Vet - Plano Starter'], $team->allowedGroups());
     }
 
+    /** (q) e-mail vira login entre o checkout e o webhook → provisioning_failed; o reconciliador cancela, estorna e marca refunded uma vez. */
+    public function testScenarioQLoginTakenAfterCheckoutIsCancelledAndRefundedOnceByTheReconciler(): void
+    {
+        $tenantsBefore = $this->countTenants();
+        $checkout = $this->startCheckout('pro', BillingOrder::METHOD_CARD);
+        $userId = $this->count('SELECT COALESCE(MAX(id), 0) + 1 FROM system_users FOR UPDATE');
+        $this->pdo->prepare("INSERT INTO system_users (id, name, login, email, active) VALUES (?, 'Já cadastrado', ?, ?, 'Y')")
+            ->execute([$userId, $checkout['email'], $checkout['email']]);
+
+        $stripeSubscriptionId = 'sub_t31_' . bin2hex(random_bytes(5));
+        $this->queueSubscription($stripeSubscriptionId);
+        [$response] = $this->post(($this->fixtures['checkoutCompleted'])($checkout['session'], $stripeSubscriptionId, $this->created()));
+
+        $this->assertJson(200, ['received' => true, 'result' => 'processed'], $response);
+        $failed = $this->order($checkout['orderId']);
+        Assert::same(BillingOrder::STATUS_PROVISIONING_FAILED, $failed->status());
+        Assert::same(ProvisioningConflict::LOGIN_CONFLICT, $failed->provisioningError());
+        Assert::same(Subscription::STATUS_ACTIVE, $this->subscriptions->findByBillingOrderId($checkout['orderId'])?->status());
+
+        $invoiceId = 'in_t31_' . bin2hex(random_bytes(5));
+        $paymentIntent = 'pi_t31_' . bin2hex(random_bytes(5));
+        $refundId = 're_t31_' . bin2hex(random_bytes(5));
+        $this->stripe->queue('GET', '/v1/subscriptions/' . $stripeSubscriptionId, ['id' => $stripeSubscriptionId, 'object' => 'subscription', 'status' => 'active']);
+        $this->stripe->queue('DELETE', '/v1/subscriptions/' . $stripeSubscriptionId, ['id' => $stripeSubscriptionId, 'object' => 'subscription', 'status' => 'canceled']);
+        $this->stripe->queue('GET', '/v1/checkout/sessions/' . $checkout['session'], ['id' => $checkout['session'], 'object' => 'checkout.session', 'invoice' => $invoiceId, 'payment_intent' => null]);
+        $this->stripe->queue('GET', '/v1/invoices/' . $invoiceId, ['id' => $invoiceId, 'object' => 'invoice', 'payment_intent' => $paymentIntent]);
+        $this->stripe->queue('POST', '/v1/refunds', ['id' => $refundId, 'object' => 'refund', 'status' => 'succeeded']);
+        $callsBefore = count($this->stripe->calls);
+
+        $result = $this->reconcile($this->now->modify('+15 minutes'));
+
+        Assert::same(1, $result['orders_refunded']);
+        Assert::same(0, $result['orders_failed']);
+        $after = array_slice($this->stripe->calls, $callsBefore);
+        Assert::count(1, array_filter($after, static fn (array $call): bool => $call['method'] === 'DELETE' && $call['path'] === '/v1/subscriptions/' . $stripeSubscriptionId));
+        $refunds = array_values(array_filter($after, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/refunds'));
+        Assert::count(1, $refunds);
+        Assert::same($paymentIntent, $refunds[0]['params']['payment_intent'] ?? null);
+        $order = $this->order($checkout['orderId']);
+        Assert::same(BillingOrder::STATUS_REFUNDED, $order->status());
+        Assert::same($refundId, $order->stripeRefundId());
+        Assert::same(Subscription::STATUS_CANCELLED, $this->subscriptions->findByBillingOrderId($checkout['orderId'])?->status());
+        Assert::same($tenantsBefore, $this->countTenants(), 'no tenant for the refunded order');
+
+        $callsBefore = count($this->stripe->calls);
+        $second = $this->reconcile($this->now->modify('+30 minutes'));
+
+        Assert::same(0, $second['orders_refunded']);
+        Assert::same(
+            ['GET /v1/events'],
+            array_map(static fn (array $call): string => $call['method'] . ' ' . $call['path'], array_slice($this->stripe->calls, $callsBefore)),
+            'the second run makes no new call besides listing events',
+        );
+        Assert::same(BillingOrder::STATUS_REFUNDED, $this->order($checkout['orderId'])->status());
+    }
+
     // ---------------------------------------------------------------- montagem
 
     private function checkoutHandler(): CheckoutStartHandler
@@ -626,6 +685,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
             new PixInvoiceIssuer($this->stripe, $this->invoices, $this->email, $this->translate()),
             $provisioning,
             $tx,
+            new LoginConflictRefundService($tx, $this->orders, $this->subscriptions, $this->stripe, $this->email, ''),
         ))->run($at);
     }
 
