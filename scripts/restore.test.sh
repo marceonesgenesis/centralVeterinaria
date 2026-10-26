@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Docker-free test of scripts/restore.sh and scripts/restore-drill.sh (T-11).
+# Docker-free test of scripts/restore.sh and scripts/restore-drill.sh (T-11, T-18).
 # A fake `docker` on PATH records every call (and the stdin of each mysql/tar
 # call) and simulates `php bin/hosting-backup.php --decrypt`; gpg is real,
 # with a throwaway GNUPGHOME and passphrase. Backups are built here in the
@@ -19,6 +19,8 @@ chmod 700 "$GNUPGHOME"
 printf 'throwaway-test-passphrase-etapa4\n' > "$work/passphrase"
 printf 'another-throwaway-passphrase\n' > "$work/wrong-passphrase"
 printf 'COMPOSE_PROJECT_NAME=centralvet\n' > "$work/test.env"
+# Maintenance flags (var/maintenance/<project>.restore) go to a throwaway dir.
+export CENTRALVET_MAINTENANCE_DIR="$work/maint"
 
 printf 'one\n' > "$work/src/files/a/one.txt"
 printf 'two\n' > "$work/src/files/two.txt"
@@ -84,6 +86,13 @@ n=\$(wc -l < "\$calls")
 args=" \$* "
 [ "\$1" = volume ] && exit 0
 case "\$args" in
+    *" ps --services --status running "*)
+        printf '%s\n' \${FAKE_RUNNING-mysql redis app worker}
+        exit 0 ;;
+    *" stop "*) exit 0 ;;
+    *" start "*) [ "\${FAKE_START_FAIL:-no}" = yes ] && exit 1; exit 0 ;;
+esac
+case "\$args" in
     *" up "*|*" down "*) exit 0 ;;
     *" exec "*)
         stdin=\$(cat)
@@ -94,7 +103,10 @@ case "\$args" in
                 exit 0 ;;
         esac
         printf '%s\n' "\$stdin" > "$work/stdin.\$n"
-        printf 'stdin.%s mysql-import\n' "\$n" >> "\$calls"
+        flags=\$(ls "$work/maint" 2>/dev/null | tr '\n' ,)
+        for flag in "$work"/maint/*.restore; do [ -f "\$flag" ] && cp "\$flag" "$work/flag-during-mysql"; done
+        printf 'stdin.%s mysql-import flags=%s\n' "\$n" "\$flags" >> "\$calls"
+        [ "\${FAKE_MYSQL_FAIL:-no}" = yes ] && exit 1
         exit 0 ;;
     *" run "*)
         case "\$args" in
@@ -152,8 +164,8 @@ if [ "$status" -eq 3 ] && [ ! -s "$work/docker-calls" ]; then pass 'without CONF
 
 # 2. Tampered part → 5 before any write.
 CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$tampered"
-if [ "$status" -eq 5 ] && [ "$(writes)" -eq 0 ] && [ ! -s "$work/docker-calls" ]; then
-    pass 'sha256 diverging from the MANIFEST exits 5 with no mysql and no tar -x'
+if [ "$status" -eq 5 ] && [ "$(writes)" -eq 0 ] && [ ! -s "$work/docker-calls" ] && [ ! -e "$work/maint/centralvet.restore" ]; then
+    pass 'sha256 diverging from the MANIFEST exits 5 with no mysql, no tar -x, no stop and no flag'
 else
     fail "tampered part exits 5 without writes (exit $status, calls: $(cat "$work/docker-calls"), stderr: $stderr)"
 fi
@@ -265,8 +277,8 @@ if printf '%s' "$last" | grep -Eq '^restore-drill done elapsed_seconds=[0-9]+ de
 else
     fail "restore-drill verify/done lines (last: $last, output: $output)"
 fi
-if printf '%s' "$last_compose" | grep -q -- ' down -v' && grep -q '^docker compose .* up -d --wait mysql redis' "$work/docker-calls"; then
-    pass 'restore-drill starts mysql redis with --wait and ends with down -v of centralvet-drill'
+if printf '%s' "$last_compose" | grep -q -- ' down -v' && grep -q '^docker compose .* up -d --wait mysql redis app worker$' "$work/docker-calls"; then
+    pass 'restore-drill starts mysql redis app worker with --wait and ends with down -v of centralvet-drill'
 else
     fail "restore-drill up/down (last compose: $last_compose)"
 fi
@@ -275,6 +287,12 @@ if grep -qx 'COMPOSE_PROJECT_NAME=centralvet-drill' "$work/drill.env" && grep -q
     pass 'drill env-file generated with random secrets, centralvet-drill and port 18081 (mode 600)'
 else
     fail 'drill env-file generated'
+fi
+if printf '%s\n' "$output" | grep -qx 'restore-drill verify services_running manifest=2 restored=2' \
+    && printf '%s\n' "$output" | grep -qx 'restore-drill verify maintenance_flag manifest=0 restored=0'; then
+    pass 'restore-drill verifies services_running and maintenance_flag'
+else
+    fail "restore-drill services_running/maintenance_flag lines (output: $output)"
 fi
 if grep -q 'CONFIRM\|RESTORE_CENTRALVET ' "$work/docker-calls"; then fail 'no confirmation leaks into docker args'; else pass 'no confirmation leaks into docker args'; fi
 
@@ -288,6 +306,87 @@ fi
 
 run_drill --keep "$good"
 if [ "$status" -eq 0 ] && ! grep -q -- ' down ' "$work/docker-calls"; then pass '--keep leaves the drill project up'; else fail "--keep (exit $status)"; fi
+
+# 10. T-18: stop the writers before writing, restart them afterwards, maintenance flag.
+line_of() { grep -nE "$1" "$work/docker-calls" | head -n "${2:-1}" | tail -n 1 | cut -d: -f1; }
+last_line_of() { grep -nE "$1" "$work/docker-calls" | tail -n 1 | cut -d: -f1; }
+
+rm -f "$work/flag-during-mysql"
+CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+stop_at=$(line_of '^docker compose .* stop app worker$')
+first_write=$(line_of 'mysql-import|tar-x')
+last_write=$(last_line_of 'mysql-import|tar-x')
+start_worker=$(line_of '^docker compose .* start worker$')
+start_app=$(line_of '^docker compose .* start app$')
+if [ "$status" -eq 0 ] && [ -n "$stop_at" ] && [ -n "$first_write" ] && [ "$stop_at" -lt "$first_write" ]; then
+    pass 'app and worker running: stop app worker comes before the first mysql/tar -x'
+else
+    fail "stop before the first write (exit $status, calls: $(cat "$work/docker-calls"), stderr: $stderr)"
+fi
+if [ -n "$start_worker" ] && [ -n "$start_app" ] && [ -n "$last_write" ] && [ "$start_worker" -gt "$last_write" ] && [ "$start_app" -gt "$start_worker" ]; then
+    pass 'start worker then start app come after the last write (reverse order)'
+else
+    fail "start after the last write (calls: $(cat "$work/docker-calls"))"
+fi
+if printf '%s\n' "$output" | grep -qx 'restore: stopped app worker' && printf '%s\n' "$output" | grep -qx 'restore: restarted worker app' \
+    && [ "$last" = "Restore completed from: $good project=centralvet parts=4" ]; then
+    pass 'prints restore: stopped / restore: restarted and keeps the final line last'
+else
+    fail "stopped/restarted lines (output: $output)"
+fi
+if grep -q 'mysql-import flags=centralvet.restore,' "$work/docker-calls" && [ -f "$work/flag-during-mysql" ] \
+    && grep -Eqx 'pid=[0-9]+' "$work/flag-during-mysql" && grep -Eqx 'started_at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' "$work/flag-during-mysql" \
+    && [ ! -e "$work/maint/centralvet.restore" ]; then
+    pass 'maintenance flag exists (pid, started_at) during the mysql load and is gone at the end'
+else
+    fail "maintenance flag during mysql (calls: $(grep mysql-import "$work/docker-calls"), flag: $(cat "$work/flag-during-mysql" 2>/dev/null))"
+fi
+if ! grep -qE ' (stop|start) .*(mysql|redis)' "$work/docker-calls"; then pass 'mysql and redis are never stopped'; else fail 'mysql and redis are never stopped'; fi
+
+FAKE_MYSQL_FAIL=yes CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+fail_at=$(line_of 'mysql-import')
+start_app=$(line_of '^docker compose .* start app$')
+start_worker=$(line_of '^docker compose .* start worker$')
+if [ "$status" -eq 6 ] && [ -n "$start_app" ] && [ -n "$start_worker" ] && [ "$start_app" -gt "$fail_at" ] && [ "$start_worker" -gt "$fail_at" ] \
+    && [ ! -e "$work/maint/centralvet.restore" ]; then
+    pass 'failing mysql exits 6, still restarts app and worker and removes the flag'
+else
+    fail "failing mysql restarts (exit $status, calls: $(cat "$work/docker-calls"))"
+fi
+
+mkdir -p "$work/maint"
+printf 'pid=1\nstarted_at=2026-10-26T00:00:00Z\n' > "$work/maint/centralvet.restore"
+CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+if [ "$status" -eq 2 ] && ! grep -q ' stop ' "$work/docker-calls" && [ "$(writes)" -eq 0 ] \
+    && printf '%s' "$stderr" | grep -q 'restore: another restore is running for project centralvet' && [ -f "$work/maint/centralvet.restore" ]; then
+    pass 'an existing flag refuses with exit 2, no stop, and keeps the other flag'
+else
+    fail "existing flag (exit $status, stderr: $stderr, calls: $(cat "$work/docker-calls"))"
+fi
+rm -f "$work/maint/centralvet.restore"
+
+FAKE_START_FAIL=yes CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+if [ "$status" -eq 7 ] && printf '%s' "$stderr" | grep -q 'restore: could not restart app' \
+    && printf '%s' "$stderr" | grep -q 'restore: could not restart worker' && [ ! -e "$work/maint/centralvet.restore" ]; then
+    pass 'a failing start turns exit 0 into 7 with restore: could not restart <service>'
+else
+    fail "failing start exits 7 (exit $status, stderr: $stderr)"
+fi
+
+FAKE_RUNNING='mysql minio worker redis nginx app' CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+if [ "$status" -eq 0 ] && grep -q '^docker compose .* stop nginx app worker minio$' "$work/docker-calls" \
+    && [ "$(grep -E ' start [a-z]+$' "$work/docker-calls" | sed 's/.* start //' | tr '\n' ' ')" = 'minio worker app nginx ' ]; then
+    pass 'stops nginx app worker minio in this order and starts them in reverse'
+else
+    fail "stop/start order (calls: $(grep -E ' (stop|start) ' "$work/docker-calls"))"
+fi
+
+FAKE_RUNNING='mysql redis' CONFIRM_RESTORE=RESTORE_CENTRALVET run_restore "$good"
+if [ "$status" -eq 0 ] && ! grep -qE ' (stop|start) ' "$work/docker-calls"; then
+    pass 'with no writer running nothing is stopped or started'
+else
+    fail "no writer running (exit $status, calls: $(cat "$work/docker-calls"))"
+fi
 
 echo "Failed: $failures"
 [ "$failures" -eq 0 ]
