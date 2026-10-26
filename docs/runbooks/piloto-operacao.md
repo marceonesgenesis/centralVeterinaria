@@ -7,7 +7,7 @@ Como operar o piloto depois do go-live ([`piloto-go-live.md`](./piloto-go-live.m
 - Canal: e-mail (obrigatório, `SUPPORT_EMAIL`) e WhatsApp (opcional, `SUPPORT_WHATSAPP`).
 - Horário: segunda a sexta, das 8h às 18h (`SUPPORT_HOURS`).
 - As clínicas encontram o canal em "Ajuda" no app e nos textos legais.
-- Resposta inicial no mesmo dia útil para sev1 e sev2; até o próximo dia útil para sev3.
+- Prazos propostos (a confirmar com o dono do piloto): resposta inicial no mesmo dia útil para sev1 e sev2; até o próximo dia útil para sev3.
 
 ## Triagem e severidade
 
@@ -22,7 +22,7 @@ Para alertas automáticos e deduplicação, ver [`observabilidade.md`](./observa
 ## Comunicação com as clínicas
 
 - Aviso prévio de manutenção e de release com impacto.
-- Em sev1, primeiro contato assim que confirmado e atualização a cada 2 horas úteis até a resolução; ao fechar, resumo do que houve e do que muda.
+- Em sev1, primeiro contato assim que confirmado e atualização a cada 2 horas úteis (proposta, a confirmar) até a resolução; ao fechar, resumo do que houve e do que muda.
 - Um responsável por clínica piloto, nomeado no início.
 
 ## Coleta de feedback

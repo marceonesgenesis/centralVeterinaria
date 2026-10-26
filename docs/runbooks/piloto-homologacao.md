@@ -34,18 +34,18 @@ Repita cada bloco no tenant A e no tenant B.
 
 | # | Passo | Resultado esperado | Evidência |
 |---|---|---|---|
-| 2.1 | Primeiro acesso do usuário de Recepção, com aceite dos termos | Entra; vê "Primeiros passos" | |
+| 2.1 | Primeiro acesso do usuário de Recepção, com aceite dos termos | Entra; guia do primeiro atendimento e "Ajuda" acessíveis; "Primeiros passos" (checklist do administrador) não aparece | |
 | 2.2 | Cadastrar tutor e paciente de teste | Registros salvos; aparecem na busca | |
-| 2.3 | Agendar uma consulta | Agendamento visível na agenda | |
-| 2.4 | Tentar abrir Financeiro, Assinatura, Equipe e Dados da clínica pela URL | Acesso negado com mensagem em pt-BR; nenhuma tela abre | |
+| 2.3 | Agendar uma consulta (Agenda e formulário de agendamento) | Agendamento visível na agenda | |
+| 2.4 | Tentar abrir Financeiro, Atendimento clínico, Assinatura, Equipe e Dados da clínica pela URL | Acesso negado com mensagem em pt-BR; nenhuma tela abre | |
 
 ### 3. Veterinário
 
 | # | Passo | Resultado esperado | Evidência |
 |---|---|---|---|
-| 3.1 | Primeiro acesso com aceite dos termos | Entra no sistema | |
+| 3.1 | Primeiro acesso com aceite dos termos | Entra; guia do primeiro atendimento acessível; sem checklist de onboarding | |
 | 3.2 | Abrir o atendimento do paciente, registrar anamnese, prescrição e exame | Atendimento salvo | |
-| 3.3 | Gerar o PDF da prescrição/receita | PDF gerado e disponível para baixar; abre sem erro | |
+| 3.3 | Emitir a prescrição do atendimento (PDF assíncrono, pela solicitação de documento) | PDF da prescrição gerado, listado em Documentos e baixável; abre sem erro. É o PDF homologado do piloto | |
 | 3.4 | Tentar abrir Financeiro, Assinatura e Equipe pela URL | Acesso negado em pt-BR | |
 | 3.5 | Confirmar que o assistente de IA não aparece | Ausente do menu (módulo fora do recorte) | |
 
@@ -53,10 +53,12 @@ Repita cada bloco no tenant A e no tenant B.
 
 | # | Passo | Resultado esperado | Evidência |
 |---|---|---|---|
-| 4.1 | Primeiro acesso com aceite dos termos | Entra no sistema | |
-| 4.2 | Abrir caixa, localizar o recebível do atendimento e registrar o pagamento | Recebível quitado; lançamento no caixa | |
-| 4.3 | Gerar o PDF do comprovante/recibo | PDF gerado e baixável | |
-| 4.4 | Tentar abrir Atendimento clínico e Equipe pela URL | Acesso negado em pt-BR | |
+| 4.1 | Primeiro acesso com aceite dos termos | Entra; guia do primeiro atendimento acessível; sem checklist de onboarding | |
+| 4.2 | Abrir a sessão de caixa, abrir a conta do atendimento e fechá-la | Recebível criado em "Recebíveis pendentes" com o total da conta | |
+| 4.3 | Registrar um pagamento parcial e depois o restante | Saldo em aberto cai a cada pagamento; com o total pago o recebível fica quitado | |
+| 4.4 | Conferir saldo e caixa | Totais da sessão de caixa e visão financeira batem com os pagamentos registrados | |
+| 4.5 | Conferir que não há PDF de recibo para o Financeiro | Sem botão de recibo: recibo de recebimento está fora do recorte do piloto (ver [`documentos.md`](./documentos.md)); o PDF homologado é a prescrição (passo 3.3) | |
+| 4.6 | Tentar abrir Atendimento clínico e Equipe pela URL | Acesso negado em pt-BR | |
 
 ## Isolamento entre tenants
 
@@ -67,7 +69,15 @@ Repita cada bloco no tenant A e no tenant B.
 
 ## Mensagens de erro esperadas (pt-BR)
 
-Toda mensagem ao usuário aparece em português, sem texto técnico em inglês, sem pilha e sem SQL. Confira ao menos: login com senha errada, campo obrigatório em branco, acesso negado, registro não encontrado e quota de usuários excedida.
+Toda mensagem ao usuário aparece em português, sem texto técnico em inglês, sem pilha e sem SQL.
+
+| # | Passo | Resultado esperado | Evidência |
+|---|---|---|---|
+| 9.1 | Entrar com senha errada | Mensagem de credencial inválida em pt-BR | |
+| 9.2 | Salvar um formulário com campo obrigatório em branco | Mensagem de campo obrigatório em pt-BR | |
+| 9.3 | Abrir uma tela fora do perfil (passos 2.4, 3.4 e 4.6) | Mensagem de acesso negado em pt-BR | |
+| 9.4 | Abrir um registro inexistente ou de outro tenant (passo 5.2) | Mensagem de registro não encontrado em pt-BR | |
+| 9.5 | Convidar além da quota (passo 6.3) | Mensagem de quota excedida em pt-BR | |
 
 ## Recuperação de falhas
 
