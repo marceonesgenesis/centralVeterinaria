@@ -31,7 +31,7 @@ Comandos usados em Teste RED e Validação:
 | T-13 | backend | Heartbeat do reconciliador e retenção LGPD de `billing_event.payload` | T-10 | sim | média | Athena | [x] |
 | T-14 | ci | CI reproduzível com banco de teste isolado, schema e lint | T-01, T-03, T-05, T-08, T-11 | sim | alta | Kratos | [x] |
 | T-15 | infra | Ensaio de rollback de release e registro dos tempos medidos | T-03, T-05, T-08, T-11, T-17 | sim | alta | Thanos | [x] |
-| T-16 | docs | Documentação operacional: runbooks, cron, alertas, release, LGPD | T-03, T-06, T-07, T-09, T-12, T-13, T-14, T-15, T-17 | não | média | Gandalf | [ ] |
+| T-16 | docs | Documentação operacional: runbooks, cron, alertas, release, LGPD | T-03, T-06, T-07, T-09, T-12, T-13, T-14, T-15, T-17 | não | média | Gandalf | [x] |
 | T-17 | backend | Backup da hospedagem compartilhada por PHP CLI (sem Docker) | T-01, T-02 | sim | alta | Goku | [x] |
 
 ## Detalhamento

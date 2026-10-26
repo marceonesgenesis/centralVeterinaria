@@ -34,6 +34,9 @@
 
 ## Bloqueios
 - nenhum
+- 2026-10-26 · T-16 · onda 5 — Escopo extra autorizado em migrations.md, cirurgia.md, internacao.md e landing-leads.md: `gzip -t` trocado pela verificação atual.
+- 2026-10-26 · T-16 · onda 5 — A instrução citava `scripts/restore.sh --decrypt`, que não existe; o implementador usou restore-drill.sh e o `--decrypt` do hosting-backup.php, desvio correto.
+- 2026-10-26 · T-16 · onda 5 — Plano marcado como `sem teste:` (docs), sem RED.
 
 ## Descobertas
 - O CI atual falharia: `tests/run.php` recusa sem o `centralvet_test` ("Refusing to run: test MySQL database centralvet_test not found"), o `.env` gerado não tem `MIGRATION_DB_*`, o usuário de migration não existe no compose e a imagem só copia `src/` (testes que leem `docker/`, `docs/` e `.env.example` não acham os arquivos). Nenhuma etapa de lint.
@@ -59,6 +62,7 @@
 - [T-11] `scripts/restore.sh [--project] [--env-file] <arquivo>` e `scripts/restore-drill.sh [--keep] <arquivo>` prontos (RED c8913ca, impl 73289c1). Códigos restore: 2 uso/config, 3 sem `CONFIRM_RESTORE=RESTORE_<PROJETO>`, 5 frase/integridade (nada escrito), 6 falha após iniciar escrita. Recria o banco antes do dump e substitui files/documents/minio. Aditivos: linha `restore: timings decrypt_seconds=<n> db_seconds=<n> files_seconds=<n>` antes da final e `RESTORE_MANIFEST_COPY=<caminho>`. Drill: env `var/drill/.env` gerado só se ausente (sobrescrevível por `RESTORE_DRILL_ENV_FILE`), sai 4 se o projeto não sobe, recusa `.sql.gz`, remove volumes `centralvet-drill_*` restantes. `.cvbk` decifrado com `--user $(id -u):$(id -g)` e `src/` montado `:ro` (imagem dev sem `hosting-backup.php`). Ensaio real T-08 e T-17: mismatches=0.
 - [T-15] `scripts/release/rollback-drill.sh <anterior> <novo> <backup>` e `docs/runbooks/ensaio-restauracao-rollback.md` prontos (5a2cefd). Medidos: restore-drill .tar.gpg elapsed_seconds=20, .cvbk elapsed_seconds=13, rollback seconds=16, total_seconds=74, smoke_failures=0. `build-release.sh --image` com umask 077 gera imagem cujo php-fpm não lê a própria config (app unhealthy): construir sempre com umask 022 (T-16 documenta; T-14 atenção no CI). O backup do dev tem 0015/0018/0019 pendentes (não 0017).
 - [T-14] `scripts/ci/run.sh` pronto (RED 4d0d7c1, impl 97717be): execução real local `ci: passed` (2390/0 FAIL, schema pending=0 unknown=0). Desvios: suíte sem bind de `src/` (imagem do checkout + `composer dump-autoload --dev` em volume anônimo sobre src/vendor) e `provision` aplica o schema também ao `centralvet` efêmero da CI (testes que sobem init.php leem DB_DATABASE). `provision.sh --list` novo; `PROVISION_ENV_FILE`, `BOOTSTRAP_OUTPUT_DIR`, `BOOTSTRAP_ENV_FILE`, `CI_SCRIPT_TESTS`. T-16: `docs/runbooks/tests.md` ainda descreve a CI antiga.
+- [T-16] Runbooks prontos: cron, release, observabilidade, lgpd-retencao; restore-backup, tests (CI), environments, shared-hosting-mysql57 atualizados; `--user 1000:33` do hosting-backup entra em cron.md e shared-hosting-mysql57.md (69352f7, 8cf19e5); `gzip -t` removido dos runbooks; T-31 (mark_refunded) corrigida.
 
 ## Pendências
 - Banco dev `centralvet` com 3 migrations pendentes (0017, 0018, 0019); aplicar exige autorização do usuário.
@@ -93,6 +97,8 @@
 - T-15: pre_backup herda BACKUP_OFFSITE_DIR/BACKUP_OFFSITE_S3_URI do ambiente; esvaziar as duas na chamada (rollback-drill.sh:186-187).
 - T-15: GRANT do usuário de migration fixa `centralvet`.* em vez de "$MYSQL_DATABASE" (rollback-drill.sh:198 vs :218).
 - T-15: senha do usuário de migration vai em `-e` do `docker compose exec`, visível em `ps` (rollback-drill.sh:217).
+- T-16: cron.md e shared-hosting-mysql57.md descrevem códigos de saída de forma imprecisa: em hosting-backup.php falha de escrita/leitura sai 3 (não 2) e falha da trava só sai 1 no billing-event-retention (ops-monitor, billing-reconcile e hosting-backup saem 0 com `skipped_locked`).
+- T-16: cron e restauração não foram executados em hospedagem compartilhada real.
 
 ## Riscos
 - Ensaios e CI local (T-11, T-14, T-15) constroem imagens e sobem projetos Docker próprios: demoram e disputam CPU. Mitigação: projetos `centralvet-ci-local` e `centralvet-drill` com `down -v` no fim; o orquestrador pode serializar a Onda 4.
@@ -113,5 +119,6 @@
   - Onda 2: BASE 0e8bd4f → HEAD 94ff476 (3dd059f, 523f277, 6ea7874, 343d933, 4956a7e, 1f4bfa2, 02b5d30, ce97252, 31343ab, af394ef, 0e7f03b, 94ff476)
   - Onda 3: BASE 797304e → HEAD 132bb73 (132bb73, 73289c1, c8913ca, 978a7e5, 1aacce2, fb58218)
   - Onda 4: BASE 1a3d9b0 → HEAD 97717be (4d0d7c1, 5a2cefd, 97717be)
-- Último status conhecido: onda 4 concluída (T-14, T-15 [x]; CI local 2390/2390; restore-drill .tar.gpg 15 s e .cvbk 13 s, mismatches=0; rollback-drill 7 fases em 77 s, 0 falhas de smoke).
-- Próxima onda recomendada: 5 (T-16)
+  - Onda 5: BASE 617f43f → HEAD 8cf19e5 (69352f7, 8cf19e5)
+- Último status conhecido: onda 5 concluída (T-16 [x]; SUITE 2390/2390, LINT e BASHN iguais às baselines; correção 8cf19e5 após reprovação do gate por falta do `--user 1000:33`).
+- Próxima onda recomendada: nenhuma (revisão final)
