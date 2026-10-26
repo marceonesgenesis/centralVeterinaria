@@ -32,8 +32,15 @@ interface SubscriptionRepositoryInterface
     public function listGraceExpired(DateTimeImmutable $now, int $limit): array;
 
     /**
-     * @return list<int> ids Pix em `active`/`past_due` com `current_period_end <= until`
+     * @return list<int> ids Pix em `active`/`past_due` com `current_period_end <= until`,
+     *                   sem cancelamento agendado (`cancel_at_period_end = 0`)
      *                   e nenhuma fatura com `period_start >= current_period_end`
      */
     public function listPixDueForIssue(DateTimeImmutable $until, int $limit): array;
+
+    /**
+     * @return list<int> ids Pix com `cancel_at_period_end = 1`, `current_period_end <= now`
+     *                   e status diferente de `cancelled`, id crescente (T-08)
+     */
+    public function listScheduledCancellationsDue(DateTimeImmutable $now, int $limit): array;
 }

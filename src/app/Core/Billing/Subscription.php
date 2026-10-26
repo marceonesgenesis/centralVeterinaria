@@ -20,6 +20,11 @@ use InvalidArgumentException;
  * devolve false e não muda nada quando ele é menor que lastEventCreated().
  * markOverdue e suspendIfGraceExpired são locais e não tocam
  * `last_event_created`, para não descartar o pagamento que chegar depois.
+ *
+ * Cancelamento pelo cliente (Etapa 5, T-08): requestCancellation agenda o
+ * fim no período pago (`cancel_at_period_end`); o status segue `active`
+ * até lá. Cartão termina pelo `customer.subscription.deleted` do Stripe;
+ * Pix por finalizeScheduledCancellation, chamado pelo reconciliador.
  */
 final class Subscription
 {
@@ -71,6 +76,9 @@ final class Subscription
         private ?DateTimeImmutable $graceUntil,
         private ?DateTimeImmutable $cancelledAt,
         private int $lastEventCreated,
+        private bool $cancelAtPeriodEnd = false,
+        private ?DateTimeImmutable $cancelRequestedAt = null,
+        private ?int $cancelRequestedBy = null,
     ) {
     }
 
@@ -147,12 +155,15 @@ final class Subscription
             graceUntil: self::parseDate($row['grace_until'] ?? null),
             cancelledAt: self::parseDate($row['cancelled_at'] ?? null),
             lastEventCreated: (int) ($row['last_event_created'] ?? 0),
+            cancelAtPeriodEnd: (bool) (int) ($row['cancel_at_period_end'] ?? 0),
+            cancelRequestedAt: self::parseDate($row['cancel_requested_at'] ?? null),
+            cancelRequestedBy: self::nullableInt($row['cancel_requested_by'] ?? null),
         );
     }
 
     /**
-     * Colunas de `subscription` (T-02), sem `created_at`/`updated_at`, que o
-     * banco preenche.
+     * Colunas de `subscription` (T-02; cancelamento agendado da 0020), sem
+     * `created_at`/`updated_at`, que o banco preenche.
      *
      * @return array<string, int|string|null>
      */
@@ -172,6 +183,9 @@ final class Subscription
             'grace_until' => $this->graceUntil?->format(self::DATE_FORMAT),
             'cancelled_at' => $this->cancelledAt?->format(self::DATE_FORMAT),
             'last_event_created' => $this->lastEventCreated,
+            'cancel_at_period_end' => $this->cancelAtPeriodEnd ? 1 : 0,
+            'cancel_requested_at' => $this->cancelRequestedAt?->format(self::DATE_FORMAT),
+            'cancel_requested_by' => $this->cancelRequestedBy,
         ];
     }
 
@@ -290,6 +304,66 @@ final class Subscription
         $this->status = self::STATUS_SUSPENDED;
 
         return true;
+    }
+
+    /**
+     * Pedido de cancelamento no fim do período pago (T-08): grava quem e
+     * quando; o status não muda. False se já agendado ou `cancelled`.
+     */
+    public function requestCancellation(int $userId, DateTimeImmutable $now): bool
+    {
+        if ($userId <= 0) {
+            throw new InvalidArgumentException('User id must be positive');
+        }
+
+        if ($this->cancelAtPeriodEnd || $this->status === self::STATUS_CANCELLED) {
+            return false;
+        }
+
+        $this->cancelAtPeriodEnd = true;
+        $this->cancelRequestedAt = $now;
+        $this->cancelRequestedBy = $userId;
+
+        return true;
+    }
+
+    /**
+     * Fim do período do Pix com cancelamento agendado: `cancelled` com
+     * `cancelled_at = now`. Só Pix (o cartão termina pelo webhook do
+     * Stripe), agendado, com `current_period_end <= now` e ainda não
+     * `cancelled`; false nos demais casos.
+     */
+    public function finalizeScheduledCancellation(DateTimeImmutable $now): bool
+    {
+        if (
+            $this->paymentMethod !== self::METHOD_PIX
+            || !$this->cancelAtPeriodEnd
+            || $this->status === self::STATUS_CANCELLED
+            || $this->currentPeriodEnd === null
+            || $this->currentPeriodEnd > $now
+        ) {
+            return false;
+        }
+
+        $this->status = self::STATUS_CANCELLED;
+        $this->cancelledAt = $now;
+
+        return true;
+    }
+
+    public function cancelAtPeriodEnd(): bool
+    {
+        return $this->cancelAtPeriodEnd;
+    }
+
+    public function cancelRequestedAt(): ?DateTimeImmutable
+    {
+        return $this->cancelRequestedAt;
+    }
+
+    public function cancelRequestedBy(): ?int
+    {
+        return $this->cancelRequestedBy;
     }
 
     /** `full`, `grace` (past_due dentro da tolerância) ou `blocked`. */

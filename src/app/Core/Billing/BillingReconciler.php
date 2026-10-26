@@ -35,6 +35,9 @@ use Throwable;
  *    sem PaymentIntent ou com o Pix expirado → ensurePaymentIntent, só com a
  *    assinatura active/past_due (suspensa/cancelada não recebe Pix novo).
  * 5. Tolerância vencida: suspendIfGraceExpired com a assinatura travada.
+ * 6. Cancelamento agendado do Pix vencido (Etapa 5, T-08):
+ *    finalizeScheduledCancellation com a assinatura travada → `cancelled`.
+ *    A emissão (fase 3) já não lista Pix com cancelamento agendado.
  *
  * Cada item roda na sua transação (TransactionRunner), desfeita em
  * exceção, e a falha de um item só é logada (classe) e não interrompe os
@@ -57,6 +60,7 @@ final class BillingReconciler
     public const PIX_BATCH = 100;
     public const GRACE_BATCH = 100;
     public const REFUND_BATCH = 50;
+    public const CANCELLATION_BATCH = 100;
 
     private const REFRESHABLE_STATUSES = [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE];
 
@@ -75,7 +79,7 @@ final class BillingReconciler
     }
 
     /**
-     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, orders_refunded: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int}
+     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, orders_refunded: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int, cancellations_finalized: int}
      */
     public function run(DateTimeImmutable $now): array
     {
@@ -89,10 +93,11 @@ final class BillingReconciler
             'pix_invoices_overdue' => 0,
             'pix_intents_refreshed' => 0,
             'subscriptions_suspended' => 0,
+            'cancellations_finalized' => 0,
         ];
         $phaseFailure = null;
 
-        foreach (['reconcileEvents', 'refundLoginConflicts', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired'] as $phase) {
+        foreach (['reconcileEvents', 'refundLoginConflicts', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired', 'finalizeScheduledCancellations'] as $phase) {
             try {
                 $this->{$phase}($now, $counters);
             } catch (Throwable $e) {
@@ -328,6 +333,33 @@ final class BillingReconciler
 
             if ($suspended) {
                 $counters['subscriptions_suspended']++;
+            }
+        }
+    }
+
+    /** @param array<string, int> $counters */
+    private function finalizeScheduledCancellations(DateTimeImmutable $now, array &$counters): void
+    {
+        foreach ($this->subscriptions->listScheduledCancellationsDue($now, self::CANCELLATION_BATCH) as $subscriptionId) {
+            try {
+                $finalized = $this->tx->run(function () use ($subscriptionId, $now): bool {
+                    $subscription = $this->subscriptions->findByIdForUpdate($subscriptionId);
+                    if ($subscription === null || !$subscription->finalizeScheduledCancellation($now)) {
+                        return false;
+                    }
+
+                    $this->subscriptions->save($subscription);
+
+                    return true;
+                });
+            } catch (Throwable $e) {
+                self::log(sprintf('scheduled cancellation of subscription %d failed: %s', $subscriptionId, $e::class));
+
+                continue;
+            }
+
+            if ($finalized) {
+                $counters['cancellations_finalized']++;
             }
         }
     }
