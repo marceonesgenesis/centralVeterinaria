@@ -75,6 +75,7 @@ hash_before=$(root_env_hash)
 workdir="$work/ci"
 mkdir -p "$workdir"
 echo stale > "$workdir/stale-file"
+: > "$workdir/.ci-workdir"
 run_ci "$workdir" FAKE_DOCKER_FAIL=
 
 if [ "$status" -eq 0 ] && [ "$(printf '%s\n' "$output" | tail -n 1)" = 'ci: passed' ]; then
@@ -139,6 +140,7 @@ else
 fi
 
 if [ ! -e "$workdir/stale-file" ]; then pass 'CI_WORKDIR is recreated'; else fail 'CI_WORKDIR is recreated'; fi
+if [ -f "$workdir/.ci-workdir" ]; then pass 'recreated CI_WORKDIR keeps the .ci-workdir marker'; else fail 'recreated CI_WORKDIR keeps the .ci-workdir marker'; fi
 
 ci_env="$workdir/.env"
 env_ok=1
@@ -185,6 +187,73 @@ else
 fi
 
 if [ "$(root_env_hash)" = "$hash_before" ]; then pass 'root .env unchanged after failure'; else fail 'root .env unchanged after failure'; fi
+
+# CI_WORKDIR guard (T-19), in a throwaway project: a copy of run.sh plus stubs
+# for the scripts it calls, var/backups/x.tar.gpg, docs/ and .git/.
+proj="$work/proj"
+mkdir -p "$proj/scripts/ci" "$proj/scripts/test-db" "$proj/scripts/db" "$proj/scripts/x" \
+    "$proj/var/backups" "$proj/docs" "$proj/.git"
+cp "$run_script" "$proj/scripts/ci/run.sh"
+seed_proj() {
+    mkdir -p "$proj/var/backups" "$proj/docs" "$proj/.git"
+    echo backup > "$proj/var/backups/x.tar.gpg"
+    echo doc > "$proj/docs/keep.md"
+    echo ref > "$proj/.git/HEAD"
+}
+printf '#!/usr/bin/env bash\nexit 0\n' > "$proj/scripts/prepare-adianti-bootstrap.sh"
+printf '#!/bin/sh\nexit 0\n' > "$proj/scripts/test-db/provision.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$proj/scripts/db/migration-status.sh"
+cat > "$proj/scripts/x/y.test.sh" <<STUB
+: > "$work/y-test-ran"
+echo "PASS  y"
+echo "Failed: 0"
+STUB
+
+run_proj() {
+    : > "$work/docker-calls"
+    output=$(cd "$proj" && env -u CI_SCRIPT_TESTS PATH="$work/bin:$PATH" CI_PROJECT=centralvet-ci-test \
+        CI_WORKDIR="$1" IMAGE_TAG=ci-test FAKE_DOCKER_FAIL= bash "$proj/scripts/ci/run.sh" </dev/null 2>&1)
+    status=$?
+}
+
+refused() {
+    local label=$1 probe=$2
+    seed_proj
+    run_proj "$3"
+    if [ "$status" -eq 1 ] && [ "$(printf '%s\n' "$output" | tail -n 1)" = 'ci: failed step=env' ] \
+        && printf '%s\n' "$output" | grep -qF "ci: refusing CI_WORKDIR '$3'" \
+        && [ ! -s "$work/docker-calls" ] && [ -e "$probe" ]; then
+        pass "CI_WORKDIR=$label is refused before rm and docker"
+    else
+        fail "CI_WORKDIR=$label is refused before rm and docker (exit $status, probe $( [ -e "$probe" ] && echo kept || echo GONE)): $(printf '%s' "$output" | tail -n 3)"
+    fi
+}
+
+refused var "$proj/var/backups/x.tar.gpg" var
+refused docs "$proj/docs/keep.md" docs
+refused .git "$proj/.git/HEAD" .git
+refused / "$proj/var/backups/x.tar.gpg" /
+refused '. (project root)' "$proj/var/backups/x.tar.gpg" .
+refused 'var/ci/../backups' "$proj/var/backups/x.tar.gpg" var/ci/../backups
+unmarked=$(mktemp -d)
+echo keep > "$unmarked/file"
+refused 'temporary dir with a file and no .ci-workdir' "$unmarked/file" "$unmarked"
+rm -rf "$unmarked"
+
+rm -f "$work/y-test-ran"
+seed_proj
+run_proj var/ci/local
+if printf '%s\n' "$output" | grep -qx 'ci: step build' && [ -f "$proj/var/ci/local/.ci-workdir" ]; then
+    pass 'CI_WORKDIR=var/ci/local reaches ci: step build and leaves .ci-workdir'
+else
+    fail "CI_WORKDIR=var/ci/local reaches ci: step build and leaves .ci-workdir (exit $status): $(printf '%s' "$output" | tail -n 3)"
+fi
+if [ -e "$work/y-test-ran" ] && printf '%s\n' "$output" | grep -qx 'script-tests: scripts/x/y.test.sh'; then
+    pass 'script-tests runs every scripts/**/*.test.sh found by find'
+else
+    fail "script-tests runs every scripts/**/*.test.sh found by find (exit $status): $(printf '%s' "$output" | tail -n 3)"
+fi
+if [ -f "$proj/var/backups/x.tar.gpg" ]; then pass 'var/backups survives the var/ci/local run'; else fail 'var/backups survives the var/ci/local run'; fi
 
 workflow="$project_root/.github/workflows/ci.yml"
 if grep -q 'scripts/ci/run.sh' "$workflow" && ! grep -q 'exec -T app php tests/run.php' "$workflow"; then
