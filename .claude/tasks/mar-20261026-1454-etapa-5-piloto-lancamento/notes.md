@@ -19,6 +19,9 @@
 - 2026-10-26 · T-06 · onda 1 — Evidência substituta aceita (php -S: 200/404/CSP) porque a imagem do app não tem `src/legal.php` sem rebuild; conferir na fumaça pós-deploy.
 - 2026-10-26 · T-05 · onda 1 — `kill -0` mais `ps -p` para o flag órfão, por causa do EPERM com processo de outro usuário.
 - 2026-10-26 · usuário · onda 1 — Oferta: núcleo, financeiro e estoque; comunicação, internação/cirurgia, IA e governança da rede "em breve"; 3 perfis fixos (Recepção, Veterinário, Financeiro); 4 planos; suporte por e-mail e WhatsApp seg–sex 8h–18h; retenção de 30 dias; "Suporte dedicado" segue anunciado (já registrado pelo planejador).
+- 2026-10-26 · T-08 · onda 2 — `SubscriptionTest.php` (fora do escopo, no commit RED) aceito porque afirma as chaves de `toRow()`.
+- 2026-10-26 · T-12 · onda 2 — Troca de `testAllowedGroupsOfAIsOnlyTheStarterGroup` legítima; na correção, `UserMessage`, `translations.json` e `UserMessageTest` (106→107) autorizados; a guarda vale em `update()` e `deactivate()`; convidado não conta como admin.
+- 2026-10-26 · T-13 · onda 2 — Correção do `testScenarioP` feita pela T-13 (arquivo dela); escopo extra em `LandingCheckoutWiringTest.php` e `landing.css` aceito; curl na :8081 sem rebuild aceito via `php -S` (mesmo ruling da onda 1); o teste de i18n exige `PLAYWRIGHT_MODULE=~/.npm/_npx/e41f203b7505f1fb/node_modules/playwright`.
 
 ## Bloqueios
 - nenhum
@@ -29,6 +32,13 @@
 - [T-04] `ClinicRoleProfiles` e `role-groups.sql` prontos (3 grupos "Central Vet - Perfil ..."), seed idempotente no centralvet_test; `SupportView` e `FirstEncounterGuideView` só ligam depois que T-19 os registrar.
 - [T-04] Reaplicar `initial-application-programs.sql` depois de `role-groups.sql` liga AiCopilotPanel/AiConversationList ao Perfil Veterinário; excluir também `Central Vet - Perfil %` nesses grants.
 - [T-06] `LegalDocuments` e `LegalPage` prontos (0982a23); URLs `legal.php?doc=termos|privacidade`; versões `termos-uso-2026-10`/`privacidade-2026-10`; `LegalPage::NOT_FOUND_BODY`.
+- [T-07] Guarda com `OfferScope`: `AccessDecision::notReleased()`; testes de integração sem `OfferScope` usam o ambiente.
+- [T-08] `SubscriptionCancellationService` pronto; `BillingReconciler::run` ganhou a fase 6 e o contador `cancellations_finalized`.
+- [T-09] `OnboardingChecklistService`/`ClinicProfileService` prontos; `load()/save()` lançam `TenantBoundaryViolation` se a unidade não for do tenant.
+- [T-10] `LegalAcceptanceService` pronto; `accept` sem tenant lança `InvalidArgumentException` técnica (T-16 não deve exibi-la).
+- [T-11] `TenantDataExporter` pronto; o chamador escolhe o `$zipPath` temporário e o remove após o download.
+- [T-12] `allowedGroups()` traz o grupo do plano mais os 3 perfis; `update()`/`deactivate()` recusam deixar a clínica sem administrador ativo (`UserMessage` 107).
+- [T-13] `TERMS_VERSION` = `termos-uso-2026-10`; `CheckoutStartHandler` ganhou `?OfferScope $offer = null` e `PLAN_UNAVAILABLE_MESSAGE`; pilha :8081 sem rebuild serve landing antiga.
 
 ## Pendências
 - T-01: testes de schema só afirmam nome/ordem das colunas; tipo, nulidade, DEFAULT e ON UPDATE só no .verify.sql manual.
@@ -41,6 +51,15 @@
 - T-06: textos legais precisam de revisão jurídica (DPO, foro, reembolso).
 - A 0020 não foi aplicada no banco dev (exige autorização).
 - O PR da etapa 4 está pendente porque o gh não está autenticado.
+- T-07: o caso `legacy` só exercita `HospitalizationBoard` (faltam `AiCopilotPanel`, `CommunicationComposeForm`); `not_released` reaproveita o link de `SubscriptionStatusView` (avaliar destino próprio em T-19).
+- T-08: sem teste de que a exportação segue aberta (ALWAYS_ALLOWED) após finalizar (cobrir em T-18/T-19); Pix cancelado na janela de emissão antecipada mantém a fatura do próximo período aberta; teste "saves with the row locked" não prova a transação.
+- T-08: docblock de `bin/billing-reconcile.php` e runbook mysql57 sem `cancellations_finalized` (para T-20).
+- T-09: `mark()` público e estático fora da Interface; teste de unidade de outro tenant engole exceção; `save()` sem transação própria (T-15 abre a transação).
+- T-10: RED com expectativa sensível à ordem; `accepted_at` sem normalizar fuso; teste de truncamento só com ASCII.
+- T-11: teste só procura o tutor de B em `tutor.csv` (conferir `tenant_id` em todo CSV); `tempZip()` deixa temporário; SELECT sem ORDER BY; colunas `ai_interaction.*_tokens` e `ai_tenant_setting.monthly_token_quota` ficam fora da exportação por casar o padrão de segredo.
+- T-12: docblock de `ClinicUserForm` desatualizado (para T-19); `allowedGroups()` duplicaria perfil se houver 2 `system_group` com o mesmo nome.
+- T-13: `docs/runbooks/smoke-billing.md:158` espera `assinatura-2026-10` (agora `termos-uso-2026-10`); "sem pedido" provado só por `findByPublicId('order-1')`.
+- A imagem do app em :8081 precisa de rebuild para a fumaça (T-06, T-13).
 
 ## Riscos
 - Divergência de base: o checkout explorado (`merge/task/etapa-4-operacao-dev`) traz `origin/dev`; em relação a `task/etapa-4-operacao`, `.env.example` e `docs/runbooks/shared-hosting-mysql57.md` diferem e podem conflitar no PR para `dev` (T-01 e T-03 os tocam). Mitigação: mudanças em blocos novos no fim de cada arquivo.
@@ -57,5 +76,6 @@
 - BASE da onda 1: fbd6d51
 - Commits por onda:
   - Onda 1: BASE fbd6d51 → HEAD 74f5bc7 (6c0f1a2 5ee88dc ce5462d 66409bb 7b6ecaa c7f589b fc738a5 c7cd766 fecdf22 76a59a6 875367d 0982a23 74f5bc7)
-- Último status conhecido: onda 1 concluída (T-01 a T-06 [x]); gate 2436/2436 após correção 74f5bc7
-- Próxima onda recomendada: onda 2 (T-07 a T-12, T-13 conforme dependências)
+  - Onda 2: BASE 2cb9000 → HEAD 8745709 (deaf41d 1df3ae9 560f220 a9bc4ff 7fd7d15 f3e2624 ac90687 5dc6266 3305af8 b2272f8 6d5be2c 9e8a532 3db1aa4 1f5af36 6c04115 f2a951a 8745709)
+- Último status conhecido: onda 2 concluída (T-07 a T-13 [x]); gate 2479/2480 (testScenarioP, corrigido em 6c04115), re-validação 2483/2483
+- Próxima onda recomendada: onda 3 (T-14 a T-18)

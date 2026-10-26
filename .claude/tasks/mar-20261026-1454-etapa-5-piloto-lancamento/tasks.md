@@ -25,13 +25,13 @@ Comandos usados em Teste RED e Validação (copiados da Etapa 4, `.claude/tasks/
 | T-04 | backend | Perfis restritos fixos (`ClinicRoleProfiles`) e seed `role-groups.sql` | — | sim | média | Athena | [x] |
 | T-05 | infra | `cron-run.sh` ignora flag de manutenção órfão (pendência da Etapa 4) | — | sim | simples | Naruto | [x] |
 | T-06 | backend | Termos de uso e política de privacidade (rascunho) em página pública | — | sim | média | Hegel | [x] |
-| T-07 | backend | Guarda de acesso bloqueia módulo fora do recorte do piloto | T-02, T-03 | sim | média | Spock | [ ] |
-| T-08 | backend | Cancelamento da assinatura no fim do período (Stripe e Pix) | T-01, T-02 | sim | alta | Arquimedes | [ ] |
-| T-09 | backend | Checklist de onboarding e dados da clínica (serviços) | T-01, T-02 | sim | média | Batman | [ ] |
-| T-10 | backend | Registro versionado do aceite de termos e privacidade | T-01, T-06 | sim | média | Yoda | [ ] |
-| T-11 | backend | Exportação dos dados da clínica (LGPD) em ZIP | — | sim | alta | Thanos | [ ] |
-| T-12 | backend | Equipe da clínica com perfis restritos (`ClinicTeamService`) | T-04 | sim | média | Kratos | [ ] |
-| T-13 | frontend | Landing e checkout alinhados à oferta e aos documentos legais | T-03, T-06 | sim | média | Tesla | [ ] |
+| T-07 | backend | Guarda de acesso bloqueia módulo fora do recorte do piloto | T-02, T-03 | sim | média | Spock | [x] |
+| T-08 | backend | Cancelamento da assinatura no fim do período (Stripe e Pix) | T-01, T-02 | sim | alta | Arquimedes | [x] |
+| T-09 | backend | Checklist de onboarding e dados da clínica (serviços) | T-01, T-02 | sim | média | Batman | [x] |
+| T-10 | backend | Registro versionado do aceite de termos e privacidade | T-01, T-06 | sim | média | Yoda | [x] |
+| T-11 | backend | Exportação dos dados da clínica (LGPD) em ZIP | — | sim | alta | Thanos | [x] |
+| T-12 | backend | Equipe da clínica com perfis restritos (`ClinicTeamService`) | T-04 | sim | média | Kratos | [x] |
+| T-13 | frontend | Landing e checkout alinhados à oferta e aos documentos legais | T-03, T-06 | sim | média | Tesla | [x] |
 | T-14 | frontend | Tela da assinatura com cancelamento pelo app | T-02, T-03, T-08 | sim | média | Maquiavel | [ ] |
 | T-15 | frontend | Telas de primeiros passos, dados da clínica e orientações do primeiro atendimento | T-02, T-09 | sim | média | Goku | [ ] |
 | T-16 | frontend | Aceite de termos e privacidade no primeiro acesso (`LoginForm`) | T-02, T-06, T-10 | sim | média | Sherlock | [ ] |
