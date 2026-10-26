@@ -33,6 +33,9 @@ Comandos usados em Teste RED e Validação:
 | T-15 | infra | Ensaio de rollback de release e registro dos tempos medidos | T-03, T-05, T-08, T-11, T-17 | sim | alta | Thanos | [x] |
 | T-16 | docs | Documentação operacional: runbooks, cron, alertas, release, LGPD | T-03, T-06, T-07, T-09, T-12, T-13, T-14, T-15, T-17 | não | média | Gandalf | [x] |
 | T-17 | backend | Backup da hospedagem compartilhada por PHP CLI (sem Docker) | T-01, T-02 | sim | alta | Goku | [x] |
+| T-18 | infra | Restauração para os serviços que escrevem, trava os crons e religa tudo (correção da revisão final) | T-11, T-16 | sim | alta | Hegel | [x] |
+| T-19 | ci | Guarda do `CI_WORKDIR` em `scripts/ci/run.sh` (correção da revisão final) | T-14 | sim | simples | Saitama | [x] |
+| T-20 | infra | `build-release.sh` fixa `umask 022` (correção da revisão final) | T-05 | sim | simples | Tesla | [x] |
 
 ## Detalhamento
 
@@ -679,6 +682,126 @@ Na hospedagem compartilhada MySQL 5.7 não há Docker, `gpg` nem, em geral, `mys
 - a execução real do critério, depois `php bin/hosting-backup.php --decrypt` no mesmo container e `tar -xzOf <saída> MANIFEST` (evidência: `Backup created:`, linhas `format=` e `rows tenant=` iguais à contagem do dev)
 - Review Focus: o método do `BackupCipherTest` com frase errada (evidência: `PASS`, sem arquivo de saída)
 - LINT de `app/Core/Operations/BackupCipher.php`, `app/Core/Operations/HostingBackup.php`, `bin/hosting-backup.php` e dos 2 testes (evidência: `No syntax errors detected`)
+
+### T-18 — Restauração para os serviços que escrevem, trava os crons e religa tudo (correção da revisão final)
+
+**Camada:** infra
+**Dependências:** T-11, T-16
+**Paralelizável:** sim
+**Complexidade:** alta
+**Agente:** Hegel
+
+**Achado (revisão final, bloqueante e pendência promovida de T-11).** `scripts/restore.sh:217-245` faz `DROP`/`CREATE` do banco e apaga e reextrai `files`, `documents` e o volume do MinIO com `app`, `worker`, `minio` e os crons no ar. Worker, `billing-reconcile` e `ops-monitor` podem escrever durante o `DROP` e a carga, e o MinIO roda sobre o diretório que está sendo apagado. O runbook (`docs/runbooks/restore-backup.md:68-86`, § 4) não manda parar nada. Só o `rollback-drill.sh:214` para os serviços. O `restore-drill.sh` sobe só `mysql` e `redis`, então o ensaio não exercita o caminho real.
+
+**Escolha: parar e religar, não recusar.** Antes da primeira escrita, o restore para os serviços que escrevem ou servem tráfego e estão no ar (`nginx`, `app`, `worker`, `minio`). Ele os religa num `trap` de `EXIT`, que roda também em falha e em `INT`/`TERM`. Recusar com os serviços no ar deixaria a parada (e o esquecimento de religar) com o operador, e o ensaio não provaria o religamento. Na pilha Docker, os crons do host passam por `scripts/cron-run.sh`, que pula o job enquanto existe o flag de manutenção que o restore cria e remove. Na hospedagem compartilhada não há Docker: o runbook manda pausar as entradas do agendador do painel e pôr o site em manutenção antes do procedimento manual, e reativar no fim. Na mesma passada, a task corrige os códigos de saída de `cron.md` e `shared-hosting-mysql57.md` (pendência de T-16): o `hosting-backup.php` sai 3 em falha de escrita ou leitura (`src/bin/hosting-backup.php:126-129`), e só o `billing-event-retention.php` sai 1 quando a trava falha (confira cada `src/bin/*.php` antes de escrever).
+
+**Reprodução exigida (RED).** O `restore.test.sh` precisa falhar antes da correção em três casos. Com o docker falso dizendo que `app` e `worker` estão no ar, o log de chamadas não tem `stop` antes do primeiro `mysql`. Com o `mysql` falso falhando, o log não tem `start` depois da falha. E o flag de manutenção não existe durante a carga do banco.
+
+**Veredito.** Bloqueante. A correção vale quando o restore real, no projeto isolado, para e religa os serviços que estavam no ar e o ensaio confere isso.
+
+**Arquivos prováveis**
+- `scripts/restore.sh`
+- `scripts/restore.test.sh`
+- `scripts/restore-drill.sh`
+- `scripts/cron-run.sh`
+- `scripts/cron-run.test.sh`
+- `.gitignore`
+- `docs/runbooks/restore-backup.md`
+- `docs/runbooks/cron.md`
+- `docs/runbooks/shared-hosting-mysql57.md`
+
+**Interface**
+- Produz: em `scripts/restore.sh`, depois da verificação (código 5 continua sem nenhuma escrita nem parada), `compose ps --services --status running` filtrado para `nginx`, `app`, `worker` e `minio` é parado com `compose stop` nessa ordem e impresso como `restore: stopped <serviços>`; o `trap` de `EXIT` roda `compose start` dos mesmos serviços na ordem inversa e imprime `restore: restarted <serviços>`; se o religamento falha, o stderr traz `restore: could not restart <serviço>` e um restore que ia sair 0 sai 7
+- Produz: flag de manutenção `var/maintenance/<projeto>.restore` (linhas `pid=<n>` e `started_at=<UTC ISO-8601>`), criado antes do `stop` e removido no mesmo `trap`; com o flag já presente, o restore recusa com código 2 e `restore: another restore is running for project <projeto>`, sem parar nada
+- Produz: `scripts/cron-run.sh [--project <nome>] <comando> [argumentos...]` — projeto padrão = `COMPOSE_PROJECT_NAME` do ambiente, senão o do `.env` da raiz, senão `centralvet`; com `var/maintenance/<projeto>.restore` presente, imprime `cron-run skipped reason=maintenance project=<projeto>` e sai 0 sem executar; senão faz `exec` do comando e propaga o código
+- Produz: `scripts/restore-drill.sh` sobe `mysql redis app worker` com `--wait` antes do restore e, depois dele, imprime `restore-drill verify services_running manifest=<n> restored=<n>` (serviços `app`/`worker` no ar antes e depois; diferença conta em `mismatches`) e `restore-drill verify maintenance_flag manifest=0 restored=<0 ou 1>`
+- Produz: `.gitignore` com `var/maintenance/`; `docs/runbooks/restore-backup.md` § 4 e § 5 com a parada, o flag, o religamento e o que fazer com o código 7 (Docker/VPS) e com a pausa do agendador do painel e o modo de manutenção (hospedagem); `docs/runbooks/cron.md` com as linhas do crontab do host prefixadas por `scripts/cron-run.sh` e os códigos de saída corrigidos; `docs/runbooks/shared-hosting-mysql57.md` com os mesmos códigos corrigidos e o passo de pausar o agendador antes de restaurar
+- Consome: T-11 `scripts/restore-drill.sh [--keep] <arquivo>`, `CONFIRM_RESTORE=RESTORE_<PROJETO>`
+
+**Teste RED**
+- `scripts/restore.test.sh`, `scripts/cron-run.test.sh` — restore com o docker falso dizendo que `app` e `worker` estão no ar: o log tem `stop` dos dois antes do primeiro `mysql`/`tar -x` e `start` depois do último; com o `mysql` falso falhando, sai 6 e o log ainda tem `start` dos dois; durante a chamada `mysql`, o docker falso vê `var/maintenance/<projeto>.restore` e, no fim, o arquivo não existe; com o flag criado antes, sai 2 sem `stop`; com parte adulterada, sai 5 sem `stop` nem flag; com o `start` falso falhando, sai 7; `restore-drill.sh` com o docker falso sobe `app worker`, imprime `restore-drill verify services_running` e `restore-drill verify maintenance_flag manifest=0 restored=0`; cron-run com o flag imprime `cron-run skipped reason=maintenance` e sai 0 sem executar o comando; sem o flag, propaga o código 3 de um comando falso (comando: `bash scripts/restore.test.sh && bash scripts/cron-run.test.sh`)
+
+**Critério de aceite**
+- Os dois SHTEST imprimem `Failed: 0`.
+- `BACKUP_DIR=var/drill/backups BACKUP_PASSPHRASE_FILE=var/drill/passphrase scripts/restore-drill.sh <.tar.gpg mais recente de var/drill/backups>` imprime `restore: stopped app worker` (ou na ordem do Produz), `restore: restarted`, `restore-drill verify services_running` com `manifest=` igual a `restored=`, `restore-drill verify maintenance_flag manifest=0 restored=0` e `restore-drill done ... mismatches=0`, com código 0; o mesmo com `BACKUP_DIR=var/drill/backups-hosting` e o `.tar.gz.cvbk` mais recente.
+- Depois dos dois ensaios, `docker volume ls -q --filter name=centralvet-drill` não lista nada, `ls var/maintenance/` não lista nenhum `.restore` e `docker compose ps --services --status running` do projeto `centralvet` é o mesmo de antes.
+- `grep -c 'scripts/cron-run.sh' docs/runbooks/cron.md` ≥ 6; `grep -n 'código 2' docs/runbooks/cron.md docs/runbooks/shared-hosting-mysql57.md` não associa mais o código 2 à falha de escrita/leitura do `hosting-backup.php`; `restore-backup.md` cita `restore: stopped`, `var/maintenance` e o código 7.
+
+**Validação**
+- `bash scripts/restore.test.sh && bash scripts/cron-run.test.sh` (evidência: `Failed: 0` nas duas)
+- os dois `restore-drill.sh` reais do critério com `echo $?` e `docker compose ps --services --status running` antes e depois (evidência: linhas `restore: stopped`/`restarted`, `services_running` com valores iguais, `mismatches=0`, código 0, serviços do dev iguais)
+- `docker volume ls -q --filter name=centralvet-drill; ls var/maintenance/ 2>/dev/null` (evidência: nenhuma linha)
+- os `grep` do critério nos três runbooks; BASHN (evidência: contagens; nenhuma linha em relação a `baseline/bash-n.txt`)
+
+### T-19 — Guarda do `CI_WORKDIR` em `scripts/ci/run.sh` (correção da revisão final)
+
+**Camada:** ci
+**Dependências:** T-14
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Saitama
+
+**Achado (revisão final, pendência aberta de T-14).** O `rm -rf` do workdir (`scripts/ci/run.sh:112`) só recusa a raiz, `src`, `scripts` e `..` (`:50-55`). Com `CI_WORKDIR=var`, `docs` ou `.git`, ele apaga o diretório, e `var/` guarda os backups padrão (`var/backups`).
+
+**Reprodução exigida (RED).** O `run.test.sh` tem que falhar antes da correção com `CI_WORKDIR=var` num projeto temporário que tem `var/backups/x.tar.gpg`: o script segue para `ci: step env` e o arquivo some.
+
+**Veredito.** Corrigir. O workdir só é aceito sob `var/ci/` do projeto ou sob um diretório temporário. Um diretório existente e não vazio sem o marcador do CI é recusado.
+
+**Arquivos prováveis**
+- `scripts/ci/run.sh`
+- `scripts/ci/run.test.sh`
+
+**Interface**
+- Produz: o `CI_WORKDIR` resolvido só é aceito se for `$project_root/var/ci` ou estiver abaixo dele, ou abaixo de `${RUNNER_TEMP:-}` (quando definido) ou de `${TMPDIR:-/tmp}` com pelo menos um nível; qualquer outro valor (`var`, `docs`, `.git`, a raiz, `/`, `$HOME`, caminho com `..`) imprime `ci: refusing CI_WORKDIR '<valor>'` e `ci: failed step=env`, código 1, antes de qualquer `rm`
+- Produz: marcador `.ci-workdir` gravado no workdir criado; um workdir já existente e não vazio sem `.ci-workdir` é recusado da mesma forma
+- Produz: a etapa `script-tests` roda todo `scripts/**/*.test.sh` achado por `find scripts -name '*.test.sh' | sort` (inclui os novos de T-18 sem lista fixa)
+- Consome: nada
+
+**Teste RED**
+- `scripts/ci/run.test.sh` — num projeto temporário com `var/backups/x.tar.gpg`, `CI_WORKDIR=var` termina com `ci: failed step=env`, código 1, e o arquivo continua lá; o mesmo para `docs`, `.git`, `/` e um diretório temporário existente com um arquivo e sem `.ci-workdir`; `CI_WORKDIR=var/ci/local` segue até `ci: step build` e deixa `.ci-workdir`; a etapa `script-tests` chama um `scripts/x/y.test.sh` criado só no projeto temporário (comando: `bash scripts/ci/run.test.sh`)
+
+**Critério de aceite**
+- SHTEST de `scripts/ci/run.test.sh` imprime `Failed: 0`.
+- `CI_WORKDIR=var scripts/ci/run.sh` na raiz real termina com `ci: failed step=env` e código 1, e `ls var/backups | wc -l` é o mesmo antes e depois, sem nenhuma chamada ao Docker.
+
+**Validação**
+- `bash scripts/ci/run.test.sh` (evidência: `Failed: 0`)
+- `ls var/backups | wc -l; CI_WORKDIR=var scripts/ci/run.sh; echo $?; ls var/backups | wc -l` (evidência: `ci: failed step=env`, `1`, contagens iguais)
+- BASHN (evidência: nenhuma linha em relação a `baseline/bash-n.txt`)
+
+### T-20 — `build-release.sh` fixa `umask 022` (correção da revisão final)
+
+**Camada:** infra
+**Dependências:** T-05
+**Paralelizável:** sim
+**Complexidade:** simples
+**Agente:** Tesla
+
+**Achado (revisão final, pendência aberta de T-05/T-15).** `scripts/release/build-release.sh:15-60` herda a umask do operador. Com `umask 077`, o pacote sai com arquivos `0600`/`0700`, que o servidor web da hospedagem não lê. Hoje isso só é contornado no runbook (`docs/runbooks/release.md:12,32`) e no `rollback-drill.sh:144`.
+
+**Reprodução exigida (RED).** O `build-release.test.sh` tem que falhar antes da correção: com `umask 077` no teste, `tar -tvzf` do pacote mostra `src/` com modo `-rw-------`.
+
+**Veredito.** Corrigir no script: `umask 022` no início, para o export, o `vendor/` e o tar.
+
+**Arquivos prováveis**
+- `scripts/release/build-release.sh`
+- `scripts/release/build-release.test.sh`
+
+**Interface**
+- Produz: `scripts/release/build-release.sh` executa `umask 022` antes de criar qualquer arquivo; no pacote, os arquivos saem `-rw-r--r--` e os diretórios `drwxr-xr-x`, qualquer que seja a umask de quem chama
+- Consome: nada
+
+**Teste RED**
+- `scripts/release/build-release.test.sh` — com `umask 077` antes de chamar o script, `tar -tvzf` do pacote gerado no repositório temporário mostra todo arquivo regular como `-rw-r--r--` e todo diretório como `drwxr-xr-x` (comando: `bash scripts/release/build-release.test.sh`)
+
+**Critério de aceite**
+- SHTEST de `scripts/release/build-release.test.sh` imprime `Failed: 0`.
+- `(umask 077; scripts/release/build-release.sh HEAD)` gera o pacote, e `tar -tvzf <pacote> | grep -cE '^-rw-------|^drwx------'` imprime `0`.
+
+**Validação**
+- `bash scripts/release/build-release.test.sh` (evidência: `Failed: 0`)
+- o build real com `umask 077` e o `grep -cE` do critério (evidência: `0`)
+- BASHN (evidência: nenhuma linha em relação a `baseline/bash-n.txt`)
 
 ## Legenda
 

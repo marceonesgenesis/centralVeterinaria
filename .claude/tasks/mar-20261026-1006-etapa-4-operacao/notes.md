@@ -32,6 +32,11 @@
 - 2026-10-26 · T-15 · onda 4 — `sem teste:` no plano, sem RED.
 - 2026-10-26 · plano · onda 4 — O gate foi interrompido pelo limite de sessão da API e retomado sem resíduo de projeto ou volume.
 
+- 2026-10-26 · T-18 · onda 6 — Correção da revisão final (bloqueante e promovida de T-11): o restore para os serviços que escrevem ou servem tráfego (`nginx`, `app`, `worker`, `minio`, só os que estão no ar) e os religa num `trap` de `EXIT` (também em falha), em vez de recusar rodar. Assim o operador não precisa parar e religar à mão, e o ensaio prova o religamento. Os crons do host Docker passam por `scripts/cron-run.sh`, que pula o job enquanto existe o flag `var/maintenance/<projeto>.restore`. Na hospedagem compartilhada, o runbook manda pausar o agendador do painel e pôr o site em manutenção (sem flag nos bins PHP, que não seria barato). Código 7 = restaurado, mas algum serviço não religou.
+- 2026-10-26 · T-19/T-20 · onda 6 — O `CI_WORKDIR` só é aceito sob `var/ci/` ou num diretório temporário, e um diretório não vazio precisa do marcador `.ci-workdir`. Os `script-tests` passam a ser descobertos por `find`. O `build-release.sh` fixa `umask 022`. A correção dos códigos de saída de `cron.md`/`shared-hosting-mysql57.md` (pendência de T-16) fica com T-18, que é a escritora desses runbooks na onda. BASE da Onda 6: `36a7407`.
+- 2026-10-26 · T-18 · onda 6 — Parar e religar os serviços em vez de recusar o restore (decisão do planejador). O flag `var/maintenance/<projeto>.restore`, com o `cron-run.sh`, faz os crons pularem; na hospedagem compartilhada isso é procedimento de painel.
+- 2026-10-26 · T-18 · onda 6 — O desvio aditivo `CENTRALVET_MAINTENANCE_DIR` foi aceito pelo validador.
+
 ## Bloqueios
 - nenhum
 - 2026-10-26 · T-16 · onda 5 — Escopo extra autorizado em migrations.md, cirurgia.md, internacao.md e landing-leads.md: `gzip -t` trocado pela verificação atual.
@@ -99,6 +104,17 @@
 - T-15: senha do usuário de migration vai em `-e` do `docker compose exec`, visível em `ps` (rollback-drill.sh:217).
 - T-16: cron.md e shared-hosting-mysql57.md descrevem códigos de saída de forma imprecisa: em hosting-backup.php falha de escrita/leitura sai 3 (não 2) e falha da trava só sai 1 no billing-event-retention (ops-monitor, billing-reconcile e hosting-backup saem 0 com `skipped_locked`).
 - T-16: cron e restauração não foram executados em hospedagem compartilhada real.
+- T-18: flag órfão (SIGKILL/queda do host) faz o cron-run pular todos os jobs com código 0, sem alerta; não confere `pid=` nem idade (scripts/cron-run.sh:50).
+- T-18: projeto padrão diverge: cron-run cai em `centralvet`, restore.sh em `basename` da raiz (cron-run.sh:46, restore.sh:116).
+- T-18: sem teste para falha de `compose ps` (código 2), falha de `compose stop` (código 6) e INT/TERM durante a carga; cron-run sem teste do projeto vindo do `.env`.
+- T-18: citar `CENTRALVET_MAINTENANCE_DIR` em docs/runbooks/restore-backup.md § 4.
+- T-19: transição local: `var/ci/local` antigo sem `.ci-workdir` é recusado até apagar `var/ci` uma vez à mão.
+- T-19: runbook tests.md:32-34 não descreve a restrição do `CI_WORKDIR` nem a descoberta por find.
+- T-19: guarda de symlink vale só para o último componente; diretório intermediário simbólico passa (run.sh:92-93).
+- T-19: `for test_file in $script_tests` quebra com espaço no nome (run.sh:248).
+- T-19: `CI_WORKDIR=var` foi rodado pelo implementador, não pelo validador na raiz real.
+- T-20: contorno de umask redundante em docs/runbooks/release.md:12,32 e scripts/release/rollback-drill.sh:144; fixture do teste sem bit de execução nem vendor/ real.
+- Onda 6: o exit code dos drills (restore-drill) não foi capturado no gate; mismatches=0 bastou.
 
 ## Riscos
 - Ensaios e CI local (T-11, T-14, T-15) constroem imagens e sobem projetos Docker próprios: demoram e disputam CPU. Mitigação: projetos `centralvet-ci-local` e `centralvet-drill` com `down -v` no fim; o orquestrador pode serializar a Onda 4.
@@ -120,5 +136,6 @@
   - Onda 3: BASE 797304e → HEAD 132bb73 (132bb73, 73289c1, c8913ca, 978a7e5, 1aacce2, fb58218)
   - Onda 4: BASE 1a3d9b0 → HEAD 97717be (4d0d7c1, 5a2cefd, 97717be)
   - Onda 5: BASE 617f43f → HEAD 8cf19e5 (69352f7, 8cf19e5)
-- Último status conhecido: onda 5 concluída (T-16 [x]; SUITE 2390/2390, LINT e BASHN iguais às baselines; correção 8cf19e5 após reprovação do gate por falta do `--user 1000:33`).
+  - Onda 6: BASE 36a7407 → HEAD a5e7494 (a5e7494, 0146f22, fe2d69d, 82047d5, 6615d56, e0cd822, d31808f)
+- Último status conhecido: onda 6 concluída (T-18, T-19, T-20 [x]; SUITE 2390/2390, SHTESTs Failed: 0, LINT e BASHN 0 linhas; restore-drill real nos dois formatos com mismatches=0). Falta a nova revisão final.
 - Próxima onda recomendada: nenhuma (revisão final)

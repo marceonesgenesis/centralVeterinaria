@@ -67,7 +67,7 @@ Fechar a Etapa 4 do plano de conclusão do MVP (`.docs/audits/2026-10-09-prontid
 | `docker/nginx/default.conf` | include de proxies confiáveis, `HTTPS` ao PHP | modificar | T-02 |
 | `docker/nginx/trusted-proxies.dev.conf` | faixas do dev | criar | T-02 |
 | `docker/nginx/trusted-proxies.production.conf.example` | exemplo estreito de produção | criar | T-02 |
-| `.gitignore` | `var/releases/`, `var/ci/`, `var/drill/` | modificar | T-02 |
+| ⚠ `.gitignore` | `var/releases/`, `var/ci/`, `var/drill/` | modificar | T-02, T-18 (Onda 6) |
 | `src/tests/Unit/ProxyTrustConfigTest.php` | teste da configuração de proxy e portas | criar | T-02 |
 | `scripts/db/migration-status.sh` | migrations aplicadas × arquivos | criar | T-03 |
 | `scripts/db/migration-status.test.sh` | teste com docker falso | criar | T-03 |
@@ -81,8 +81,8 @@ Fechar a Etapa 4 do plano de conclusão do MVP (`.docs/audits/2026-10-09-prontid
 | `src/tests/Integration/SmtpDeliveryIntegrationTest.php` | convite e reset de ponta a ponta no SMTP falso | criar | T-04 |
 | `src/tests/Unit/PasswordResetMailerTest.php` | teste do mailer | criar | T-04 |
 | `src/tests/Unit/PasswordResetFormsWiringTest.php` | wiring do form com o mailer | modificar | T-04 |
-| `scripts/release/build-release.sh` | pacote e imagem por commit, manifesto | criar | T-05 |
-| `scripts/release/build-release.test.sh` | teste com repo temporário | criar | T-05 |
+| ⚠ `scripts/release/build-release.sh` | pacote e imagem por commit, manifesto | criar | T-05, T-20 (Onda 6) |
+| ⚠ `scripts/release/build-release.test.sh` | teste com repo temporário | criar | T-05, T-20 (Onda 6) |
 | `scripts/release/smoke.sh` | fumaça HTTP pós-implantação | criar | T-05 |
 | `scripts/release/smoke.test.sh` | teste com curl falso | criar | T-05 |
 | `scripts/smoke/billing/webhook-event.php` | evento Stripe assinado para a fumaça | criar | T-06 |
@@ -109,9 +109,9 @@ Fechar a Etapa 4 do plano de conclusão do MVP (`.docs/audits/2026-10-09-prontid
 | `src/tests/Support/FakeAlertStateRepository.php` | fake de estado de alerta | criar | T-10 |
 | `src/tests/Unit/OperatorAlertNotifierTest.php` | teste do notificador | criar | T-10 |
 | `src/tests/Integration/OpsRepositoriesIntegrationTest.php` | integração dos repositórios | criar | T-10 |
-| `scripts/restore.sh` | restauração verificada por projeto | modificar | T-11 |
-| `scripts/restore.test.sh` | teste de restore e do ensaio | criar | T-11 |
-| `scripts/restore-drill.sh` | ensaio de restauração isolado e medido | criar | T-11 |
+| ⚠ `scripts/restore.sh` | restauração verificada por projeto | modificar | T-11, T-18 (Onda 6) |
+| ⚠ `scripts/restore.test.sh` | teste de restore e do ensaio | criar | T-11, T-18 (Onda 6) |
+| ⚠ `scripts/restore-drill.sh` | ensaio de restauração isolado e medido | criar | T-11, T-18 (Onda 6) |
 | `Makefile` | alvo `restore-drill` | modificar | T-11 |
 | `src/app/Core/Operations/Contract/OperationalCountsInterface.php` | contrato das contagens operacionais | criar | T-12 |
 | `src/app/Core/Persistence/PdoOperationalCounts.php` | consultas das contagens | criar | T-12 |
@@ -127,21 +127,21 @@ Fechar a Etapa 4 do plano de conclusão do MVP (`.docs/audits/2026-10-09-prontid
 | `src/tests/Integration/BillingEventPayloadRetentionIntegrationTest.php` | integração da retenção | criar | T-13 |
 | `src/tests/Unit/BillingCronWiringTest.php` | wiring dos bins de cobrança | criar | T-13 |
 | `.github/workflows/ci.yml` | job fino que chama o script de CI | modificar | T-14 |
-| `scripts/ci/run.sh` | pipeline reproduzível | criar | T-14 |
-| `scripts/ci/run.test.sh` | teste da pipeline com docker falso | criar | T-14 |
+| ⚠ `scripts/ci/run.sh` | pipeline reproduzível | criar | T-14, T-19 (Onda 6) |
+| ⚠ `scripts/ci/run.test.sh` | teste da pipeline com docker falso | criar | T-14, T-19 (Onda 6) |
 | `scripts/prepare-adianti-bootstrap.sh` | saída e env-file configuráveis | modificar | T-14 |
 | `scripts/release/rollback-drill.sh` | ensaio de rollback medido | criar | T-15 |
 | `docs/runbooks/ensaio-restauracao-rollback.md` | registro dos tempos medidos | criar | T-15 |
 | `README.md` | Operação, Backup, CI/CD | modificar | T-16 |
 | `docs/runbooks/README.md` | índice dos runbooks | modificar | T-16 |
-| `docs/runbooks/restore-backup.md` | backup e restauração novos | modificar | T-16 |
+| ⚠ `docs/runbooks/restore-backup.md` | backup e restauração novos | modificar | T-16, T-18 (Onda 6) |
 | `docs/runbooks/build-versioning.md` | CI e imagem por SHA | modificar | T-16 |
 | `docs/runbooks/migration-rollback.md` | rollback com `migration-status` e backup | modificar | T-16 |
 | `docs/runbooks/environments.md` | produção: proxy, cookies, preflight | modificar | T-16 |
-| `docs/runbooks/shared-hosting-mysql57.md` | 0019, crons, preflight, correção `mark_refunded` | modificar | T-16 |
+| ⚠ `docs/runbooks/shared-hosting-mysql57.md` | 0019, crons, preflight, correção `mark_refunded` | modificar | T-16, T-18 (Onda 6) |
 | `docs/runbooks/tests.md` | CI local e testes de scripts | modificar | T-16 |
 | `docs/runbooks/observabilidade.md` | alertas e heartbeats | criar | T-16 |
-| `docs/runbooks/cron.md` | crons versionados | criar | T-16 |
+| ⚠ `docs/runbooks/cron.md` | crons versionados | criar | T-16, T-18 (Onda 6) |
 | `docs/runbooks/release.md` | procedimento de release | criar | T-16 |
 | `docs/security/lgpd-retencao.md` | retenção do payload de cobrança | criar | T-16 |
 | `src/app/database/migrations/README.md` | `migration-status.sh` no procedimento | modificar | T-16 |
@@ -150,6 +150,9 @@ Fechar a Etapa 4 do plano de conclusão do MVP (`.docs/audits/2026-10-09-prontid
 | `src/bin/hosting-backup.php` | CLI de backup e `--decrypt` da hospedagem | criar | T-17 |
 | `src/tests/Unit/BackupCipherTest.php` | teste da cifra | criar | T-17 |
 | `src/tests/Integration/HostingBackupIntegrationTest.php` | integração do backup da hospedagem | criar | T-17 |
+
+| `scripts/cron-run.sh` | pula o cron durante a restauração (flag de manutenção) | criar | T-18 |
+| `scripts/cron-run.test.sh` | teste do wrapper de cron | criar | T-18 |
 
 Arquivo tocado por mais de uma task leva ⚠ na linha e a resolução (serializar em ondas diferentes, worktree por agente ou escritor único) fica em "Estratégia de execução"; caminho exclusivo não resolve arquivo compartilhado na mesma onda.
 
@@ -195,6 +198,9 @@ T-02 → T-17 → T-15
 T-17 → T-16
 T-03 → T-09
 T-06 → T-16
+T-11 → T-18 (Onda 6, correção); T-16 → T-18
+T-14 → T-19 (Onda 6, correção)
+T-05 → T-20 (Onda 6, correção)
 ```
 
 ## Estratégia de execução
@@ -206,6 +212,7 @@ T-06 → T-16
 - Pré-condição de T-08, T-17, T-11 e T-15: `var/drill/passphrase` criado com `openssl rand` (frase descartável, ignorada pelo git; quem chegar primeiro na Onda 2 cria, o outro reaproveita), `var/drill/backups/` com o backup real do dev feito por T-08 e `var/drill/backups-hosting/` com o de T-17 (ambos sem heartbeat). T-11 e T-15 usam esses arquivos.
 - Pré-condição de T-05, T-14 e T-15: rede para o packagist (`composer:2.8.11`) e para baixar `nginx:1.27.5-alpine`/`mysql:8.0.43`/`redis:7.4.5-alpine` se faltarem. Os projetos `centralvet-ci-local` e `centralvet-drill` são distintos do `centralvet` e derrubados com `down -v` no fim; o ensaio usa a porta 18081.
 - Onda 4 roda T-14 e T-15 em paralelo: ambos constroem imagens e sobem projetos Docker próprios (sem porta em comum); se a máquina ficar lenta, o orquestrador pode serializar.
+- Onda 6 — correção (revisão final), BASE `36a7407`: origem `reviews/final.md` (bloqueante e pendência promovida de T-11; pendências abertas de T-14, T-05/T-15 e T-16). Cada arquivo ⚠ divide a task nova com uma task de onda anterior. Na onda, T-18, T-19 e T-20 têm caminhos disjuntos (caminho exclusivo). Validação cruzada da Onda 6: SUITE completo, LINTALL, BASHN e o `restore-drill.sh` real nos dois formatos (`var/drill/backups` e `var/drill/backups-hosting`), sempre no projeto isolado `centralvet-drill`, nunca no projeto nem no banco `centralvet`.
 - Validação cruzada de cada onda: SUITE completo sem filtro de classe (`Failed: 0`, nenhuma classe de integração nova em `SKIP`), LINTALL contra `baseline/php-lint-all.txt` e BASHN contra `baseline/bash-n.txt`. Falhas intermitentes 1213/1205 no `centralvet_test` por suítes paralelas: rodar de novo isolado.
 
 ## Ondas de execução
@@ -224,6 +231,9 @@ T-06 → T-16
 
 ### Onda 5
 - T-16
+
+### Onda 6 — correção (revisão final)
+- T-18, T-19, T-20
 
 ## Agentes
 
@@ -247,6 +257,9 @@ T-06 → T-16
 | Thanos | general-purpose | inherit | T-15 |
 | Goku | general-purpose | inherit | T-17 |
 | Gandalf (docs) | geduc:documentador | sonnet | T-16 |
+| Hegel | general-purpose | inherit | T-18 |
+| Saitama | general-purpose | inherit | T-19 |
+| Tesla | general-purpose | inherit | T-20 |
 
 ## Review Focus
 - Login no dev por `http://localhost:8081` depois do cookie Secure (sem `HTTPS` e sem `TRUST_FORWARDED_PROTO`) → `session.cookie_secure` não liga e o cookie de sessão continua sendo aceito em HTTP → T-07
