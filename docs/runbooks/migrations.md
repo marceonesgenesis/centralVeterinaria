@@ -19,10 +19,12 @@ e o detalha operacionalmente.
 
    ```bash
    make backup
-   gzip -t var/backups/centralvet-<timestamp>.sql.gz
+   scripts/restore-drill.sh var/backups/centralvet-<timestamp>.tar.gpg
    ```
 
-   Ver [`restore-backup.md`](./restore-backup.md) para o procedimento completo.
+   O ensaio restaura o backup cifrado em um projeto descartável e compara com
+   o `MANIFEST` (`mismatches=0`). Ver [`restore-backup.md`](./restore-backup.md)
+   para o procedimento completo.
 3. **Calcular o checksum** do SQL aprovado e substituir o placeholder do
    registro de auditoria da migration (SHA-256):
 

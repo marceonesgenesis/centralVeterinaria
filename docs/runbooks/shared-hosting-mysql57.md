@@ -711,6 +711,25 @@ códigos (0, 2, 3, 4) como em [`restore-backup.md`](./restore-backup.md); o
 heartbeat `backup` depende da migration 0019. Baixe os arquivos por SFTP para
 fora do provedor com frequência: o disco da hospedagem não é cópia externa.
 
+**Permissões (`--user 1000:33`).** No ambiente Docker (dev ou ensaio), rodar
+`bin/hosting-backup.php` por `docker compose run` exige `--user 1000:33`: o
+volume de documentos é 0750 de `www-data` (grupo 33), o container não tem
+`DAC_OVERRIDE` e `var/drill` é 0700 do usuário 1000 do host; com o usuário
+padrão a escrita ou a leitura falha e o script sai com código 2. Exemplo
+(ensaio, sem gravar heartbeat no dev):
+
+```bash
+docker compose run --rm --no-deps -T --user 1000:33 \
+  -v "$PWD/src:/var/www/html/src:ro" -v "$PWD/var/drill:/var/www/html/var/drill" \
+  -e BACKUP_DIR=/var/www/html/var/drill/backups-hosting \
+  -e BACKUP_PASSPHRASE_FILE=/var/www/html/var/drill/passphrase \
+  app php bin/hosting-backup.php --no-heartbeat
+```
+
+Na hospedagem compartilhada real não há `--user`: o agendador roda como o
+usuário da conta, que precisa **ler** `src/files` e a pasta de documentos e
+**escrever** em `BACKUP_DIR` (e em `BACKUP_OFFSITE_DIR`, se houver).
+
 ### Restaurar (decifrar com `--decrypt`)
 
 O agendador não restaura sozinho. Com autorização explícita e um backup do
