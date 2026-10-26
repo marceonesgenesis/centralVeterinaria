@@ -28,7 +28,8 @@ interface BillingOrderRepositoryInterface
 
     /**
      * Ids of orders that still need provisioning or the invite: `paid`,
-     * `provisioning_failed` with fewer than 10 attempts, or `provisioned`
+     * `provisioning_failed` with fewer than 10 attempts (except
+     * `login_conflict`, which only a refund resolves), or `provisioned`
      * with `invite_sent_at` NULL and fewer than 10 attempts (each failed
      * invite counts one). Ordered by `provisioning_attempts`, then id, so
      * items that keep failing never crowd out new ones.
@@ -36,4 +37,13 @@ interface BillingOrderRepositoryInterface
      * @return list<int>
      */
     public function listPendingFulfillment(int $limit): array;
+
+    /**
+     * Ids of paid orders whose responsible e-mail is already a login
+     * (`provisioning_failed` with `provisioning_error = 'login_conflict'`),
+     * ordered by id, with no attempts cap. `$limit <= 0` returns [].
+     *
+     * @return list<int>
+     */
+    public function listLoginConflictsToRefund(int $limit): array;
 }

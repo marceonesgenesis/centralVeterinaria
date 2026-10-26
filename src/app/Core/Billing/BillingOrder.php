@@ -17,6 +17,11 @@ use InvalidArgumentException;
  * Ciclo: pending → checkout_open → paid → provisioned, com
  * provisioning_failed (retomável) e expired (checkout abandonado). Pagamento
  * que chega depois de expirado ainda é aceito (o dinheiro foi cobrado).
+ *
+ * refunded (0018) é terminal e só vale para o pedido pago cujo e-mail já é
+ * login (provisioning_failed/login_conflict): cancela a assinatura do cartão,
+ * registra o reembolso do Stripe e marca refunded, nessa ordem; cada passo
+ * fica gravado para a retomada.
  */
 final class BillingOrder
 {
@@ -26,6 +31,7 @@ final class BillingOrder
     public const STATUS_PROVISIONED = 'provisioned';
     public const STATUS_PROVISIONING_FAILED = 'provisioning_failed';
     public const STATUS_EXPIRED = 'expired';
+    public const STATUS_REFUNDED = 'refunded';
 
     public const METHOD_CARD = 'card';
     public const METHOD_PIX = 'pix';
@@ -33,10 +39,13 @@ final class BillingOrder
     private const STATUSES = [
         self::STATUS_PENDING, self::STATUS_CHECKOUT_OPEN, self::STATUS_PAID,
         self::STATUS_PROVISIONED, self::STATUS_PROVISIONING_FAILED, self::STATUS_EXPIRED,
+        self::STATUS_REFUNDED,
     ];
 
     /** Status em que o pagamento já foi registrado. */
-    private const PAID_STATUSES = [self::STATUS_PAID, self::STATUS_PROVISIONED, self::STATUS_PROVISIONING_FAILED];
+    private const PAID_STATUSES = [
+        self::STATUS_PAID, self::STATUS_PROVISIONED, self::STATUS_PROVISIONING_FAILED, self::STATUS_REFUNDED,
+    ];
 
     private const DATE_FORMAT = 'Y-m-d H:i:s.u';
 
@@ -64,6 +73,9 @@ final class BillingOrder
         private int $provisioningAttempts,
         private ?string $provisioningError,
         private ?DateTimeImmutable $inviteSentAt,
+        private ?DateTimeImmutable $subscriptionCancelledAt = null,
+        private ?string $stripeRefundId = null,
+        private ?DateTimeImmutable $refundedAt = null,
     ) {
     }
 
@@ -196,6 +208,71 @@ final class BillingOrder
         $this->inviteSentAt = $at;
     }
 
+    /** Pago, sem tenant, porque o e-mail do responsável já é login de outro usuário. */
+    public function isLoginConflict(): bool
+    {
+        return $this->status === self::STATUS_PROVISIONING_FAILED
+            && $this->provisioningError === ProvisioningConflict::LOGIN_CONFLICT;
+    }
+
+    /**
+     * A Subscription do Stripe (cartão) foi cancelada; a segunda chamada
+     * mantém a primeira data.
+     *
+     * @throws InvalidStatusTransitionException fora de login_conflict ou no Pix
+     */
+    public function markSubscriptionCancelled(DateTimeImmutable $at): void
+    {
+        $this->assertLoginConflict('cancel the subscription');
+        if ($this->paymentMethod !== self::METHOD_CARD) {
+            throw new InvalidStatusTransitionException(sprintf(
+                'Billing order %s cannot cancel the subscription: payment method is "%s"',
+                $this->reference(),
+                $this->paymentMethod,
+            ));
+        }
+
+        $this->subscriptionCancelledAt ??= $at;
+    }
+
+    /**
+     * @throws InvalidStatusTransitionException fora de login_conflict
+     * @throws InvalidArgumentException com id vazio
+     */
+    public function recordRefund(string $stripeRefundId): void
+    {
+        $this->assertLoginConflict('record a refund');
+        self::required('stripe_refund_id', $stripeRefundId, 64);
+
+        $this->stripeRefundId = trim($stripeRefundId);
+    }
+
+    /**
+     * Estado terminal; provisioning_error é mantido.
+     *
+     * @throws InvalidStatusTransitionException fora de login_conflict, sem o
+     *         reembolso registrado ou, no cartão, sem a assinatura cancelada
+     */
+    public function markRefunded(DateTimeImmutable $at): void
+    {
+        $this->assertLoginConflict('be refunded');
+        if ($this->stripeRefundId === null) {
+            throw new InvalidStatusTransitionException(sprintf(
+                'Billing order %s cannot be refunded: no refund recorded',
+                $this->reference(),
+            ));
+        }
+        if ($this->paymentMethod === self::METHOD_CARD && $this->subscriptionCancelledAt === null) {
+            throw new InvalidStatusTransitionException(sprintf(
+                'Billing order %s cannot be refunded: subscription not cancelled',
+                $this->reference(),
+            ));
+        }
+
+        $this->status = self::STATUS_REFUNDED;
+        $this->refundedAt = $at;
+    }
+
     /** @param array<string, mixed> $row */
     public static function fromRow(array $row): self
     {
@@ -228,11 +305,14 @@ final class BillingOrder
             provisioningAttempts: (int) ($row['provisioning_attempts'] ?? 0),
             provisioningError: self::nullableString($row['provisioning_error'] ?? null),
             inviteSentAt: self::parseDate($row['invite_sent_at'] ?? null),
+            subscriptionCancelledAt: self::parseDate($row['subscription_cancelled_at'] ?? null),
+            stripeRefundId: self::nullableString($row['stripe_refund_id'] ?? null),
+            refundedAt: self::parseDate($row['refunded_at'] ?? null),
         );
     }
 
     /**
-     * Colunas de `billing_order` (T-02), sem `created_at`/`updated_at`.
+     * Colunas de `billing_order` (0017 e 0018), sem `created_at`/`updated_at`.
      *
      * @return array<string, int|string|null>
      */
@@ -262,6 +342,9 @@ final class BillingOrder
             'provisioning_attempts' => $this->provisioningAttempts,
             'provisioning_error' => $this->provisioningError,
             'invite_sent_at' => $this->inviteSentAt?->format(self::DATE_FORMAT),
+            'subscription_cancelled_at' => $this->subscriptionCancelledAt?->format(self::DATE_FORMAT),
+            'stripe_refund_id' => $this->stripeRefundId,
+            'refunded_at' => $this->refundedAt?->format(self::DATE_FORMAT),
         ];
     }
 
@@ -390,6 +473,38 @@ final class BillingOrder
     public function inviteSentAt(): ?DateTimeImmutable
     {
         return $this->inviteSentAt;
+    }
+
+    public function subscriptionCancelledAt(): ?DateTimeImmutable
+    {
+        return $this->subscriptionCancelledAt;
+    }
+
+    public function stripeRefundId(): ?string
+    {
+        return $this->stripeRefundId;
+    }
+
+    public function refundedAt(): ?DateTimeImmutable
+    {
+        return $this->refundedAt;
+    }
+
+    private function assertLoginConflict(string $action): void
+    {
+        if (!$this->isLoginConflict()) {
+            throw new InvalidStatusTransitionException(sprintf(
+                'Billing order %s cannot %s: it is not a paid order with a login conflict (status "%s")',
+                $this->reference(),
+                $action,
+                $this->status,
+            ));
+        }
+    }
+
+    private function reference(): string
+    {
+        return $this->id !== null ? (string) $this->id : $this->publicId;
     }
 
     /** @param list<string> $allowed */

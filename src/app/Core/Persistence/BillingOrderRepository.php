@@ -6,12 +6,13 @@ namespace CentralVet\Persistence;
 
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\Contract\BillingOrderRepositoryInterface;
+use CentralVet\Billing\ProvisioningConflict;
 use LogicException;
 use PDO;
 use RuntimeException;
 
 /**
- * PDO-backed `billing_order` (migration 0017). No TenantContext: the order
+ * PDO-backed `billing_order` (migrations 0017 and 0018). No TenantContext: the order
  * is placed on the landing before any tenant exists; `tenant_id` is only
  * filled by provisioning. Columns come from BillingOrder::toRow(), so the
  * mapping lives in one place; created_at/updated_at are left to MySQL.
@@ -94,12 +95,32 @@ final class BillingOrderRepository implements BillingOrderRepositoryInterface
         $statement = $this->pdo->prepare(
             'SELECT id FROM billing_order '
             . "WHERE status = 'paid' "
-            . "OR (status = 'provisioning_failed' AND provisioning_attempts < :max_attempts) "
+            . "OR (status = 'provisioning_failed' AND provisioning_attempts < :max_attempts "
+            . "AND (provisioning_error IS NULL OR provisioning_error <> :login_conflict)) "
             . "OR (status = 'provisioned' AND invite_sent_at IS NULL AND provisioning_attempts < :max_invite_attempts) "
             . 'ORDER BY provisioning_attempts ASC, id ASC LIMIT :limit'
         );
         $statement->bindValue('max_attempts', self::MAX_PROVISIONING_ATTEMPTS, PDO::PARAM_INT);
         $statement->bindValue('max_invite_attempts', self::MAX_PROVISIONING_ATTEMPTS, PDO::PARAM_INT);
+        $statement->bindValue('login_conflict', ProvisioningConflict::LOGIN_CONFLICT);
+        $statement->bindValue('limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+
+        return array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    public function listLoginConflictsToRefund(int $limit): array
+    {
+        if ($limit <= 0) {
+            return [];
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT id FROM billing_order '
+            . "WHERE status = 'provisioning_failed' AND provisioning_error = :login_conflict "
+            . 'ORDER BY id ASC LIMIT :limit'
+        );
+        $statement->bindValue('login_conflict', ProvisioningConflict::LOGIN_CONFLICT);
         $statement->bindValue('limit', $limit, PDO::PARAM_INT);
         $statement->execute();
 

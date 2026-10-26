@@ -6,6 +6,7 @@ namespace CentralVet\Tests\Support;
 
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\Contract\BillingOrderRepositoryInterface;
+use CentralVet\Billing\ProvisioningConflict;
 use LogicException;
 use RuntimeException;
 
@@ -98,11 +99,33 @@ final class FakeBillingOrderRepository implements BillingOrderRepositoryInterfac
             }
 
             $pending = $row['status'] === BillingOrder::STATUS_PAID
-                || ($row['status'] === BillingOrder::STATUS_PROVISIONING_FAILED && (int) $row['provisioning_attempts'] < self::MAX_PROVISIONING_ATTEMPTS)
+                || ($row['status'] === BillingOrder::STATUS_PROVISIONING_FAILED && (int) $row['provisioning_attempts'] < self::MAX_PROVISIONING_ATTEMPTS
+                    && $row['provisioning_error'] !== ProvisioningConflict::LOGIN_CONFLICT)
                 || ($row['status'] === BillingOrder::STATUS_PROVISIONED && $row['invite_sent_at'] === null && (int) $row['provisioning_attempts'] < self::MAX_PROVISIONING_ATTEMPTS);
 
             if ($pending) {
                 $ids[] = (int) $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    public function listLoginConflictsToRefund(int $limit): array
+    {
+        if ($limit <= 0) {
+            return [];
+        }
+
+        ksort($this->rows);
+        $ids = [];
+        foreach ($this->rows as $id => $row) {
+            if ($row['status'] === BillingOrder::STATUS_PROVISIONING_FAILED
+                && $row['provisioning_error'] === ProvisioningConflict::LOGIN_CONFLICT) {
+                $ids[] = (int) $id;
+                if (count($ids) >= $limit) {
+                    break;
+                }
             }
         }
 
