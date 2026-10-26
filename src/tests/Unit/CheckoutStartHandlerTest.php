@@ -388,7 +388,7 @@ final class CheckoutStartHandlerTest
             'responsible_phone' => '(85) 99999-1234',
             'clinic_name' => 'Clínica Patas',
             'terms_accepted' => true,
-            'terms_version' => 'assinatura-2026-10',
+            'terms_version' => 'termos-uso-2026-10',
             'contact_consent' => false,
             'website' => '',
         ];

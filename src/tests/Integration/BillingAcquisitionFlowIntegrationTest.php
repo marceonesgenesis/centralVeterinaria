@@ -773,7 +773,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
             'responsible_phone' => '(85) 99999-1234',
             'clinic_name' => 'Clínica T-22 ' . $suffix,
             'terms_accepted' => true,
-            'terms_version' => 'assinatura-2026-10',
+            'terms_version' => 'termos-uso-2026-10',
             'contact_consent' => false,
             'website' => '',
             'price_cents' => 1,

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace CentralVet\Landing;
 
+use CentralVet\Billing\OfferScope;
+use CentralVet\Legal\LegalDocuments;
+
 /**
  * Fonte única de planos, preços (centavos), opções do formulário e texto do
  * consentimento da landing pública. A página, o `lead.php` e a tela de leads
@@ -11,7 +14,11 @@ namespace CentralVet\Landing;
  *
  * Mudar CONSENT_TEXT exige nova CONSENT_VERSION (prova do consentimento LGPD).
  * Mudar TERMS_TEXT exige nova TERMS_VERSION (prova do aceite da assinatura,
- * separada do consentimento de contato).
+ * separada do consentimento de contato); TERMS_VERSION é a versão vigente
+ * dos Termos de Uso (LegalDocuments).
+ *
+ * `plans()` traz sempre os 4 planos (fonte de PlanEntitlements); a saída
+ * pública (`publicJson`) só traz os planos do recorte da oferta (OfferScope).
  */
 final class LandingCatalog
 {
@@ -19,9 +26,9 @@ final class LandingCatalog
 
     public const CONSENT_TEXT = 'Concordo que a equipe Central Vet Pro entre em contato sobre a assinatura, conforme a LGPD.';
 
-    public const TERMS_VERSION = 'assinatura-2026-10';
+    public const TERMS_VERSION = LegalDocuments::TERMS_VERSION;
 
-    public const TERMS_TEXT = 'Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.';
+    public const TERMS_TEXT = 'Li e aceito os Termos de Uso e a Política de Privacidade do Central Vet Pro, com cobrança mensal recorrente no cartão ou por fatura Pix e cancelamento a qualquer momento pelo app, com efeito no fim do período pago.';
 
     /** Formas de pagamento da compra pela landing (id => rótulo). */
     public const PAYMENT_METHODS = ['card' => 'Cartão de crédito', 'pix' => 'Pix'];
@@ -104,7 +111,7 @@ final class LandingCatalog
                 'featured' => false,
                 'items' => self::items([
                     'Tudo do Business',
-                    'Governança da rede',
+                    ['Governança da rede', true],
                     'Suporte dedicado',
                     ['IA e agentes avançados', true],
                     ['SSO e SLA', true],
@@ -157,12 +164,25 @@ final class LandingCatalog
         }, $rows);
     }
 
-    /** JSON para `<script type="application/json">`: `<`, `>`, `&`, aspas escapados. */
-    public static function publicJson(): string
+    /**
+     * JSON para `<script type="application/json">`: `<`, `>`, `&`, aspas
+     * escapados. Só os planos de `$offer->offeredPlans()` (null → ambiente)
+     * em `plans` e nas colunas de `compare`.
+     */
+    public static function publicJson(?OfferScope $offer = null): string
     {
+        $offered = ($offer ?? OfferScope::fromEnvironment())->offeredPlans();
+
         return json_encode([
-            'plans' => self::plans(),
-            'compare' => self::compareRows(),
+            'plans' => array_values(array_filter(
+                self::plans(),
+                static fn (array $plan): bool => in_array($plan['id'], $offered, true),
+            )),
+            'compare' => array_map(
+                static fn (array $row): array => array_replace($row, ['plans' => array_intersect_key($row['plans'], array_flip($offered))]),
+                self::compareRows(),
+            ),
+            'legal' => ['terms_url' => LegalDocuments::TERMS_URL, 'privacy_url' => LegalDocuments::PRIVACY_URL],
             'vets' => self::VETS_OPTIONS,
             'ufs' => self::UFS,
             'consent' => ['version' => self::CONSENT_VERSION, 'text' => self::CONSENT_TEXT],

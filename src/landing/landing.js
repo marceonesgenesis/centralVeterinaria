@@ -17,7 +17,6 @@
   var TOKEN_HEADER = "X-CV-Lead-Token";
   var HONEYPOT_FIELD = "website";
   var STORE_KEY = "cvp-cart-plan";
-  var PLAN_COLUMNS = ["starter", "pro", "business", "enterprise"];
   var MSG_GENERIC = "Não conseguimos enviar agora. Verifique a conexão e tente de novo.";
   var MSG_RATE_LIMITED = "Muitos envios a partir desta rede. Tente de novo em alguns minutos.";
   var MSG_EXPIRED = "Sua sessão do formulário expirou. Recarregue a página e envie de novo.";
@@ -47,6 +46,8 @@
   var DATA = readData();
   var PLANS = Array.isArray(DATA.plans) ? DATA.plans : [];
   var COMPARE = Array.isArray(DATA.compare) ? DATA.compare : [];
+  /* Colunas do comparativo = planos ofertados (LandingCatalog::publicJson filtra por OfferScope). */
+  var PLAN_COLUMNS = PLANS.map(function (p) { return String(p.id); });
   var VETS = DATA.vets && typeof DATA.vets === "object" ? DATA.vets : {};
   var UFS = Array.isArray(DATA.ufs) ? DATA.ufs : [];
   var CONSENT_TEXT = DATA.consent && DATA.consent.text ? String(DATA.consent.text) : "";
@@ -86,6 +87,10 @@
   }
 
   function renderCompare() {
+    $("compare-head").innerHTML = '<th scope="col">Recurso</th>' + PLANS.map(function (p) {
+      return '<th scope="col">' + esc(p.name) + "</th>";
+    }).join("");
+    I18N.translate($("compare-head"));
     $("compare-body").innerHTML = COMPARE.map(function (r) {
       var cells = PLAN_COLUMNS.map(function (id) {
         return r.plans && r.plans[id] ? '<td class="yes" aria-label="Incluído">✓</td>' : '<td class="no" aria-label="Não incluído">–</td>';
@@ -323,7 +328,7 @@
     check("clinic", clinic.length >= 2, "Informe o nome da clínica.");
     check("method", method !== "", "Escolha a forma de pagamento: cartão ou Pix.");
     var terms = $("sub-terms").checked;
-    check("terms", terms, "Aceite os Termos de Assinatura para continuar.");
+    check("terms", terms, "Aceite os Termos de Uso e a Política de Privacidade para continuar.");
     subErr("consent", "");
     if (!ok) { focusFirstSubscribeError(); return; }
 

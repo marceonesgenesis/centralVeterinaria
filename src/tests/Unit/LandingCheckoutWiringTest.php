@@ -35,7 +35,7 @@ final class LandingCheckoutWiringTest
         'Informe o nome do responsável.',
         'Informe o telefone com DDD.',
         'Escolha a forma de pagamento: cartão ou Pix.',
-        'Aceite os Termos de Assinatura para continuar.',
+        'Aceite os Termos de Uso e a Política de Privacidade para continuar.',
         'Abrindo o pagamento…',
         'Não foi possível iniciar o pagamento. Tente de novo em instantes.',
         'Pagamento recebido. Você receberá por e-mail o convite para definir sua senha.',

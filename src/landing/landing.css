@@ -263,3 +263,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .subscribe .check { min-height: var(--cv-touch-target); cursor: pointer; text-align: left; font-weight: 400; }
 .subscribe .err { color: #B3412E; font-size: 13px; }
 .subscribe-actions { display: grid; gap: 10px; justify-items: start; }
+
+/* Etapa 5 T-13: links dos Termos de Uso e da Política de Privacidade (aceite do checkout e rodapé). */
+.legal-links { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; text-align: left; }
+.legal-links a { display: inline-flex; align-items: center; min-height: var(--cv-touch-target); color: inherit; text-decoration: underline; }
