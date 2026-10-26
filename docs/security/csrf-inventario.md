@@ -176,7 +176,7 @@ AiToolCallList::onReload` são leitura. `GET AiCopilotPanel::onAsk` sem token �
 
 O guard roda em `checkMultiSession()`, chamado por `engine.php` e `index.php`. Ficam fora dele:
 
-- `download.php`: só lê arquivo de `files/` com sessão logada (`realpath` restrito).
+- `download.php`: desabilitado (404, sem leitura de arquivo; ver `docs/security/downloads-s6.md`).
 - `lead.php`: POST público da landing com `LeadFormToken` próprio e limitador (`LeadSubmissionHandler`).
 - `checkout.php`: POST público da compra pela landing com `LeadFormToken` (`form_token` no corpo, uso único), same-origin (`LeadSubmissionHandler::precheck`) e limitador por IP `checkout|` (`CheckoutStartHandler`); o preço vem do servidor.
 - `billing-webhook.php`: POST do Stripe, exceção ao CSRF autenticada só pela `Stripe-Signature` (HMAC-SHA256 do segredo do webhook, tolerância 300 s, `StripeSignatureVerifier`), sem cookie, sessão nem token CSRF; assinatura ausente ou inválida → 400 sem escrita no banco (`BillingWebhookHandler`).

@@ -166,8 +166,8 @@ caminhos são graváveis pelo usuário `www-data`:
 - `src/tmp`: `tmpfs` efêmero, `noexec`, `nosuid` e `nodev`, limitado a 32 MB;
 - `src/app/output`: `tmpfs` efêmero com as mesmas proteções, limitado a 64 MB;
 - `src/files`: volume persistente `app_files`, destinado a uploads. O Nginx
-  bloqueia integralmente acesso HTTP direto a esse caminho; downloads autenticados
-  passam somente por `download.php`, como anexo binário e com `nosniff`.
+  bloqueia integralmente acesso HTTP direto a esse caminho. `download.php` está
+  desabilitado (responde 404 e registra log, decisão S6 em `docs/security/downloads-s6.md`).
 
 Os dois `tmpfs` são descartados ao recriar o container. `app_files` sobrevive a
 `docker compose down`; sua remoção exige apagar explicitamente o volume.
@@ -175,7 +175,7 @@ Os dois `tmpfs` são descartados ao recriar o container. `app_files` sobrevive a
 Volumes nomeados do Docker não oferecem uma forma portável no Compose de aplicar
 `noexec`, `nosuid` e `nodev` sem depender de opções específicas do driver/host.
 Por isso `app_files` continua como named volume persistente. A mitigação combina:
-nenhum mount desse volume no Nginx, downloads somente pelo controlador autenticado,
+nenhum mount desse volume no Nginx, `download.php` desabilitado (404),
 root filesystem somente leitura, processo PHP como `www-data`, todas as capabilities
 removidas e `no-new-privileges`. Não se deve carregar/incluir código PHP a partir de
 `files/`.
