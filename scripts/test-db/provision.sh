@@ -61,6 +61,7 @@ $migrations_dir/20261015_0015_phase8b_copilot.sql
 $migrations_dir/20261021_0016_etapa2_sale_finance.sql
 $migrations_dir/20261021_0017_etapa3_billing.sql
 $migrations_dir/20261026_0018_billing_order_refund.sql
+$migrations_dir/20261026_0019_ops_monitoring.sql
 "
 
 # Preflight: no docker, no SQL. Paths contain no spaces.
