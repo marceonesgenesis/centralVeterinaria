@@ -23,6 +23,9 @@ onde aplicável, os runbooks indicam o que muda nesses ambientes.
 - [`comunicacao.md`](./comunicacao.md) — consentimento, templates, e-mail/WhatsApp, agendador, LGPD e Central de Pendências (Fase 7A).
 - [`documentos.md`](./documentos.md) — PDFs assíncronos, storage privado, versionamento, download com RBAC, aviso `document_ready` e operação (Fase 7B).
 - [`ia-assistente.md`](./ia-assistente.md) — assistente de IA: casos de uso, ativação por tenant, variáveis `AI_*`, custo, falhas, LGPD e incidente (Fase 8A).
+- [`piloto-homologacao.md`](./piloto-homologacao.md) — roteiro de homologação do piloto por perfil, em 2 tenants, com evidência por passo.
+- [`piloto-go-live.md`](./piloto-go-live.md) — checklist de go-live: preflight, migrations 0001–0020, seeds, variáveis, backup, crons, Stripe, SMTP e textos jurídicos.
+- [`piloto-operacao.md`](./piloto-operacao.md) — suporte, triagem, comunicação, feedback, cancelamento e retenção e critérios de saída do piloto.
 - [`../security/lgpd-retencao.md`](../security/lgpd-retencao.md) — retenção de dados pessoais: o que expira, quando e o que fica.
 - [`../security/csrf-inventario.md`](../security/csrf-inventario.md) — inventário de métodos de leitura e escrita da proteção CSRF (ver também a seção "Proteção CSRF" de `environments.md`).
 
