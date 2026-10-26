@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CentralVet\Tests\Integration;
+
+use CentralVet\Operations\BackupCipher;
+use CentralVet\Operations\HostingBackup;
+use CentralVet\Tests\Support\Assert;
+use CentralVet\Tests\Support\MysqlIntegrationTestCase;
+use DateTimeImmutable;
+use DateTimeZone;
+use PharData;
+
+/**
+ * Backup da hospedagem compartilhada por PHP CLI (Etapa 4, T-17) contra o
+ * `centralvet_test`: dentro da transação do teste (o backup não abre
+ * snapshot nem faz COMMIT), com diretórios temporários de arquivos (2) e
+ * documentos (1). Decifrado, o pacote traz o MANIFEST v1 de T-08 com
+ * `project=hosting`, `minio=skipped`, contagens e um sha256 por parte.
+ */
+final class HostingBackupIntegrationTest extends MysqlIntegrationTestCase
+{
+    private const PASSPHRASE = 'frase-de-teste-etapa4-hosting';
+
+    private string $root;
+
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        $this->root = sys_get_temp_dir() . '/cv-hosting-backup-' . bin2hex(random_bytes(6));
+        mkdir($this->root . '/files/tenant-1', 0700, true);
+        mkdir($this->root . '/documents/1', 0700, true);
+        mkdir($this->root . '/backups', 0700, true);
+        file_put_contents($this->root . '/files/logo.png', 'png-bytes');
+        file_put_contents($this->root . '/files/tenant-1/foto.jpg', 'jpg-bytes');
+        file_put_contents($this->root . '/documents/1/receita.pdf', '%PDF-1.4 teste');
+    }
+
+    public function tearDown(): void
+    {
+        $this->removeTree($this->root);
+
+        parent::tearDown();
+    }
+
+    public function testCreateWritesEncryptedPackageWithManifestV1AndVerifiableParts(): void
+    {
+        $backup = new HostingBackup(
+            $this->pdo,
+            $this->root . '/files',
+            $this->root . '/documents',
+            $this->root . '/backups',
+            static fn (): DateTimeImmutable => new DateTimeImmutable('2026-10-26 12:00:00', new DateTimeZone('UTC')),
+        );
+
+        $path = $backup->create(self::PASSPHRASE);
+
+        Assert::same($this->root . '/backups/centralvet-20261026T120000Z.tar.gz.cvbk', $path);
+        Assert::true(is_file($path));
+        Assert::same('CVBK1', (string) file_get_contents($path, false, null, 0, 5));
+        Assert::true($this->pdo->inTransaction(), 'backup left the test transaction');
+
+        BackupCipher::decryptFile($path, $this->root . '/package.tar.gz', self::PASSPHRASE);
+        (new PharData($this->root . '/package.tar.gz'))->extractTo($this->root . '/out');
+
+        $manifest = (string) file_get_contents($this->root . '/out/MANIFEST');
+        $lines = explode("\n", trim($manifest));
+        $tenantCount = (int) $this->pdo->query('SELECT COUNT(*) FROM tenant')->fetchColumn();
+
+        Assert::same('format=centralvet-backup-v1', $lines[0]);
+        Assert::true(in_array('project=hosting', $lines, true), $manifest);
+        Assert::true(in_array('minio=skipped', $lines, true), $manifest);
+        Assert::true(in_array('rows tenant=' . $tenantCount, $lines, true), $manifest);
+        Assert::true(in_array('files_count=2', $lines, true), $manifest);
+        Assert::true(in_array('documents_count=1', $lines, true), $manifest);
+        Assert::true(in_array('migration 0019', $lines, true), $manifest);
+        Assert::same(1, preg_match('/^created_at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m', $manifest));
+        Assert::same(1, preg_match('/^commit=\S+$/m', $manifest));
+
+        foreach (['db.sql.gz', 'files.tar.gz', 'documents.tar.gz'] as $part) {
+            $hash = hash_file('sha256', $this->root . '/out/' . $part);
+            Assert::true(in_array('sha256 ' . $hash . ' ' . $part, $lines, true), "sha256 of {$part} missing or wrong");
+        }
+
+        $sql = (string) gzdecode((string) file_get_contents($this->root . '/out/db.sql.gz'));
+        Assert::stringContains('SET FOREIGN_KEY_CHECKS=0;', $sql);
+        Assert::stringContains('CREATE TABLE `ops_heartbeat`', $sql);
+        Assert::stringContains('INSERT INTO `tenant`', $sql);
+
+        (new PharData($this->root . '/out/files.tar.gz'))->extractTo($this->root . '/files-out');
+        Assert::same('jpg-bytes', file_get_contents($this->root . '/files-out/tenant-1/foto.jpg'));
+        (new PharData($this->root . '/out/documents.tar.gz'))->extractTo($this->root . '/documents-out');
+        Assert::same('%PDF-1.4 teste', file_get_contents($this->root . '/documents-out/1/receita.pdf'));
+
+        Assert::same(['centralvet-20261026T120000Z.tar.gz.cvbk'], array_values(array_diff(scandir($this->root . '/backups'), ['.', '..'])));
+    }
+
+    private function removeTree(string $path): void
+    {
+        if (!is_dir($path)) {
+            @unlink($path);
+
+            return;
+        }
+
+        foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $entry) {
+            $this->removeTree($path . '/' . $entry);
+        }
+        @rmdir($path);
+    }
+}
