@@ -99,7 +99,7 @@ final class BillingOrderTest
             'responsible_email', 'responsible_phone', 'clinic_name', 'terms_version', 'terms_accepted_at',
             'terms_ip', 'contact_consent', 'status', 'stripe_customer_id', 'stripe_checkout_session_id',
             'stripe_subscription_id', 'paid_at', 'tenant_id', 'provisioning_attempts', 'provisioning_error',
-            'invite_sent_at',
+            'invite_sent_at', 'subscription_cancelled_at', 'stripe_refund_id', 'refunded_at',
         ], array_keys($row));
         Assert::same(12, $row['id']);
         Assert::same(9700, $row['price_cents']);
@@ -109,6 +109,107 @@ final class BillingOrderTest
         Assert::same($row, $copy->toRow());
         Assert::same(12, $copy->id());
         Assert::null($order->id(), 'withId returns a copy');
+    }
+
+    public function testLoginConflictCardOrderIsRefundedOnlyThroughTheNewSteps(): void
+    {
+        $order = $this->loginConflict('card');
+
+        Assert::true($order->isLoginConflict());
+        Assert::null($order->subscriptionCancelledAt());
+        Assert::null($order->stripeRefundId());
+        Assert::null($order->refundedAt());
+
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00')));
+
+        $order->markSubscriptionCancelled(new DateTimeImmutable('2026-10-26 09:00:00.000001'));
+        $order->markSubscriptionCancelled(new DateTimeImmutable('2026-10-26 09:30:00'));
+        Assert::same('2026-10-26 09:00:00.000001', $order->subscriptionCancelledAt()?->format('Y-m-d H:i:s.u'), 'second call keeps the first date');
+
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00')), 'refund id is required');
+        Assert::throws(InvalidArgumentException::class, fn () => $order->recordRefund(''));
+        $order->recordRefund('re_test_1');
+        Assert::same('re_test_1', $order->stripeRefundId());
+
+        $order->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00'));
+        Assert::same(BillingOrder::STATUS_REFUNDED, $order->status());
+        Assert::same('2026-10-26 10:00:00', $order->refundedAt()?->format('Y-m-d H:i:s'));
+        Assert::same('login_conflict', $order->provisioningError(), 'provisioning_error is kept');
+        Assert::false($order->isLoginConflict());
+
+        Assert::false($order->markPaid('sub_x', new DateTimeImmutable('2026-10-27 10:00:00')));
+        Assert::false($order->expire());
+        Assert::same(BillingOrder::STATUS_REFUNDED, $order->status());
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->recordRefund('re_test_2'));
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->markRefunded(new DateTimeImmutable()));
+    }
+
+    public function testCardRefundNeedsTheSubscriptionCancelledFirst(): void
+    {
+        $order = $this->loginConflict('card');
+        $order->recordRefund('re_test_1');
+
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->markRefunded(new DateTimeImmutable()));
+        Assert::same(BillingOrder::STATUS_PROVISIONING_FAILED, $order->status());
+    }
+
+    public function testPixRefundSkipsTheSubscriptionCancellation(): void
+    {
+        $order = $this->loginConflict('pix');
+
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $order->markSubscriptionCancelled(new DateTimeImmutable()));
+
+        $order->recordRefund('re_test_pix');
+        $order->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00'));
+        Assert::same(BillingOrder::STATUS_REFUNDED, $order->status());
+        Assert::null($order->subscriptionCancelledAt());
+    }
+
+    public function testOtherOrdersRefuseTheRefundSteps(): void
+    {
+        $group = $this->order();
+        $group->markPaid('sub_1', new DateTimeImmutable('2026-10-21 10:00:00'));
+        $group->markProvisioningFailed('group_missing');
+
+        Assert::false($group->isLoginConflict());
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $group->recordRefund('re_test_1'));
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $group->markSubscriptionCancelled(new DateTimeImmutable()));
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $group->markRefunded(new DateTimeImmutable()));
+
+        $paid = $this->order();
+        $paid->markPaid('sub_1', new DateTimeImmutable('2026-10-21 10:00:00'));
+        Assert::false($paid->isLoginConflict());
+        Assert::throws(InvalidStatusTransitionException::class, fn () => $paid->recordRefund('re_test_1'));
+    }
+
+    public function testRowRoundTripKeepsTheRefundColumns(): void
+    {
+        $order = $this->loginConflict('card');
+        $order->markSubscriptionCancelled(new DateTimeImmutable('2026-10-26 09:00:00.123456'));
+        $order->recordRefund('re_test_1');
+        $order->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00.654321'));
+        $row = $order->withId(7)->toRow();
+
+        Assert::same('2026-10-26 09:00:00.123456', $row['subscription_cancelled_at']);
+        Assert::same('re_test_1', $row['stripe_refund_id']);
+        Assert::same('2026-10-26 10:00:00.654321', $row['refunded_at']);
+        Assert::same('refunded', $row['status']);
+        Assert::same($row, BillingOrder::fromRow($row)->toRow());
+
+        $fresh = $this->order()->toRow();
+        Assert::null($fresh['subscription_cancelled_at']);
+        Assert::null($fresh['stripe_refund_id']);
+        Assert::null($fresh['refunded_at']);
+    }
+
+    private function loginConflict(string $method): BillingOrder
+    {
+        $order = $this->order('pro', $method);
+        $order->attachCheckout('cs_test_lc', 'cus_lc');
+        $order->markPaid($method === 'card' ? 'sub_lc' : null, new DateTimeImmutable('2026-10-21 10:00:00'));
+        $order->markProvisioningFailed('login_conflict');
+
+        return $order;
     }
 
     private function order(string $planId = 'pro', string $method = 'card'): BillingOrder

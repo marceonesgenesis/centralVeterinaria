@@ -177,6 +177,74 @@ final class BillingOrderRepositoryIntegrationTest extends MysqlIntegrationTestCa
         Assert::count(1, $this->orders->listPendingFulfillment(1), 'limit is honoured');
     }
 
+    public function testLoginConflictsLeaveFulfillmentAndAreListedForRefund(): void
+    {
+        $conflict = $this->paid();
+        $conflict->markProvisioningFailed('login_conflict');
+        $conflictId = $this->orders->insert($conflict);
+
+        $group = $this->paid();
+        $group->markProvisioningFailed('group_missing');
+        $groupId = $this->orders->insert($group);
+
+        $paidId = $this->orders->insert($this->paid());
+
+        $pending = $this->orders->listPendingFulfillment(100000);
+        Assert::false(in_array($conflictId, $pending, true), 'login_conflict is not retried by fulfillment');
+        Assert::true(in_array($groupId, $pending, true), 'group_missing is still retried');
+        Assert::true(in_array($paidId, $pending, true), 'paid order is still listed');
+
+        $refund = $this->orders->listLoginConflictsToRefund(100000);
+        foreach ($refund as $listed) {
+            Assert::true(is_int($listed), 'ids are ints');
+        }
+        $sorted = $refund;
+        sort($sorted);
+        Assert::same($sorted, $refund, 'refund ids come ordered by id');
+        Assert::true(in_array($conflictId, $refund, true), 'login_conflict is listed for refund');
+        Assert::false(in_array($groupId, $refund, true), 'group_missing is not listed for refund');
+        Assert::false(in_array($paidId, $refund, true), 'paid order is not listed for refund');
+        Assert::same([], $this->orders->listLoginConflictsToRefund(0));
+        Assert::count(1, $this->orders->listLoginConflictsToRefund(1), 'limit is honoured');
+    }
+
+    public function testLoginConflictWithManyAttemptsIsStillListedForRefund(): void
+    {
+        $conflict = $this->paid();
+        for ($i = 0; $i < 12; $i++) {
+            $conflict->markProvisioningFailed('login_conflict');
+        }
+        $conflictId = $this->orders->insert($conflict);
+
+        Assert::true(in_array($conflictId, $this->orders->listLoginConflictsToRefund(100000), true), 'no attempts cap on refund listing');
+    }
+
+    public function testRefundedOrderSurvivesSaveAndReload(): void
+    {
+        $order = $this->paid();
+        $order->markProvisioningFailed('login_conflict');
+        $id = $this->orders->insert($order);
+
+        $stored = $this->orders->findByIdForUpdate($id);
+        Assert::notNull($stored);
+        $stored->markSubscriptionCancelled(new DateTimeImmutable('2026-10-26 09:00:00.123456'));
+        $stored->recordRefund('re_test_1');
+        $stored->markRefunded(new DateTimeImmutable('2026-10-26 10:00:00.654321'));
+        $this->orders->save($stored);
+
+        $row = $this->pdo->query('SELECT status, stripe_refund_id, refunded_at, subscription_cancelled_at FROM billing_order WHERE id = ' . $id)->fetch(\PDO::FETCH_ASSOC);
+        Assert::same('refunded', $row['status']);
+        Assert::same('re_test_1', $row['stripe_refund_id']);
+        Assert::notNull($row['refunded_at']);
+        Assert::same('2026-10-26 09:00:00.123456', $row['subscription_cancelled_at']);
+
+        $reloaded = $this->orders->findByIdForUpdate($id);
+        Assert::same($stored->toRow(), $reloaded?->toRow(), 'every refund column survives the round trip');
+        Assert::same(BillingOrder::STATUS_REFUNDED, $reloaded?->status());
+        Assert::false(in_array($id, $this->orders->listLoginConflictsToRefund(100000), true), 'refunded order leaves the refund listing');
+        Assert::false(in_array($id, $this->orders->listPendingFulfillment(100000), true), 'refunded order is not fulfilled');
+    }
+
     private function paid(): BillingOrder
     {
         $order = $this->place('card', 'pro');
