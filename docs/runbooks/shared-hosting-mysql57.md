@@ -568,8 +568,9 @@ linha do crontab).
 
 `cancellations_finalized` conta as assinaturas com cancelamento agendado pelo
 app (`cancel_at_period_end`) que viraram `cancelled` no fim do período.
-`cancelled_pix_refunded` conta os Pix pagos depois do cancelamento e estornados
-sozinhos na rodada; cada um gera o alerta `cancelled-pix-refund-<id>` ao
+`cancelled_pix_refunded` conta o estorno automático de Pix pago depois do
+cancelamento (o pagamento chegou com a assinatura já `cancelled`) feito na
+rodada; cada um gera um alerta ao operador, com a referência `cancelled-pix-refund-<id>` ao
 operador (ver [`observabilidade.md`](./observabilidade.md)).
 
 `orders_refunded` conta os pedidos estornados na rodada. Cada estorno vai ao log
