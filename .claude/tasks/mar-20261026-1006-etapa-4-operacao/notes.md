@@ -28,6 +28,9 @@
 - 2026-10-26 · T-11 · onda 3 — O restore recria o banco e substitui files/documents/minio, só no projeto alvo, protegido por RESTORE_CENTRALVET/RESTORE_CENTRALVET_DRILL.
 - 2026-10-26 · T-11 · onda 3 — Saídas aditivas: linha `restore: timings` e RESTORE_MANIFEST_COPY.
 - 2026-10-26 · T-11 · onda 3 — O `--decrypt` do .cvbk monta `src/` como :ro, porque a imagem dev não tem hosting-backup.php.
+- 2026-10-26 · T-14 · onda 4 — A suíte do CI não monta `src/` e usa `composer dump-autoload --dev` em volume anônimo; o provision aplica o schema ao banco `centralvet` efêmero do projeto de CI (o script recusa CI_PROJECT=centralvet). Validador aceitou os dois.
+- 2026-10-26 · T-15 · onda 4 — `sem teste:` no plano, sem RED.
+- 2026-10-26 · plano · onda 4 — O gate foi interrompido pelo limite de sessão da API e retomado sem resíduo de projeto ou volume.
 
 ## Bloqueios
 - nenhum
@@ -54,6 +57,8 @@
 - [T-13] `php bin/billing-event-retention.php` pronto (978a7e5): imprime `{"purged":n,"batches":n}`, heartbeat `billing-event-retention` com detail `purged=<n> batches=<n>`; fixa o fuso por `APP_TIMEZONE` (config/environment.php) como o reconciliador. `bin/billing-reconcile.php` grava `billing-reconcile` só no sucesso (detail = linha de contadores); falha → `error_log('billing-reconcile heartbeat_failed=<classe>')`, código 0. T-16: cron diário da retenção.
 - [T-12] `php bin/ops-monitor.php` pronto (RED 1aacce2, impl. 132bb73): imprime `ops-monitor alerts=<n> notified=<n> keys=<chaves|->`, sai 0/2/1, grava heartbeat `ops-monitor` (detail = a linha sem o prefixo). Chaves de alerta: billing_reconcile_stale, backup_stale, billing_event_failed, billing_order_stuck, message_failed, message_queue_stalled, document_failed, document_queue_stalled, storage_unavailable. `StorageException` ao montar o storage (raiz local ausente) vira `storage_unavailable`, não código 1 — T-16 pode documentar.
 - [T-11] `scripts/restore.sh [--project] [--env-file] <arquivo>` e `scripts/restore-drill.sh [--keep] <arquivo>` prontos (RED c8913ca, impl 73289c1). Códigos restore: 2 uso/config, 3 sem `CONFIRM_RESTORE=RESTORE_<PROJETO>`, 5 frase/integridade (nada escrito), 6 falha após iniciar escrita. Recria o banco antes do dump e substitui files/documents/minio. Aditivos: linha `restore: timings decrypt_seconds=<n> db_seconds=<n> files_seconds=<n>` antes da final e `RESTORE_MANIFEST_COPY=<caminho>`. Drill: env `var/drill/.env` gerado só se ausente (sobrescrevível por `RESTORE_DRILL_ENV_FILE`), sai 4 se o projeto não sobe, recusa `.sql.gz`, remove volumes `centralvet-drill_*` restantes. `.cvbk` decifrado com `--user $(id -u):$(id -g)` e `src/` montado `:ro` (imagem dev sem `hosting-backup.php`). Ensaio real T-08 e T-17: mismatches=0.
+- [T-15] `scripts/release/rollback-drill.sh <anterior> <novo> <backup>` e `docs/runbooks/ensaio-restauracao-rollback.md` prontos (5a2cefd). Medidos: restore-drill .tar.gpg elapsed_seconds=20, .cvbk elapsed_seconds=13, rollback seconds=16, total_seconds=74, smoke_failures=0. `build-release.sh --image` com umask 077 gera imagem cujo php-fpm não lê a própria config (app unhealthy): construir sempre com umask 022 (T-16 documenta; T-14 atenção no CI). O backup do dev tem 0015/0018/0019 pendentes (não 0017).
+- [T-14] `scripts/ci/run.sh` pronto (RED 4d0d7c1, impl 97717be): execução real local `ci: passed` (2390/0 FAIL, schema pending=0 unknown=0). Desvios: suíte sem bind de `src/` (imagem do checkout + `composer dump-autoload --dev` em volume anônimo sobre src/vendor) e `provision` aplica o schema também ao `centralvet` efêmero da CI (testes que sobem init.php leem DB_DATABASE). `provision.sh --list` novo; `PROVISION_ENV_FILE`, `BOOTSTRAP_OUTPUT_DIR`, `BOOTSTRAP_ENV_FILE`, `CI_SCRIPT_TESTS`. T-16: `docs/runbooks/tests.md` ainda descreve a CI antiga.
 
 ## Pendências
 - Banco dev `centralvet` com 3 migrations pendentes (0017, 0018, 0019); aplicar exige autorização do usuário.
@@ -78,6 +83,16 @@
 - T-12: `OpsMonitorWiringTest` não cobre o `catch (StorageException` nem o storage que lança (OpsMonitorWiringTest.php:15-64).
 - T-12: probe fica no storage se `get` lança após `put`; usar `finally` com delete tolerante (OperationalMonitor.php:557-563).
 - T-12: sem teste unitário do ramo "conteúdo lido diferente do gravado" de storage_unavailable (OperationalMonitor.php:565).
+- T-05: `build-release.sh` herda a umask (com 077 a app sobe unhealthy); fixar `umask 022`.
+- T-16: `docs/runbooks/tests.md` e `build-versioning.md` descrevem o CI antigo; o índice precisa linkar `ensaio-restauracao-rollback.md`.
+- O workflow do GitHub Actions (`.github/workflows/ci.yml`) nunca rodou no GitHub (sem push).
+- T-14: `rm -rf "$workdir"` só recusa `/`, raiz, src, scripts e `..`; restringir a var/ci* (scripts/ci/run.sh:50-55,113).
+- T-14: falha de `openssl rand` dentro de `$(secret N)` grava .env com segredo vazio sem `ci: failed step=env` (run.sh:96-98,117-127).
+- T-14: CI_PROJECT só recusa `centralvet`; outro projeto local (ex. centralvet-drill) teria volumes destruídos pelo `down -v` (run.sh:34).
+- T-15: bloco "saída" do rollback no runbook omite as linhas `rollback-drill restore after=... timings` (runbook:44-71).
+- T-15: pre_backup herda BACKUP_OFFSITE_DIR/BACKUP_OFFSITE_S3_URI do ambiente; esvaziar as duas na chamada (rollback-drill.sh:186-187).
+- T-15: GRANT do usuário de migration fixa `centralvet`.* em vez de "$MYSQL_DATABASE" (rollback-drill.sh:198 vs :218).
+- T-15: senha do usuário de migration vai em `-e` do `docker compose exec`, visível em `ps` (rollback-drill.sh:217).
 
 ## Riscos
 - Ensaios e CI local (T-11, T-14, T-15) constroem imagens e sobem projetos Docker próprios: demoram e disputam CPU. Mitigação: projetos `centralvet-ci-local` e `centralvet-drill` com `down -v` no fim; o orquestrador pode serializar a Onda 4.
@@ -97,5 +112,6 @@
   - Onda 1: BASE 992877a → HEAD 5a7cc83 (66b71cd, 078436f, 11ae944, aea3174, e2c7664, 2646242, f512e7e, 445983e, 04e09a7, 360fd8e, 0c42ef8, c126fa8, f65190b, 50534eb, 2a4c63c, 5a7cc83)
   - Onda 2: BASE 0e8bd4f → HEAD 94ff476 (3dd059f, 523f277, 6ea7874, 343d933, 4956a7e, 1f4bfa2, 02b5d30, ce97252, 31343ab, af394ef, 0e7f03b, 94ff476)
   - Onda 3: BASE 797304e → HEAD 132bb73 (132bb73, 73289c1, c8913ca, 978a7e5, 1aacce2, fb58218)
-- Último status conhecido: onda 3 concluída (T-11, T-12, T-13 [x]; gate SUITE 2390/2390; drill de restore mismatches=0 nos dois formatos).
-- Próxima onda recomendada: 4 (T-14, T-15; depois T-16)
+  - Onda 4: BASE 1a3d9b0 → HEAD 97717be (4d0d7c1, 5a2cefd, 97717be)
+- Último status conhecido: onda 4 concluída (T-14, T-15 [x]; CI local 2390/2390; restore-drill .tar.gpg 15 s e .cvbk 13 s, mismatches=0; rollback-drill 7 fases em 77 s, 0 falhas de smoke).
+- Próxima onda recomendada: 5 (T-16)
