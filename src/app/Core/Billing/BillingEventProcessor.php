@@ -85,6 +85,10 @@ final class BillingEventProcessor
         $sessionId = (string) ($session['id'] ?? '');
         $order = $sessionId !== '' ? $this->orders->findByCheckoutSessionIdForUpdate($sessionId) : null;
         if ($order === null) {
+            if (!self::marked($session['client_reference_id'] ?? null, $session['metadata']['billing_order'] ?? null)) {
+                return self::foreign($type, $sessionId);
+            }
+
             throw BillingEventOutOfOrder::missing('Billing order for checkout session', $sessionId, $type);
         }
 
@@ -183,6 +187,14 @@ final class BillingEventProcessor
 
         $subscription = $this->subscriptions->findByStripeSubscriptionIdForUpdate($stripeSubscriptionId);
         if ($subscription === null) {
+            if (!self::marked(
+                $stripeInvoice['subscription_details']['metadata']['billing_order'] ?? null,
+                $stripeInvoice['parent']['subscription_details']['metadata']['billing_order'] ?? null,
+                $stripeInvoice['metadata']['billing_order'] ?? null,
+            )) {
+                return self::foreign($type, (string) ($stripeInvoice['id'] ?? ''));
+            }
+
             throw BillingEventOutOfOrder::missing('Subscription', $stripeSubscriptionId, $type);
         }
 
@@ -219,6 +231,10 @@ final class BillingEventProcessor
         $stripeSubscriptionId = (string) ($remote['id'] ?? '');
         $subscription = $stripeSubscriptionId !== '' ? $this->subscriptions->findByStripeSubscriptionIdForUpdate($stripeSubscriptionId) : null;
         if ($subscription === null) {
+            if (!self::marked($remote['metadata']['billing_order'] ?? null)) {
+                return self::foreign($type, $stripeSubscriptionId);
+            }
+
             throw BillingEventOutOfOrder::missing('Subscription', $stripeSubscriptionId, $type);
         }
 
@@ -293,6 +309,10 @@ final class BillingEventProcessor
         if ($stripeInvoiceId !== null) {
             $invoice = $this->invoices->findByStripeInvoiceIdForUpdate($stripeInvoiceId);
             if ($invoice === null) {
+                if (!self::marked($charge['metadata']['billing_order'] ?? null, $charge['metadata']['subscription_invoice'] ?? null)) {
+                    return self::foreign($type, (string) ($charge['id'] ?? ''));
+                }
+
                 throw BillingEventOutOfOrder::missing('Subscription invoice', $stripeInvoiceId, $type);
             }
         } elseif ($paymentIntentId !== null) {
@@ -311,6 +331,29 @@ final class BillingEventProcessor
         $this->invoices->save($invoice);
 
         return BillingEventOutcome::processed();
+    }
+
+    /**
+     * T-28: o evento é do Central Vet quando traz a marca (pedido ou fatura
+     * nossa) em algum dos campos; sem ela vem de outra integração da conta.
+     */
+    private static function marked(mixed ...$values): bool
+    {
+        foreach ($values as $value) {
+            if ((is_string($value) && trim($value) !== '') || is_int($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Evento de outra integração na mesma conta Stripe: não é fora de ordem, não volta. */
+    private static function foreign(string $type, string $objectId): BillingEventOutcome
+    {
+        error_log(sprintf('[BillingEventProcessor] ignored foreign %s %s', $type, $objectId));
+
+        return BillingEventOutcome::ignored();
     }
 
     /** Id de um campo que pode vir como string ou como objeto expandido. */
