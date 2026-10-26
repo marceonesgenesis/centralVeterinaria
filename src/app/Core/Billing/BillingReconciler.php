@@ -20,6 +20,10 @@ use Throwable;
  *    (sem eventos: `now - 3 dias`), paginado por `starting_after`, aplicados
  *    do mais antigo ao mais novo por BillingEventIngestor::ingest (o
  *    duplicado sai `duplicate` e não conta como ingerido).
+ * 1a. Pix pago depois do cancelamento (Etapa 5, T-22):
+ *    CancelledPixRefundService estorna a fatura de período posterior ao
+ *    cancelamento (agendado ou `cancelled`) e avisa o operador; o erro de
+ *    uma fatura não interrompe as demais e o primeiro sobe no fim da fase.
  * 1b. Pedidos pagos com login_conflict (T-31): LoginConflictRefundService
  *    cancela a Subscription do cartão, estorna e marca refunded; o erro de
  *    um pedido não interrompe os demais e o primeiro sobe no fim da fase.
@@ -47,8 +51,8 @@ use Throwable;
  * ingest() e fulfill() são chamados fora de transação aberta pelo
  * reconciliador (o convite sai depois do commit). As escritas no Stripe
  * são o POST /v1/payment_intents do PixInvoiceIssuer e, no login_conflict,
- * o DELETE /v1/subscriptions e o POST /v1/refunds, todas com
- * Idempotency-Key.
+ * o DELETE /v1/subscriptions e o POST /v1/refunds, e o POST /v1/refunds
+ * do Pix pago depois do cancelamento, todas com Idempotency-Key.
  */
 final class BillingReconciler
 {
@@ -75,11 +79,12 @@ final class BillingReconciler
         private readonly TenantProvisioningService $provisioning,
         private readonly TransactionRunner $tx,
         private readonly LoginConflictRefundService $refunds,
+        private readonly CancelledPixRefundService $cancelledPixRefunds,
     ) {
     }
 
     /**
-     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, orders_refunded: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int, cancellations_finalized: int}
+     * @return array{events_fetched: int, events_ingested: int, orders_fulfilled: int, orders_failed: int, orders_refunded: int, pix_invoices_issued: int, pix_invoices_overdue: int, pix_intents_refreshed: int, subscriptions_suspended: int, cancellations_finalized: int, cancelled_pix_refunded: int}
      */
     public function run(DateTimeImmutable $now): array
     {
@@ -94,10 +99,11 @@ final class BillingReconciler
             'pix_intents_refreshed' => 0,
             'subscriptions_suspended' => 0,
             'cancellations_finalized' => 0,
+            'cancelled_pix_refunded' => 0,
         ];
         $phaseFailure = null;
 
-        foreach (['reconcileEvents', 'refundLoginConflicts', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired', 'finalizeScheduledCancellations'] as $phase) {
+        foreach (['reconcileEvents', 'refundCancelledPixPayments', 'refundLoginConflicts', 'fulfillOrders', 'issuePixInvoices', 'refreshOpenPix', 'suspendGraceExpired', 'finalizeScheduledCancellations'] as $phase) {
             try {
                 $this->{$phase}($now, $counters);
             } catch (Throwable $e) {
@@ -163,6 +169,32 @@ final class BillingReconciler
             } catch (Throwable $e) {
                 self::log(sprintf('event %s failed: %s', (string) ($event['id'] ?? '?'), $e::class));
             }
+        }
+    }
+
+    /**
+     * Pix pago depois do cancelamento: estorno e alerta (T-22). Uma fatura
+     * que falha não impede as demais; o primeiro erro sobe no fim.
+     *
+     * @param array<string, int> $counters
+     */
+    private function refundCancelledPixPayments(DateTimeImmutable $now, array &$counters): void
+    {
+        $failure = null;
+
+        foreach ($this->invoices->listPaidPixAfterCancellation(self::REFUND_BATCH) as $invoiceId) {
+            try {
+                if ($this->cancelledPixRefunds->refund($invoiceId, $now) === CancelledPixRefundService::RESULT_REFUNDED) {
+                    $counters['cancelled_pix_refunded']++;
+                }
+            } catch (Throwable $e) {
+                self::log(sprintf('refund of cancelled pix invoice %d failed: %s', $invoiceId, $e::class));
+                $failure ??= $e;
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 

@@ -41,4 +41,15 @@ interface SubscriptionInvoiceRepositoryInterface
      *                   `pix_expires_at <= now` ou `stripe_payment_intent_id` nulo)
      */
     public function listOpenPix(DateTimeImmutable $now, int $limit): array;
+
+    /**
+     * Pix pago depois do cancelamento (Etapa 5, T-22), para o estorno.
+     *
+     * @return list<int> faturas com `local_key`, `paid`, sem estorno
+     *                   (`amount_refunded_cents = 0`) e com PaymentIntent,
+     *                   de assinatura com `cancel_at_period_end = 1` ou
+     *                   `cancelled`, e `period_start >= current_period_end`
+     *                   da assinatura; por id ascendente
+     */
+    public function listPaidPixAfterCancellation(int $limit): array;
 }

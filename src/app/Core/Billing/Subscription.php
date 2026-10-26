@@ -245,11 +245,18 @@ final class Subscription
     /**
      * Fatura do período paga: volta a `active` (também de `past_due` e
      * `suspended`), zera a tolerância e passa o período ao da fatura.
-     * Assinatura cancelada não é reativada (devolve false).
+     * Assinatura cancelada não é reativada (devolve false), e o período
+     * posterior a um cancelamento agendado (`$periodStart >=
+     * currentPeriodEnd()`) não a prolonga (devolve false, sem mudar nada;
+     * o Pix pago é estornado pelo reconciliador, T-22).
      */
     public function markInvoicePaid(DateTimeImmutable $periodStart, DateTimeImmutable $periodEnd, int $eventCreated): bool
     {
         if ($this->isStale($eventCreated) || $this->status === self::STATUS_CANCELLED) {
+            return false;
+        }
+
+        if ($this->cancelAtPeriodEnd && $this->currentPeriodEnd !== null && $periodStart >= $this->currentPeriodEnd) {
             return false;
         }
 

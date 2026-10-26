@@ -11,6 +11,7 @@ use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
 use CentralVet\Billing\BillingWebhookHandler;
+use CentralVet\Billing\CancelledPixRefundService;
 use CentralVet\Billing\CheckoutStartHandler;
 use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
@@ -716,6 +717,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
             $provisioning,
             $tx,
             new LoginConflictRefundService($tx, $this->orders, $this->subscriptions, $this->stripe, $this->email, ''),
+            new CancelledPixRefundService($tx, $this->invoices, $this->subscriptions, $this->stripe, $this->email, ''),
         ))->run($at);
     }
 

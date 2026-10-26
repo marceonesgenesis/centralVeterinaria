@@ -5,15 +5,18 @@ declare(strict_types=1);
 /**
  * Reconciliação da cobrança (Etapa 3, T-18), para o cron da hospedagem
  * (a cada 15 minutos, a partir da raiz de src/): eventos do Stripe
- * perdidos, estorno do pedido pago com e-mail já cadastrado (T-31),
- * provisionamentos pendentes, faturas Pix e fim da tolerância. O alerta do
- * estorno vai para BILLING_OPERATOR_EMAIL (vazio: só o error_log).
+ * perdidos, estorno do Pix pago depois do cancelamento (Etapa 5, T-22),
+ * estorno do pedido pago com e-mail já cadastrado (T-31), provisionamentos
+ * pendentes, faturas Pix, fim da tolerância e cancelamento agendado do Pix
+ * (Etapa 5, T-08). O alerta dos dois estornos vai para
+ * BILLING_OPERATOR_EMAIL (vazio: só o error_log).
  * Regras em CentralVet\Billing\BillingReconciler.
  *
  * Imprime `billing-reconcile events_fetched=<n> events_ingested=<n>
  * orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
  * pix_invoices_issued=<n> pix_invoices_overdue=<n>
- * pix_intents_refreshed=<n> subscriptions_suspended=<n>`, grava o heartbeat
+ * pix_intents_refreshed=<n> subscriptions_suspended=<n>
+ * cancellations_finalized=<n> cancelled_pix_refunded=<n>`, grava o heartbeat
  * `billing-reconcile` (Etapa 4, T-13; falha dele só vai ao log) e sai 0; sai 1 em erro de Stripe ou de banco
  * (só a classe da exceção vai para o log, nunca a mensagem). Execuções
  * sobrepostas não acumulam: a trava de arquivo (`flock` no diretório
@@ -24,6 +27,7 @@ use CentralVet\Billing\AccountInviteService;
 use CentralVet\Billing\BillingEventIngestor;
 use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingReconciler;
+use CentralVet\Billing\CancelledPixRefundService;
 use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\Stripe\CurlStripeClient;
@@ -82,6 +86,7 @@ try {
     $subscriptions = new SubscriptionRepository($pdo);
     $invoices = new SubscriptionInvoiceRepository($pdo);
     $events = new BillingEventRepository($pdo);
+    $operatorEmail = (string) (getenv('BILLING_OPERATOR_EMAIL') ?: '');
 
     $provisioning = new TenantProvisioningService(
         $pdo,
@@ -112,8 +117,9 @@ try {
             $subscriptions,
             $stripe,
             $email,
-            (string) (getenv('BILLING_OPERATOR_EMAIL') ?: ''),
+            $operatorEmail,
         ),
+        new CancelledPixRefundService($tx, $invoices, $subscriptions, $stripe, $email, $operatorEmail),
     ))->run(new DateTimeImmutable());
 } catch (Throwable $exception) {
     error_log(sprintf('billing-reconcile.php: %s', $exception::class));
