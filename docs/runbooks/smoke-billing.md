@@ -19,12 +19,11 @@ Etapa 3 (T-22) e passou a usar os arquivos versionados em
 > no `.env` da raiz.
 
 A integração no `centralvet_test` (`BillingAcquisitionFlowIntegrationTest`)
-já prova os 16 cenários (a..p) com o `FakeStripeClient`. **Lacuna aberta:**
-o cenário (c) ainda lê a sessão de checkout pela posição
-(`$this->stripe->calls[1]['params']`), que quebra se outra chamada ao Stripe
-entrar antes; o certo é filtrar a chamada pelo path
-(`/v1/checkout/sessions`), como o cenário (h) já faz ao conferir só `GET`
-depois do webhook. A correção fica fora desta fumaça (pendência da T-06). A
+já prova os 16 cenários (a..p) com o `FakeStripeClient`; nela as asserções
+sobre as chamadas ao Stripe são filtradas pelo path (`/v1/checkout/sessions`,
+`/v1/subscriptions`, `/v1/payment_intents`, `/v1/refunds`), não pela posição
+na lista de chamadas (o `calls[1]` do cenário (c) foi trocado pelo filtro de
+`POST /v1/checkout/sessions` na Etapa 4, T-06). A
 fumaça confere o mesmo pelo nginx real, sem Stripe: onde o fluxo dependeria
 do Stripe (sessão de checkout, `GET /v1/subscriptions`, PaymentIntent), um
 passo SQL marcado **[simula Stripe]** faz esse papel. Pelo mesmo motivo, no
@@ -531,7 +530,7 @@ todas as linhas. Depois:
 |---|---|---|
 | (a) | testScenarioA… | 4 (a) |
 | (b) | testScenarioB… | 4 (b) |
-| (c) | testScenarioC… (ainda usa `calls[1]`: lacuna aberta) | 4 (c) |
+| (c) | testScenarioC… (sessão filtrada por `/v1/checkout/sessions`) | 4 (c) |
 | (d) | testScenarioD… | 4 (d) |
 | (e) | testScenarioE… | 4 (e) |
 | (f) | testScenarioF… | 4 (f), com [simula Stripe] no GET da assinatura |

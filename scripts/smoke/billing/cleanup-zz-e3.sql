@@ -26,14 +26,77 @@ DELETE FROM subscription_invoice WHERE subscription_id IN (SELECT id FROM zz_e3_
 DELETE FROM subscription WHERE id IN (SELECT id FROM zz_e3_subscription);
 DELETE FROM billing_order WHERE id IN (SELECT id FROM zz_e3_order);
 
--- 3. Tenant: auditoria, vínculos e grupos
+-- 3. Tenant: toda tabela com FK para tenant (dados das telas da clínica em (p),
+--    auditoria, vínculos, grupos), filhas antes das mães. Ordem gerada do
+--    information_schema do centralvet_test (0001–0019); migration nova com FK
+--    para tenant entra aqui.
+DELETE FROM ai_conversation_message WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM ai_interaction WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM ai_tenant_setting WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM appointment_followup WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
 DELETE FROM audit_log WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
-DELETE FROM tenant_user WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM bank_account WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM communication_message WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM communication_preference WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM encounter_account_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM exam_result WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM feature_flag WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM financial_entry WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM generated_document WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM hospitalization_administration WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM hospitalization_event WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM mcp_tool_call WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM payable WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM payment_reversal WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM prescription_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM prescription_template_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM procedure_catalog_item_input WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM procedure_execution WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM queue_entry WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM sale_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM stock_movement WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM submission_key WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery_checklist WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery_event WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery_material WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery_team WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
 DELETE FROM tenant_group WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM tenant_role WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM tenant_user WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM vaccination WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM vaccine_protocol WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM ai_conversation WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM document_template WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM exam_request WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM hospitalization_order WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM message_template WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM payment WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM prescription WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM prescription_template WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM stock_batch WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM stored_object WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM vaccine_catalog_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM cash_session WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM exam_catalog_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM hospitalization WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM procedure_catalog_item WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM product WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM receivable WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM surgery_room WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM bed WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM encounter_account WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM sale WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM encounter WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM appointment WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM patient WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM service WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
+DELETE FROM tutor WHERE tenant_id IN (SELECT id FROM zz_e3_tenant);
 
 -- 4. Usuários zz-e3-* (convidados pela fumaça e pelas telas da clínica)
 DELETE FROM system_user_old_password WHERE system_user_id IN (SELECT id FROM zz_e3_user);
 DELETE FROM system_user_program WHERE system_user_id IN (SELECT id FROM zz_e3_user);
+DELETE FROM system_user_role WHERE system_user_id IN (SELECT id FROM zz_e3_user);
 DELETE FROM system_user_group WHERE system_user_id IN (SELECT id FROM zz_e3_user);
 DELETE FROM system_user_unit WHERE system_user_id IN (SELECT id FROM zz_e3_user);
 DELETE FROM system_user_unit WHERE system_unit_id IN (SELECT id FROM zz_e3_unit);

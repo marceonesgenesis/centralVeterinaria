@@ -192,7 +192,9 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
         Assert::null($this->subscriptions->findByBillingOrderId($checkout['orderId']));
         Assert::same(0, $this->count('SELECT COUNT(*) FROM system_users WHERE login = ?', [$checkout['email']]), 'no login exists for a pending order');
         Assert::count(0, $this->email->deliveries());
-        $session = $this->stripe->calls[1]['params'];
+        $sessions = array_values(array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/checkout/sessions'));
+        Assert::count(1, $sessions, 'one checkout session created');
+        $session = $sessions[0]['params'];
         Assert::same('payment', $session['mode']);
         Assert::same(['pix'], $session['payment_method_types']);
     }
