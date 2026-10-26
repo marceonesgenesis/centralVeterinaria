@@ -149,5 +149,18 @@ else
     fail "--image ignores the working-tree Dockerfile when run from the repo (exit $status): $output / $calls"
 fi
 
+# T-20: the package must not inherit a restrictive umask from the operator.
+rm -f "$tarball"
+output=$(umask 077; run_build HEAD)
+status=$?
+listing=$(tar -tvzf "$tarball" 2>/dev/null)
+bad_files=$(printf '%s\n' "$listing" | grep '^-' | grep -vc '^-rw-r--r-- ')
+bad_dirs=$(printf '%s\n' "$listing" | grep '^d' | grep -vc '^drwxr-xr-x ')
+if [ "$status" -eq 0 ] && [ -n "$listing" ] && [ "$bad_files" -eq 0 ] && [ "$bad_dirs" -eq 0 ]; then
+    pass 'umask 077: files -rw-r--r-- and dirs drwxr-xr-x in the tar'
+else
+    fail "umask 077: files -rw-r--r-- and dirs drwxr-xr-x in the tar (exit $status, bad files=$bad_files dirs=$bad_dirs): $(printf '%s\n' "$listing" | grep -E '^-rw-------|^drwx------' | head -n3)"
+fi
+
 echo "Failed: $failures"
 [ "$failures" -eq 0 ]
