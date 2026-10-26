@@ -75,7 +75,11 @@ final class HostingBackupIntegrationTest extends MysqlIntegrationTestCase
         Assert::true(in_array('rows tenant=' . $tenantCount, $lines, true), $manifest);
         Assert::true(in_array('files_count=2', $lines, true), $manifest);
         Assert::true(in_array('documents_count=1', $lines, true), $manifest);
-        Assert::true(in_array('migration 0019', $lines, true), $manifest);
+        $migrations = $this->pdo->query('SELECT version FROM schema_migrations ORDER BY version')->fetchAll(\PDO::FETCH_COLUMN);
+        Assert::same(
+            array_map(static fn (string $version): string => 'migration ' . $version, $migrations),
+            array_values(array_filter($lines, static fn (string $line): bool => str_starts_with($line, 'migration '))),
+        );
         Assert::same(1, preg_match('/^created_at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m', $manifest));
         Assert::same(1, preg_match('/^commit=\S+$/m', $manifest));
 
