@@ -705,8 +705,11 @@ php bin/hosting-backup.php
 Variáveis no ambiente do cron: `BACKUP_PASSPHRASE_FILE` (obrigatória; arquivo
 fora do `public_html`, permissão 0600, fora do repositório e do backup),
 `BACKUP_DIR` (padrão `var/backups` na raiz do projeto, fora do `public_html`),
-`BACKUP_RETENTION_DAYS` (padrão 14) e `BACKUP_OFFSITE_DIR` (opcional). Saída e
-códigos (0, 2, 3, 4) como em [`restore-backup.md`](./restore-backup.md); o
+`BACKUP_RETENTION_DAYS` (padrão 14) e `BACKUP_OFFSITE_DIR` (opcional). Códigos:
+0 criado; 2 configuração (opção inválida, `BACKUP_RETENTION_DAYS` inválido ou
+frase ausente/ilegível); 3 falha de dump, de leitura de `src/files` ou dos
+documentos, ou de escrita em `BACKUP_DIR` (nada parcial fica lá); 4 cópia
+externa falhou (o arquivo local fica, sem heartbeat). O
 `Backup created: <caminho>` indica o `centralvet-<data>.tar.gz.cvbk`. O
 heartbeat `backup` depende da migration 0019. Baixe os arquivos por SFTP para
 fora do provedor com frequência: o disco da hospedagem não é cópia externa.
@@ -715,7 +718,9 @@ fora do provedor com frequência: o disco da hospedagem não é cópia externa.
 `bin/hosting-backup.php` por `docker compose run` exige `--user 1000:33`: o
 volume de documentos é 0750 de `www-data` (grupo 33), o container não tem
 `DAC_OVERRIDE` e `var/drill` é 0700 do usuário 1000 do host; com o usuário
-padrão a escrita ou a leitura falha e o script sai com código 2. Exemplo
+padrão a leitura dos documentos ou a escrita em `BACKUP_DIR` falha e o script
+sai com código 3 (a frase ilegível em `var/drill` sai antes, como erro de
+configuração). Exemplo
 (ensaio, sem gravar heartbeat no dev):
 
 ```bash
@@ -735,6 +740,11 @@ usuário da conta, que precisa **ler** `src/files` e a pasta de documentos e
 O agendador não restaura sozinho. Com autorização explícita e um backup do
 estado atual:
 
+0. **Pause o agendador e ponha o site em manutenção.** No painel, desative
+   todas as entradas do agendador ([`cron.md`](./cron.md)) e ative a página de
+   manutenção (ou uma regra no `.htaccess` que responda 503), para nenhum cron
+   ou requisição escrever no banco nem nas pastas durante os passos 3 e 4.
+   Não há `scripts/cron-run.sh` nem flag de manutenção fora do Docker.
 1. Decifre o pacote (a frase vem do mesmo `BACKUP_PASSPHRASE_FILE`):
 
    ```bash
@@ -778,6 +788,7 @@ estado atual:
    `php bin/migration-status.php`, `php bin/preflight.php --with-db` e a fumaça
    ([`release.md`](./release.md)). Rode `bin/billing-reconcile.php` uma vez para
    recuperar do Stripe os eventos posteriores ao backup.
+6. Tire o site da manutenção e reative as entradas do agendador do painel.
 
 ### Ensaiar
 

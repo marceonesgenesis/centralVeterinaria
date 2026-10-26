@@ -24,9 +24,14 @@ Regras comuns:
   `billing-event-retention`, `ops-monitor`, `backup`) usam a tabela
   `ops_heartbeat` da migration 0019 (ver
   [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md)).
-- Execuções sobrepostas não acumulam: cada script trava com `flock` no
-  diretório temporário e a segunda execução sai 0 (ou, sem o arquivo de trava,
-  1 com "lock file unavailable").
+- Execuções sobrepostas não acumulam: `billing-reconcile`, `ops-monitor`,
+  `billing-event-retention`, `ai-conversation-retention`, `worker.php --once` e
+  `hosting-backup` travam com `flock` no diretório temporário, e a segunda
+  execução sai 0 (`skipped_locked` ou `{"skipped":"locked"}`). Sem conseguir
+  abrir o arquivo de trava, só `billing-event-retention.php` e
+  `ai-conversation-retention.php` saem 1 ("lock file unavailable"); os demais
+  tratam como trava ocupada e saem 0. `document-sweep.php` e
+  `communication-scheduler.php` não travam (saem 1 quando algum item falha).
 - O ambiente do cron precisa das mesmas variáveis do app (`DB_*`, `STRIPE_*`,
   `SMTP_*`/`COMMUNICATION_*`, `DOCUMENT_*`, `BILLING_OPERATOR_EMAIL`,
   `APP_PUBLIC_URL`, `BACKUP_*`). Nunca coloque segredo na linha do crontab.
@@ -48,19 +53,28 @@ Substitua `/srv/centralvet` pela raiz do projeto (onde fica o
 Docker. O `backup.sh` lê `BACKUP_*` do `.env` (ver
 [`restore-backup.md`](./restore-backup.md)).
 
+Toda linha passa por `scripts/cron-run.sh [--project <nome>] <comando>`:
+enquanto `scripts/restore.sh` restaura o projeto, existe o flag
+`var/maintenance/<projeto>.restore`, e o wrapper imprime
+`cron-run skipped reason=maintenance project=<projeto>` e sai 0 sem rodar o
+job (o restore também para `app`, `worker`, `nginx` e `minio`, então um
+`exec` no `app` falharia). Sem o flag, o wrapper faz `exec` do comando e o
+código é o do próprio job. O projeto vem de `--project`, de
+`COMPOSE_PROJECT_NAME` ou do `.env` da raiz (padrão `centralvet`).
+
 ```cron
 # Reconciliação da cobrança (a cada 15 minutos)
-*/15 * * * * cd /srv/centralvet && docker compose exec -T app php bin/billing-reconcile.php >> /var/log/centralvet/billing-reconcile.log 2>&1
+*/15 * * * * cd /srv/centralvet && scripts/cron-run.sh docker compose exec -T app php bin/billing-reconcile.php >> /var/log/centralvet/billing-reconcile.log 2>&1
 # Monitor operacional e alertas ao operador (a cada 15 minutos; sai 2 quando há alerta)
-*/15 * * * * cd /srv/centralvet && docker compose exec -T app php bin/ops-monitor.php >> /var/log/centralvet/ops-monitor.log 2>&1
+*/15 * * * * cd /srv/centralvet && scripts/cron-run.sh docker compose exec -T app php bin/ops-monitor.php >> /var/log/centralvet/ops-monitor.log 2>&1
 # Retenção LGPD do payload dos eventos de cobrança (diária, 03:15)
-15 3 * * * cd /srv/centralvet && docker compose exec -T app php bin/billing-event-retention.php >> /var/log/centralvet/billing-event-retention.log 2>&1
+15 3 * * * cd /srv/centralvet && scripts/cron-run.sh docker compose exec -T app php bin/billing-event-retention.php >> /var/log/centralvet/billing-event-retention.log 2>&1
 # Retenção de 90 dias das conversas do copiloto (diária, 03:30)
-30 3 * * * cd /srv/centralvet && docker compose exec -T app php bin/ai-conversation-retention.php >> /var/log/centralvet/ai-conversation-retention.log 2>&1
+30 3 * * * cd /srv/centralvet && scripts/cron-run.sh docker compose exec -T app php bin/ai-conversation-retention.php >> /var/log/centralvet/ai-conversation-retention.log 2>&1
 # Varredor de documentos presos em queued (a cada 5 minutos)
-*/5 * * * * cd /srv/centralvet && docker compose exec -T app php bin/document-sweep.php >> /var/log/centralvet/document-sweep.log 2>&1
+*/5 * * * * cd /srv/centralvet && scripts/cron-run.sh docker compose exec -T app php bin/document-sweep.php >> /var/log/centralvet/document-sweep.log 2>&1
 # Backup diário cifrado, com retenção e cópia externa (02:00)
-0 2 * * * cd /srv/centralvet && scripts/backup.sh >> /var/log/centralvet/backup.log 2>&1
+0 2 * * * cd /srv/centralvet && scripts/cron-run.sh scripts/backup.sh >> /var/log/centralvet/backup.log 2>&1
 ```
 
 O container `worker` já drena a fila e roda o agendador de comunicação e o
@@ -72,7 +86,11 @@ worker e barato: mantenha-o como rede de segurança.
 Se o `docker compose` do cron não achar o projeto, passe
 `--project-directory /srv/centralvet` ou `COMPOSE_PROJECT_NAME`. `scripts/backup.sh`
 sai 0 criado, 2 configuração, 3 falha de dump ou arquivo e 4 falha da cópia
-externa (o arquivo local fica); só o 0 grava o heartbeat `backup`.
+externa (o arquivo local fica); só o 0 grava o heartbeat `backup`. O
+`bin/hosting-backup.php` usa os mesmos códigos: 0 criado; 2 configuração
+(opção inválida, `BACKUP_RETENTION_DAYS` inválido ou frase ausente/ilegível);
+3 falha de dump, de leitura dos arquivos ou de escrita em `BACKUP_DIR`; 4
+cópia externa.
 
 ## Agendador do painel da hospedagem compartilhada
 
@@ -115,6 +133,10 @@ Notas da hospedagem:
   do `public_html`, com permissão 0600) e de `DOCUMENT_STORAGE_LOCAL_ROOT`.
   A cópia externa é um diretório montado (`BACKUP_OFFSITE_DIR`); sem um,
   baixe os arquivos de `BACKUP_DIR` periodicamente por SFTP.
+- Antes de restaurar um backup na hospedagem, pause todas as entradas do
+  agendador e ponha o site em manutenção; reative-as no fim (não há
+  `cron-run.sh` nem flag de manutenção fora do Docker; ver
+  [`restore-backup.md`](./restore-backup.md) § 5).
 - Backup, restauração e `--decrypt` na hospedagem:
   [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md), seção "Backup e
   restauração na hospedagem".
@@ -123,7 +145,9 @@ Notas da hospedagem:
 `bin/hosting-backup.php` por `docker compose run` exige `--user 1000:33`: o
 volume de documentos é 0750 de `www-data` (grupo 33), o container não tem
 `DAC_OVERRIDE` e `var/drill` é 0700 do usuário 1000 do host; com o usuário
-padrão a escrita ou a leitura falha e o script sai com código 2. Exemplo
+padrão a leitura dos documentos ou a escrita em `BACKUP_DIR` falha e o script
+sai com código 3 (a frase ilegível em `var/drill` sai antes, como erro de
+configuração). Exemplo
 (ensaio, sem gravar heartbeat no dev):
 
 ```bash

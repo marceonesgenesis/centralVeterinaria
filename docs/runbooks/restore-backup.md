@@ -79,17 +79,54 @@ CONFIRM_RESTORE=RESTORE_CENTRALVET ./scripts/restore.sh var/backups/<arquivo>
 Aceita `.tar.gpg`, `.tar.gz.cvbk` e `.sql.gz` (dump antigo só do banco), todos
 dentro de `BACKUP_DIR`. Confere o `MANIFEST` e os `sha256` antes de escrever.
 `CONFIRM_RESTORE` é `RESTORE_<PROJETO>` (maiúsculas, `-` vira `_`; para outro
-projeto, `--project <nome>`). Códigos: 0 restaurado; 2 uso ou configuração; 3
-sem confirmação; 5 frase errada, falha de decifragem ou de integridade (nada
-foi escrito); 6 falha depois de iniciar a escrita (restaure de novo ou use o
-backup anterior). Imprime `restore: timings decrypt_seconds=<n> db_seconds=<n>
+projeto, `--project <nome>`). Códigos: 0 restaurado; 2 uso ou configuração,
+ou outro restore do projeto em andamento; 3 sem confirmação; 5 frase errada,
+falha de decifragem ou de integridade (nada foi escrito nem parado); 6 falha
+depois de iniciar a escrita (restaure de novo ou use o backup anterior); 7
+restaurado, mas algum serviço não religou (abaixo). Imprime `restore: timings decrypt_seconds=<n> db_seconds=<n>
 files_seconds=<n>` e a linha final.
+
+**Parada e religamento automáticos.** Depois de conferir o backup (o código 5
+não para nada nem escreve), o restore:
+
+1. cria o flag de manutenção `var/maintenance/<projeto>.restore` (linhas
+   `pid=<n>` e `started_at=<UTC>`). Enquanto ele existe, as linhas do crontab
+   do host, que passam por `scripts/cron-run.sh`, pulam o job
+   (`cron-run skipped reason=maintenance project=<projeto>`, código 0; ver
+   [`cron.md`](./cron.md));
+2. para, nessa ordem, os serviços que escrevem ou servem tráfego e estão no ar
+   (`nginx`, `app`, `worker`, `minio`) e imprime `restore: stopped <serviços>`.
+   `mysql` e `redis` continuam no ar;
+3. restaura o banco e os volumes;
+4. ao sair, com sucesso, em falha ou por `INT`/`TERM`, religa os mesmos
+   serviços na ordem inversa (`restore: restarted <serviços>`) e remove o flag.
+
+Se o flag já existe, outro restore do projeto está rodando: o script sai 2 com
+`restore: another restore is running for project <projeto>` e não para nada.
+Um flag que sobrou de um processo morto (confira o `pid=` com `ps -p <pid>`)
+pode ser apagado à mão depois de conferir os serviços.
+
+**Código 7** = restaurado, mas algum serviço não religou: o stderr traz
+`restore: could not restart <serviço>`. O banco e os arquivos já estão
+restaurados; não restaure de novo. Veja o motivo com
+`docker compose logs --tail=100 <serviço>`, religue com
+`docker compose up -d <serviço>` (ou `make up`) e siga o passo 6. Com o código
+6, os serviços também foram religados; o banco pode estar parcial.
 
 ## 5. Restaurar na hospedagem compartilhada
 
-Sem Docker nem `gpg`: veja "Backup e restauração na hospedagem" em
-[`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md) (decifrar com
-`--decrypt`, importar `db.sql.gz`, repor `files` e `documents`).
+Sem Docker nem `gpg`, o procedimento é manual e não há `restore: stopped` nem
+flag em `var/maintenance`: quem para e religa é o operador.
+
+1. **Antes:** pause no painel todas as entradas do agendador
+   ([`cron.md`](./cron.md), "Agendador do painel") e ponha o site em manutenção
+   (página de manutenção do painel ou regra no `.htaccess` que responda 503),
+   para nenhum cron nem requisição escrever durante a carga.
+2. Siga "Backup e restauração na hospedagem" em
+   [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md) (decifrar com
+   `--decrypt`, importar `db.sql.gz`, repor `files` e `documents`).
+3. **Depois:** tire o site da manutenção, reative as entradas do agendador e
+   rode à mão uma vez o `bin/ops-monitor.php` (passo 6).
 
 ## 6. Depois de restaurar
 
