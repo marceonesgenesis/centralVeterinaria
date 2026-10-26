@@ -108,6 +108,10 @@
     "pt": "Aceite o termo de IA para ligar o assistente"
   },
   {
+    "en": "Accept the Terms of Use and the Privacy Policy to continue",
+    "pt": "Aceite os Termos de Uso e a Política de Privacidade para continuar"
+  },
+  {
     "en": "Accepted",
     "pt": "Aceita"
   },
@@ -704,6 +708,10 @@
     "pt": "Cancelar venda"
   },
   {
+    "en": "Cancel subscription",
+    "pt": "Cancelar assinatura"
+  },
+  {
     "en": "Cancel surgery",
     "pt": "Cancelar cirurgia"
   },
@@ -720,8 +728,16 @@
     "pt": "Cancelamento"
   },
   {
+    "en": "Cancellation policy",
+    "pt": "Política de cancelamento"
+  },
+  {
     "en": "Cancellation reason",
     "pt": "Motivo do cancelamento"
+  },
+  {
+    "en": "Cancellation scheduled for ^1",
+    "pt": "Cancelamento agendado para ^1"
   },
   {
     "en": "cancellation_reason_text is required",
@@ -888,6 +904,14 @@
     "pt": "Clínica"
   },
   {
+    "en": "Clinic data",
+    "pt": "Dados da clínica"
+  },
+  {
+    "en": "Clinic data saved",
+    "pt": "Dados da clínica salvos"
+  },
+  {
     "en": "Clinic units",
     "pt": "Unidades da clínica"
   },
@@ -1026,6 +1050,10 @@
   {
     "en": "Confirm",
     "pt": "Confirmar"
+  },
+  {
+    "en": "Confirm cancellation",
+    "pt": "Confirmar cancelamento"
   },
   {
     "en": "Confirm phase",
@@ -1700,8 +1728,16 @@
     "pt": "Digite o código de 6 dígitos do seu aplicativo autenticador"
   },
   {
+    "en": "Enter the clinic legal name",
+    "pt": "Informe a razão social da clínica"
+  },
+  {
     "en": "Enter the monthly token quota as a whole number",
     "pt": "Informe a cota mensal de tokens como número inteiro"
+  },
+  {
+    "en": "Enter the unit name",
+    "pt": "Informe o nome da unidade"
   },
   {
     "en": "entries",
@@ -1856,6 +1892,10 @@
     "pt": "Exportar"
   },
   {
+    "en": "Export clinic data",
+    "pt": "Exportar dados da clínica"
+  },
+  {
     "en": "Export CSV",
     "pt": "Exportar CSV"
   },
@@ -1962,6 +2002,14 @@
   {
     "en": "Finished",
     "pt": "Finalizado"
+  },
+  {
+    "en": "First encounter guide",
+    "pt": "Orientações do primeiro atendimento"
+  },
+  {
+    "en": "First steps",
+    "pt": "Primeiros passos"
   },
   {
     "en": "Folder",
@@ -2140,8 +2188,16 @@
     "pt": "Li e aceito o termo"
   },
   {
+    "en": "I have read and accept the Terms of Use and the Privacy Policy",
+    "pt": "Li e aceito os Termos de Uso e a Política de Privacidade"
+  },
+  {
     "en": "I have read and agree to the terms of use and privacy policy",
     "pt": "Li e concordo com os termos de uso e política de privacidade"
+  },
+  {
+    "en": "I work alone",
+    "pt": "Trabalho sozinho"
   },
   {
     "en": "Identifiers must be positive integers",
@@ -2242,6 +2298,10 @@
   {
     "en": "Inhalation",
     "pt": "Inalatória"
+  },
+  {
+    "en": "Initial setup completed",
+    "pt": "Configuração inicial concluída"
   },
   {
     "en": "Inline actions",
@@ -2544,6 +2604,10 @@
     "pt": "Base legal"
   },
   {
+    "en": "Legal name",
+    "pt": "Razão social"
+  },
+  {
     "en": "Legitimate interest",
     "pt": "Legítimo interesse"
   },
@@ -2630,6 +2694,10 @@
   {
     "en": "Manufacturer",
     "pt": "Fabricante"
+  },
+  {
+    "en": "Mark as read",
+    "pt": "Marcar como lida"
   },
   {
     "en": "Mark as sent",
@@ -2950,6 +3018,10 @@
   {
     "en": "No actions available for this message.",
     "pt": "Nenhuma ação disponível para esta mensagem."
+  },
+  {
+    "en": "No active subscription to cancel",
+    "pt": "Não há assinatura ativa para cancelar"
   },
   {
     "en": "No administrations scheduled for today or later.",
@@ -3698,6 +3770,10 @@
   {
     "en": "Priority",
     "pt": "Prioridade"
+  },
+  {
+    "en": "Privacy policy",
+    "pt": "Política de privacidade"
   },
   {
     "en": "Procedure",
@@ -4504,6 +4580,10 @@
     "pt": "Serviço"
   },
   {
+    "en": "Service hours",
+    "pt": "Horário de atendimento"
+  },
+  {
     "en": "Service id",
     "pt": "Id do serviço"
   },
@@ -4514,6 +4594,10 @@
   {
     "en": "Services",
     "pt": "Serviços"
+  },
+  {
+    "en": "Services and prices",
+    "pt": "Serviços e preços"
   },
   {
     "en": "Services created: ^1",
@@ -4736,6 +4820,10 @@
     "pt": "Assinatura"
   },
   {
+    "en": "Subscription cancellation requested",
+    "pt": "Cancelamento da assinatura solicitado"
+  },
+  {
     "en": "Subtotal",
     "pt": "Subtotal"
   },
@@ -4778,6 +4866,18 @@
   {
     "en": "Suppliers",
     "pt": "Fornecedores"
+  },
+  {
+    "en": "Support",
+    "pt": "Suporte"
+  },
+  {
+    "en": "Support channel not configured",
+    "pt": "Canal de suporte não configurado"
+  },
+  {
+    "en": "Support e-mail",
+    "pt": "E-mail do suporte"
   },
   {
     "en": "Support mail",
@@ -5068,6 +5168,10 @@
     "pt": "O atendimento não pertence ao paciente e à unidade selecionados"
   },
   {
+    "en": "The file contains the clinic records in CSV format, one file per table",
+    "pt": "O arquivo traz os registros da clínica em CSV, um arquivo por tabela"
+  },
+  {
     "en": "The file must be a CSV of up to 1 MB",
     "pt": "O arquivo deve ser um CSV de até 1 MB"
   },
@@ -5108,6 +5212,10 @@
     "pt": "O pagamento ultrapassa o valor em aberto"
   },
   {
+    "en": "The payment provider did not confirm the cancellation. Try again in a few minutes",
+    "pt": "O provedor de pagamento não confirmou o cancelamento. Tente de novo em alguns minutos"
+  },
+  {
     "en": "The programs selected here will automatically have access permission granted to this user group",
     "pt": "Os programas selecionados aqui terão permissão de acesso concedida automaticamente a este grupo de usuários"
   },
@@ -5118,6 +5226,10 @@
   {
     "en": "The selected record does not belong to this clinic",
     "pt": "O registro selecionado não pertence a esta clínica"
+  },
+  {
+    "en": "The subscription is already scheduled for cancellation",
+    "pt": "A assinatura já está com cancelamento agendado"
   },
   {
     "en": "The text is too long for the AI. Shorten it and try again.",
@@ -5270,6 +5382,10 @@
   {
     "en": "This message is not a WhatsApp message",
     "pt": "Esta mensagem não é de WhatsApp"
+  },
+  {
+    "en": "This module is not available in the pilot yet",
+    "pt": "Este módulo ainda não está disponível no piloto"
   },
   {
     "en": "This operation is not allowed",
@@ -5476,6 +5592,10 @@
     "pt": "Total das contas ativas"
   },
   {
+    "en": "Trade name",
+    "pt": "Nome fantasia"
+  },
+  {
     "en": "Transfer",
     "pt": "Transferir"
   },
@@ -5546,6 +5666,10 @@
   {
     "en": "Unit cost",
     "pt": "Custo unitário"
+  },
+  {
+    "en": "Unit name",
+    "pt": "Nome da unidade"
   },
   {
     "en": "Unit name is required",
@@ -6062,5 +6186,9 @@
   {
     "en": "Your subscription is suspended. Regularize the payment to continue",
     "pt": "Sua assinatura está suspensa. Regularize o pagamento para continuar"
+  },
+  {
+    "en": "Your subscription remains active until ^1. After that, the clinic data stays available for export for ^2 days and is then deleted",
+    "pt": "Sua assinatura continua ativa até o fim do período pago, em ^1. Depois disso, os dados da clínica ficam disponíveis para exportação por ^2 dias e então são excluídos"
   }
 ]
