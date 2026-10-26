@@ -202,7 +202,13 @@ class LoginForm extends TPage
                     new TInputDialog(_t('Terms of use and privacy policy'), $form);
                     return;
                 }
-                
+
+                if ( ($form = self::legalAcceptanceVerification($user, $param)) instanceof BootstrapFormBuilder)
+                {
+                    new TInputDialog(_t('Terms of use and privacy policy'), $form);
+                    return;
+                }
+
                 if ( ($form = self::checkTwoFactor($user, $param)) instanceof BootstrapFormBuilder)
                 {
                     new TInputDialog(_t('Two factor authentication'), $form);
@@ -367,6 +373,82 @@ class LoginForm extends TPage
         }
     }
     
+    /**
+     * Aceite versionado dos Termos de Uso e da Política de Privacidade
+     * (Etapa 5 T-16). Com documento pendente e sem `accept_legal`, devolve o
+     * diálogo que reenvia o login; com `accept_legal` = `Y`, grava o aceite
+     * (IP e user agent, não o $_SERVER inteiro) e deixa o login seguir.
+     *
+     * A ação do diálogo leva `accept_legal` = `N`; a caixa marcada envia `Y`
+     * no POST, que prevalece (request_order = "GP"). Sem marcar, chega `N` e o
+     * login para com a mensagem de aceite.
+     */
+    private static function legalAcceptanceVerification($user, $param)
+    {
+        TTransaction::open('permission');
+
+        $service = new \CentralVet\Legal\LegalAcceptanceService(TTransaction::get());
+
+        if ($service->pendingDocuments((int) $user->id) === [])
+        {
+            TTransaction::close();
+            return null;
+        }
+
+        if (!isset($param['accept_legal']))
+        {
+            TTransaction::close();
+
+            $param['accept_legal'] = 'N';
+            $action = new TAction(['LoginForm', 'onLogin'], $param);
+            $form = new BootstrapFormBuilder('legal_acceptance');
+
+            $links = new TElement('div');
+            $links->style = 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; text-align:left;';
+            foreach ([
+                \CentralVet\Legal\LegalDocuments::TERMS_URL   => _t('Terms of use'),
+                \CentralVet\Legal\LegalDocuments::PRIVACY_URL => _t('Privacy policy'),
+            ] as $url => $label)
+            {
+                $link = new TElement('a');
+                $link->href = $url;
+                $link->target = '_blank';
+                $link->rel = 'noopener noreferrer';
+                $link->{'class'} = 'btn btn-default cv-touch-target';
+                $link->add($label);
+                $links->add($link);
+            }
+
+            $check = new TCheckButton('accept_legal');
+            $check->setIndexValue('Y');
+            $check->setUseSwitch(false);
+
+            $form->addContent([$links]);
+            $form->addFields([$check, new TLabel(_t('I have read and accept the Terms of Use and the Privacy Policy'))]);
+            $btn = $form->addAction(_t('Accept'), $action, 'fas:check');
+            $btn->class = 'btn btn-primary cv-touch-target';
+
+            return $form;
+        }
+
+        if ($param['accept_legal'] !== 'Y')
+        {
+            TTransaction::close();
+            throw new Exception(_t('Accept the Terms of Use and the Privacy Policy to continue'));
+        }
+
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+        $service->accept(
+            (int) $user->id,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+            is_string($userAgent) && $userAgent !== '' ? $userAgent : null,
+            new DateTimeImmutable()
+        );
+
+        TTransaction::close();
+        return null;
+    }
+
     /**
      * Pre validate recaptcha
      */
