@@ -12,6 +12,7 @@ x-php-service: &php-service
     APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
     APP_SEED: ${APP_SEED:?APP_SEED must be set}
     APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8081}
+    TRUST_FORWARDED_PROTO: ${TRUST_FORWARDED_PROTO:-false}
     DB_HOST: ${DB_HOST:-mysql}
     DB_PORT: ${DB_PORT:-3306}
     DB_DATABASE: ${MYSQL_DATABASE:-centralvet}
@@ -106,6 +107,9 @@ services:
     volumes:
       - ./src:/var/www/html/src:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Proxies confiáveis (set_real_ip_from) incluídos pelo default.conf;
+      # em produção, aponte para uma cópia de trusted-proxies.production.conf.example.
+      - ${NGINX_TRUSTED_PROXIES_FILE:-./docker/nginx/trusted-proxies.dev.conf}:/etc/nginx/trusted-proxies.conf:ro
     networks:
       - frontend
       - backend

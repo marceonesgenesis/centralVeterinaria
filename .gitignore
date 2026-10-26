@@ -11,3 +11,6 @@ vendor/
 .vscode/
 .playwright-mcp/
 src/tmp/*
+var/releases/
+var/ci/
+var/drill/
