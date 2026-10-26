@@ -101,6 +101,16 @@ else
     fail "provision.sh and migration-status.sh run before tests/run.php (lines '$provision_line' '$schema_line' '$suite_line')"
 fi
 
+app_schema_line=$(call_line 'centralvet_migrator --default-character-set=utf8mb4 centralvet')
+app_schema_calls=$(grep -c -- '--default-character-set=utf8mb4 centralvet$' "$work/docker-calls" || true)
+test_schema_calls=$(grep -c -- '--default-character-set=utf8mb4 centralvet_test$' "$work/docker-calls" || true)
+if [ -n "$app_schema_line" ] && [ "$app_schema_calls" -gt 0 ] && [ "$app_schema_calls" -eq "$test_schema_calls" ] \
+    && [ "$app_schema_line" -lt "$suite_line" ]; then
+    pass "provision also applies the schema files to the CI application database ($app_schema_calls files)"
+else
+    fail "provision also applies the schema files to the CI application database ($app_schema_calls vs $test_schema_calls)"
+fi
+
 if grep -F 'schema_migrations' "$work/docker-calls" | grep -q 'sh centralvet_test'; then
     pass 'schema step reads centralvet_test'
 else

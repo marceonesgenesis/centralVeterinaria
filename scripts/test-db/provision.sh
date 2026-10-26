@@ -16,8 +16,14 @@
 #
 # Before any docker call, a preflight checks that every file exists and that
 # none starts a line with `---`. `--check` runs only that preflight (no
-# docker, no SQL) and exits. TEST_DB_BOOTSTRAP_DIR overrides the bootstrap
-# directory (used by provision-check.test.sh).
+# docker, no SQL) and exits; `--list` runs it and prints the schema files, one
+# per line, in order (scripts/ci/run.sh applies the same files to the CI
+# application database). TEST_DB_BOOTSTRAP_DIR overrides the bootstrap
+# directory (used by provision-check.test.sh and scripts/ci/run.sh);
+# PROVISION_ENV_FILE (default .env, relative to the project root) is the file
+# the MIGRATION_DB_* and MYSQL_USER credentials are read from (the CI passes
+# its own generated env-file). COMPOSE_PROJECT_NAME/COMPOSE_ENV_FILES from the
+# environment pick the compose project.
 #
 # Refuses (exit 1) when centralvet_test already exists.
 set -eu
@@ -27,10 +33,13 @@ project_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$project_root"
 
 check_only=0
-if [ "${1:-}" = "--check" ]; then
+list_only=0
+if [ "${1:-}" = "--check" ] && [ $# -eq 1 ]; then
     check_only=1
+elif [ "${1:-}" = "--list" ] && [ $# -eq 1 ]; then
+    list_only=1
 elif [ $# -gt 0 ]; then
-    echo "usage: $0 [--check]" >&2
+    echo "usage: $0 [--check|--list]" >&2
     exit 1
 fi
 
@@ -85,21 +94,30 @@ if [ "$preflight_failed" -ne 0 ]; then
     exit 1
 fi
 
+if [ "$list_only" -eq 1 ]; then
+    for file in $schema_files; do
+        printf '%s\n' "$file"
+    done
+    exit 0
+fi
+
 if [ "$check_only" -eq 1 ]; then
     echo "provision: check ok (no SQL executed)"
     exit 0
 fi
 
-# Reads KEY=value from .env without sourcing it (values are not shell code).
+env_file=${PROVISION_ENV_FILE:-.env}
+
+# Reads KEY=value from the env-file without sourcing it (values are not shell code).
 env_value() {
-    value=$(grep -E "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2-) || value=''
+    value=$(grep -E "^$1=" "$env_file" 2>/dev/null | tail -n 1 | cut -d= -f2-) || value=''
     value=${value#\"}
     value=${value%\"}
     printf '%s' "$value"
 }
 
-if [ ! -f .env ]; then
-    echo "provision: .env not found in $project_root" >&2
+if [ ! -f "$env_file" ]; then
+    echo "provision: $env_file not found (from $project_root)" >&2
     exit 1
 fi
 
@@ -109,7 +127,7 @@ runtime_user=$(env_value MYSQL_USER)
 runtime_user=${runtime_user:-centralvet}
 
 if [ -z "$migration_user" ] || [ -z "$migration_password" ]; then
-    echo "provision: MIGRATION_DB_USER/MIGRATION_DB_PASSWORD missing in .env" >&2
+    echo "provision: MIGRATION_DB_USER/MIGRATION_DB_PASSWORD missing in $env_file" >&2
     exit 1
 fi
 
