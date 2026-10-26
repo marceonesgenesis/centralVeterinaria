@@ -119,7 +119,7 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(106, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant. Etapa 5, T-02: +6 (cancelamento, onboarding, piloto).
+        Assert::count(107, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant. Etapa 5, T-02: +6 (cancelamento, onboarding, piloto); T-12: +1 (último administrador).
         Assert::count(110, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas).
 
         // Etapa 5, T-02: mensagens de domínio estáticas que chegam traduzidas à tela.
@@ -130,6 +130,8 @@ final class UserMessageTest
             'Enter the clinic legal name',
             'Enter the unit name',
             'This module is not available in the pilot yet',
+            // Etapa 5, T-12: a clínica não fica sem administrador ativo.
+            'The clinic must keep at least one active administrator',
         ];
         foreach ($etapa5 as $message) {
             Assert::same($message, UserMessage::STATIC[$message] ?? null, "Etapa 5 contract entry missing: {$message}");
@@ -144,6 +146,18 @@ final class UserMessageTest
         foreach (UserMessage::STATIC as $message => $key) {
             Assert::same($renamed[$message] ?? $message, $key);
         }
+    }
+
+    public function testLastAdministratorMessageHasThePortugueseText(): void
+    {
+        $pt = null;
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            if (($entry['en'] ?? null) === 'The clinic must keep at least one active administrator') {
+                $pt = $entry['pt'] ?? null;
+            }
+        }
+
+        Assert::same('A clínica precisa manter pelo menos um administrador ativo', $pt);
     }
 
     public function testHospitalizationDomainMessagesResolve(): void

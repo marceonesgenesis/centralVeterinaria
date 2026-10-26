@@ -259,6 +259,40 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
         Assert::same('Y', $this->value('SELECT active FROM system_users WHERE id = ?', [$userId]));
     }
 
+    public function testTheOnlyAdministratorCannotMoveHimselfToAProfile(): void
+    {
+        $service = $this->service();
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::RECEPTION], $this->a['unit']));
+
+        Assert::same('Central Vet - Plano Starter', $service->findUser($this->a['user'])['group'], 'the admin keeps the plan group');
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ?', [$this->a['user']]));
+    }
+
+    public function testTheLastActiveAdministratorCannotBeMovedToAProfileNorDeactivated(): void
+    {
+        $service = $this->service();
+        $other = $service->invite('Admin 2', $this->newEmail(), $this->groups['starter'], $this->a['unit'], $this->now);
+
+        // Convidado ainda não conta como administrador ativo.
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::FINANCE], $this->a['unit']));
+
+        $this->pdo->prepare("UPDATE tenant_user SET status = 'active' WHERE system_user_id = ?")->execute([$other]);
+        $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::FINANCE], $this->a['unit']);
+        Assert::same('Central Vet - Perfil Financeiro', $service->findUser($this->a['user'])['group'], 'with another active admin the change is allowed');
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($other, 'Admin 2', $this->profiles[ClinicRoleProfiles::VETERINARIAN], $this->a['unit']));
+        Assert::same('Central Vet - Plano Starter', $service->findUser($other)['group']);
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->deactivate($other));
+        Assert::same('active', $this->value('SELECT status FROM tenant_user WHERE system_user_id = ?', [$other]));
+        Assert::same('Y', $this->value('SELECT active FROM system_users WHERE id = ?', [$other]));
+    }
+
     public function testReactivateRespectsTheQuota(): void
     {
         $service = $this->service();
