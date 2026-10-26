@@ -9,8 +9,10 @@ use CentralVet\Billing\BillingEventIngestor;
 use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
+use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
 use CentralVet\Billing\PlanEntitlements;
+use CentralVet\Billing\ProvisioningConflict;
 use CentralVet\Billing\Stripe\StripeApiException;
 use CentralVet\Billing\Subscription;
 use CentralVet\Billing\SubscriptionInvoice;
@@ -387,6 +389,60 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
         $this->assertOnlyReadsAndPaymentIntents();
     }
 
+    public function testPaidLoginConflictIsRefundedByTheReconcilerWithoutProvisioningAgain(): void
+    {
+        $previousErrorLog = (string) ini_set('error_log', '/dev/null');
+        $suffix = bin2hex(random_bytes(5));
+        $stripeSubscriptionId = 'sub_t31_' . $suffix;
+        $order = BillingOrder::place(
+            $this->uuid(),
+            'pro',
+            BillingOrder::METHOD_CARD,
+            'Dra. T-31 ' . $suffix,
+            't31-' . $suffix . '@example.test',
+            '11999990000',
+            'Clínica T-31 ' . $suffix,
+            '2026-10',
+            $this->now->modify('-2 hours'),
+            '127.0.0.1',
+            false,
+        );
+        $order->attachCheckout('cs_t31_' . $suffix, 'cus_t31_' . $suffix);
+        $order->markPaid($stripeSubscriptionId, $this->now->modify('-1 hour'));
+        $order->markProvisioningFailed(ProvisioningConflict::LOGIN_CONFLICT);
+        $orderId = $this->orders->insert($order);
+        $subscriptionId = $this->subscription($orderId, 'pro', Subscription::METHOD_CARD, $stripeSubscriptionId, $this->now->modify('+1 month'));
+        $attemptsBefore = $this->orders->findByIdForUpdate($orderId)?->provisioningAttempts();
+
+        $this->queueNoEvents();
+        $this->stripe->queue('GET', '/v1/subscriptions/' . $stripeSubscriptionId, ['id' => $stripeSubscriptionId, 'status' => 'active']);
+        $this->stripe->queue('DELETE', '/v1/subscriptions/' . $stripeSubscriptionId, ['id' => $stripeSubscriptionId, 'status' => 'canceled']);
+        $this->stripe->queue('GET', '/v1/checkout/sessions/cs_t31_' . $suffix, ['id' => 'cs_t31_' . $suffix, 'invoice' => 'in_t31_' . $suffix]);
+        $this->stripe->queue('GET', '/v1/invoices/in_t31_' . $suffix, ['id' => 'in_t31_' . $suffix, 'payment_intent' => 'pi_t31_' . $suffix]);
+        $this->stripe->queue('POST', '/v1/refunds', ['id' => 're_t31_' . $suffix, 'object' => 'refund']);
+
+        try {
+            $result = $this->reconciler()->run($this->now);
+        } finally {
+            ini_set('error_log', $previousErrorLog);
+        }
+
+        Assert::same(1, $result['orders_refunded']);
+        Assert::same(0, $result['orders_failed']);
+        Assert::same(0, $result['orders_fulfilled']);
+        $saved = $this->orders->findByIdForUpdate($orderId);
+        Assert::same(BillingOrder::STATUS_REFUNDED, $saved?->status());
+        Assert::same('re_t31_' . $suffix, $saved?->stripeRefundId());
+        Assert::same($attemptsBefore, $saved?->provisioningAttempts(), 'the conflict is not provisioned again');
+        Assert::same(Subscription::STATUS_CANCELLED, $this->subscriptions->findByIdForUpdate($subscriptionId)?->status());
+        Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'DELETE'));
+        Assert::count(1, array_filter($this->stripe->calls, static fn (array $call): bool => $call['method'] === 'POST' && $call['path'] === '/v1/refunds'));
+        Assert::same(
+            ['events_fetched', 'events_ingested', 'orders_fulfilled', 'orders_failed', 'orders_refunded', 'pix_invoices_issued', 'pix_invoices_overdue', 'pix_intents_refreshed', 'subscriptions_suspended'],
+            array_keys($result),
+        );
+    }
+
     private function reconciler(): BillingReconciler
     {
         $tx = new TransactionRunner($this->pdo);
@@ -419,6 +475,7 @@ final class BillingReconcilerIntegrationTest extends MysqlIntegrationTestCase
             new PixInvoiceIssuer($this->stripe, $this->invoices, $this->email, $translate),
             $provisioning,
             $tx,
+            new LoginConflictRefundService($tx, $this->orders, $this->subscriptions, $this->stripe, $this->email, ''),
         );
     }
 
