@@ -7,6 +7,7 @@ use CentralVet\Persistence\PdoConnectionFactory;
 use CentralVet\Persistence\SubscriptionRepository;
 use CentralVet\Security\CsrfToken;
 use CentralVet\Security\MutationRequestPolicy;
+use CentralVet\Security\RequestScheme;
 use CentralVet\Security\SearchParameterGuard;
 use CentralVet\Tenancy\AdiantiSessionContextSource;
 use CentralVet\Tenancy\Exception\MissingTenantContext;
@@ -559,13 +560,7 @@ a.secondary { border: 1px solid #9ca3af; color: #1f2937; }
     
     private static function isHttps(): bool
     {
-        $https = $_SERVER['HTTPS'] ?? '';
-        if (is_string($https) && $https !== '' && strtolower($https) !== 'off')
-        {
-            return true;
-        }
-        
-        return strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+        return RequestScheme::current();
     }
     
     /**
