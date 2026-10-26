@@ -68,12 +68,17 @@ fi
 # the Dockerfile installs its own dependencies in the `dependencies` stage.
 if [ "$build_image" -eq 1 ]; then
     echo "build-release: building centralvet/app:$sha and centralvet/worker:$sha"
-    docker build \
-        -f docker/php/Dockerfile \
-        --build-arg "APP_BUILD_ID=$sha" \
-        -t "centralvet/app:$sha" \
-        -t "centralvet/worker:$sha" \
-        "$export_dir"
+    # docker resolves a relative -f against the current directory, so build
+    # from inside the export: Dockerfile and context both come from the commit.
+    (
+        cd "$export_dir"
+        docker build \
+            -f docker/php/Dockerfile \
+            --build-arg "APP_BUILD_ID=$sha" \
+            -t "centralvet/app:$sha" \
+            -t "centralvet/worker:$sha" \
+            "$export_dir"
+    )
 fi
 
 echo "build-release: composer install (composer:2.8.11)"
