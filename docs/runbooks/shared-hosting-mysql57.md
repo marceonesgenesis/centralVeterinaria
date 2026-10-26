@@ -660,6 +660,46 @@ tabelas novas existem e estão vazias. Rollback: restaurar o backup anterior
 (ver [`restore-backup.md`](./restore-backup.md)) ou uma migration reversa
 numerada; apagar as duas tabelas só perde heartbeat e deduplicação.
 
+## Migration 0020 (piloto: cancelamento, aceite legal e primeiros passos)
+
+A `20261026_0020_etapa5_piloto.sql` acrescenta 3 colunas a `subscription`, logo
+depois de `cancelled_at` (`cancel_at_period_end`, padrão `0`;
+`cancel_requested_at` e `cancel_requested_by`, nulas), para o cancelamento pelo
+app no fim do período, e cria 2 tabelas novas e vazias, com chave estrangeira
+para `tenant` e sem CHECK (0 triggers no 5.7): `legal_acceptance` (um aceite
+por usuário, documento e versão dos Termos de Uso e da Política de Privacidade,
+com data, IP e navegador — dado pessoal, guardado como prova do aceite) e
+`tenant_onboarding` (uma linha por clínica com a data de cada item dos
+primeiros passos). As assinaturas existentes ficam sem cancelamento agendado e
+nenhum dado é semeado. **Aplique a 0020 antes de publicar** o código da Etapa 5:
+sem ela o primeiro login, os primeiros passos e o cancelamento falham. No 5.7 só
+a collation é convertida (`accepted_at` tem `DEFAULT CURRENT_TIMESTAMP(6)`
+explícito); o `ALTER TABLE subscription` copia a tabela, que é pequena.
+
+Copie a migration com o prefixo `24-` (depois do `23-` da 0019) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261026_0020_etapa5_piloto.sql \
+  "$d/24-20261026_0020_etapa5_piloto.sql"
+cp src/app/database/migrations/20261026_0020_etapa5_piloto.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 0 checks and 0 triggers`.
+
+Aplique só com autorização SQL específica, depois do backup. Antes e depois,
+anote `SELECT COUNT(*) FROM tenant`, `SELECT COUNT(*) FROM subscription` e
+`SELECT COUNT(*) FROM system_users` e exija os **mesmos números**; na
+conferência, use o verify adaptado de `$d/out/manifest.json` (chave
+`verification`): as 3 colunas novas seguem `cancelled_at`, nenhuma assinatura
+tem cancelamento agendado e as 2 tabelas novas existem e estão vazias.
+Rollback: restaurar o backup anterior (ver
+[`restore-backup.md`](./restore-backup.md)) ou uma migration reversa numerada;
+apagar as tabelas e as colunas perde os aceites registrados, o progresso dos
+primeiros passos e os cancelamentos agendados.
+
 ## Migrations pendentes e preflight na hospedagem
 
 Sem Docker, a pendência de migrations e a configuração se conferem por PHP CLI,
