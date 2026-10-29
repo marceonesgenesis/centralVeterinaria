@@ -29,9 +29,9 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 
 ### 2.2 Integração e publicação (P0)
 
-- [ ] Autenticar o GitHub CLI (`gh auth login`); sem isso nenhum PR sai daqui.
-- [ ] PR da Etapa 4 para `dev`, pela branch `merge/task/etapa-4-operacao-dev` (conflito com a rodada 4 já resolvido; CI local 2422/2422).
-- [ ] PR da Etapa 5 para `dev`, que leva junto as etapas 1–4. Precisa de nova branch `merge/...-dev` se conflitar.
+- [x] Branches `merge/task/etapa-4-operacao-dev` e `task/etapa-5-piloto-lancamento` enviadas com sucesso ao GitHub remoto.
+- [ ] PR da Etapa 4 para `dev`: [Abrir PR Etapa 4](https://github.com/marceonesgenesis/centralVeterinaria/compare/dev...merge/task/etapa-4-operacao-dev?expand=1)
+- [ ] PR da Etapa 5 para `dev`: [Abrir PR Etapa 5](https://github.com/marceonesgenesis/centralVeterinaria/compare/dev...task/etapa-5-piloto-lancamento?expand=1)
 - [ ] Primeira execução real do workflow `.github/workflows/ci.yml` no GitHub.
 - [ ] Testar na `dev` online; depois, PR da mesma branch para `main`.
 
