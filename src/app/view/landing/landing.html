@@ -10,10 +10,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="landing/landing.css?v=20261021-compra">
-<script src="landing/translations.js?v=20261021-compra" defer></script>
+<link rel="stylesheet" href="landing/landing.css?v=20261026-piloto">
+<script src="landing/translations.js?v=20261026-piloto" defer></script>
 <script src="landing/i18n.js?v=20261002-i18n" defer></script>
-<script src="landing/landing.js?v=20261021-compra" defer></script>
+<script src="landing/landing.js?v=20261026-piloto" defer></script>
 </head>
 <body>
 <header class="top">
@@ -237,7 +237,7 @@
         <table class="compare">
           <caption class="eyebrow compare-caption">Comparativo dos planos</caption>
           <thead>
-            <tr><th scope="col">Recurso</th><th scope="col">Starter</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr>
+            <tr id="compare-head"><th scope="col">Recurso</th><th scope="col">Starter</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr>
           </thead>
           <tbody id="compare-body"></tbody>
         </table>
@@ -273,6 +273,7 @@
         <div class="hp" aria-hidden="true"><label for="sub-website">Site</label><input id="sub-website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"></div>
         <div class="field">
           <label for="sub-terms" class="check"><input type="checkbox" id="sub-terms" aria-describedby="sub-terms-err" required><span id="sub-terms-text"></span></label>
+          <p class="legal-links"><a class="cv-touch-target" href="legal.php?doc=termos" target="_blank" rel="noopener">Termos de Uso</a><a class="cv-touch-target" href="legal.php?doc=privacidade" target="_blank" rel="noopener">Política de Privacidade</a></p>
           <span class="err" id="sub-terms-err"></span>
         </div>
         <div class="field">
@@ -316,7 +317,7 @@
         </details>
         <details>
           <summary>O que acontece depois que eu assino?</summary>
-          <p>O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Assinatura.</p>
+          <p>O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Uso.</p>
         </details>
       </div>
     </div>
@@ -339,6 +340,7 @@
   <div class="wrap">
     <span>© 2026 Central Vet Pro · Tecnologia que cuida de vidas</span>
     <span>Clínica. Gestão. Resultado.</span>
+    <nav class="legal-links" aria-label="Documentos legais"><a class="cv-touch-target" href="legal.php?doc=termos" target="_blank" rel="noopener">Termos de Uso</a><a class="cv-touch-target" href="legal.php?doc=privacidade" target="_blank" rel="noopener">Política de Privacidade</a></nav>
   </div>
 </footer>
 

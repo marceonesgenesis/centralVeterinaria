@@ -8,6 +8,11 @@
  * fora do inventário CSRF. Fica em SubscriptionAccessGuard::ALWAYS_ALLOWED
  * para a clínica bloqueada ainda conseguir regularizar.
  *
+ * Etapa 5, T-14: mostra o cancelamento agendado ("Cancelamento agendado
+ * para <fim do período>") e, quando SubscriptionStatusPresenter::canCancel
+ * permite, o botão "Cancelar assinatura", que abre SubscriptionCancelForm
+ * (a confirmação, com POST e CSRF, mora lá).
+ *
  * Os dados vêm do tenant da sessão (SubscriptionRepository::findByTenantId)
  * e são montados por CentralVet\Presentation\SubscriptionStatusPresenter.
  *
@@ -58,6 +63,8 @@ class SubscriptionStatusView extends TPage
             TTransaction::close();
 
             $summary = CentralVet\Presentation\SubscriptionStatusPresenter::summary($subscription, $now);
+            $cancelScheduledFor = CentralVet\Presentation\SubscriptionStatusPresenter::cancelScheduledFor($subscription);
+            $canCancel = CentralVet\Presentation\SubscriptionStatusPresenter::canCancel($subscription);
             $rows = CentralVet\Presentation\SubscriptionStatusPresenter::invoiceRows($invoices, $now);
         }
         catch (CentralVet\Tenancy\Exception\MissingTenantContext $e)
@@ -76,7 +83,7 @@ class SubscriptionStatusView extends TPage
             return;
         }
 
-        $container->add(self::summaryCard($summary));
+        $container->add(self::summaryCard($summary, $cancelScheduledFor, $canCancel));
         if ($summary['plan'] !== null)
         {
             $container->add(self::invoicesCard($rows));
@@ -88,7 +95,7 @@ class SubscriptionStatusView extends TPage
     /**
      * @param array{plan: ?string, status_key: ?string, period: ?string, grace_until: ?string, message_key: ?string} $summary
      */
-    private static function summaryCard(array $summary): TElement
+    private static function summaryCard(array $summary, ?string $cancelScheduledFor, bool $canCancel): TElement
     {
         $card = self::card(_t('Subscription'));
         $body = $card->get(1);
@@ -134,6 +141,26 @@ class SubscriptionStatusView extends TPage
         }
         $table->add($tbody);
         $body->add($table);
+
+        if ($cancelScheduledFor !== null)
+        {
+            $scheduled = new TElement('div');
+            $scheduled->{'class'} = 'alert alert-warning';
+            $scheduled->{'role'} = 'status';
+            $scheduled->add(CvFormat::e(_t('Cancellation scheduled for ^1', $cancelScheduledFor)));
+            $body->add($scheduled);
+        }
+
+        if ($canCancel)
+        {
+            $link = new TElement('a');
+            $link->{'class'} = 'btn btn-outline-danger cv-touch-target';
+            $link->{'href'} = 'index.php?class=SubscriptionCancelForm';
+            $link->{'generator'} = 'adianti';
+            $link->add(new TImage('fa:ban'));
+            $link->add(TElement::tag('span', CvFormat::e(_t('Cancel subscription'))));
+            $body->add($link);
+        }
 
         return $card;
     }

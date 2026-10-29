@@ -1,0 +1,46 @@
+<menu>
+    <!--
+        Sidebar exclusiva da Gestão do Sistema Central Vet Pro (Back-office).
+        Restrita aos operadores internos da plataforma.
+    -->
+    <menuitem label='Dashboard Geral'>
+        <icon>fas:chart-pie fa-fw</icon>
+        <action>GestaoDashboardView</action>
+    </menuitem>
+
+    <menuitem label='Clientes e Licenças'>
+        <icon>fas:hospital fa-fw</icon>
+        <action>GestaoClientList</action>
+    </menuitem>
+
+    <menuitem label='Planos e Ofertas'>
+        <icon>fas:tags fa-fw</icon>
+        <action>GestaoPlanList</action>
+    </menuitem>
+
+    <menuitem label='Convites com Bônus'>
+        <icon>fas:gift fa-fw</icon>
+        <action>GestaoInviteList</action>
+    </menuitem>
+
+    <menuitem label='Marketing e Campanhas'>
+        <icon>fas:bullhorn fa-fw</icon>
+        <action>GestaoMarketingView</action>
+    </menuitem>
+
+    <menuitem label='Horários do Suporte'>
+        <icon>fas:clock fa-fw</icon>
+        <action>GestaoSupportHoursForm</action>
+    </menuitem>
+
+    <menuitem label='Equipe de Gestão'>
+        <icon>fas:users-gear fa-fw</icon>
+        <action>GestaoTeamList</action>
+    </menuitem>
+
+    <menuitem label='Trilha de Auditoria'>
+        <icon>fas:shield-halved fa-fw</icon>
+        <action>GestaoAuditLogList</action>
+    </menuitem>
+</menu>
+

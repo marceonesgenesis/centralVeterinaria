@@ -114,6 +114,7 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
             if (
                 $subscription->paymentMethod() !== Subscription::METHOD_PIX
                 || !in_array($subscription->status(), [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE], true)
+                || $subscription->cancelAtPeriodEnd()
                 || $end === null
                 || $end > $until
             ) {
@@ -132,6 +133,26 @@ final class FakeSubscriptionRepository implements SubscriptionRepositoryInterfac
         usort($due, static fn (array $a, array $b): int => [$a['end'], $a['id']] <=> [$b['end'], $b['id']]);
 
         return array_slice(array_column($due, 'id'), 0, self::limit($limit));
+    }
+
+    public function listScheduledCancellationsDue(DateTimeImmutable $now, int $limit): array
+    {
+        $ids = [];
+        foreach ($this->sorted() as $row) {
+            $subscription = Subscription::fromRow($row);
+            $end = $subscription->currentPeriodEnd();
+            if (
+                $subscription->paymentMethod() === Subscription::METHOD_PIX
+                && $subscription->cancelAtPeriodEnd()
+                && $subscription->status() !== Subscription::STATUS_CANCELLED
+                && $end !== null
+                && $end <= $now
+            ) {
+                $ids[] = (int) $row['id'];
+            }
+        }
+
+        return array_slice($ids, 0, self::limit($limit));
     }
 
     private function findBy(string $column, int|string $value): ?Subscription

@@ -124,6 +124,15 @@ final class UserMessage
         'Unit name must have at most 120 characters' => 'Unit name must have at most 120 characters',
         // Etapa 3, T-29 — TenantBoundaryViolation (recurso de outra clínica).
         'Resource does not belong to the authenticated tenant' => 'The selected record does not belong to this clinic',
+        // Etapa 5, T-02 — cancelamento da assinatura, onboarding e recorte do piloto.
+        'No active subscription to cancel' => 'No active subscription to cancel',
+        'The payment provider did not confirm the cancellation. Try again in a few minutes' => 'The payment provider did not confirm the cancellation. Try again in a few minutes',
+        'The subscription is already scheduled for cancellation' => 'The subscription is already scheduled for cancellation',
+        'Enter the clinic legal name' => 'Enter the clinic legal name',
+        'Enter the unit name' => 'Enter the unit name',
+        'This module is not available in the pilot yet' => 'This module is not available in the pilot yet',
+        // Etapa 5, T-12 — a clínica não fica sem administrador ativo.
+        'The clinic must keep at least one active administrator' => 'The clinic must keep at least one active administrator',
     ];
 
     /** Regex ancorada (com /D: `$` não aceita "\n" final) → chave de tradução; cada grupo capturado vira ^1, ^2. */
@@ -133,6 +142,8 @@ final class UserMessage
         '/^Encounter (\d+|\(new\)) is not paused$/D' => 'Encounter ^1 is not paused',
         '/^A bank account named "(.+)" already exists for this unit$/D' => 'A bank account named "^1" already exists for this unit',
         '/^Bank account \d+ not found for this tenant$/D' => 'Bank account not found',
+        '/^Receivable \d+ not found$/D' => 'Receivable not found',
+        '/^Cash session \d+ not found$/D' => 'Record not found',
         '/^Service \d+ has appointments; deactivate it instead$/D' => 'This service has appointments; deactivate it instead',
         '/^A service named "(.+)" already exists for this tenant$/D' => 'A service named "^1" already exists',
         '/^A product named "(.+)" already exists for this tenant$/D' => 'A product named "^1" already exists',

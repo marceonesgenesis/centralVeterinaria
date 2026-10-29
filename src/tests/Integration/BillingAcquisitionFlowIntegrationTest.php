@@ -11,6 +11,7 @@ use CentralVet\Billing\BillingEventProcessor;
 use CentralVet\Billing\BillingOrder;
 use CentralVet\Billing\BillingReconciler;
 use CentralVet\Billing\BillingWebhookHandler;
+use CentralVet\Billing\CancelledPixRefundService;
 use CentralVet\Billing\CheckoutStartHandler;
 use CentralVet\Billing\LoginConflictRefundService;
 use CentralVet\Billing\PixInvoiceIssuer;
@@ -38,6 +39,7 @@ use CentralVet\Persistence\TenantUsageReader;
 use CentralVet\Security\LoginRateLimiter;
 use CentralVet\Security\PasswordResetToken;
 use CentralVet\Security\PublicUrl;
+use CentralVet\Tenancy\ClinicRoleProfiles;
 use CentralVet\Tenancy\ClinicTeamService;
 use CentralVet\Tenancy\ClinicUnitService;
 use CentralVet\Tenancy\Exception\TenantBoundaryViolation;
@@ -565,7 +567,34 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
         Assert::same($userBefore, $this->userSnapshot($bAdmin['user']), 'the user of B is unchanged');
         Assert::same($unitBefore, $this->value('SELECT name FROM system_unit WHERE id = ?', [$bAdmin['unit']]), 'the unit of B is unchanged');
 
-        Assert::same([$this->groups['starter'] => 'Central Vet - Plano Starter'], $team->allowedGroups());
+        // Grupo do plano de A mais os 3 perfis restritos (Etapa 5, T-12), por id; nunca o grupo 1 nem o plano de B.
+        $expected = [$this->groups['starter'] => 'Central Vet - Plano Starter'] + $this->profileGroups();
+        ksort($expected);
+        $allowed = $team->allowedGroups();
+        Assert::same($expected, $allowed);
+        Assert::false(array_key_exists(1, $allowed), 'group 1 is never offered');
+        Assert::false(array_key_exists($this->groups['pro'], $allowed), 'the plan group of B is not offered to A');
+    }
+
+    /**
+     * Grupos dos perfis restritos (`ClinicRoleProfiles::groupNames()`), lidos
+     * por nome e criados na transação do teste quando o seed não os trouxe.
+     *
+     * @return array<int, string> id => nome
+     */
+    private function profileGroups(): array
+    {
+        $groups = [];
+        foreach (ClinicRoleProfiles::groupNames() as $name) {
+            $id = (int) $this->value('SELECT id FROM system_group WHERE name = ? ORDER BY id LIMIT 1', [$name]);
+            if ($id === 0) {
+                $id = (int) $this->value('SELECT COALESCE(MAX(id), 0) + 1 FROM system_group FOR UPDATE');
+                $this->pdo->prepare('INSERT INTO system_group (id, name) VALUES (?, ?)')->execute([$id, $name]);
+            }
+            $groups[$id] = $name;
+        }
+
+        return $groups;
     }
 
     /** (q) e-mail vira login entre o checkout e o webhook → provisioning_failed; o reconciliador cancela, estorna e marca refunded uma vez. */
@@ -688,6 +717,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
             $provisioning,
             $tx,
             new LoginConflictRefundService($tx, $this->orders, $this->subscriptions, $this->stripe, $this->email, ''),
+            new CancelledPixRefundService($tx, $this->invoices, $this->subscriptions, $this->stripe, $this->email, ''),
         ))->run($at);
     }
 
@@ -773,7 +803,7 @@ final class BillingAcquisitionFlowIntegrationTest extends MysqlIntegrationTestCa
             'responsible_phone' => '(85) 99999-1234',
             'clinic_name' => 'Clínica T-22 ' . $suffix,
             'terms_accepted' => true,
-            'terms_version' => 'assinatura-2026-10',
+            'terms_version' => 'termos-uso-2026-10',
             'contact_consent' => false,
             'website' => '',
             'price_cents' => 1,

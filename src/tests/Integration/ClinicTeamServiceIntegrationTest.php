@@ -18,6 +18,7 @@ use CentralVet\Persistence\SubscriptionRepository;
 use CentralVet\Persistence\TenantUsageReader;
 use CentralVet\Security\PasswordResetToken;
 use CentralVet\Security\PublicUrl;
+use CentralVet\Tenancy\ClinicRoleProfiles;
 use CentralVet\Tenancy\ClinicTeamService;
 use CentralVet\Tenancy\Exception\TenantBoundaryViolation;
 use CentralVet\Tenancy\TenantContext;
@@ -34,6 +35,8 @@ use DateTimeImmutable;
  * unidade e o próprio grupo em tenant_group. A sessão é sempre a do
  * administrador de A. O TransactionRunner usa SAVEPOINT dentro da
  * transação do teste, desfeita no tearDown() — nada é commitado.
+ * Etapa 5, T-12: os 3 grupos globais de perfil (ClinicRoleProfiles) também
+ * entram na fixture, pelo nome exato, se ainda não existirem.
  */
 final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
 {
@@ -44,6 +47,9 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
 
     /** @var array<string, int> */
     private array $groups = [];
+
+    /** @var array<string, int> papel → id do grupo de perfil */
+    private array $profiles = [];
 
     /** @var array{tenant: int, unit: int, user: int} */
     private array $a;
@@ -61,6 +67,7 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
         $this->email = new FakeEmailProvider();
         $this->now = new DateTimeImmutable('2031-01-10 12:00:00');
         $this->createPlanGroups();
+        $this->createProfileGroups();
         $this->a = $this->clinic('starter', 'A');
         $this->b = $this->clinic('pro', 'B');
     }
@@ -92,9 +99,46 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
         Assert::same($before, $this->snapshot($this->b['user']), 'system_users/tenant_user of B must stay the same');
     }
 
-    public function testAllowedGroupsOfAIsOnlyTheStarterGroup(): void
+    public function testAllowedGroupsOfAIsTheStarterGroupPlusTheThreeProfiles(): void
     {
-        Assert::same([$this->groups['starter'] => 'Central Vet - Plano Starter'], $this->service()->allowedGroups());
+        $expected = [$this->groups['starter'] => 'Central Vet - Plano Starter'];
+        foreach (ClinicRoleProfiles::GROUP_NAMES as $role => $name) {
+            $expected[$this->profiles[$role]] = $name;
+        }
+        ksort($expected);
+
+        $allowed = $this->service()->allowedGroups();
+
+        Assert::same($expected, $allowed, 'plan group of A plus the 3 profile groups, ordered by id');
+        Assert::false(isset($allowed[1]), 'group 1 is never allowed');
+        Assert::false(isset($allowed[$this->groups['pro']]), 'plan group of another tenant is not allowed');
+    }
+
+    public function testInviteWithProfileGroupStoresOnlyTheProfileAndUpdateSwitchesIt(): void
+    {
+        $service = $this->service();
+        $userId = $service->invite('Recepção Teste', 'recepcao-' . bin2hex(random_bytes(4)) . '@example.test',
+            $this->profiles[ClinicRoleProfiles::RECEPTION], $this->a['unit'], $this->now);
+
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ?', [$userId]), 'only one group link');
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ? AND system_group_id = ?',
+            [$userId, $this->profiles[ClinicRoleProfiles::RECEPTION]]));
+        Assert::same(0, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ? AND system_group_id = ?',
+            [$userId, $this->groups['starter']]), 'the plan group is not linked');
+
+        $found = $service->findUser($userId);
+        Assert::same('Central Vet - Perfil Recepção', $found['group']);
+        Assert::same($this->profiles[ClinicRoleProfiles::RECEPTION], $found['group_id']);
+        $listed = array_column($service->listUsers(), 'group', 'id');
+        Assert::same('Central Vet - Perfil Recepção', $listed[$userId] ?? null);
+
+        $service->update($userId, 'Recepção Teste', $this->profiles[ClinicRoleProfiles::FINANCE], $this->a['unit']);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ?', [$userId]));
+        Assert::same('Central Vet - Perfil Financeiro', $service->findUser($userId)['group']);
+
+        $service->update($userId, 'Recepção Teste', $this->groups['starter'], $this->a['unit']);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ?', [$userId]));
+        Assert::same('Central Vet - Plano Starter', $service->findUser($userId)['group']);
     }
 
     public function testInviteWithPlatformGroupOrAnotherPlanGroupIsRefused(): void
@@ -215,6 +259,40 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
         Assert::same('Y', $this->value('SELECT active FROM system_users WHERE id = ?', [$userId]));
     }
 
+    public function testTheOnlyAdministratorCannotMoveHimselfToAProfile(): void
+    {
+        $service = $this->service();
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::RECEPTION], $this->a['unit']));
+
+        Assert::same('Central Vet - Plano Starter', $service->findUser($this->a['user'])['group'], 'the admin keeps the plan group');
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM system_user_group WHERE system_user_id = ?', [$this->a['user']]));
+    }
+
+    public function testTheLastActiveAdministratorCannotBeMovedToAProfileNorDeactivated(): void
+    {
+        $service = $this->service();
+        $other = $service->invite('Admin 2', $this->newEmail(), $this->groups['starter'], $this->a['unit'], $this->now);
+
+        // Convidado ainda não conta como administrador ativo.
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::FINANCE], $this->a['unit']));
+
+        $this->pdo->prepare("UPDATE tenant_user SET status = 'active' WHERE system_user_id = ?")->execute([$other]);
+        $service->update($this->a['user'], 'Admin A', $this->profiles[ClinicRoleProfiles::FINANCE], $this->a['unit']);
+        Assert::same('Central Vet - Perfil Financeiro', $service->findUser($this->a['user'])['group'], 'with another active admin the change is allowed');
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->update($other, 'Admin 2', $this->profiles[ClinicRoleProfiles::VETERINARIAN], $this->a['unit']));
+        Assert::same('Central Vet - Plano Starter', $service->findUser($other)['group']);
+
+        $this->expect(\DomainException::class, 'The clinic must keep at least one active administrator',
+            fn () => $service->deactivate($other));
+        Assert::same('active', $this->value('SELECT status FROM tenant_user WHERE system_user_id = ?', [$other]));
+        Assert::same('Y', $this->value('SELECT active FROM system_users WHERE id = ?', [$other]));
+    }
+
     public function testReactivateRespectsTheQuota(): void
     {
         $service = $this->service();
@@ -317,6 +395,18 @@ final class ClinicTeamServiceIntegrationTest extends MysqlIntegrationTestCase
                 $this->pdo->prepare('INSERT INTO system_group (id, name) VALUES (?, ?)')->execute([$id, $name]);
             }
             $this->groups[$planId] = $id;
+        }
+    }
+
+    private function createProfileGroups(): void
+    {
+        foreach (ClinicRoleProfiles::GROUP_NAMES as $role => $name) {
+            $id = (int) $this->value('SELECT id FROM system_group WHERE name = ? AND id <> 1 ORDER BY id LIMIT 1', [$name]);
+            if ($id === 0) {
+                $id = $this->nextId('system_group');
+                $this->pdo->prepare('INSERT INTO system_group (id, name) VALUES (?, ?)')->execute([$id, $name]);
+            }
+            $this->profiles[$role] = $id;
         }
     }
 

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace CentralVet\Tests\Unit;
 
 use CentralVet\Billing\AccessDecision;
+use CentralVet\Billing\OfferScope;
 use CentralVet\Billing\Subscription;
 use CentralVet\Billing\SubscriptionAccessGuard;
+use CentralVet\Pilot\PilotSettings;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeSubscriptionRepository;
 use DateTimeImmutable;
@@ -14,7 +16,8 @@ use DateTimeImmutable;
 /**
  * Etapa 3, T-15: decisão de acesso por estado da assinatura e por plano.
  * Ordem: ALWAYS_ALLOWED → sem assinatura (legacy) → bloqueio por estado →
- * bloqueio por plano → full/grace.
+ * bloqueio por plano → fora do recorte do piloto (not_released, T-07 da
+ * Etapa 5) → full/grace.
  */
 final class SubscriptionAccessGuardTest
 {
@@ -95,7 +98,10 @@ final class SubscriptionAccessGuardTest
         $now = $failedAt->modify('+9 days');
 
         Assert::same(
-            ['LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm', 'SystemMessageDropdown', 'SystemNotificationDropdown'],
+            [
+                'LoginForm', 'SubscriptionStatusView', 'SystemPasswordResetForm', 'SystemRequestPasswordResetForm',
+                'SystemMessageDropdown', 'SystemNotificationDropdown', 'SupportView', 'ClinicDataExportView', 'SubscriptionCancelForm',
+            ],
             SubscriptionAccessGuard::ALWAYS_ALLOWED,
         );
 
@@ -226,10 +232,112 @@ final class SubscriptionAccessGuardTest
     }
 
     /**
+     * Etapa 5, T-07: controller liberado pelo plano mas cuja feature está
+     * fora do recorte do piloto (OfferScope) é bloqueado com not_released.
+     */
+    public function testEnterpriseActiveIsNotReleasedOnHospitalAndAdvancedAi(): void
+    {
+        [$guard] = $this->guardWith('enterprise', null, $this->pilotScope());
+
+        foreach (['HospitalizationBoard', 'AiCopilotPanel'] as $controller) {
+            $decision = $guard->decide(self::TENANT, $controller, $this->now());
+            Assert::false($decision->allowed(), $controller . ' must be outside the pilot');
+            Assert::same(AccessDecision::REASON_NOT_RELEASED, $decision->reason());
+            Assert::same('not_released', $decision->reason());
+            Assert::same('This module is not available in the pilot yet', $decision->messageKey());
+        }
+    }
+
+    public function testProActiveIsNotReleasedOnCommunication(): void
+    {
+        [$guard] = $this->guardWith('pro', null, $this->pilotScope());
+
+        $decision = $guard->decide(self::TENANT, 'CommunicationComposeForm', $this->now());
+
+        Assert::false($decision->allowed());
+        Assert::same('not_released', $decision->reason());
+    }
+
+    public function testProActiveKeepsFullAccessToReleasedSaleList(): void
+    {
+        [$guard] = $this->guardWith('pro', null, $this->pilotScope());
+
+        $decision = $guard->decide(self::TENANT, 'SaleList', $this->now());
+
+        Assert::true($decision->allowed());
+        Assert::same('full', $decision->reason());
+        Assert::null($decision->messageKey());
+    }
+
+    public function testBlockedPlanWinsOverNotReleased(): void
+    {
+        [$guard] = $this->guardWith('starter', null, $this->pilotScope());
+
+        $decision = $guard->decide(self::TENANT, 'HospitalizationBoard', $this->now());
+
+        Assert::false($decision->allowed());
+        Assert::same('blocked_plan', $decision->reason());
+    }
+
+    public function testBlockedStatusWinsOverNotReleased(): void
+    {
+        $failedAt = new DateTimeImmutable('2026-10-10 12:00:00');
+        [$guard] = $this->guardWith('enterprise', static function (Subscription $s) use ($failedAt): void {
+            $s->markPaymentFailed(200, $failedAt);
+            $s->suspendIfGraceExpired($failedAt->modify('+8 days'));
+        }, $this->pilotScope());
+
+        $decision = $guard->decide(self::TENANT, 'HospitalizationBoard', $failedAt->modify('+9 days'));
+
+        Assert::false($decision->allowed());
+        Assert::same('blocked_status', $decision->reason());
+    }
+
+    public function testTenantWithoutSubscriptionStaysLegacyOutsideThePilot(): void
+    {
+        [$guard] = $this->guardWith('enterprise', null, $this->pilotScope());
+
+        $decision = $guard->decide(999, 'HospitalizationBoard', $this->now());
+
+        Assert::true($decision->allowed());
+        Assert::same('legacy', $decision->reason());
+        Assert::null($decision->messageKey());
+    }
+
+    public function testPreviewFeaturesReleaseHospitalForEnterprise(): void
+    {
+        [$guard] = $this->guardWith('enterprise', null, $this->pilotScope(['OFFER_PREVIEW_FEATURES' => 'hospital,ai_advanced']));
+
+        foreach (['HospitalizationBoard', 'AiCopilotPanel'] as $controller) {
+            $decision = $guard->decide(self::TENANT, $controller, $this->now());
+            Assert::true($decision->allowed(), $controller . ' must be released by preview');
+            Assert::same('full', $decision->reason());
+        }
+    }
+
+    public function testSubscriptionStatusViewStaysAllowedInThePilot(): void
+    {
+        [$guard] = $this->guardWith('starter', null, $this->pilotScope());
+
+        $decision = $guard->decide(self::TENANT, 'SubscriptionStatusView', $this->now());
+
+        Assert::true($decision->allowed());
+        Assert::same('full', $decision->reason());
+    }
+
+    /**
+     * @param array<string, string> $env
+     */
+    private function pilotScope(array $env = []): OfferScope
+    {
+        return new OfferScope(PilotSettings::fromArray($env));
+    }
+
+    /**
      * @param (callable(Subscription): void)|null $mutate
      * @return array{SubscriptionAccessGuard, FakeSubscriptionRepository}
      */
-    private function guardWith(string $planId, ?callable $mutate = null): array
+    private function guardWith(string $planId, ?callable $mutate = null, ?OfferScope $offer = null): array
     {
         $subscription = Subscription::start(
             10, $planId, 'card', 'cus_1', 'sub_1', 'active',
@@ -243,7 +351,10 @@ final class SubscriptionAccessGuardTest
         $repository = new FakeSubscriptionRepository();
         $repository->insert($subscription);
 
-        return [new SubscriptionAccessGuard($repository), $repository];
+        return [
+            $offer === null ? new SubscriptionAccessGuard($repository) : new SubscriptionAccessGuard($repository, $offer),
+            $repository,
+        ];
     }
 
     private function now(): DateTimeImmutable

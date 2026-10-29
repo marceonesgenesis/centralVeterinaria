@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="pt-BR" data-bs-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mocks da Área de Gestão (Back-office) — Central Vet Pro</title>
+    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css?afver=860">
+    <link rel="stylesheet" href="app/templates/adminbs5/theme.css?afver=860">
+    <link rel="stylesheet" href="app/templates/adminbs5/custom.css?appver=1">
+    <style>
+        :root {
+            --cv-nav-bg: #1e293b;
+            --cv-nav-active: #3b82f6;
+            --cv-touch-target: 44px;
+        }
+        body {
+            background-color: #f8fafc;
+            min-height: 100vh;
+        }
+        .mock-sidebar {
+            width: 260px;
+            background: #0f172a;
+            color: #f1f5f9;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .mock-sidebar .nav-link {
+            color: #94a3b8;
+            padding: 0.75rem 1rem;
+            min-height: var(--cv-touch-target);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-radius: 6px;
+            margin: 2px 8px;
+            font-weight: 500;
+        }
+        .mock-sidebar .nav-link:hover, .mock-sidebar .nav-link:focus {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        .mock-sidebar .nav-link.active {
+            color: #fff;
+            background-color: #2563eb;
+        }
+        .mock-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+        }
+        .mock-screen-banner {
+            background: #e0f2fe;
+            border-left: 4px solid #0284c7;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #0369a1;
+        }
+        .touch-btn {
+            min-height: var(--cv-touch-target);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .diff-box {
+            background: #f1f5f9;
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .diff-del {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .diff-add {
+            background: #dcfce7;
+            color: #166534;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex" style="min-height: 100vh;">
+        <!-- Navegação lateral dos Mocks -->
+        <aside class="mock-sidebar p-3" aria-label="Navegação da Área de Gestão">
+            <div class="d-flex align-items-center gap-2 mb-4 px-2">
+                <span class="fs-4">🛡️</span>
+                <div>
+                    <h6 class="mb-0 fw-bold text-white">Central Vet Pro</h6>
+                    <small class="text-secondary">Gestão da Plataforma</small>
+                </div>
+            </div>
+
+            <div class="text-uppercase text-secondary small fw-semibold px-2 mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                Telas do Back-office
+            </div>
+
+            <nav class="nav nav-pills flex-column gap-1">
+                <button class="nav-link text-start active" onclick="showScreen('screen-login', this)">
+                    <span>🔐</span> 1. Login Separado (Gestão)
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-dashboard', this)">
+                    <span>📊</span> 2. Dashboard Executivo
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-clients', this)">
+                    <span>🏥</span> 3. Clientes & Licenças
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-plans', this)">
+                    <span>🏷️</span> 4. Cadastro de Planos
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-invites', this)">
+                    <span>🎁</span> 5. Convites com Bônus (15d)
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-marketing', this)">
+                    <span>📢</span> 6. Marketing & Campanhas
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-support', this)">
+                    <span>⏰</span> 7. Horários do Suporte
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-team', this)">
+                    <span>👥</span> 8. Equipe Interna (4 Perfis)
+                </button>
+                <button class="nav-link text-start" onclick="showScreen('screen-audit', this)">
+                    <span>📜</span> 9. Trilha de Auditoria
+                </button>
+            </nav>
+
+            <div class="mt-auto pt-3 border-top border-secondary text-secondary small px-2">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span>Perfil ativo no mock:</span>
+                    <span class="badge bg-primary">Admin do Sistema</span>
+                </div>
+                <div style="font-size: 0.75rem;">Isolamento total dos dados clínicos de tenants.</div>
+            </div>
+        </aside>
+
+        <!-- Área Principal de Exibição dos Mocks -->
+        <main class="flex-grow-1 p-4 overflow-auto" id="main-content">
+            
+            <!-- TELA 1: LOGIN SEPARADO DA GESTÃO -->
+            <section id="screen-login" class="mock-screen">
+                <div class="mock-screen-banner">
+                    <strong>Tela 1: Login Separado para a Equipe de Gestão</strong> — Ponto de entrada exclusivo (<code>/gestao.php</code>). Não permite login de clínicas, não possui cadastro público de contas e exige 2FA (TOTP) obrigatório.
+                </div>
+
+                <div class="row justify-content-center pt-4">
+                    <div class="col-md-5 col-lg-4">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body p-4">
+                                <div class="text-center mb-4">
+                                    <div class="d-inline-flex p-3 rounded-circle bg-primary bg-opacity-10 text-primary mb-2 fs-2">
+                                        🛡️
+                                    </div>
+                                    <h4 class="fw-bold mb-1">Central Vet Pro</h4>
+                                    <div class="badge bg-dark px-3 py-1">Gestão & Operação do Sistema</div>
+                                    <p class="text-muted small mt-2">Acesso restrito à equipe interna de administração e back-office.</p>
+                                </div>
+
+                                <div id="login-step-1">
+                                    <form onsubmit="event.preventDefault(); document.getElementById('login-step-1').classList.add('d-none'); document.getElementById('login-step-2').classList.remove('d-none');">
+                                        <div class="mb-3">
+                                            <label class="form-label" for="gestao-user">Usuário interno / E-mail</label>
+                                            <input type="text" class="form-control" id="gestao-user" value="operador@centralvet.com.br" required autocomplete="username">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="gestao-pass">Senha</label>
+                                            <input type="password" class="form-control" id="gestao-pass" value="••••••••••••" required autocomplete="current-password">
+                                        </div>
+                                        <div class="alert alert-info py-2 small mb-3">
+                                            🔒 Conexão segura. Tentativas incorretas são bloqueadas e auditadas por IP.
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-100 touch-btn">Avançar para Verificação</button>
+                                    </form>
+                                    <div class="text-center mt-3">
+                                        <a href="index.php" class="small text-secondary text-decoration-none">← Voltar ao login de Clínicas</a>
+                                    </div>
+                                </div>
+
+                                <div id="login-step-2" class="d-none">
+                                    <div class="alert alert-warning py-2 small mb-3">
+                                        <strong>2FA Obrigatório:</strong> Digite o código de 6 dígitos do seu aplicativo autenticador (Google Authenticator, Authy, etc.).
+                                    </div>
+                                    <form onsubmit="event.preventDefault(); alert('Login de Gestão autenticado com sucesso! Carregando dashboard...'); showScreen('screen-dashboard', document.querySelectorAll('.mock-sidebar .nav-link')[1]);">
+                                        <div class="mb-3 text-center">
+                                            <label class="form-label d-block text-start" for="gestao-2fa">Código de 6 dígitos</label>
+                                            <input type="text" class="form-control text-center fs-4 fw-bold tracking-wider" id="gestao-2fa" maxlength="6" placeholder="000 000" autofocus required>
+                                        </div>
+                                        <button type="submit" class="btn btn-success w-100 touch-btn mb-2">Confirmar e Entrar</button>
+                                        <button type="button" class="btn btn-outline-secondary w-100 touch-btn" onclick="document.getElementById('login-step-2').classList.add('d-none'); document.getElementById('login-step-1').classList.remove('d-none');">Voltar</button>
+                                    </form>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 2: DASHBOARD EXECUTIVO -->
+            <section id="screen-dashboard" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 2: Dashboard Executivo da Gestão</strong> — Visão agregada do negócio Central Vet Pro: faturamento mensal recorrente (MRR), base de clientes, clínicas em degustação (bônus de 15 dias) e indicadores operacionais.
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card border-0 shadow-sm p-3">
+                            <span class="text-secondary small fw-semibold">MRR (Receita Recorrente)</span>
+                            <h3 class="fw-bold text-success my-1">R$ 48.920,00</h3>
+                            <small class="text-muted">+12,4% no último mês</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card border-0 shadow-sm p-3">
+                            <span class="text-secondary small fw-semibold">Clínicas Clientes Ativas</span>
+                            <h3 class="fw-bold text-primary my-1">142</h3>
+                            <small class="text-muted">118 no plano Pro / 24 Business</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card border-0 shadow-sm p-3">
+                            <span class="text-secondary small fw-semibold">Convites em Bônus (15 dias)</span>
+                            <h3 class="fw-bold text-warning my-1">28</h3>
+                            <small class="text-muted">6 com bônus encerrando em 48h</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card border-0 shadow-sm p-3">
+                            <span class="text-secondary small fw-semibold">Taxa de Conversão de Bônus</span>
+                            <h3 class="fw-bold text-info my-1">68,2%</h3>
+                            <small class="text-muted">Média móvel de 30 dias</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card border-0 shadow-sm p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold mb-0">Distribuição dos Planos e Contratos</h5>
+                                <button class="btn btn-sm btn-outline-primary touch-btn" onclick="showScreen('screen-clients', document.querySelectorAll('.mock-sidebar .nav-link')[2])">Ver todas as clínicas</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Plano</th>
+                                            <th>Preço Mensal</th>
+                                            <th>Clínicas</th>
+                                            <th>Participação</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Starter</strong></td>
+                                            <td>R$ 149,00</td>
+                                            <td>35</td>
+                                            <td>24,6%</td>
+                                            <td><span class="badge bg-success">Ativo na Landing</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Pro</strong></td>
+                                            <td>R$ 299,00</td>
+                                            <td>83</td>
+                                            <td>58,5%</td>
+                                            <td><span class="badge bg-success">Ativo na Landing</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Business</strong></td>
+                                            <td>R$ 499,00</td>
+                                            <td>20</td>
+                                            <td>14,1%</td>
+                                            <td><span class="badge bg-success">Ativo na Landing</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Enterprise</strong></td>
+                                            <td>R$ 899,00</td>
+                                            <td>4</td>
+                                            <td>2,8%</td>
+                                            <td><span class="badge bg-secondary">Sob Consulta</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card border-0 shadow-sm p-4">
+                            <h5 class="fw-bold mb-3">Avisos de Gestão</h5>
+                            <div class="list-group list-group-flush">
+                                <div class="list-group-item px-0 py-2 border-bottom">
+                                    <span class="badge bg-danger mb-1">Atenção</span>
+                                    <div class="small fw-semibold">3 clínicas com fatura em atraso > 5 dias</div>
+                                    <div class="text-muted" style="font-size: 0.8rem;">Stripe enviando lembretes de cobrança automática.</div>
+                                </div>
+                                <div class="list-group-item px-0 py-2 border-bottom">
+                                    <span class="badge bg-warning text-dark mb-1">Bônus Expirando</span>
+                                    <div class="small fw-semibold">Clínica Veterinária Patas & Pelos</div>
+                                    <div class="text-muted" style="font-size: 0.8rem;">Bônus acaba em 2 dias. Nenhuma forma de pagamento cadastrada.</div>
+                                </div>
+                                <div class="list-group-item px-0 py-2">
+                                    <span class="badge bg-info mb-1">Suporte</span>
+                                    <div class="small fw-semibold">Feriado Municipal cadastrado para amanhã</div>
+                                    <div class="text-muted" style="font-size: 0.8rem;">Grade de atendimento ajustada automaticamente.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 3: CLIENTES E LICENÇAS -->
+            <section id="screen-clients" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 3: Clientes e Licenças</strong> — Controle das clínicas clientes. Permite consultar status, suspender acesso manualmente, trocar de plano, prorrogar licença ou bônus e visualizar o histórico de faturas Stripe. Dados clínicos de pacientes/tutores ficam estritamente isolados.
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" placeholder="Buscar por clínica, CNPJ ou e-mail...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select">
+                                <option value="">Todos os status</option>
+                                <option value="active">Ativa</option>
+                                <option value="trial">Em Bônus (Trial)</option>
+                                <option value="past_due">Em Atraso</option>
+                                <option value="suspended">Suspensa</option>
+                                <option value="canceled">Cancelada</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select">
+                                <option value="">Todos os planos</option>
+                                <option value="starter">Starter</option>
+                                <option value="pro">Pro</option>
+                                <option value="business">Business</option>
+                                <option value="enterprise">Enterprise</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-outline-secondary w-100 touch-btn">Exportar CSV</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Clínica</th>
+                                    <th>Plano</th>
+                                    <th>Status</th>
+                                    <th>Administrador</th>
+                                    <th>Quotas Usadas</th>
+                                    <th>Vencimento / Próx. Fatura</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Hospital Veterinário São Francisco</div>
+                                        <small class="text-muted">CNPJ 12.345.678/0001-90</small>
+                                    </td>
+                                    <td><span class="badge bg-primary">Business</span></td>
+                                    <td><span class="badge bg-success">Ativa</span></td>
+                                    <td>
+                                        <div>Dr. Carlos Mendes</div>
+                                        <small class="text-muted">carlos@saofrancisco.vet.br</small>
+                                    </td>
+                                    <td>4/5 Unidades • 12/20 Vets</td>
+                                    <td>15/11/2026 (R$ 499/mês)</td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Abrir detalhes do cliente Hospital São Francisco')">Ver</button>
+                                            <button class="btn btn-sm btn-outline-warning touch-btn" onclick="alert('Ação: Suspender licença ou Trocar de Plano')">Gerenciar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Clínica Veterinária Amigo Fiel</div>
+                                        <small class="text-muted">CNPJ 98.765.432/0001-11</small>
+                                    </td>
+                                    <td><span class="badge bg-info text-dark">Pro</span></td>
+                                    <td><span class="badge bg-warning text-dark">Em Bônus (15d)</span></td>
+                                    <td>
+                                        <div>Dra. Amanda Silveira</div>
+                                        <small class="text-muted">amanda@amigofiel.vet.br</small>
+                                    </td>
+                                    <td>1/1 Unidade • 2/5 Vets</td>
+                                    <td>Expira em 6 dias (04/11)</td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Abrir detalhes do cliente Amigo Fiel')">Ver</button>
+                                            <button class="btn btn-sm btn-outline-success touch-btn" onclick="alert('Ação: Prorrogar período de bônus por mais 15 dias')">+15 Dias</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Centro Veterinário Vida Animal</div>
+                                        <small class="text-muted">CNPJ 55.443.221/0001-00</small>
+                                    </td>
+                                    <td><span class="badge bg-secondary">Starter</span></td>
+                                    <td><span class="badge bg-danger">Suspensa</span></td>
+                                    <td>
+                                        <div>Dr. Roberto Dias</div>
+                                        <small class="text-muted">roberto@vidaanimal.com</small>
+                                    </td>
+                                    <td>1/1 Unidade • 1/2 Vets</td>
+                                    <td>Inadimplente (> 15 dias)</td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Abrir detalhes')">Ver</button>
+                                            <button class="btn btn-sm btn-success touch-btn" onclick="alert('Ação: Reativar licença manualmente')">Reativar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 4: CADASTRO DE PLANOS E OFERTAS -->
+            <section id="screen-plans" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 4: Cadastro de Planos e Ofertas</strong> — Permite criar e editar planos diretamente pelo back-office, definindo preço mensal, price ID do Stripe, quotas e recursos liberados (módulos de Internação, Cirurgia, Documentos, IA Copiloto). Clientes atuais mantêm preço e termos já contratados.
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0">Planos e Ofertas Comerciais</h5>
+                    <button class="btn btn-primary touch-btn" onclick="alert('Modal: Cadastrar Novo Plano')">+ Novo Plano</button>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-secondary">Starter</span>
+                                <span class="badge bg-success">Ativo na Landing</span>
+                            </div>
+                            <h4 class="fw-bold">R$ 149,00 <small class="text-muted fs-6">/mês</small></h4>
+                            <div class="text-muted small mb-3">Price ID: <code>price_1P_starter_mvp</code></div>
+                            <ul class="list-unstyled small text-secondary flex-grow-1">
+                                <li>✔ Até 1 Unidade</li>
+                                <li>✔ Até 2 Veterinários</li>
+                                <li>✔ Núcleo Clínico & Vacinas</li>
+                                <li>✔ Financeiro Básico & PDV</li>
+                                <li>✖ Internação e Cirurgia</li>
+                                <li>✖ Copiloto de IA</li>
+                            </ul>
+                            <button class="btn btn-outline-primary w-100 touch-btn mt-2" onclick="alert('Editar parâmetros do Plano Starter')">Editar Plano</button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card border-primary shadow-sm h-100 p-3 position-relative">
+                            <div class="position-absolute top-0 end-0 bg-primary text-white px-2 py-1 small rounded-bottom-start">Mais Popular</div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-primary">Pro</span>
+                                <span class="badge bg-success">Ativo na Landing</span>
+                            </div>
+                            <h4 class="fw-bold">R$ 299,00 <small class="text-muted fs-6">/mês</small></h4>
+                            <div class="text-muted small mb-3">Price ID: <code>price_1P_pro_mvp</code></div>
+                            <ul class="list-unstyled small text-secondary flex-grow-1">
+                                <li>✔ Até 2 Unidades</li>
+                                <li>✔ Até 5 Veterinários</li>
+                                <li>✔ Núcleo Clínico & Vacinas</li>
+                                <li>✔ Financeiro Básico & PDV</li>
+                                <li>✔ Internação & Prescrições</li>
+                                <li>✔ Cirurgia & Materiais</li>
+                                <li>✖ Copiloto de IA</li>
+                            </ul>
+                            <button class="btn btn-primary w-100 touch-btn mt-2" onclick="alert('Editar parâmetros do Plano Pro')">Editar Plano</button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-info text-dark">Business</span>
+                                <span class="badge bg-success">Ativo na Landing</span>
+                            </div>
+                            <h4 class="fw-bold">R$ 499,00 <small class="text-muted fs-6">/mês</small></h4>
+                            <div class="text-muted small mb-3">Price ID: <code>price_1P_biz_mvp</code></div>
+                            <ul class="list-unstyled small text-secondary flex-grow-1">
+                                <li>✔ Até 5 Unidades</li>
+                                <li>✔ Até 20 Veterinários</li>
+                                <li>✔ Todos os módulos clínicos</li>
+                                <li>✔ Internação e Cirurgia</li>
+                                <li>✔ Copiloto IA (100k tokens/mês)</li>
+                                <li>✔ Suporte Prioritário</li>
+                            </ul>
+                            <button class="btn btn-outline-primary w-100 touch-btn mt-2" onclick="alert('Editar parâmetros do Plano Business')">Editar Plano</button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-dark">Enterprise</span>
+                                <span class="badge bg-secondary">Sob Consulta</span>
+                            </div>
+                            <h4 class="fw-bold">R$ 899,00 <small class="text-muted fs-6">/mês</small></h4>
+                            <div class="text-muted small mb-3">Price ID: <code>price_1P_corp_mvp</code></div>
+                            <ul class="list-unstyled small text-secondary flex-grow-1">
+                                <li>✔ Unidades ilimitadas</li>
+                                <li>✔ Veterinários ilimitados</li>
+                                <li>✔ Todos os módulos + IA Ilimitada</li>
+                                <li>✔ Ferramentas MCP dedicadas</li>
+                                <li>✔ Gerente de Contas & Suporte 24/7</li>
+                            </ul>
+                            <button class="btn btn-outline-primary w-100 touch-btn mt-2" onclick="alert('Editar parâmetros do Plano Enterprise')">Editar Plano</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 5: CONVITES COM BÔNUS -->
+            <section id="screen-invites" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 5: Convite com Bônus de Degustação (Trial de 15 Dias)</strong> — Envia convites com acesso gratuito sem pedir cartão de crédito. Se a clínica não contratar até o fim do bônus, o acesso é bloqueado, com exportação disponível e retenção de 30 dias.
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-5">
+                        <div class="card border-0 shadow-sm p-4">
+                            <h5 class="fw-bold mb-3">Emitir Novo Convite de Bônus</h5>
+                            <form onsubmit="event.preventDefault(); alert('Convite enviado com sucesso com 15 dias de bônus!');">
+                                <div class="mb-3">
+                                    <label class="form-label" for="invite-clinic">Nome da Clínica</label>
+                                    <input type="text" class="form-control" id="invite-clinic" placeholder="Ex: Clínica Vet Bem Estar" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="invite-email">E-mail do Administrador</label>
+                                    <input type="email" class="form-control" id="invite-email" placeholder="admin@vetbemestar.com" required>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label" for="invite-days">Dias de Bônus</label>
+                                        <input type="number" class="form-control" id="invite-days" value="15" min="1" max="60" required>
+                                        <div class="form-text">Padrão: 15 dias de degustação.</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label" for="invite-plan">Plano Liberado</label>
+                                        <select class="form-select" id="invite-plan">
+                                            <option value="pro" selected>Pro (Recomendado)</option>
+                                            <option value="business">Business</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="invite-validity">Validade do Convite</label>
+                                    <select class="form-select" id="invite-validity">
+                                        <option value="7">7 dias para ativar</option>
+                                        <option value="15">15 dias para ativar</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 touch-btn">Enviar Convite por E-mail</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="card border-0 shadow-sm p-4">
+                            <h5 class="fw-bold mb-3">Convites Recentes e Conversões</h5>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Clínica / E-mail</th>
+                                            <th>Bônus</th>
+                                            <th>Status</th>
+                                            <th>Expiração</th>
+                                            <th class="text-end">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">Clínica Vet Bem Estar</div>
+                                                <small class="text-muted">contato@vetbemestar.com</small>
+                                            </td>
+                                            <td>15 dias</td>
+                                            <td><span class="badge bg-secondary">Aguardando Aceite</span></td>
+                                            <td>Em 6 dias</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Reenviando e-mail de convite...')">Reenviar</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">Pet Care Sul</div>
+                                                <small class="text-muted">gerencia@petcaresul.com</small>
+                                            </td>
+                                            <td>15 dias</td>
+                                            <td><span class="badge bg-warning text-dark">Em Bônus (Dia 8/15)</span></td>
+                                            <td>Faltam 7 dias</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-success touch-btn" onclick="alert('Avisos de cobrança prévia ativados')">Avisar</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">Vet Vida Norte</div>
+                                                <small class="text-muted">diretoria@vetvidanorte.com</small>
+                                            </td>
+                                            <td>15 dias</td>
+                                            <td><span class="badge bg-success">Convertido em Pro!</span></td>
+                                            <td>Assinante Stripe</td>
+                                            <td class="text-end">
+                                                <span class="badge bg-light text-secondary">Concluído</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 6: MARKETING E CAMPANHAS -->
+            <section id="screen-marketing" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 6: Marketing, Leads & Campanhas</strong> — Visão agregada dos possíveis clientes: leads da landing, checkouts abandonados, convites não convertidos e clínicas em bônus. Permite exportar CSV e disparar campanhas com opt-out/descadastro automático (LGPD).
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Base de Oportunidades & Leads</h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary touch-btn" onclick="alert('Exportando CSV de Leads e Oportunidades...')">Exportar CSV</button>
+                            <button class="btn btn-primary touch-btn" onclick="alert('Modal: Disparar Nova Campanha de E-mail')">Criar Campanha</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Origem</th>
+                                    <th>Contato</th>
+                                    <th>Clínica / Cidade</th>
+                                    <th>Interesse</th>
+                                    <th>Consentimento (LGPD)</th>
+                                    <th>Última Interação</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-info text-dark">Lead Landing</span></td>
+                                    <td>
+                                        <div class="fw-semibold">Dra. Juliana Prado</div>
+                                        <small class="text-muted">juliana@pradovet.com.br</small>
+                                    </td>
+                                    <td>Prado Vet • Campinas/SP</td>
+                                    <td>Plano Pro</td>
+                                    <td><span class="badge bg-success">Aceitou Contato</span></td>
+                                    <td>Hoje às 08:15</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Criar convite de bônus para este lead')">Convidar</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-danger">Checkout Abandonado</span></td>
+                                    <td>
+                                        <div class="fw-semibold">Marcos Vinicius</div>
+                                        <small class="text-muted">marcos@centroveterinario.com</small>
+                                    </td>
+                                    <td>Centro Vet • Curitiba/PR</td>
+                                    <td>Plano Business (Pix)</td>
+                                    <td><span class="badge bg-success">Aceitou Contato</span></td>
+                                    <td>Ontem às 19:40</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-warning touch-btn" onclick="alert('Enviar lembrete de recuperação de checkout com link de pagamento')">Recuperar</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-warning text-dark">Bônus Encerrado</span></td>
+                                    <td>
+                                        <div class="fw-semibold">Dr. Eduardo Fonseca</div>
+                                        <small class="text-muted">eduardo@clinicapopular.vet</small>
+                                    </td>
+                                    <td>Clínica Popular • Recife/PE</td>
+                                    <td>Usou Internação & Cirurgia</td>
+                                    <td><span class="badge bg-success">Aceitou Contato</span></td>
+                                    <td>Há 3 dias</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary touch-btn" onclick="alert('Oferecer desconto especial ou prorrogação de bônus')">Oferta Especial</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 7: HORÁRIOS DO SUPORTE -->
+            <section id="screen-support" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 7: Horários de Atendimento do Suporte</strong> — Tabela editável de horários de suporte e plantões. Alimenta automaticamente a tela de suporte das clínicas, a landing page pública, os termos de uso e os avisos de "fora do expediente".
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-7">
+                        <div class="card border-0 shadow-sm p-4">
+                            <h5 class="fw-bold mb-3">Grade Semanal de Atendimento</h5>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Dia da Semana</th>
+                                            <th>Horário de Funcionamento</th>
+                                            <th>Status</th>
+                                            <th class="text-end">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Segunda a Sexta</td>
+                                            <td><strong>08:00 às 18:00</strong> (Horário de Brasília)</td>
+                                            <td><span class="badge bg-success">Atendimento Normal</span></td>
+                                            <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Editar</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Sábado</td>
+                                            <td><strong>08:00 às 12:00</strong> (Plantão para chamados urgentes)</td>
+                                            <td><span class="badge bg-info text-dark">Plantão</span></td>
+                                            <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Editar</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Domingo</td>
+                                            <td>Sem expediente (Apenas monitoramento de infraestrutura)</td>
+                                            <td><span class="badge bg-secondary">Fechado</span></td>
+                                            <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Editar</button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <div class="card border-0 shadow-sm p-4">
+                            <h5 class="fw-bold mb-3">Canais e Mensagem Automática</h5>
+                            <div class="mb-3">
+                                <label class="form-label">E-mail de Suporte</label>
+                                <input type="text" class="form-control" value="suporte@centralvet.com.br" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">WhatsApp de Atendimento</label>
+                                <input type="text" class="form-control" value="+55 (11) 98765-4321" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Mensagem para Contatos Fora do Expediente</label>
+                                <textarea class="form-control" rows="3" readonly>Nosso horário de atendimento é de segunda a sexta, das 8h às 18h. Seu chamado foi registrado e será respondido no próximo dia útil.</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 8: EQUIPE INTERNA -->
+            <section id="screen-team" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 8: Usuários e Perfis da Equipe de Gestão</strong> — Acesso restrito à equipe interna com os 4 perfis fixos: Administrador do Sistema, Comercial, Financeiro e Suporte. 2FA obrigatório para todos.
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Membros da Equipe Central Vet</h5>
+                        <button class="btn btn-primary touch-btn" onclick="alert('Modal: Adicionar Novo Membro da Equipe')">+ Novo Usuário</button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nome / E-mail</th>
+                                    <th>Perfil Interno</th>
+                                    <th>2FA (TOTP)</th>
+                                    <th>Último Acesso</th>
+                                    <th>Ações Permitidas</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Admin Central Vet</div>
+                                        <small class="text-muted">admin@centralvet.com.br</small>
+                                    </td>
+                                    <td><span class="badge bg-danger">Administrador do Sistema</span></td>
+                                    <td><span class="badge bg-success">Ativo (Obrigatório)</span></td>
+                                    <td>Hoje às 08:32</td>
+                                    <td>Acesso total ao back-office e equipe</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Gerenciar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Marina Costa</div>
+                                        <small class="text-muted">marina.comercial@centralvet.com.br</small>
+                                    </td>
+                                    <td><span class="badge bg-primary">Comercial</span></td>
+                                    <td><span class="badge bg-success">Ativo (Obrigatório)</span></td>
+                                    <td>Ontem às 17:15</td>
+                                    <td>Convites, Marketing e visualização de clientes</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Gerenciar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Felipe Santos</div>
+                                        <small class="text-muted">felipe.financeiro@centralvet.com.br</small>
+                                    </td>
+                                    <td><span class="badge bg-success">Financeiro</span></td>
+                                    <td><span class="badge bg-success">Ativo (Obrigatório)</span></td>
+                                    <td>Hoje às 07:50</td>
+                                    <td>Faturas Stripe, suspensão e reativação</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Gerenciar</button></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">Beatriz Rocha</div>
+                                        <small class="text-muted">beatriz.suporte@centralvet.com.br</small>
+                                    </td>
+                                    <td><span class="badge bg-info text-dark">Suporte</span></td>
+                                    <td><span class="badge bg-success">Ativo (Obrigatório)</span></td>
+                                    <td>Hoje às 08:05</td>
+                                    <td>Reenvio de convites, consulta e horários</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-outline-secondary touch-btn">Gerenciar</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 9: TRILHA DE AUDITORIA -->
+            <section id="screen-audit" class="mock-screen d-none">
+                <div class="mock-screen-banner">
+                    <strong>Tela 9: Trilha de Auditoria da Gestão</strong> — Registro indelével de toda ação que altera dados no back-office, contendo autor, data/hora, IP, recurso modificado e os valores antes e depois (diff auditável).
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Logs de Alterações da Gestão</h5>
+                        <div class="d-flex gap-2">
+                            <input type="date" class="form-control" value="2026-10-29">
+                            <select class="form-select">
+                                <option value="">Todos os operadores</option>
+                                <option value="admin">Admin Central Vet</option>
+                                <option value="felipe">Felipe Santos (Financeiro)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data / Hora</th>
+                                    <th>Operador</th>
+                                    <th>IP</th>
+                                    <th>Ação Realizada</th>
+                                    <th>Recurso Alvo</th>
+                                    <th class="text-end">Auditoria (Diff)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>29/10/2026 08:12</td>
+                                    <td><strong>Felipe Santos</strong> (Financeiro)</td>
+                                    <td><code>187.54.12.89</code></td>
+                                    <td><span class="badge bg-warning text-dark">Prorrogar Bônus</span></td>
+                                    <td>Clínica Amigo Fiel</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary touch-btn" onclick="document.getElementById('diff-modal-content').classList.toggle('d-none')">Ver Diff</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>28/10/2026 16:45</td>
+                                    <td><strong>Admin Central Vet</strong> (Admin)</td>
+                                    <td><code>201.23.90.11</code></td>
+                                    <td><span class="badge bg-primary">Editar Plano</span></td>
+                                    <td>Plano Pro (Inclusão IA)</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary touch-btn" onclick="document.getElementById('diff-modal-content').classList.toggle('d-none')">Ver Diff</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Bloco de Exemplo de Diff -->
+                    <div id="diff-modal-content" class="diff-box mt-3 d-none">
+                        <h6 class="fw-bold mb-2">Detalhes da Alteração (Diff JSON):</h6>
+                        <pre class="mb-0"><code>{
+  "client_id": 142,
+  "action": "extend_trial",
+  "changes": {
+    "trial_ends_at": {
+      "before": <span class="diff-del">"2026-10-30 23:59:59"</span>,
+      "after":  <span class="diff-add">"2026-11-14 23:59:59"</span>
+    },
+    "extended_days": 15,
+    "reason": "Solicitação comercial para avaliação de internação"
+  }
+}</code></pre>
+                    </div>
+
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        function showScreen(screenId, btnElement) {
+            // Ocultar todas as telas
+            document.querySelectorAll('.mock-screen').forEach(function(el) {
+                el.classList.add('d-none');
+            });
+            // Remover active de todos os links
+            document.querySelectorAll('.mock-sidebar .nav-link').forEach(function(el) {
+                el.classList.remove('active');
+            });
+            // Exibir a tela selecionada
+            var target = document.getElementById(screenId);
+            if (target) {
+                target.classList.remove('d-none');
+            }
+            if (btnElement) {
+                btnElement.classList.add('active');
+            }
+        }
+    </script>
+</body>
+</html>
+

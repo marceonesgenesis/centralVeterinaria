@@ -32,6 +32,12 @@ final class SubscriptionStatusPresenter
         Subscription::STATUS_INCOMPLETE => 'Incomplete',
     ];
 
+    private const CANCELLABLE_STATUSES = [
+        Subscription::STATUS_ACTIVE,
+        Subscription::STATUS_PAST_DUE,
+        Subscription::STATUS_SUSPENDED,
+    ];
+
     private const INVOICE_STATUS = [
         SubscriptionInvoice::STATUS_DRAFT => 'Draft',
         SubscriptionInvoice::STATUS_OPEN => 'Open (pending status)',
@@ -78,6 +84,32 @@ final class SubscriptionStatusPresenter
             'grace_until' => $grace?->format('d/m/Y'),
             'message_key' => $suspended ? self::SUSPENDED_MESSAGE : null,
         ];
+    }
+
+    /**
+     * Data do fim do período (d/m/Y) quando o cancelamento já está agendado
+     * (Etapa 5, T-14); null sem assinatura ou sem agendamento.
+     */
+    public static function cancelScheduledFor(?Subscription $subscription): ?string
+    {
+        if ($subscription === null || !$subscription->cancelAtPeriodEnd()) {
+            return null;
+        }
+
+        return $subscription->currentPeriodEnd()?->format('d/m/Y');
+    }
+
+    /**
+     * O botão "Cancelar assinatura" só aparece em assinatura `active`,
+     * `past_due` ou `suspended` ainda sem cancelamento agendado (T-14).
+     */
+    public static function canCancel(?Subscription $subscription): bool
+    {
+        if ($subscription === null || $subscription->cancelAtPeriodEnd()) {
+            return false;
+        }
+
+        return in_array($subscription->status(), self::CANCELLABLE_STATUSES, true);
     }
 
     /**

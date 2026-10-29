@@ -195,6 +195,56 @@ final class SubscriptionRepositoryIntegrationTest extends MysqlIntegrationTestCa
         );
     }
 
+    public function testScheduledCancellationColumnsRoundTripAndPixLists(): void
+    {
+        $scheduled = $this->pixSubscription('2031-01-01', '2031-02-01');
+        $scheduled->assignTenant($this->tenantA);
+        $scheduledId = $this->subscriptions->insert($scheduled);
+
+        $loaded = $this->subscriptions->findByIdForUpdate($scheduledId);
+        Assert::true($loaded?->requestCancellation(77, new DateTimeImmutable('2031-01-15 10:00:00.123456')) === true);
+        $this->subscriptions->save($loaded);
+
+        $reloaded = $this->subscriptions->findByTenantId($this->tenantA);
+        Assert::same($loaded->toRow(), $reloaded?->toRow(), 'save and findByTenantId keep the three cancellation columns');
+        Assert::true($reloaded?->cancelAtPeriodEnd() === true);
+        Assert::same('2031-01-15 10:00:00.123456', $reloaded?->toRow()['cancel_requested_at']);
+        Assert::same(77, $reloaded?->cancelRequestedBy());
+
+        $notYet = $this->pixSubscription('2031-01-20', '2031-02-20');
+        $notYetId = $this->subscriptions->insert($notYet);
+        $locked = $this->subscriptions->findByIdForUpdate($notYetId);
+        $locked?->requestCancellation(77, new DateTimeImmutable('2031-01-21 00:00:00'));
+        $this->subscriptions->save($locked);
+
+        $plainId = $this->subscriptions->insert($this->pixSubscription('2031-01-01', '2031-02-01'));
+
+        $card = $this->cardSubscription('pro');
+        $cardId = $this->subscriptions->insert($card);
+        $lockedCard = $this->subscriptions->findByIdForUpdate($cardId);
+        $lockedCard?->requestCancellation(77, new DateTimeImmutable('2031-01-15 00:00:00'));
+        $this->subscriptions->save($lockedCard);
+
+        $until = new DateTimeImmutable('2031-02-01 00:00:00');
+        $due = $this->subscriptions->listPixDueForIssue($until, 1000);
+        Assert::false(in_array($scheduledId, $due, true), 'Pix with scheduled cancellation gets no new invoice');
+        Assert::true(in_array($plainId, $due, true), 'Pix without cancellation is still listed');
+
+        $ids = $this->subscriptions->listScheduledCancellationsDue($until, 1000);
+        Assert::true(in_array($scheduledId, $ids, true), 'scheduled Pix whose period ended must be listed');
+        Assert::false(in_array($notYetId, $ids, true), 'scheduled Pix still in the paid period must not be listed');
+        Assert::false(in_array($plainId, $ids, true), 'Pix without cancellation must not be listed');
+        Assert::false(in_array($cardId, $ids, true), 'card ends by the Stripe webhook, not by the reconciler');
+
+        $finalized = $this->subscriptions->findByIdForUpdate($scheduledId);
+        Assert::true($finalized?->finalizeScheduledCancellation($until) === true);
+        $this->subscriptions->save($finalized);
+        Assert::false(
+            in_array($scheduledId, $this->subscriptions->listScheduledCancellationsDue($until, 1000), true),
+            'cancelled must not be listed again',
+        );
+    }
+
     public function testInsertWithRepeatedLocalKeyThrowsDuplicateInvoice(): void
     {
         $subscriptionId = $this->subscriptions->insert($this->pixSubscription('2031-01-01', '2031-02-01'));

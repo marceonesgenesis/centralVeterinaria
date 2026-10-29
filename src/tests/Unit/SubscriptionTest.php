@@ -163,6 +163,7 @@ final class SubscriptionTest
             'id', 'billing_order_id', 'tenant_id', 'plan_id', 'status', 'payment_method',
             'stripe_customer_id', 'stripe_subscription_id', 'current_period_start', 'current_period_end',
             'grace_until', 'cancelled_at', 'last_event_created',
+            'cancel_at_period_end', 'cancel_requested_at', 'cancel_requested_by',
         ], array_keys($row));
         Assert::same(3, $row['id']);
         Assert::same(7, $row['tenant_id']);

@@ -176,6 +176,21 @@ final class PixInvoiceIssuerTest
         Assert::count(0, $invoices->rows);
     }
 
+    public function testSubscriptionWithScheduledCancellationIssuesNothing(): void
+    {
+        [$issuer, $stripe, $invoices, $email] = $this->issuer();
+        $now = new DateTimeImmutable(self::NOW);
+        $subscription = $this->subscription(Subscription::METHOD_PIX, $now->modify('+2 days'));
+        $subscription->requestCancellation(7, $now->modify('-1 day'));
+
+        $result = $issuer->issueNext($subscription, 9700, 'ana@clinica.test', $now);
+
+        Assert::null($result);
+        Assert::count(0, $stripe->calls);
+        Assert::count(0, $invoices->rows);
+        Assert::count(0, $email->deliveries());
+    }
+
     /** @return array{PixInvoiceIssuer, FakeStripeClient, FakeSubscriptionInvoiceRepository, FakeEmailProvider} */
     private function issuer(): array
     {

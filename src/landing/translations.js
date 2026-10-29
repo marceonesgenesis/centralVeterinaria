@@ -148,7 +148,7 @@ window.CvLandingTranslations = {
     "Os recursos marcados como Em breve têm custo extra?": "Do features marked Coming soon cost extra?",
     "Não. Quando forem lançados, entram nos planos indicados no comparativo sem mudar a mensalidade contratada.": "No. When released, they are included in the plans shown in the comparison without changing your agreed monthly fee.",
     "O que acontece depois que eu assino?": "What happens after I subscribe?",
-    "O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Assinatura.": "Payment is made on Stripe's secure page, by credit card or Pix. Once it is confirmed, we create the clinic's account and email the account holder an invitation to set a password. Billing is monthly, under the Subscription Terms.",
+    "O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Uso.": "Payment is made on Stripe's secure page, by credit card or Pix. Once it is confirmed, we create the clinic's account and email the account holder an invitation to set a password. Billing is monthly, under the Terms of Use.",
     "Comece pelo plano que cabe na sua rotina.": "Start with a plan that fits your daily work.",
     "Escolha um plano, pague com cartão ou Pix e receba por e-mail o convite de acesso.": "Choose a plan, pay by card or Pix and get your access invitation by email.",
     "Ver planos": "View plans",
@@ -248,13 +248,17 @@ window.CvLandingTranslations = {
     "Informe o nome do responsável.": "Enter the account holder's name.",
     "Informe o telefone com DDD.": "Enter the phone number with area code.",
     "Escolha a forma de pagamento: cartão ou Pix.": "Choose a payment method: card or Pix.",
-    "Aceite os Termos de Assinatura para continuar.": "Accept the Subscription Terms to continue.",
-    "Os Termos de Assinatura foram atualizados. Recarregue a página e aceite a versão atual.": "The Subscription Terms have been updated. Reload the page and accept the current version.",
+    "Aceite os Termos de Uso e a Política de Privacidade para continuar.": "Accept the Terms of Use and the Privacy Policy to continue.",
+    "Os Termos de Uso foram atualizados. Recarregue a página e aceite a versão atual.": "The Terms of Use have been updated. Reload the page and accept the current version.",
+    "Plano indisponível no momento.": "Plan unavailable at the moment.",
+    "Termos de Uso": "Terms of Use",
+    "Política de Privacidade": "Privacy Policy",
+    "Documentos legais": "Legal documents",
     "Autorização de contato inválida.": "Invalid contact authorization.",
     "Não foi possível iniciar o pagamento. Tente de novo em instantes.": "We couldn't start the payment. Please try again shortly.",
     "Pagamento recebido. Você receberá por e-mail o convite para definir sua senha.": "Payment received. You will get an email invitation to set your password.",
     "Pagamento não concluído. Nenhum valor foi cobrado.": "Payment not completed. You have not been charged.",
-    "Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.": "I have read and accept the Central Vet Pro Subscription Terms: recurring monthly billing by card or Pix invoice, cancellation at any time, effective at the end of the paid period."
+    "Li e aceito os Termos de Uso e a Política de Privacidade do Central Vet Pro, com cobrança mensal recorrente no cartão ou por fatura Pix e cancelamento a qualquer momento pelo app, com efeito no fim do período pago.": "I have read and accept the Central Vet Pro Terms of Use and Privacy Policy, with recurring monthly billing by card or Pix invoice and cancellation at any time in the app, effective at the end of the paid period."
   },
   "es": {
     "Sua clínica conectada a veterinários disponíveis.": "Tu clínica conectada con veterinarios disponibles.",
@@ -404,7 +408,7 @@ window.CvLandingTranslations = {
     "Os recursos marcados como Em breve têm custo extra?": "¿Las funciones marcadas como Próximamente tienen un costo adicional?",
     "Não. Quando forem lançados, entram nos planos indicados no comparativo sem mudar a mensalidade contratada.": "No. Cuando se lancen, se incluirán en los planes indicados en la comparación sin cambiar la cuota mensual contratada.",
     "O que acontece depois que eu assino?": "¿Qué ocurre después de suscribirme?",
-    "O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Assinatura.": "El pago se realiza en la página segura de Stripe, con tarjeta de crédito o Pix. Cuando se confirma, creamos la cuenta de la clínica y enviamos al correo electrónico del responsable la invitación para definir la contraseña. El cobro es mensual, según los Términos de Suscripción.",
+    "O pagamento é feito na página segura do Stripe, com cartão de crédito ou Pix. Quando ele é confirmado, criamos a conta da clínica e enviamos ao e-mail do responsável o convite para definir a senha. A cobrança é mensal, conforme os Termos de Uso.": "El pago se realiza en la página segura de Stripe, con tarjeta de crédito o Pix. Cuando se confirma, creamos la cuenta de la clínica y enviamos al correo electrónico del responsable la invitación para definir la contraseña. El cobro es mensual, según los Términos de Uso.",
     "Comece pelo plano que cabe na sua rotina.": "Empieza con el plan que se adapte a tu rutina.",
     "Escolha um plano, pague com cartão ou Pix e receba por e-mail o convite de acesso.": "Elige un plan, paga con tarjeta o Pix y recibe por correo electrónico la invitación de acceso.",
     "Ver planos": "Ver planes",
@@ -504,12 +508,16 @@ window.CvLandingTranslations = {
     "Informe o nome do responsável.": "Introduce el nombre del responsable.",
     "Informe o telefone com DDD.": "Introduce el teléfono con el código de área.",
     "Escolha a forma de pagamento: cartão ou Pix.": "Elige la forma de pago: tarjeta o Pix.",
-    "Aceite os Termos de Assinatura para continuar.": "Acepta los Términos de Suscripción para continuar.",
-    "Os Termos de Assinatura foram atualizados. Recarregue a página e aceite a versão atual.": "Los Términos de Suscripción se han actualizado. Recarga la página y acepta la versión actual.",
+    "Aceite os Termos de Uso e a Política de Privacidade para continuar.": "Acepta los Términos de Uso y la Política de Privacidad para continuar.",
+    "Os Termos de Uso foram atualizados. Recarregue a página e aceite a versão atual.": "Los Términos de Uso se han actualizado. Recarga la página y acepta la versión actual.",
+    "Plano indisponível no momento.": "Plan no disponible en este momento.",
+    "Termos de Uso": "Términos de Uso",
+    "Política de Privacidade": "Política de Privacidad",
+    "Documentos legais": "Documentos legales",
     "Autorização de contato inválida.": "Autorización de contacto no válida.",
     "Não foi possível iniciar o pagamento. Tente de novo em instantes.": "No se pudo iniciar el pago. Inténtalo de nuevo en unos instantes.",
     "Pagamento recebido. Você receberá por e-mail o convite para definir sua senha.": "Pago recibido. Recibirás por correo electrónico la invitación para definir tu contraseña.",
     "Pagamento não concluído. Nenhum valor foi cobrado.": "Pago no completado. No se ha cobrado ningún importe.",
-    "Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.": "He leído y acepto los Términos de Suscripción de Central Vet Pro: cobro mensual recurrente con tarjeta o factura Pix, cancelación en cualquier momento con efecto al final del período pagado."
+    "Li e aceito os Termos de Uso e a Política de Privacidade do Central Vet Pro, com cobrança mensal recorrente no cartão ou por fatura Pix e cancelamento a qualquer momento pelo app, com efeito no fim do período pago.": "He leído y acepto los Términos de Uso y la Política de Privacidad de Central Vet Pro, con cobro mensual recurrente con tarjeta o factura Pix y cancelación en cualquier momento desde la app, con efecto al final del período pagado."
   }
 };

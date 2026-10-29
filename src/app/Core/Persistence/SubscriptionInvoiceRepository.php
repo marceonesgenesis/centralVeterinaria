@@ -149,6 +149,24 @@ final class SubscriptionInvoiceRepository implements SubscriptionInvoiceReposito
         return array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    public function listPaidPixAfterCancellation(int $limit): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT i.id FROM subscription_invoice i JOIN subscription s ON s.id = i.subscription_id '
+            . 'WHERE i.local_key IS NOT NULL AND i.status = :paid AND i.amount_refunded_cents = 0 '
+            . 'AND i.stripe_payment_intent_id IS NOT NULL '
+            . 'AND (s.cancel_at_period_end = 1 OR s.status = :cancelled) '
+            . 'AND i.period_start >= s.current_period_end '
+            . 'ORDER BY i.id ASC LIMIT ' . self::limit($limit),
+        );
+        $statement->execute([
+            'paid' => SubscriptionInvoice::STATUS_PAID,
+            'cancelled' => Subscription::STATUS_CANCELLED,
+        ]);
+
+        return array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     private function fetchOne(string $sql, int|string $value): ?SubscriptionInvoice
     {
         $statement = $this->pdo->prepare($sql);

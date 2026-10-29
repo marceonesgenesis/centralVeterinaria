@@ -36,17 +36,17 @@ final class LandingCatalogTest
         Assert::false(str_contains($json, '>'), 'publicJson must not contain a raw >');
 
         $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        Assert::same(['plans', 'compare', 'vets', 'ufs', 'consent', 'terms', 'payment_methods'], array_keys($data));
+        Assert::same(['plans', 'compare', 'legal', 'vets', 'ufs', 'consent', 'terms', 'payment_methods'], array_keys($data));
     }
 
     public function testPublicJsonCarriesTermsAndPaymentMethods(): void
     {
         $data = json_decode(LandingCatalog::publicJson(), true, 512, JSON_THROW_ON_ERROR);
 
-        Assert::same('assinatura-2026-10', LandingCatalog::TERMS_VERSION);
-        Assert::same(['version' => 'assinatura-2026-10', 'text' => LandingCatalog::TERMS_TEXT], $data['terms']);
+        Assert::same('termos-uso-2026-10', LandingCatalog::TERMS_VERSION);
+        Assert::same(['version' => 'termos-uso-2026-10', 'text' => LandingCatalog::TERMS_TEXT], $data['terms']);
         Assert::same(
-            'Li e aceito os Termos de Assinatura do Central Vet Pro: cobrança mensal recorrente no cartão ou por fatura Pix, cancelamento a qualquer momento com efeito no fim do período pago.',
+            'Li e aceito os Termos de Uso e a Política de Privacidade do Central Vet Pro, com cobrança mensal recorrente no cartão ou por fatura Pix e cancelamento a qualquer momento pelo app, com efeito no fim do período pago.',
             LandingCatalog::TERMS_TEXT,
         );
         Assert::same([

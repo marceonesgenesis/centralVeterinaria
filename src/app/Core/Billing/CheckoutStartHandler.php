@@ -21,6 +21,7 @@ use CentralVet\Security\PublicUrl;
  * Regras de `POST /checkout.php` (compra pela landing), na ordem em que são
  * aplicadas: precheck do lead (método, tamanho, Content-Type, origem),
  * limite por IP (`checkout|<ip>`), JSON, `form_token`, honeypot, validação,
+ * plano dentro do recorte da oferta (OfferScope, 422 em `plan_id`),
  * e-mail já cadastrado (422 em `responsible_email`, a mesma mensagem para
  * login e para pedido pago), preço do cartão configurado (502), consumo do
  * token, pedido `pending`, Customer e Checkout Session no Stripe
@@ -39,6 +40,8 @@ use CentralVet\Security\PublicUrl;
  */
 final class CheckoutStartHandler
 {
+    public const PLAN_UNAVAILABLE_MESSAGE = 'Plano indisponível no momento.';
+
     public const EMAIL_TAKEN_MESSAGE = 'Este e-mail já está cadastrado no Central Vet Pro. Entre com ele ou use outro e-mail.';
 
     private const RATE_PREFIX = 'checkout|';
@@ -65,6 +68,7 @@ final class CheckoutStartHandler
         private readonly PublicUrl $url,
         private readonly \Closure $uuid,
         private readonly AccountEmailReaderInterface $emails,
+        private readonly ?OfferScope $offer = null,
     ) {
     }
 
@@ -105,6 +109,10 @@ final class CheckoutStartHandler
         $errors = self::validate($payload);
         if ($errors !== []) {
             return LeadResponse::json(422, ['errors' => $errors]);
+        }
+
+        if (!($this->offer ?? OfferScope::fromEnvironment())->isPlanOffered((string) $payload['plan_id'])) {
+            return LeadResponse::json(422, ['errors' => ['plan_id' => self::PLAN_UNAVAILABLE_MESSAGE]]);
         }
 
         if ($this->emails->isTaken(trim((string) $payload['responsible_email']))) {
@@ -253,11 +261,11 @@ final class CheckoutStartHandler
         }
 
         if (($payload['terms_accepted'] ?? null) !== true) {
-            $errors['terms_accepted'] = 'Aceite os Termos de Assinatura para continuar.';
+            $errors['terms_accepted'] = 'Aceite os Termos de Uso e a Política de Privacidade para continuar.';
         }
 
         if (($payload['terms_version'] ?? null) !== LandingCatalog::TERMS_VERSION) {
-            $errors['terms_version'] = 'Os Termos de Assinatura foram atualizados. Recarregue a página e aceite a versão atual.';
+            $errors['terms_version'] = 'Os Termos de Uso foram atualizados. Recarregue a página e aceite a versão atual.';
         }
 
         $consent = $payload['contact_consent'] ?? false;

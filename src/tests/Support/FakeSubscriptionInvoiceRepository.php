@@ -144,6 +144,40 @@ final class FakeSubscriptionInvoiceRepository implements SubscriptionInvoiceRepo
         return array_slice($ids, 0, self::limit($limit));
     }
 
+    /**
+     * Como o real (T-22); exige $subscriptions para ler o cancelamento e o
+     * período da assinatura (sem ele, devolve []).
+     */
+    public function listPaidPixAfterCancellation(int $limit): array
+    {
+        $rows = $this->rows;
+        ksort($rows);
+
+        $ids = [];
+        foreach ($rows as $id => $row) {
+            $subscription = $this->subscriptions?->rows[(int) $row['subscription_id']] ?? null;
+            if ($subscription === null) {
+                continue;
+            }
+
+            $cancelled = (int) ($subscription['cancel_at_period_end'] ?? 0) === 1 || $subscription['status'] === 'cancelled';
+            if (
+                $row['local_key'] !== null
+                && $row['status'] === SubscriptionInvoice::STATUS_PAID
+                && (int) $row['amount_refunded_cents'] === 0
+                && $row['stripe_payment_intent_id'] !== null
+                && $cancelled
+                && $row['period_start'] !== null
+                && $subscription['current_period_end'] !== null
+                && (string) $row['period_start'] >= (string) $subscription['current_period_end']
+            ) {
+                $ids[] = $id;
+            }
+        }
+
+        return array_slice($ids, 0, self::limit($limit));
+    }
+
     private function findBy(string $column, string $value): ?SubscriptionInvoice
     {
         foreach ($this->rows as $row) {

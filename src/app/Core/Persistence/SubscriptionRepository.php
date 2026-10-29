@@ -25,6 +25,7 @@ final class SubscriptionRepository implements SubscriptionRepositoryInterface
     private const MUTABLE = [
         'tenant_id', 'status', 'current_period_start', 'current_period_end',
         'grace_until', 'cancelled_at', 'last_event_created',
+        'cancel_at_period_end', 'cancel_requested_at', 'cancel_requested_by',
     ];
 
     public function __construct(private readonly PDO $pdo)
@@ -113,6 +114,7 @@ final class SubscriptionRepository implements SubscriptionRepositoryInterface
         $statement = $this->pdo->prepare(
             'SELECT s.id FROM subscription s '
             . 'WHERE s.payment_method = :method AND s.status IN (:active, :past_due) '
+            . 'AND s.cancel_at_period_end = 0 '
             . 'AND s.current_period_end IS NOT NULL AND s.current_period_end <= :until '
             . 'AND NOT EXISTS (SELECT 1 FROM subscription_invoice i '
             . 'WHERE i.subscription_id = s.id AND i.period_start >= s.current_period_end) '
@@ -123,6 +125,22 @@ final class SubscriptionRepository implements SubscriptionRepositoryInterface
             'active' => Subscription::STATUS_ACTIVE,
             'past_due' => Subscription::STATUS_PAST_DUE,
             'until' => $until->format(self::DATE_FORMAT),
+        ]);
+
+        return self::ids($statement);
+    }
+
+    public function listScheduledCancellationsDue(DateTimeImmutable $now, int $limit): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT id FROM subscription WHERE payment_method = :method AND cancel_at_period_end = 1 '
+            . 'AND status <> :cancelled AND current_period_end IS NOT NULL AND current_period_end <= :now '
+            . 'ORDER BY id ASC LIMIT ' . self::limit($limit),
+        );
+        $statement->execute([
+            'method' => Subscription::METHOD_PIX,
+            'cancelled' => Subscription::STATUS_CANCELLED,
+            'now' => $now->format(self::DATE_FORMAT),
         ]);
 
         return self::ids($statement);

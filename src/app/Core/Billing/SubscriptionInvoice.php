@@ -217,6 +217,21 @@ final class SubscriptionInvoice
         return true;
     }
 
+    /**
+     * Cancelamento agendado (T-21): fatura local (Pix) `open` vira `void` e
+     * devolve true; em qualquer outro caso devolve false sem mudar nada.
+     */
+    public function voidForCancellation(): bool
+    {
+        if ($this->localKey === null || $this->status !== self::STATUS_OPEN) {
+            return false;
+        }
+
+        $this->status = self::STATUS_VOID;
+
+        return true;
+    }
+
     /** `open` com `due_at <= now`. */
     public function isOverdue(DateTimeImmutable $now): bool
     {

@@ -6,8 +6,10 @@
 # While scripts/restore.sh restores the project, it keeps the maintenance flag
 # var/maintenance/<project>.restore; with that file present this wrapper
 # prints `cron-run skipped reason=maintenance project=<project>` and exits 0
-# without running the command. Otherwise it execs the command, so the exit
-# code is the command's own.
+# without running the command. If the flag's pid=<n> process no longer exists
+# (orphan flag), it prints `cron-run stale-maintenance-flag project=<project>
+# pid=<n>` on stderr and runs the command, keeping the flag. Otherwise it
+# execs the command, so the exit code is the command's own.
 #
 # Project: --project, else COMPOSE_PROJECT_NAME from the environment, else
 # from the .env in the project root (read with grep, never sourced), else
@@ -48,6 +50,16 @@ printf '%s' "$project" | grep -Eq '^[a-z0-9][a-z0-9_-]*$' || { echo "cron-run: i
 
 flag="${CENTRALVET_MAINTENANCE_DIR:-$project_root/var/maintenance}/$project.restore"
 if [ -e "$flag" ]; then
+    # Orphan flag (T-05): a restore killed by SIGKILL or a host crash leaves the
+    # flag behind. When its pid= process no longer exists, run the job with a
+    # warning instead of silently skipping backup and alerts; the flag stays
+    # for the operator to remove. kill -0 fails with EPERM for a live process
+    # of another user, so ps -p confirms before calling it orphaned.
+    flag_pid=$(grep -E '^pid=[0-9]+$' "$flag" 2>/dev/null | head -n 1 | cut -d= -f2)
+    if [ -n "$flag_pid" ] && ! kill -0 "$flag_pid" 2>/dev/null && ! ps -p "$flag_pid" >/dev/null 2>&1; then
+        echo "cron-run stale-maintenance-flag project=$project pid=$flag_pid" >&2
+        exec "$@"
+    fi
     echo "cron-run skipped reason=maintenance project=$project"
     exit 0
 fi

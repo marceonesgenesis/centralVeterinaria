@@ -31,5 +31,12 @@ Aplique-a antes de agendar essas rotinas (`docs/runbooks/cron.md`); na
 hospedagem, ver a seção "Migration 0019" de
 [`shared-hosting-mysql57.md`](../../../../docs/runbooks/shared-hosting-mysql57.md).
 
+A `20261026_0020_etapa5_piloto.sql` acrescenta o cancelamento agendado a
+`subscription` e cria `legal_acceptance` e `tenant_onboarding`, usadas pelo
+cancelamento pelo app, pelo aceite de termos no primeiro login e pelos primeiros
+passos da Etapa 5. Aplique-a antes de publicar esse código; na hospedagem, ver a
+seção "Migration 0020" de
+[`shared-hosting-mysql57.md`](../../../../docs/runbooks/shared-hosting-mysql57.md).
+
 DDL MySQL não é transacional. Em falha parcial, interrompa e inspecione
 `information_schema`; não faça rollback destrutivo ou nova tentativa automática.

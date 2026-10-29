@@ -106,6 +106,21 @@ Se o flag já existe, outro restore do projeto está rodando: o script sai 2 com
 Um flag que sobrou de um processo morto (confira o `pid=` com `ps -p <pid>`)
 pode ser apagado à mão depois de conferir os serviços.
 
+**Flag órfão.** Um restore morto por `SIGKILL` ou queda do host não chega a
+remover o flag. Para não desligar backup e alertas em silêncio, o
+`cron-run.sh` lê a linha `pid=<n>` do flag: se esse processo não existe mais
+(`kill -0` e `ps -p` falham), ele imprime em stderr
+`cron-run stale-maintenance-flag project=<projeto> pid=<n>` e **executa o
+job** normalmente, sem apagar o flag. Com o processo vivo, ou com um flag sem
+linha `pid=`, o job continua sendo pulado (`reason=maintenance`). Ao ver essa
+linha no log do cron: confira com `ps -p <n>` que nenhum restore está rodando
+(o pid pode ter sido reaproveitado por outro processo após um reboot),
+confira os serviços (`docker compose ps`; religue com `make up` se preciso) e
+remova o flag à mão com `rm var/maintenance/<projeto>.restore`. O diretório do
+flag é `var/maintenance` na raiz do projeto, ou o indicado em
+`CENTRALVET_MAINTENANCE_DIR` (o `restore.sh` e o `cron-run.sh` usam a mesma
+variável).
+
 **Código 7** = restaurado, mas algum serviço não religou: o stderr traz
 `restore: could not restart <serviço>`. O banco e os arquivos já estão
 restaurados; não restaure de novo. Veja o motivo com

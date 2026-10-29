@@ -275,6 +275,7 @@ final class BillingEventProcessor
             return BillingEventOutcome::ignored();
         }
 
+        $wasVoid = $invoice->status() === SubscriptionInvoice::STATUS_VOID;
         if (!$invoice->markPaidByPaymentIntent((int) ($paymentIntent['amount_received'] ?? 0), $created)) {
             return BillingEventOutcome::ignored();
         }
@@ -288,6 +289,16 @@ final class BillingEventProcessor
 
         $periodStart = $invoice->periodStart();
         $periodEnd = $invoice->periodEnd();
+
+        // T-22: o dinheiro entrou (fatura `paid`), mas o período posterior ao
+        // cancelamento não reativa nem prolonga a assinatura; o reconciliador
+        // estorna (CancelledPixRefundService).
+        if ($wasVoid || self::paidAfterCancellation($subscription, $periodStart)) {
+            error_log('[BillingEventProcessor] ' . json_encode(['event' => 'pix_paid_after_cancellation', 'invoice' => $invoice->id()]));
+
+            return BillingEventOutcome::processed();
+        }
+
         if ($periodStart !== null && $periodEnd !== null) {
             $advances = $subscription->currentPeriodEnd() === null || $periodEnd > $subscription->currentPeriodEnd();
             $eventCreated = $advances ? max($created, $subscription->lastEventCreated()) : $created;
@@ -337,6 +348,21 @@ final class BillingEventProcessor
      * T-28: o evento é do Central Vet quando traz a marca (pedido ou fatura
      * nossa) em algum dos campos; sem ela vem de outra integração da conta.
      */
+    /**
+     * Fatura de período posterior ao cancelamento (agendado ou já
+     * `cancelled`): `$periodStart >= currentPeriodEnd()` da assinatura.
+     */
+    private static function paidAfterCancellation(Subscription $subscription, ?DateTimeImmutable $periodStart): bool
+    {
+        if (!$subscription->cancelAtPeriodEnd() && $subscription->status() !== Subscription::STATUS_CANCELLED) {
+            return false;
+        }
+
+        $currentEnd = $subscription->currentPeriodEnd();
+
+        return $periodStart !== null && $currentEnd !== null && $periodStart >= $currentEnd;
+    }
+
     private static function marked(mixed ...$values): bool
     {
         foreach ($values as $value) {

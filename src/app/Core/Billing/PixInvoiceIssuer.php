@@ -54,7 +54,8 @@ final class PixInvoiceIssuer
 
     /**
      * Emite a fatura do próximo período, ou null quando não cabe (não é Pix,
-     * status fora de active/past_due, cedo demais ou fatura já emitida).
+     * status fora de active/past_due, cancelamento agendado, cedo demais ou
+     * fatura já emitida).
      *
      * Falha do Stripe no PaymentIntent não sobe: a fatura fica inserida sem
      * PI (o chamador commita) e o reconciliador repete pela listOpenPix com a
@@ -70,6 +71,7 @@ final class PixInvoiceIssuer
             $subscriptionId === null
             || $periodEnd === null
             || $subscription->paymentMethod() !== Subscription::METHOD_PIX
+            || $subscription->cancelAtPeriodEnd()
             || !in_array($subscription->status(), self::ISSUABLE_STATUSES, true)
             || $periodEnd->modify(sprintf('-%d days', self::ISSUE_DAYS_BEFORE)) > $now
         ) {

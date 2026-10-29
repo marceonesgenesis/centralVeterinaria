@@ -69,8 +69,9 @@ final class CommunicationNavigationIntegrationTest
             $actions[] = isset($item->action) ? (string) $item->action : null;
         }
 
-        $dashboard = array_search('Dashboard', $labels, true);
-        Assert::true($dashboard !== false, 'menu.xml must keep the Dashboard item');
+        // Etapa 5 (T-19): o item de topo "Dashboard" (em breve) virou "Primeiros passos".
+        $dashboard = array_search('_t{First steps}', $labels, true);
+        Assert::true($dashboard !== false, 'menu.xml must keep the First steps item at the top');
         Assert::same('_t{Pending items}', $labels[$dashboard + 1] ?? null);
         Assert::same('PendingCenter', $actions[$dashboard + 1] ?? null);
     }
