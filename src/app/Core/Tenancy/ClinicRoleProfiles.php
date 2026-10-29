@@ -37,18 +37,27 @@ final class ClinicRoleProfiles
         self::RECEPTION => [
             'AgendaView', 'AppointmentForm', 'TutorList', 'TutorForm', 'PatientList', 'PatientForm',
             'QueueEntryView', 'VaccinationCardView', 'DocumentList',
+            'CommunicationComposeForm', 'CommunicationMessageList', 'CommunicationMessageView', 'TutorCommunicationForm',
+            'HospitalizationBoard', 'BedList', 'SurgeryList', 'SurgeryView',
         ],
         self::VETERINARIAN => [
             'AgendaView', 'QueueEntryView', 'EncounterView', 'TutorList', 'PatientList', 'PatientForm',
             'PrescriptionForm', 'ExamRequestForm', 'ExamResultForm', 'PendingExamResultList',
             'VaccinationForm', 'VaccinationCardView', 'ProcedureExecutionForm', 'ProcedureInputForm',
             'DocumentList', 'DocumentRequestForm',
+            'BedForm', 'BedList', 'HospitalizationAdministrationForm', 'HospitalizationAdmissionForm',
+            'HospitalizationBoard', 'HospitalizationEventForm', 'HospitalizationOrderForm', 'HospitalizationView',
+            'SurgeryChecklistForm', 'SurgeryConsentForm', 'SurgeryEventForm', 'SurgeryList', 'SurgeryMaterialForm',
+            'SurgeryRoomForm', 'SurgeryRoomList', 'SurgeryScheduleForm', 'SurgeryView',
+            'CommunicationComposeForm', 'CommunicationMessageList', 'CommunicationMessageView', 'TutorCommunicationForm',
+            'AiCopilotPanel', 'AiConversationList',
         ],
         self::FINANCE => [
             'EncounterAccountForm', 'PaymentForm', 'CashSessionForm', 'CashSessionList',
             'PendingReceivableList', 'FinancialOverview', 'FinancialEntryForm', 'FinancialEntryList',
             'PayableForm', 'PayableList', 'BankAccountForm', 'BankAccountList', 'SaleList',
             'TutorList', 'ServiceList',
+            'CommunicationMessageList', 'TutorCommunicationForm',
         ],
     ];
 

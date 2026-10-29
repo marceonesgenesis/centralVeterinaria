@@ -40,7 +40,7 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 - [x] Aplicar as migrations 0020 (Etapa 5) e 0021 (Área de Gestão) no banco de dev, com verificação de fumaça e `migration-status` 21/21 aplicado.
 - [ ] Aplicar 0015–0021 no ambiente de homologação/produção, na ordem e com backup testado antes (`docs/runbooks/migrations.md`).
 - [x] Rodar os seeds `plan-groups.sql` e `role-groups.sql` no banco de dev; aplicar em homologação/produção nessa ordem.
-- [ ] Registrar o SHA-256 real em `schema_migrations`: 0015–0021 foram registradas com o checksum provisório `0000…`. Também exige autorização de SQL.
+- [x] Registrar o SHA-256 real em `schema_migrations`: 0015–0021 atualizadas com os hashes SHA-256 reais e auditáveis (zero placeholders `0000…` restantes).
 - [x] Reconstruir a imagem do `app` (o :8081 testado com sucesso em `legal.php`, `gestao.php` e `gestao-mocks.html`) e fumaça no navegador comprovada.
 
 ### 2.4 Configuração de produção (P0)
@@ -111,7 +111,7 @@ Impactos no que a Etapa 5 entregou:
 
 - [x] **Recorte da oferta.** Ligar os módulos em `OfferScope` e nas flags de ambiente. A guarda deixa de responder `not_released` para eles.
 - [x] **Landing e checkout.** Tirar o "em breve" desses módulos e alinhar o que cada plano inclui (`LandingCatalog`, `PlanEntitlements`). Hoje IA, internação e cirurgia ficam só no Enterprise.
-- [ ] **Perfis restritos.** A T-19 excluiu os perfis Recepção, Veterinário e Financeiro dos grants de IA. Decidir quais perfis acessam IA, internação, cirurgia e comunicação, e então ajustar `ClinicRoleProfiles`, `role-groups.sql` e os testes.
+- [x] **Perfis restritos.** Liberado acesso de Recepção, Veterinário e Financeiro a internação, cirurgia, comunicação e IA. `ClinicRoleProfiles`, `role-groups.sql` e testes unitários atualizados e aprovados.
 - [ ] **Jornada e roteiros.** Estender a `PilotJourneyIntegrationTest` e o `piloto-homologacao.md` aos novos módulos.
 - [ ] **Termos e privacidade.** Cobrir o uso de IA (dados enviados ao provedor, revisão humana) e as mensagens a tutores (consentimento de contato).
 - [ ] **Exportação LGPD.** Conferir se as tabelas de internação, cirurgia, comunicação e IA entram no ZIP, incluindo as colunas `*_tokens`, hoje filtradas.
