@@ -86,7 +86,7 @@ final class LandingCatalog
                     'Mais usuários na equipe',
                     'Estoque, PDV e caixa',
                     'Financeiro completo',
-                    ['Comunicação e automações', true],
+                    'Comunicação e automações',
                 ]),
             ],
             [
@@ -146,11 +146,11 @@ final class LandingCatalog
             ['Prescrição, exames e vacinação', 1, 1, 1, 1, false],
             ['Estoque, PDV e caixa', 0, 1, 1, 1, false],
             ['Financeiro completo', 0, 1, 1, 1, false],
-            ['Comunicação e automações', 0, 1, 1, 1, true],
+            ['Comunicação e automações', 0, 1, 1, 1, false],
             ['Várias unidades', 0, 0, 1, 1, false],
             ['Relatórios avançados', 0, 0, 1, 1, true],
             ['Integrações', 0, 0, 1, 1, true],
-            ['IA e agentes avançados', 0, 0, 0, 1, true],
+            ['IA e agentes avançados', 0, 0, 0, 1, false],
             ['Suporte dedicado', 0, 0, 0, 1, false],
         ];
 

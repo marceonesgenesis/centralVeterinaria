@@ -7,17 +7,19 @@ namespace CentralVet\Billing;
 use CentralVet\Pilot\PilotSettings;
 
 /**
- * Recorte homologado da oferta (Etapa 5, T-03). Os recursos fora do recorte
- * continuam no código e nos direitos do plano (PlanEntitlements), mas ficam
- * desligados até o ambiente listá-los em OFFER_PREVIEW_FEATURES. Controller
- * fora de PlanEntitlements::gatedPrograms() é sempre liberado.
+ * Recorte homologado da oferta (Etapa 5, T-03).
+ * Atualizado em 29/10/2026 para incorporar internação, cirurgia, comunicação
+ * e IA ao MVP.
  */
 final class OfferScope
 {
     public const RELEASED_FEATURES = [
         PlanEntitlements::FEATURE_INVENTORY_POS,
         PlanEntitlements::FEATURE_FINANCE_FULL,
+        PlanEntitlements::FEATURE_COMMUNICATION,
         PlanEntitlements::FEATURE_MULTI_UNIT,
+        PlanEntitlements::FEATURE_HOSPITAL,
+        PlanEntitlements::FEATURE_AI,
     ];
 
     public function __construct(private readonly PilotSettings $settings)

@@ -10,13 +10,11 @@ use CentralVet\Pilot\PilotSettings;
 use CentralVet\Tests\Support\Assert;
 
 /**
- * Etapa 5, T-03: recorte homologado da oferta. Recursos fora do recorte
- * seguem nos direitos do plano, mas ficam desligados até o ambiente
- * listá-los em OFFER_PREVIEW_FEATURES.
+ * Recorte homologado da oferta atualizado com os novos módulos do MVP.
  */
 final class OfferScopeTest
 {
-    public function testDefaultScopeReleasesPilotModulesOnly(): void
+    public function testDefaultScopeReleasesAllMvpModules(): void
     {
         $scope = new OfferScope(PilotSettings::fromArray([]));
 
@@ -24,10 +22,10 @@ final class OfferScopeTest
         Assert::true($scope->isProgramReleased('TutorList'));
         Assert::true($scope->isProgramReleased('SystemUnitForm'));
         Assert::true($scope->isProgramReleased('PayableList'));
-        Assert::false($scope->isProgramReleased('HospitalizationBoard'));
-        Assert::false($scope->isProgramReleased('SurgeryList'));
-        Assert::false($scope->isProgramReleased('AiCopilotPanel'));
-        Assert::false($scope->isProgramReleased('CommunicationComposeForm'));
+        Assert::true($scope->isProgramReleased('HospitalizationBoard'));
+        Assert::true($scope->isProgramReleased('SurgeryList'));
+        Assert::true($scope->isProgramReleased('AiCopilotPanel'));
+        Assert::true($scope->isProgramReleased('CommunicationComposeForm'));
     }
 
     public function testReleasedFeaturesConstant(): void
@@ -35,18 +33,11 @@ final class OfferScopeTest
         Assert::same([
             PlanEntitlements::FEATURE_INVENTORY_POS,
             PlanEntitlements::FEATURE_FINANCE_FULL,
+            PlanEntitlements::FEATURE_COMMUNICATION,
             PlanEntitlements::FEATURE_MULTI_UNIT,
+            PlanEntitlements::FEATURE_HOSPITAL,
+            PlanEntitlements::FEATURE_AI,
         ], OfferScope::RELEASED_FEATURES);
-    }
-
-    public function testPreviewFeatureTurnsOnOnlyThatFeature(): void
-    {
-        $scope = new OfferScope(PilotSettings::fromArray(['OFFER_PREVIEW_FEATURES' => 'hospital']));
-
-        Assert::true($scope->isProgramReleased('HospitalizationBoard'));
-        Assert::true($scope->isFeatureReleased(PlanEntitlements::FEATURE_HOSPITAL));
-        Assert::false($scope->isProgramReleased('AiCopilotPanel'));
-        Assert::false($scope->isFeatureReleased(PlanEntitlements::FEATURE_COMMUNICATION));
     }
 
     public function testOfferedPlansFollowSettings(): void

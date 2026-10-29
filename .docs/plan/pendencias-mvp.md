@@ -25,7 +25,7 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 ### 2.1 Para fechar o código (P0)
 
 - [x] Revisão final da Etapa 5 (rodada 2) aprovada. O bloqueante do Pix pago depois do cancelamento foi resolvido, com 0 pendências promovidas. As três sugestões da T-21 (corrida com a fase 3, ordem de trava e ramo `succeeded`) não causam cobrança sem estorno; ficam em 2.6.
-- [ ] Commitar o fechamento da Etapa 5 (`final.md`, eficiência) na branch.
+- [x] Commitar o fechamento da Etapa 5 (`final.md`, eficiência) na branch.
 
 ### 2.2 Integração e publicação (P0)
 
@@ -113,8 +113,8 @@ Os módulos abaixo já existem no código, mas a Etapa 5 os deixou fora da ofert
 
 Impactos no que a Etapa 5 entregou:
 
-- [ ] **Recorte da oferta.** Ligar os módulos em `OfferScope` e nas flags de ambiente. A guarda deixa de responder `not_released` para eles.
-- [ ] **Landing e checkout.** Tirar o "em breve" desses módulos e alinhar o que cada plano inclui (`LandingCatalog`, `PlanEntitlements`). Hoje IA, internação e cirurgia ficam só no Enterprise.
+- [x] **Recorte da oferta.** Ligar os módulos em `OfferScope` e nas flags de ambiente. A guarda deixa de responder `not_released` para eles.
+- [x] **Landing e checkout.** Tirar o "em breve" desses módulos e alinhar o que cada plano inclui (`LandingCatalog`, `PlanEntitlements`). Hoje IA, internação e cirurgia ficam só no Enterprise.
 - [ ] **Perfis restritos.** A T-19 excluiu os perfis Recepção, Veterinário e Financeiro dos grants de IA. Decidir quais perfis acessam IA, internação, cirurgia e comunicação, e então ajustar `ClinicRoleProfiles`, `role-groups.sql` e os testes.
 - [ ] **Jornada e roteiros.** Estender a `PilotJourneyIntegrationTest` e o `piloto-homologacao.md` aos novos módulos.
 - [ ] **Termos e privacidade.** Cobrir o uso de IA (dados enviados ao provedor, revisão humana) e as mensagens a tutores (consentimento de contato).
@@ -124,6 +124,13 @@ Impactos no que a Etapa 5 entregou:
 ### 2.8 Área de gestão do sistema (back-office) (P0)
 
 **Decisão de 29/10/2026:** o MVP passa a ter uma área de gestão do sistema, usada pela equipe do Central Vet. Ela fica separada da administração de cada clínica e não dá acesso a dados clínicos dos tenants.
+
+- [x] **Mocks de interface navegáveis criados:** `src/gestao-mocks.html` e `.docs/mocks/gestao/README.md`.
+- [x] **Login separado e ponto de entrada da gestão:** `src/gestao.php`, `GestaoLoginForm.php` (com 2FA obrigatório) e `src/menu-gestao.xml`.
+- [x] **Migration do back-office criada:** `20261029_0021_backoffice_gestao.sql` e `.verify.sql`.
+- [x] **Serviços de domínio e aplicação da gestão:** `BackofficeProfile`, `BackofficeAuditService`, `BackofficeInviteService`, `BackofficeClientService`, `BackofficeSupportService`, `BackofficeMarketingService`.
+- [x] **Telas Adianti da gestão:** `GestaoDashboardView`, `GestaoClientList`, `GestaoPlanList`, `GestaoInviteList`, `GestaoMarketingView`, `GestaoSupportHoursForm`, `GestaoTeamList`, `GestaoAuditLogList`.
+- [x] **Cobertura de testes automatizados:** `src/tests/Unit/BackofficeCoreTest.php`.
 
 | Recurso | O que deve fazer | O que existe hoje |
 |---|---|---|
