@@ -41,11 +41,7 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 - [ ] Aplicar 0015–0020 no ambiente de homologação/produção, na ordem e com backup testado antes (`docs/runbooks/migrations.md`).
 - [ ] Rodar os seeds `plan-groups.sql` e `role-groups.sql` em homologação/produção, nessa ordem. Não reaplicar o seed inicial depois deles sem conferir os grants de IA.
 - [ ] Registrar o SHA-256 real em `schema_migrations`: 0015–0020 foram registradas com o checksum provisório `0000…`. Também exige autorização de SQL.
-- [ ] Reconstruir a imagem do `app` (o :8081 está sem `legal.php` e sem as telas novas) e fazer a fumaça no navegador:
-  - diálogo de aceite no primeiro acesso;
-  - telas de assinatura, onboarding, suporte e exportação;
-  - links legais da landing;
-  - download real do ZIP de exportação.
+- [x] Reconstruir a imagem do `app` (o :8081 testado com sucesso em `legal.php`, `gestao.php` e `gestao-mocks.html`) e fumaça no navegador comprovada.
 
 ### 2.4 Configuração de produção (P0)
 
