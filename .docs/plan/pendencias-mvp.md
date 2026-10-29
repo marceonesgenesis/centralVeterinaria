@@ -75,7 +75,7 @@ Nenhum item abaixo bloqueia o piloto. Todos foram triados nas revisões finais.
 - `php_target=8.4` declarado e não conferido no build; senha do usuário de migration passada em `-e`; `GRANT` fixo em `centralvet`.*.
 
 **Billing (Etapas 3 e 5)**
-- Teste do guarda novo de `Subscription::markInvoicePaid`.
+- [x] Teste do guarda novo de `Subscription::markInvoicePaid` (coberto em `SubscriptionTest::testMarkInvoicePaidDoesNotAdvanceWhenScheduledToCancelAndPeriodStartsAfterCurrentEnd`).
 - `$wasVoid` sozinho já impede avançar a assinatura, sem conferir o cancelamento.
 - Corrida do cancelamento Pix com o reconciliador, que a revisão em andamento vai julgar.
 
@@ -88,9 +88,9 @@ Nenhum item abaixo bloqueia o piloto. Todos foram triados nas revisões finais.
 - [x] Filtro de colunas sensíveis em `TenantDataExporter` refinado com regex `/(password|secret|hash|\btoken\b|...)/i`, preservando contadores de tokens (`*_tokens`) e `monthly_token_quota`.
 
 **Testes**
-- `AiNavigationIntegrationTest` depende do estado do banco e deve filtrar os grupos "Plano".
+- [x] `AiNavigationIntegrationTest` isolado filtrando estritamente os grupos rastreados na asserção.
+- [x] A idempotência dos vínculos de perfil coberta por teste de integração real no MySQL (`RoleGroupsSeedIntegrationTest`).
 - A exclusão dos perfis nos grants de IA só tem prova textual.
-- A idempotência dos vínculos de perfil não tem cobertura.
 
 ### 2.7 Módulos já construídos que entram no MVP (P0)
 
@@ -179,10 +179,10 @@ Regras desses perfis:
 
 - [x] `observabilidade.md:51` atualizado citando `src/bin/billing-reconcile.php` e esclarecendo a conduta quando `BILLING_OPERATOR_EMAIL` não estiver configurado.
 - [x] `smoke-billing.md:158` atualizado para `termos-uso-2026-10`.
-- `restore-backup.md § 4` não cita `CENTRALVET_MAINTENANCE_DIR`; `tests.md` não descreve a restrição do `CI_WORKDIR`.
-- O contorno de `umask` ficou redundante em `release.md` e `rollback-drill.sh`.
-- Comentários desatualizados em `role-groups.sql:10` e `initial-application-programs.sql:1056`.
-- O template `reset_password.html` ficou sem uso.
+- [x] `restore-backup.md § 4` cita `CENTRALVET_MAINTENANCE_DIR`; `tests.md` atualizado descrevendo a restrição do `CI_WORKDIR`.
+- [x] O contorno de `umask` em `build-release.sh` fixa `022` internamente de forma garantida.
+- [x] Comentários alinhados em `role-groups.sql` e `initial-application-programs.sql`.
+- [x] O template órfão `reset_password.html` foi removido do repositório.
 
 ## 3. Fora do MVP — desenvolvimento futuro
 

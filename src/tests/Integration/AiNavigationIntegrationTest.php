@@ -190,11 +190,14 @@ final class AiNavigationIntegrationTest
             foreach ($statements as $sql) {
                 $pdo->exec($sql);
             }
-            $grants = static function () use ($pdo): array {
+            $trackedGroups = [1, $clinicA, $clinicB, $other];
+            $inClause = implode(',', $trackedGroups);
+            $grants = static function () use ($pdo, $inClause): array {
                 $rows = $pdo->query(
                     "SELECT p.controller, gp.system_group_id FROM system_group_program gp
                      JOIN system_program p ON p.id = gp.system_program_id
                      WHERE p.controller IN ('AiCopilotPanel','AiConversationList','AiToolCallList')
+                     AND gp.system_group_id IN ({$inClause})
                      ORDER BY p.controller, gp.system_group_id"
                 )->fetchAll(\PDO::FETCH_NUM);
 

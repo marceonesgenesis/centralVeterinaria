@@ -151,6 +151,22 @@ final class SubscriptionTest
         Assert::same('full', $subscription->accessLevel(new DateTimeImmutable('2026-11-02')));
     }
 
+    public function testMarkInvoicePaidDoesNotAdvanceWhenScheduledToCancelAndPeriodStartsAfterCurrentEnd(): void
+    {
+        $subscription = $this->card();
+        $subscription->requestCancellation(42, new DateTimeImmutable('2026-10-15 10:00:00'));
+        Assert::true($subscription->cancelAtPeriodEnd());
+
+        $paid = $subscription->markInvoicePaid(
+            new DateTimeImmutable('2026-11-01 00:00:00'),
+            new DateTimeImmutable('2026-12-01 00:00:00'),
+            200,
+        );
+
+        Assert::false($paid, 'markInvoicePaid must refuse advancing a subscription scheduled to cancel');
+        Assert::same('2026-11-01', $subscription->currentPeriodEnd()?->format('Y-m-d'));
+    }
+
     public function testAssignTenantAndRowRoundTrip(): void
     {
         $subscription = $this->card();

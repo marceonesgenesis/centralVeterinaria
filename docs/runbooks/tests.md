@@ -30,10 +30,11 @@ CI_PROJECT=centralvet-ci-local CI_WORKDIR=var/ci/local IMAGE_TAG=ci-local script
 ```
 
 Variáveis: `CI_PROJECT` (padrão `centralvet-ci`; o projeto `centralvet` é
-recusado), `CI_WORKDIR` (padrão `var/ci`, relativo à raiz; apagado e recriado,
-recebe o `.env` gerado com segredos de `openssl rand` e o bootstrap do Adianti)
-e `IMAGE_TAG` (padrão `ci`). O script exporta `COMPOSE_PROJECT_NAME` e
-`COMPOSE_ENV_FILES`. Cada etapa é anunciada por `ci: step <nome>`, nesta
+recusado), `CI_WORKDIR` (padrão `var/ci`, relativo à raiz; restrito a `var/ci/`
+do projeto ou abaixo de `RUNNER_TEMP`/`TMPDIR`, sem `.`/`..`, exigindo marcador
+`.ci-workdir` se não-vazio; apagado e recriado, recebe o `.env` gerado com
+segredos de `openssl rand` e o bootstrap do Adianti) e `IMAGE_TAG` (padrão `ci`).
+O script exporta `COMPOSE_PROJECT_NAME` e `COMPOSE_ENV_FILES`. Cada etapa é anunciada por `ci: step <nome>`, nesta
 ordem: `env`, `guard`, `build`, `up`, `migrator`, `bootstrap`, `provision`
 (cria `centralvet_test` e aplica o schema também ao `centralvet` efêmero da CI),
 `schema` (`migration-status`: `pending=0 unknown=0`), `lint` (`php -l` em todo o
