@@ -81,6 +81,8 @@ final class ClinicRoleProfilesTest
         $expected = array_merge(self::COMMON, [
             'AgendaView', 'AppointmentForm', 'TutorList', 'TutorForm', 'PatientList', 'PatientForm',
             'QueueEntryView', 'VaccinationCardView', 'DocumentList',
+            'CommunicationComposeForm', 'CommunicationMessageList', 'CommunicationMessageView', 'TutorCommunicationForm',
+            'HospitalizationBoard', 'BedList', 'SurgeryList', 'SurgeryView',
         ]);
         sort($expected);
         Assert::same($expected, $programs);
@@ -98,6 +100,12 @@ final class ClinicRoleProfilesTest
             'PrescriptionForm', 'ExamRequestForm', 'ExamResultForm', 'PendingExamResultList',
             'VaccinationForm', 'VaccinationCardView', 'ProcedureExecutionForm', 'ProcedureInputForm',
             'DocumentList', 'DocumentRequestForm',
+            'BedForm', 'BedList', 'HospitalizationAdministrationForm', 'HospitalizationAdmissionForm',
+            'HospitalizationBoard', 'HospitalizationEventForm', 'HospitalizationOrderForm', 'HospitalizationView',
+            'SurgeryChecklistForm', 'SurgeryConsentForm', 'SurgeryEventForm', 'SurgeryList', 'SurgeryMaterialForm',
+            'SurgeryRoomForm', 'SurgeryRoomList', 'SurgeryScheduleForm', 'SurgeryView',
+            'CommunicationComposeForm', 'CommunicationMessageList', 'CommunicationMessageView', 'TutorCommunicationForm',
+            'AiCopilotPanel', 'AiConversationList',
         ]);
         sort($expected);
         Assert::same($expected, $programs);
@@ -114,6 +122,7 @@ final class ClinicRoleProfilesTest
             'PendingReceivableList', 'FinancialOverview', 'FinancialEntryForm', 'FinancialEntryList',
             'PayableForm', 'PayableList', 'BankAccountForm', 'BankAccountList', 'SaleList',
             'TutorList', 'ServiceList',
+            'CommunicationMessageList', 'TutorCommunicationForm',
         ]);
         sort($expected);
         Assert::same($expected, $programs);
