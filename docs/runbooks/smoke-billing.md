@@ -155,7 +155,7 @@ Prova (g) — os 6 pedidos `pending`, sem sessão e com o preço do servidor:
 SELECT responsible_email, plan_id, payment_method, status, price_cents, stripe_checkout_session_id, terms_version
 FROM billing_order WHERE clinic_name LIKE 'ZZ-E3-%' ORDER BY id;
 -- esperado: 6 linhas, status=pending, stripe_checkout_session_id NULL,
--- price_cents Starter 5700 / Pro 9700, terms_version assinatura-2026-10
+-- price_cents Starter 5700 / Pro 9700, terms_version termos-uso-2026-10
 ```
 
 ## 3. [simula Stripe] Sessões de checkout abertas

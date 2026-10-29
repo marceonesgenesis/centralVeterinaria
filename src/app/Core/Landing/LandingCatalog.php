@@ -113,7 +113,7 @@ final class LandingCatalog
                     'Tudo do Business',
                     ['Governança da rede', true],
                     'Suporte dedicado',
-                    ['IA e agentes avançados', true],
+                    'IA e agentes avançados',
                     ['SSO e SLA', true],
                 ]),
             ],

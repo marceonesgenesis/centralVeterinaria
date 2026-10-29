@@ -112,10 +112,10 @@ Impactos no que a Etapa 5 entregou:
 - [x] **Recorte da oferta.** Ligar os módulos em `OfferScope` e nas flags de ambiente. A guarda deixa de responder `not_released` para eles.
 - [x] **Landing e checkout.** Tirar o "em breve" desses módulos e alinhar o que cada plano inclui (`LandingCatalog`, `PlanEntitlements`). Hoje IA, internação e cirurgia ficam só no Enterprise.
 - [x] **Perfis restritos.** Liberado acesso de Recepção, Veterinário e Financeiro a internação, cirurgia, comunicação e IA. `ClinicRoleProfiles`, `role-groups.sql` e testes unitários atualizados e aprovados.
-- [ ] **Jornada e roteiros.** Estender a `PilotJourneyIntegrationTest` e o `piloto-homologacao.md` aos novos módulos.
-- [ ] **Termos e privacidade.** Cobrir o uso de IA (dados enviados ao provedor, revisão humana) e as mensagens a tutores (consentimento de contato).
-- [ ] **Exportação LGPD.** Conferir se as tabelas de internação, cirurgia, comunicação e IA entram no ZIP, incluindo as colunas `*_tokens`, hoje filtradas.
-- [ ] **Operação.** Alertas para mensagens e documentos com falha, que a auditoria pedia e o monitor ainda não cobre, e o custo de IA por tenant.
+- [x] **Jornada e roteiros.** Estendida a `PilotJourneyIntegrationTest` (cobrindo a jornada Enterprise com internação, cirurgia, comunicação e copiloto IA) e atualizado o `piloto-homologacao.md` para todos os novos módulos e a Área de Gestão.
+- [x] **Termos e privacidade.** Atualizados para cobrir expressamente o uso de IA (processamento seguro, sem treino de modelos de terceiros e revisão clínica humana obrigatória) e mensagens a tutores (consentimento prévio).
+- [x] **Exportação LGPD.** Confirmado em `TenantDataExporter`: tabelas com `tenant_id` descobertas automaticamente via `information_schema` e regex `\btoken\b` preservando contadores de tokens (`input_tokens`, `output_tokens`).
+- [x] **Operação.** Alertas para mensagens e documentos com falha cobertos no monitor (`PdoOperationalCounts` e `OperationalMonitor`), com observabilidade de custos/tokens auditados.
 
 ### 2.8 Área de gestão do sistema (back-office) (P0)
 
@@ -177,8 +177,8 @@ Regras desses perfis:
 
 ### 2.9 Documentação desatualizada (P2)
 
-- `observabilidade.md:51` deve citar `src/bin/billing-reconcile.php`. A linha 55 diz que, sem `BILLING_OPERATOR_EMAIL`, o alerta vai ao `error_log`, mas o código só não envia.
-- `smoke-billing.md:158` espera `assinatura-2026-10`; o valor atual é `termos-uso-2026-10`.
+- [x] `observabilidade.md:51` atualizado citando `src/bin/billing-reconcile.php` e esclarecendo a conduta quando `BILLING_OPERATOR_EMAIL` não estiver configurado.
+- [x] `smoke-billing.md:158` atualizado para `termos-uso-2026-10`.
 - `restore-backup.md § 4` não cita `CENTRALVET_MAINTENANCE_DIR`; `tests.md` não descreve a restrição do `CI_WORKDIR`.
 - O contorno de `umask` ficou redundante em `release.md` e `rollback-drill.sh`.
 - Comentários desatualizados em `role-groups.sql:10` e `initial-application-programs.sql:1056`.

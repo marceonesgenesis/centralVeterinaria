@@ -30,8 +30,6 @@ final class LandingOfferAlignmentTest
     private const ALL_PLANS = ['starter', 'pro', 'business', 'enterprise'];
 
     private const SOON_LABELS = [
-        'Comunicação e automações',
-        'IA e agentes avançados',
         'Relatórios avançados',
         'Integrações',
         'SSO e SLA',

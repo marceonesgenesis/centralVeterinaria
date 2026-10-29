@@ -22,8 +22,11 @@ final class OfferScope
         PlanEntitlements::FEATURE_AI,
     ];
 
-    public function __construct(private readonly PilotSettings $settings)
-    {
+    /** @param list<string>|null $releasedFeatures */
+    public function __construct(
+        private readonly PilotSettings $settings,
+        private readonly ?array $releasedFeatures = null,
+    ) {
     }
 
     public static function fromEnvironment(): self
@@ -33,7 +36,9 @@ final class OfferScope
 
     public function isFeatureReleased(string $feature): bool
     {
-        return in_array($feature, self::RELEASED_FEATURES, true)
+        $released = $this->releasedFeatures ?? self::RELEASED_FEATURES;
+
+        return in_array($feature, $released, true)
             || in_array($feature, $this->settings->previewFeatures(), true);
     }
 
