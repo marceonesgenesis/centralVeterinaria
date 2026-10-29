@@ -21,6 +21,16 @@ o CSS do framework. Classes próprias usam o prefixo `cv-`; tokens usam `--cv-`.
 - `.cv-skeleton`: indicação de carregamento, desativada com movimento reduzido.
 - `.cv-table-scroll`: região de tabela navegável e rolável em telas estreitas.
 
+## Alinhamento de rótulos
+
+Rótulos ficam sempre alinhados à esquerda, em qualquer formulário, grid, cortina
+lateral ou view: `.control-label`, `.col-form-label`, `label` e cabeçalhos de
+`TDataGrid`. A regra global fica em `custom.css` e sobrepõe o alinhamento à direita
+do `BootstrapFormBuilder` e o alinhamento por coluna do cabeçalho do grid. Em telas
+novas, não alinhe rótulos à direita nem ao centro (nada de `style="text-align:right"`
+em rótulo, nem `'center'`/`'right'` pensando no cabeçalho do `TDataGridColumn`).
+Valores numéricos dentro das células podem continuar alinhados à direita.
+
 Use `role="status"` para atualizações informativas e `role="alert"` apenas para
 erros que exigem atenção imediata. Mantenha texto e ícone; cor não pode ser o
 único indicador. Todos os controles precisam de nome acessível e foco visível.

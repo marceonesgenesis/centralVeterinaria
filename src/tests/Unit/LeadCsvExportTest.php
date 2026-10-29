@@ -80,6 +80,18 @@ final class LeadCsvExportTest
         Assert::false(str_contains($html, '<b>'), 'failurePage não pode conter <b> cru');
     }
 
+    public function testFailurePageLangFollowsActiveLanguage(): void
+    {
+        Assert::stringContains('<html lang="pt-BR">', LeadCsvExport::failurePage('Falha', 'pt'));
+        Assert::stringContains('<html lang="en-US">', LeadCsvExport::failurePage('Failure', 'en'));
+        Assert::stringContains('<html lang="es">', LeadCsvExport::failurePage('Fallo', 'es'));
+        Assert::stringContains('<html lang="pt-BR">', LeadCsvExport::failurePage('Falha', 'fr'));
+
+        $html = LeadCsvExport::failurePage('Falha', '"><script>');
+        Assert::stringContains('<html lang="pt-BR">', $html);
+        Assert::false(str_contains($html, '<script>'), 'failurePage não pode conter <script> vindo do idioma');
+    }
+
     /** @return array<string, mixed> */
     private function lead(): array
     {

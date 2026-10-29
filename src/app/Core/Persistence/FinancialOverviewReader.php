@@ -165,9 +165,9 @@ final class FinancialOverviewReader extends AbstractTenantRepository
 
     /**
      * Balance of the unit's open cash session: opening balance plus the
-     * payments registered in it (payment.cash_session_id). The schema links
-     * no outflow to a cash session, so there is nothing to subtract.
-     * Null when the unit has no open session.
+     * payments registered in it (payment.cash_session_id) minus the
+     * reversals registered in it (payment_reversal.cash_session_id, Etapa 2
+     * T-08). Null when the unit has no open session.
      */
     public function openCashBalance(int $systemUnitId): ?int
     {
@@ -178,13 +178,15 @@ final class FinancialOverviewReader extends AbstractTenantRepository
         $statement = $this->connection->prepare(
             'SELECT cs.opening_balance_cents, '
             . '(SELECT COALESCE(SUM(p.amount_cents), 0) FROM payment p '
-            . ' WHERE p.cash_session_id = cs.id AND p.tenant_id = cs.tenant_id) AS paid '
+            . ' WHERE p.cash_session_id = cs.id AND p.tenant_id = cs.tenant_id) AS paid, '
+            . '(SELECT COALESCE(SUM(pr.amount_cents), 0) FROM payment_reversal pr '
+            . ' WHERE pr.cash_session_id = cs.id AND pr.tenant_id = cs.tenant_id) AS reversed '
             . "FROM cash_session cs WHERE {$query->whereSql()} ORDER BY cs.id DESC LIMIT 1"
         );
         $statement->execute($query->parameters());
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
-        return $row === false ? null : (int) $row['opening_balance_cents'] + (int) $row['paid'];
+        return $row === false ? null : (int) $row['opening_balance_cents'] + (int) $row['paid'] - (int) $row['reversed'];
     }
 }

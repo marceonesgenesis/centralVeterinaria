@@ -7,9 +7,14 @@
         "Abra pelo atendimento". Ícones com a classe cv-menu-footer ficam
         colados ao rodapé da sidebar (custom.css).
     -->
-    <menuitem label='Dashboard'>
-        <icon>fas:gauge-high fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=dashboard</action>
+    <menuitem label='_t{First steps}'>
+        <icon>fas:rocket fa-fw</icon>
+        <action>OnboardingChecklistView</action>
+    </menuitem>
+
+    <menuitem label='_t{Pending items}'>
+        <icon>fas:list-check fa-fw</icon>
+        <action>PendingCenter</action>
     </menuitem>
 
     <menuitem label='_t{Agenda}'>
@@ -47,9 +52,14 @@
         <action>PendingExamResultList</action>
     </menuitem>
 
+    <menuitem label='_t{Hospitalization}'>
+        <icon>fas:bed fa-fw</icon>
+        <action>HospitalizationBoard</action>
+    </menuitem>
+
     <menuitem label='_t{Surgeries}'>
         <icon>fas:kit-medical fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=surgeries</action>
+        <action>SurgeryList</action>
     </menuitem>
 
     <menuitem label='_t{Prescriptions}'>
@@ -79,7 +89,30 @@
 
     <menuitem label='_t{CRM / Communication}'>
         <icon>fas:comments fa-fw</icon>
-        <action>CvShellController#method=onComingSoon#item=crm</action>
+        <menu>
+            <menuitem label='_t{Messages}'>
+                <icon>fas:envelope fa-fw</icon>
+                <action>CommunicationMessageList</action>
+            </menuitem>
+            <menuitem label='_t{Message templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>MessageTemplateList</action>
+            </menuitem>
+        </menu>
+    </menuitem>
+
+    <menuitem label='_t{Documents}'>
+        <icon>fas:file-pdf fa-fw</icon>
+        <menu>
+            <menuitem label='_t{Documents}'>
+                <icon>fas:file-pdf fa-fw</icon>
+                <action>DocumentList</action>
+            </menuitem>
+            <menuitem label='_t{Document templates}'>
+                <icon>fas:file-lines fa-fw</icon>
+                <action>DocumentTemplateList</action>
+            </menuitem>
+        </menu>
     </menuitem>
 
     <menuitem label='_t{Reports}'>
@@ -105,6 +138,61 @@
                     <menuitem label='_t{Procedure catalog}'>
                         <icon>fas:clipboard-list fa-fw</icon>
                         <action>ProcedureCatalogList</action>
+                    </menuitem>
+                </menu>
+            </menuitem>
+
+            <menuitem label='_t{Beds}'>
+                <icon>fas:bed fa-fw</icon>
+                <action>BedList</action>
+            </menuitem>
+            <menuitem label='_t{Surgery rooms}'>
+                <icon>fas:kit-medical fa-fw</icon>
+                <action>SurgeryRoomList</action>
+            </menuitem>
+            <menuitem label='_t{Clinic data}'>
+                <icon>fas:hospital fa-fw</icon>
+                <action>ClinicProfileForm</action>
+            </menuitem>
+            <menuitem label='_t{Subscription}'>
+                <icon>fas:file-invoice-dollar fa-fw</icon>
+                <action>SubscriptionStatusView</action>
+            </menuitem>
+            <menuitem label='_t{Team}'>
+                <icon>fas:users fa-fw</icon>
+                <action>ClinicUserList</action>
+            </menuitem>
+            <menuitem label='_t{Clinic units}'>
+                <icon>fas:building fa-fw</icon>
+                <action>ClinicUnitList</action>
+            </menuitem>
+            <menuitem label='_t{Export clinic data}'>
+                <icon>fas:file-export fa-fw</icon>
+                <action>ClinicDataExportView</action>
+            </menuitem>
+
+            <menuitem label='_t{AI assistant}'>
+                <icon>fas:comments fa-fw</icon>
+                <menu>
+                    <menuitem label='_t{AI settings}'>
+                        <icon>fas:sliders fa-fw</icon>
+                        <action>AiSettingsForm</action>
+                    </menuitem>
+                    <menuitem label='_t{AI interactions}'>
+                        <icon>fas:list-check fa-fw</icon>
+                        <action>AiInteractionList</action>
+                    </menuitem>
+                    <menuitem label='_t{My conversations}'>
+                        <icon>fas:clock-rotate-left fa-fw</icon>
+                        <action>AiConversationList</action>
+                    </menuitem>
+                    <menuitem label='_t{Tool audit}'>
+                        <icon>fas:shield-halved fa-fw</icon>
+                        <action>AiToolCallList</action>
+                    </menuitem>
+                    <menuitem label='_t{Management copilot}'>
+                        <icon>fas:chart-line fa-fw</icon>
+                        <action>AiCopilotPanel#method=onOpen#family=management</action>
                     </menuitem>
                 </menu>
             </menuitem>
@@ -201,6 +289,6 @@
 
     <menuitem label='_t{Help}'>
         <icon>fas:circle-question fa-fw cv-menu-footer</icon>
-        <action>CvShellController#method=onComingSoon#item=help</action>
+        <action>SupportView</action>
     </menuitem>
 </menu>

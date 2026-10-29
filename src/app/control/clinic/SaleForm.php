@@ -31,17 +31,19 @@
  * excecao e exibe a mensagem de recusa em tela via TMessage, sem propagar um
  * erro fatal e sem gerar recibo (criterio de aceite T-10).
  *
- * PDF do recibo: apos salvar com sucesso, a tela oferece um link "Gerar PDF"
- * que chama onGenerateReceiptPdf(), recarrega a venda ja salva via
- * SaleService::findById() (tenant-scoped) para o cabecalho (id, tutor,
- * data, total) e renderiza um PDF simples (dompdf, mesmo padrao de
- * PrescriptionForm::onGeneratePdf()) com os itens. SaleService nao expoe
- * nenhum metodo de leitura dos itens de uma venda (apenas findById() para o
- * cabecalho, por spec da task), entao as linhas do recibo vem do mesmo
- * rascunho resolvido em onSave() (ja obtido a partir de ProductService::
- * listActive()/ProcedureCatalogService::listActive(), nunca de uma leitura
- * nova de Persistence/Domain), stashado em TSession sob a chave da venda
- * salva antes do rascunho de carrinho ser limpo.
+ * Finalizar venda (T-15, Etapa 2): onSave() chama SaleCheckoutService::
+ * checkout() numa unica TTransaction — venda, recebivel e, com forma de
+ * pagamento informada, o recebimento a vista no caixa aberto da unidade. O
+ * combo vazio significa a prazo (recebivel em aberto). O THidden
+ * submission_token, gerado a cada renderizacao, impede gravar a mesma venda
+ * duas vezes (DuplicateSubmissionException leva a venda ja gravada).
+ *
+ * PDF do recibo: onGenerateReceiptPdf() le a venda gravada (SaleService::
+ * findById()), seus itens (SaleItemRepository::listBySale()) e o resumo
+ * financeiro (SaleFinanceReader::receiptSummary()) e entrega o HTML de
+ * CentralVet\Presentation\SaleReceiptHtml::render() ao dompdf. Nada vem do
+ * carrinho em sessao: o recibo reflete exatamente o que foi gravado,
+ * inclusive recebido, saldo e cancelamento.
  *
  * PENDENTE: as tabelas `product`, `procedure_catalog_item`, `sale` e
  * `sale_item` ainda dependem da migration
@@ -166,6 +168,27 @@ class SaleForm extends TPage
             [new TLabel(_t('Procedure quantity'))], [$procedure_quantity]
         );
 
+        // T-15: forma de pagamento — vazio = a prazo (recebível em aberto);
+        // lista única de formas (Payment::METHODS), rótulos de
+        // CvFormat::paymentMethod(), igual ao PaymentForm.
+        $payment_method = new TCombo('payment_method');
+        $payment_method->setDefaultOption(_t('On account (open receivable)'));
+        $payment_items = [];
+        foreach (\CentralVet\Domain\Payment::METHODS as $method)
+        {
+            $payment_items[$method] = CvFormat::paymentMethod($method);
+        }
+        $payment_method->addItems($payment_items);
+        $payment_method->setSize('100%');
+
+        $this->form->addFields( [new TLabel(_t('Payment method'))], [$payment_method] );
+
+        // T-15: token de envio gerado a cada renderização; o checkout o
+        // reivindica na mesma transação da venda (repetição não grava de novo).
+        $submission_token = new THidden('submission_token');
+        $submission_token->setValue(\CentralVet\Domain\SubmissionToken::generate());
+        $this->form->add($submission_token);
+
         CvForm::decorate($this->form, 2);
 
         // form actions
@@ -178,7 +201,7 @@ class SaleForm extends TPage
         $this->form->addActionLink(_t('Clear cart'), new TAction(array($this, 'onClearCart')), 'fa:eraser');
 
         $saveBtn = $this->form->addAction(_t('Finalize sale'), new TAction(array($this, 'onSave')), 'fa:check');
-        $saveBtn->class = 'btn btn-primary';
+        $saveBtn->class = 'btn btn-primary cv-touch-target';
 
         // vertical box container
         $container = new TVBox;
@@ -254,9 +277,9 @@ class SaleForm extends TPage
 
         $column_type = new TDataGridColumn('type_label', _t('Type'), 'left', 100);
         $column_description = new TDataGridColumn('description', _t('Description'), 'left');
-        $column_quantity = new TDataGridColumn('quantity', _t('Qty'), 'center', 60);
-        $column_unit_price = new TDataGridColumn('unit_price_label', _t('Unit price'), 'right', 110);
-        $column_total = new TDataGridColumn('total_label', _t('Total'), 'right', 110);
+        $column_quantity = new TDataGridColumn('quantity', _t('Qty'), 'left', 60);
+        $column_unit_price = new TDataGridColumn('unit_price_label', _t('Unit price'), 'left', 110);
+        $column_total = new TDataGridColumn('total_label', _t('Total'), 'left', 110);
 
         $this->datagrid->addColumn($column_type);
         $this->datagrid->addColumn($column_description);
@@ -314,16 +337,6 @@ class SaleForm extends TPage
     private function tutorSessionKey(): string
     {
         return 'sale_form_cart_tutor_id';
-    }
-
-    /**
-     * Session key holding the resolved item snapshot for a just-completed
-     * sale's PDF receipt (see class docblock — SaleService exposes no
-     * item-level read method).
-     */
-    private function receiptSessionKey(int $saleId): string
-    {
-        return 'sale_form_receipt_items_' . $saleId;
     }
 
     private function cartTotalCents(): int
@@ -387,13 +400,16 @@ class SaleForm extends TPage
                 throw new Exception(_t('Product not found or inactive'));
             }
 
+            // F1: the cart line carries the sale price, never the cost; a
+            // product without a sale price throws here, before the line is
+            // appended to the draft.
             $items = $this->draftItems();
             $items[] = [
                 'type' => 'product',
                 'referenceId' => $productId,
                 'quantity' => $quantity,
                 'description' => $product->name(),
-                'unitPriceCents' => $product->unitCostCents(),
+                'unitPriceCents' => $product->requireSalePriceCents(),
             ];
 
             TSession::setValue($this->draftSessionKey(), $items);
@@ -404,6 +420,11 @@ class SaleForm extends TPage
             }
 
             $this->reloadSelf();
+        }
+        catch (\CentralVet\Domain\Exception\ProductWithoutSalePriceException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', CvFormat::userError($e));
         }
         catch (Exception $e)
         {
@@ -509,14 +530,14 @@ class SaleForm extends TPage
     /**
      * method onSave()
      * Executed whenever the user clicks "Finalize sale". Calls
-     * SaleService::create() with the header fields plus the TSession cart
-     * draft, and turns every business-rule refusal (insufficient stock,
-     * cross-tenant/unknown catalog reference, unit-scope authorization)
-     * into a message shown on screen instead of a fatal error — mirrors
-     * AppointmentForm::onSave()/PrescriptionForm::onSave(). Criterio de
-     * aceite (T-10): um item de produto sem saldo suficiente mostra
-     * TMessage de erro e NAO gera recibo (nada e persistido, ver docblock
-     * de SaleService::create()).
+     * SaleCheckoutService::checkout() (T-13) with the header fields, the
+     * TSession cart draft, the payment method (empty = on account) and the
+     * submission token rendered with this form, all inside one
+     * TTransaction: sale, receivable and the cash payment commit together or
+     * not at all. Every refusal (insufficient stock, cross-tenant/unknown
+     * reference, unit-scope authorization, no open cash session, repeated
+     * submission, lock wait/deadlock) becomes a message on screen after a
+     * rollback, never a fatal error.
      */
     public function onSave($param)
     {
@@ -532,18 +553,20 @@ class SaleForm extends TPage
                 throw new InvalidArgumentException(_t('Add at least one item to the cart before finalizing the sale'));
             }
 
+            $paymentMethod = isset($param['payment_method']) && (string) $param['payment_method'] !== ''
+                ? (string) $param['payment_method']
+                : null;
+
             TTransaction::open('permission');
 
             $tenant_context = self::resolveTenantContext();
-            $service = self::buildSaleService($tenant_context);
+            $service = self::buildSaleCheckoutService($tenant_context);
 
             // $items' extra 'description'/'unitPriceCents' keys are ignored
             // by SaleService::readItem(), which only reads type/referenceId/
-            // quantity — the exact same catalog data is re-resolved and
-            // re-priced there from ProductService::listActive()/
-            // ProcedureCatalogService::findById(), so totals can never drift
-            // from what this cart displayed.
-            $sale = $service->create(
+            // quantity — the catalog data is re-resolved and re-priced
+            // there, so totals can never drift from what this cart displayed.
+            $result = $service->checkout(
                 tenantId: $tenant_context->tenantId(),
                 systemUnitId: $tenant_context->requireUnitId(),
                 tutorId: (int) $data->tutor_id,
@@ -551,17 +574,14 @@ class SaleForm extends TPage
                 encounterId: !empty($data->encounter_id) ? (int) $data->encounter_id : null,
                 systemUserId: $tenant_context->userId(),
                 items: $items,
-                action: __CLASS__ . '::' . __FUNCTION__,
+                paymentMethod: $paymentMethod,
+                submissionToken: (string) ($param['submission_token'] ?? ''),
+                action: 'SaleForm::onSave',
             );
 
             TTransaction::close();
 
-            // Criterio de aceite (T-10): venda bem-sucedida grava a venda e
-            // oferece download do PDF do recibo com o total calculado —
-            // stash do snapshot resolvido para o recibo antes de limpar o
-            // rascunho de carrinho.
-            $saleId = (int) $sale->id();
-            TSession::setValue($this->receiptSessionKey($saleId), $items);
+            $saleId = (int) $result->sale->id();
             TSession::setValue($this->draftSessionKey(), null);
             TSession::setValue($this->tutorSessionKey(), null);
 
@@ -569,6 +589,45 @@ class SaleForm extends TPage
             TScript::create(
                 "__adianti_goto_page('index.php?class=SaleForm&sale_id={$saleId}')"
             );
+        }
+        catch (\CentralVet\Domain\Exception\DuplicateSubmissionException $e)
+        {
+            TTransaction::rollback();
+            // repeated "Finalize sale" (double click, refresh, retry): the
+            // first submission already committed the sale — show it instead
+            // of writing a second one.
+            $referenceId = $e->referenceId();
+            new TMessage('info', _t('This submission was already processed'));
+
+            if ($referenceId !== null)
+            {
+                $saleId = (int) $referenceId;
+                TScript::create(
+                    "__adianti_goto_page('index.php?class=SaleForm&sale_id={$saleId}')"
+                );
+            }
+        }
+        catch (\CentralVet\Domain\Exception\CashSessionRequiredException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', CvFormat::userError($e));
+        }
+        catch (PDOException $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . $e->getMessage());
+            $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+            // 1205 lock wait timeout / 1213 deadlock: another sale touched the
+            // same stock batches; nothing was written, the cart is intact.
+            if ($driverCode === 1205 || $driverCode === 1213)
+            {
+                new TMessage('error', _t('Stock changed during the sale; review the cart and try again'));
+            }
+            else
+            {
+                new TMessage('error', CvFormat::userError($e));
+            }
         }
         catch (\CentralVet\Domain\Exception\InsufficientStockException $e)
         {
@@ -608,14 +667,12 @@ class SaleForm extends TPage
 
     /**
      * method onGenerateReceiptPdf()
-     * Executed when the user clicks "Generate PDF". Reloads the already
-     * saved sale's header via SaleService::findById() (tenant-scoped — a
-     * cross-tenant id simply resolves to null, same contract as
-     * PrescriptionRepository::findById()) and streams a plain PDF built
-     * with dompdf (already in composer.json), with line items read back
-     * from the snapshot onSave() stashed for this sale id. No business rule
-     * here: this method only reads and formats data SaleService has already
-     * validated and persisted.
+     * Executed when the user clicks "Generate PDF". Reloads the saved sale
+     * (SaleService::findById(), tenant-scoped — a cross-tenant id resolves to
+     * null), its persisted lines (SaleItemRepository::listBySale()) and its
+     * financial summary (SaleFinanceReader::receiptSummary()), and streams
+     * the PDF of SaleReceiptHtml::render() built with dompdf. Only reads
+     * data already validated and persisted: no session snapshot of the cart.
      */
     public function onGenerateReceiptPdf($param)
     {
@@ -631,23 +688,37 @@ class SaleForm extends TPage
             TTransaction::open('permission');
 
             $tenant_context = self::resolveTenantContext();
+            $connection = TTransaction::get();
             $service = self::buildSaleService($tenant_context);
             $sale = $service->findById($id);
 
+            $items = [];
+            $summary = null;
+
+            if ($sale !== null)
+            {
+                $items = (new \CentralVet\Persistence\SaleItemRepository($tenant_context, $connection))->listBySale($id);
+                $summary = (new \CentralVet\Persistence\SaleFinanceReader($tenant_context, $connection))->receiptSummary($id);
+            }
+
             TTransaction::close();
 
-            if ($sale === null)
+            if ($sale === null || $summary === null)
             {
                 new TMessage('error', _t('Record not found'));
 
                 return;
             }
 
-            $items = TSession::getValue($this->receiptSessionKey($id));
-            $items = is_array($items) ? $items : [];
+            $html = \CentralVet\Presentation\SaleReceiptHtml::render(
+                $sale,
+                $items,
+                $summary,
+                static fn (string $key, string ...$params): string => _t($key, ...$params),
+            );
 
             $dompdf = new \Dompdf\Dompdf();
-            $dompdf->loadHtml(self::renderReceiptHtml($sale, $items));
+            $dompdf->loadHtml($html);
             $dompdf->setPaper('A4');
             $dompdf->render();
 
@@ -667,48 +738,6 @@ class SaleForm extends TPage
             error_log(__METHOD__ . ': ' . $e->getMessage());
             new TMessage('error', CvFormat::userError($e));
         }
-    }
-
-    /**
-     * Builds a bare-bones HTML document for dompdf — functional only, per
-     * this task's acceptance criterion (mirrors PrescriptionForm::
-     * renderPrescriptionHtml()).
-     *
-     * @param list<array{type: string, referenceId: int, quantity: int, description: string, unitPriceCents: int}> $items
-     */
-    private static function renderReceiptHtml(\CentralVet\Domain\Sale $sale, array $items): string
-    {
-        $rows = '';
-
-        foreach ($items as $item)
-        {
-            $description = (string) ($item['description'] ?? '');
-            $quantity = (int) ($item['quantity'] ?? 0);
-            $unitPriceCents = (int) ($item['unitPriceCents'] ?? 0);
-
-            $rows .= '<tr>'
-                . '<td>' . htmlspecialchars($description, ENT_QUOTES, 'UTF-8') . '</td>'
-                . '<td>' . $quantity . '</td>'
-                . '<td>' . self::formatCents($unitPriceCents) . '</td>'
-                . '<td>' . self::formatCents($unitPriceCents * $quantity) . '</td>'
-                . '</tr>';
-        }
-
-        $patientLine = $sale->patientId() !== null
-            ? ' &mdash; ' . _t('Patient') . ': ' . $sale->patientId()
-            : '';
-
-        return '<html><head><meta charset="utf-8"></head><body>'
-            . '<h3>' . _t('Sale receipt') . ' #' . $sale->id() . '</h3>'
-            . '<p>' . _t('Tutor') . ': ' . $sale->tutorId() . $patientLine . '</p>'
-            . '<p>' . _t('Date') . ': ' . $sale->soldAt()->format('d/m/Y H:i') . '</p>'
-            . '<table border="1" cellpadding="4" cellspacing="0" width="100%">'
-            . '<thead><tr>'
-            . '<th>' . _t('Description') . '</th><th>' . _t('Qty') . '</th>'
-            . '<th>' . _t('Unit price') . '</th><th>' . _t('Total') . '</th>'
-            . '</tr></thead><tbody>' . $rows . '</tbody></table>'
-            . '<p><strong>' . _t('Grand total') . ': ' . self::formatCents($sale->totalAmountCents()) . '</strong></p>'
-            . '</body></html>';
     }
 
     /**
@@ -787,6 +816,55 @@ class SaleForm extends TPage
             $stockService,
             $procedureCatalogService,
             $authorization,
+            $context,
+            new \CentralVet\Persistence\TutorRepository($context, $connection),
+            new \CentralVet\Persistence\PatientRepository($context, $connection),
+            new \CentralVet\Persistence\EncounterRepository($context, $connection),
+        );
+    }
+
+    /**
+     * Wires SaleCheckoutService (T-13): SaleService (above), PaymentService
+     * the same way PaymentForm::buildPaymentService() does, and the
+     * receivable/cash-session/submission-key repositories, all on this same
+     * 'permission' connection — the checkout requires the open
+     * TTransaction (claim and FOR UPDATE refuse to run outside it).
+     */
+    private static function buildSaleCheckoutService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\SaleCheckoutService
+    {
+        $connection = TTransaction::get();
+
+        $receivables = new \CentralVet\Persistence\ReceivableRepository($context, $connection);
+        $cashSessions = new \CentralVet\Persistence\CashSessionRepository($context, $connection);
+        $submissionKeys = new \CentralVet\Persistence\SubmissionKeyRepository($context, $connection);
+
+        $authorization = new \CentralVet\Authorization\RbacAuthorizationService(
+            new \CentralVet\Authorization\AdiantiProgramPermissionProvider(new \CentralVet\Tenancy\AdiantiSessionContextSource()),
+            new \CentralVet\Audit\PdoAuditLogWriter($connection),
+        );
+
+        $financialEntries = new \CentralVet\Application\FinancialEntryService(
+            new \CentralVet\Persistence\FinancialEntryRepository($context, $connection),
+            $authorization,
+            $context,
+        );
+
+        $payments = new \CentralVet\Application\PaymentService(
+            new \CentralVet\Persistence\PaymentRepository($context, $connection),
+            $receivables,
+            $cashSessions,
+            $financialEntries,
+            $authorization,
+            $context,
+            $submissionKeys,
+        );
+
+        return new \CentralVet\Application\SaleCheckoutService(
+            self::buildSaleService($context),
+            $receivables,
+            $payments,
+            $cashSessions,
+            $submissionKeys,
             $context,
         );
     }

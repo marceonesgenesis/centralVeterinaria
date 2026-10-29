@@ -620,3 +620,19 @@ body {
         border: 1px solid CanvasText;
     }
 }
+
+/* Regra do projeto: rótulos sempre alinhados à esquerda (formulários, grids, cortinas
+   laterais e views). Sobrepõe o text-align:right do BootstrapFormBuilder (>=576px) e o
+   alinhamento por coluna que o TDataGrid grava inline no cabeçalho. Valores numéricos nas
+   células continuam livres para alinhar à direita. */
+.control-label,
+.col-form-label,
+.form-label,
+.tformrow > .control-label,
+label {
+    text-align: left !important;
+}
+th.tdatagrid_col,
+.tdatagrid_head th {
+    text-align: left !important;
+}

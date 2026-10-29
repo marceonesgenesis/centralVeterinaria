@@ -50,12 +50,11 @@ return [
         'public_classes' => [
           'SystemRequestPasswordResetForm',
           'SystemPasswordResetForm',
-          'SystemRegistrationForm',
           'SystemPasswordRenewalForm',
           'SystemConcurrentAccessView',
           'SystemInvalidAccessView'
         ],
-        'user_register' => '1',
+        'user_register' => '0',
         'reset_password' => '1',
         'default_groups' => '2',
         'default_screen' => '30',

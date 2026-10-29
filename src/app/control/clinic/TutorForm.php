@@ -80,6 +80,8 @@ class TutorForm extends TStandardForm
             $header = CvPage::header(_t('Tutor'), null, [
                 $back,
                 ['label' => _t('Patients'), 'icon' => 'fa:paw', 'action' => new TAction(['PatientList', 'onReload'], ['tutor_id' => $this->viewId])],
+                ['label' => _t('Communication'), 'icon' => 'fa:address-card', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=TutorCommunicationForm&tutor_id=' . (int) $this->viewId],
+                ['label' => _t('Send message'), 'icon' => 'fa:paper-plane', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=CommunicationComposeForm&tutor_id=' . (int) $this->viewId],
                 ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction(['PatientForm', 'onEdit'], ['tutor_id' => $this->viewId])],
             ]);
         }

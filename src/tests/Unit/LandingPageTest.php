@@ -64,12 +64,13 @@ final class LandingPageTest
         foreach ([
             '<meta name="cv-lead-token" content="{{LEAD_TOKEN}}">',
             '<script type="application/json" id="cv-landing-data">{{LANDING_DATA}}</script>',
-            '<link rel="stylesheet" href="landing/landing.css?v=20261005-a11y">',
-            '<script src="landing/landing.js?v=20261005-a11y" defer></script>',
             '<a href="index.php?class=LoginForm">Entrar</a>',
         ] as $marker) {
             Assert::stringContains($marker, $template);
         }
+
+        Assert::same(1, preg_match('#<link rel="stylesheet" href="landing/landing\.css\?v=\d{8}-[a-z0-9-]+">#', $template), 'landing.css must be linked with a dated ?v=');
+        Assert::same(1, preg_match('#<script src="landing/landing\.js\?v=\d{8}-[a-z0-9-]+" defer></script>#', $template), 'landing.js must be deferred with a dated ?v=');
     }
 
     public function testScriptHasNoDraftStoreNorHardcodedPrice(): void

@@ -1,0 +1,208 @@
+# Notas de execução
+
+## Decisões tomadas
+- 2026-10-15 · plano · onda 0 — Continuação na branch `feat/fase-8a-ai-gateway` (HEAD `641c4f6`), sem branch nova e sem push: pedido explícito do desenvolvedor nas premissas. Base `main` (primeira linha de `branches.py`, fonte `padrão`: o projeto não declara as branches).
+- 2026-10-15 · plano · onda 0 — (usuário) PiiMinimizer conservador + allowlist clínica: a allowlist (`CLINICAL_TERMS`) só isenta *partes* de nome; o nome completo segue mascarado. Faixas de referência pelas regras de numeração (DDD 1–9/1–9; assinante 2–5 com 8 dígitos ou 9 com 9 dígitos) e por unidade de exame após o número. Celular sem DDD (`9xxxx-xxxx`) passa a sair: é contato, coerente com "conservador".
+- 2026-10-15 · plano · onda 0 — (usuário) Contexto clínico inclui prescrições `draft` e exames `pending_review`, com rótulos de provisório/não validado; a regra nova entra no `BASE` comum, então as três versões de prompt sobem para `.v2`.
+- 2026-10-15 · plano · onda 0 — (usuário) Declaração do ditado dentro de `AiTerms`, `VERSION` = `2026-10-v2`; o reaceite usa o mecanismo existente (`hasAcceptedTerms` → `ai_terms_pending`), sem migration nem DML. Tenants de dev com `2026-10-v1` passam a ver o aviso até o administrador aceitar de novo.
+- 2026-10-15 · plano · onda 0 — `ANTHROPIC_BASE_URL` só `https`, sem exceção para http: o código não previa localhost/stub e o stub não usa a URL.
+- 2026-10-15 · plano · onda 0 — Fuso: bug confirmado (sessão MySQL de dev em `-03:00`, `NOW()` local; `monthStart()` em UTC nos dois serviços). Correção no fuso de `date_default_timezone_get()`; a premissa "sessão MySQL no fuso de `APP_TIMEZONE`" vai para o runbook (T-15). EXPLAIN com volume segue pendência manual.
+- 2026-10-15 · plano · onda 0 — Locale único em `CentralVet\Ai\AiLocale` (arquivo novo, regra de `AiPromptCatalog::build`: `en` se começa com `en`, senão `pt`), para não colidir com a T-06 em `AiPromptCatalog.php`.
+- 2026-10-15 · plano · onda 0 — Autosave em voo: guarda por `draft_loaded_at` × `decided_at` da última `anamnesis_organize` aceita/editada, mais um timer único por formulário. Alternativa (só documentar com teste) descartada porque o teste ficaria verde documentando perda de texto.
+- 2026-10-15 · plano · onda 0 — T-07 (custo pós-fallback): o gateway passa o custo calculado por iteração (`AiProviderException::costMicroUsd()`); o bloco `fallback` em `content` já tem teste (`AnthropicMessagesGatewayTest:116`).
+- 2026-10-15 · plano · onda 0 — `T-19-cleanup.sql` do plano anterior não é rastreado pelo git (pasta `.claude/tasks/mar-20261007-...` inteira está `??`): a T-15 edita sem commit e prova com `diff` contra `baseline/T-19-cleanup.orig.sql`.
+- 2026-10-15 · plano · onda 0 — Baseline php-lint 0 linhas (`baseline/php-lint.txt`).
+- 2026-10-15 · plano · onda 0 — (usuário) Branch base `main` confirmada.
+- 2026-10-15 · plano · onda 0 — (usuário) Fuso confirmado: mês da cota em `APP_TIMEZONE` (`date_default_timezone_get()`), supondo a sessão MySQL no mesmo fuso; a premissa vai ao runbook (T-15).
+- 2026-10-15 · plano · onda 0 — (usuário) Autosave em voo: guarda `draft_loaded_at` × `decided_at` mantida; T-09 como planejada.
+- 2026-10-15 · plano · onda 0 — (usuário) Celular sem DDD (`9xxxx-xxxx`) mascarado como `[TELEFONE]` confirmado (T-03).
+- 2026-10-15 · plano · onda 1 — O orquestrador ajustou plan.md § Estratégia de execução: o comentário entre parênteses em `- Branch de trabalho:` impedia o repos.py --preparar de ler a branch; a observação foi movida para a linha `- Observação:`. check-plan.py seguiu OK.
+- 2026-10-15 · T-07 · onda 1 — Contrato para T-09: EncounterView deve emitir data-label-listening/-no-speech/-audio-capture/-network/-error no botão de ditado; fallback para data-label-error se vazio.
+- 2026-10-15 · T-08 · onda 2 — Validador confirmou que o literal `method=onAiExamSummary` não aparece em src/app/control (TButton ai_summarize usa TAction); critério atendido. Aceitar sem `ai_suggestion_sha256` postado vira `edited` (interpretação literal da Interface).
+- 2026-10-15 · T-09 · onda 2 — Três casos novos (edited no Aceitar, descarte com rascunho, outra unidade) já passavam no RED por o comportamento existir; aceito, o RED cobre o caso novo testInFlightAutosaveAfterApplyKeepsTheAppliedAnamnesis. Teste de outra unidade rodou (não SKIP).
+- 2026-10-15 · T-10 · onda 2 — overview() fora do Adianti nega por falta de TSession; checagem de terms_current feita em subprocesso com transação revertida.
+- 2026-10-15 · T-13 · onda 2 — RED usou opus-5-5 × sonnet-5 porque sonnet-5-5 e sonnet-5 têm o mesmo preço em AiModelPricing.
+- 2026-10-15 · T-15 · onda 3 — Edição do T-19-cleanup.sql não rastreado aceita sem commit: o arquivo está nos Arquivos prováveis e a pasta do plano anterior não é versionada.
+
+- 2026-10-15 · plano · onda 4 — (orquestrador) Bloqueante `plano-mandou` da revisão final (PII: `(85) 8765-4321`/`85 8765-4321` sem máscara): CORRIGIR → T-16, que agrupa os itens 6/7 do code-review (mesmo arquivo). DDD entre parênteses/`+55` é sempre contato; DDD solto só é isento por unidade de exame, faixa redonda (metades terminadas em `00`) ou marcador de referência; celular sem DDD só com palavra de contato antes (mantém a decisão do usuário em contexto de telefone; o caso `98765-4321` sem contexto do teste da T-03 muda de propósito).
+- 2026-10-15 · plano · onda 5 — Guarda do autosave `draft_loaded_at` × `decided_at` substituída por SHA-256 da anamnese carregada/salva pela aba, com aviso de conflito (code-review item 1) → T-17. Revoga a decisão de plano da onda 0 sobre a guarda.
+- 2026-10-15 · plano · onda 5 — https exigido só com `AI_PROVIDER=anthropic` (code-review item 2) → T-18; ajusta a decisão "sem exceção para http" da onda 0.
+- 2026-10-15 · plano · onda 5 — Revoga o ruling `T-08 · onda 2` (Aceitar sem `ai_suggestion_sha256` vira `edited`): sem SHA fica `accepted`, como na EncounterView; texto vazio é recusado com `Edited AI text must not be empty` → T-20.
+- 2026-10-15 · plano · onda 5 — Fora do escopo das correções (sugestões): mover allowlist/normalização/rebaixamento por SHA dos dois `onAiDecide` para `AiAssistService::decide`; demais sugestões abertas da triagem da revisão final não citadas no ruling.
+- 2026-10-15 · T-16 · onda 4 — (bloqueante plano-mandou da revisão final) Regressão de PII do telefone DDD+8 dígitos: corrigir, origem da onda 4.
+- 2026-10-15 · T-16 · onda 4 — (rodada 1, plano-mandou) Corrigir: palavra de contato vale na frase; ref/VR só isenta o número imediatamente associado.
+- 2026-10-15 · T-16 · onda 4 — (rodada 2) Escopo da palavra de contato termina só em quebra de linha, `;` ou `/`, nunca em `.` (abreviações). Contagens na mesma linha de uma palavra de contato serem mascaradas é limite conservador aceito.
+- 2026-10-15 · T-16 · onda 4 — `98765-4321` sem palavra de contato fica intacto (mudança intencional do item 7 do code-review; PiiMinimizerTest:46 ajustado).
+
+- 2026-10-15 · plano · onda 5 — (orquestrador) `/` só encerra o escopo da palavra de contato quando separa itens (espaço dos dois lados); abreviações coladas (`p/`, `c/`, `s/`) não cortam → T-22, na onda 5 com T-17..T-20 (arquivos disjuntos). Sugestão de compilar a regex de `LAB_UNITS` uma vez já está em `82d77d6`; a T-22 só confere. Persona Hipátia (precisão): a lista de personas da skill esgotou nesta sessão.
+- 2026-10-15 · T-22 · onda 5 — `/` só encerra o escopo de contato quando separa itens (" / "), nunca em abreviações coladas (p/, c/, s/); "Ligar p/ tutor 98765-4321" vazava desde 2b4945c. Task criada porque T-16 esgotou as 3 rodadas.
+- 2026-10-15 · T-17 · onda 5 — Desvio aceito pelo revisor: o JS identifica a marca de conflito por regex (a resposta do autosave no harness de teste inclui a página re-renderizada; em produção, com static=1, é só o span).
+- 2026-10-15 · T-19 · onda 5 — Com a regra única AiLocale, idioma `es` passa a formatar números como pt em AiSettingsForm (intencional).
+- 2026-10-15 · T-20 · onda 5 — testInteractionOfAnotherExamIsNotFound passou a postar texto não vazio, porque a recusa de texto vazio ocorre antes do "não encontrado"; o caso segue testando outro exame (confirmado pelo validador).
+
+- 2026-10-15 · plano · onda 6 — (usuário) PiiMinimizer MASCARA POR PADRÃO todo número com formato de telefone (com ou sem DDD, fixo de 8, celular de 9, `1198765-4321`, `+55`, `(85) 9 8765-4321`, `9 8765-4321`), com ou sem palavra de contato. Exceção única: (a) unidade de `LAB_UNITS` logo depois; (b) marcador `VR`/`ref`/`referência` logo antes, sem celular de 9 dígitos iniciado em 9. Saem a regra das metades `00` e o escopo por palavra de contato (`hasContactWordBefore`, `CONTACT_WORDS`). Aceito que valor de exame sem unidade vire `[TELEFONE]`. Revoga o item 7 das ondas 4/5 (celular sem DDD só com contexto), o ruling das metades `00` e o ruling da T-22 sobre `/` (o escopo deixa de existir) → T-23.
+- 2026-10-15 · plano · onda 6 — (usuário) Autosave com versão no serviço: `Encounter::draftVersion()` (SHA-256 dos campos de rascunho; não há coluna de versão, e migration exigiria aprovação SQL), UPDATE condicional por `updated_at` lido, `previous_draft` para não travar após resposta perdida, `data-seq` para ignorar respostas velhas. Conflito não grava nenhum campo; cliente sem versão é conflito; "Manter meu texto"/"Recarregar a página". Revoga a guarda da T-17 no controller → T-24.
+- 2026-10-15 · plano · onda 6 — (usuário) "Aceitar" sem hash na ExamResultForm compara com `suggestion_text` gravado: igual `accepted`, diferente `edited` com o texto do usuário; vazio recusado. Revoga a regra da T-20 para o caso sem hash → T-25. A EncounterView não é tocada pela T-25 (a T-24 a tem na mesma onda); a regra igual em `EncounterView::onAiDecide` e a unificação em `AiAssistService::decide` ficam como sugestão.
+- 2026-10-15 · plano · onda 7 — Runbook `ia-assistente.md` atualizado depois das T-23/T-24 → T-26. Personas novas fora da lista (Ada, Dijkstra, Curie): lista esgotada nesta sessão.
+- 2026-10-15 · T-23 · onda 6 — Exceção VR/ref não vale com parênteses no DDD ou +55.
+- 2026-10-15 · T-23 · onda 6 — (rodada 1) Itens 1–3 corrigir (separadores, prefixo tronco/operadora, celular nunca isento); item 4 NÃO corrigir: fixo de 8 dígitos com DDD sem parênteses após VR/ref é risco aceito (indistinguível de "VR: 12 3512-4587", preservado por decisão do usuário) — documentar no runbook (T-26).
+- 2026-10-15 · T-23 · onda 6 — (rodada 2) Número com formato de telefone mascarado por inteiro, prefixo 0 incluído.
+- 2026-10-15 · T-23 · onda 6 — Efeitos aceitos de mascarar por padrão: "2024/2025", "123456-7890", valores sem unidade como "Hb 12,5 3500-4500" viram [TELEFONE].
+- 2026-10-15 · T-24 · onda 6 — (gate) RED inválido aceito: 5fee8ad tocou FakeEncounterRepository.php, fixture exigido pela interface nova e listado em Arquivos prováveis.
+- 2026-10-15 · T-24 · onda 6 — (rodada 1) onAiDecide: Descartar não grava rascunho; Aplicar grava só anamnesis_text com guarda de versão; conflito → não grava, interação fica pending_review; saveDraft removido.
+- 2026-10-15 · T-24 · onda 6 — Atomicidade: updated_at é timestamp(6); UPDATE condicional por updated_at é suficiente.
+- 2026-10-15 · plano · onda 8 — (usuário) Revoga em parte o "mascarar por padrão" da onda 6, só neste ponto: fixo de 8 dígitos (4+4) sem DDD, sem `+55`, sem tronco `0` e sem parênteses não é mascarado. Fixo só é mascarado com DDD, `+55`, tronco `0` ou parênteses. Celular de 9 dígitos (`9xxxx-xxxx`) continua sempre mascarado, com ou sem DDD. O resto não muda (VR/ref, `LAB_UNITS`, prefixos, separadores). Expectativa registrada: `Leucócitos 12 3500-4500` sem unidade tem formato DDD + fixo e segue `Leucócitos [TELEFONE]`; `VR: 12 3512-4587` segue intacto, e o risco aceito (fixo com DDD solto depois de VR/ref) continua documentado → T-27.
+- 2026-10-15 · plano · onda 8 — (code-review 004d11c..HEAD) A guarda do rascunho passa a `SELECT ... FOR UPDATE` + `draftVersion()` só dos campos de rascunho; `updated_at` deixa de ser guarda. Os números do rascunho são normalizados (vírgula → ponto, escala da coluna) antes de hashear e de gravar. `save()` de encontro existente não escreve mais as colunas de rascunho: pause, resume, finish e acceptAiSummary não regravam o rascunho, o mínimo seguro. "Aplicar" envia o `previous_draft` do tick em voo. `onAutosave` usa `postedDraftVersion()` → T-28.
+- 2026-10-15 · plano · onda 9 — Regra de "Aceitar" unificada em `AiAssistService::resolveDecision`, usada pela ExamResultForm e pela EncounterView. Na EncounterView, "Aceitar" com texto vazio passa a ser recusado, como na ExamResultForm (nunca grava texto que o usuário apagou) → T-29. Runbook → T-30. Personas novas fora da lista: Noether, Lamport, Euclides.
+- 2026-10-15 · T-27 · onda 8 — Decisão do usuário: fixo 4+4 sem DDD não é mascarado; celular sempre; fixo com DDD/+55/0/parênteses mascarado.
+- 2026-10-15 · T-27 · onda 8 — Guarda de decimal só para sequência sem separador interno; "/" e "," aceitos entre DDD e assinante.
+- 2026-10-15 · T-27 · onda 8 — Separador geral: 1–3 chars de espaço/pontuação/símbolo; 4+ não casa (limite aceito).
+- 2026-10-15 · T-27 · onda 8 — `NN,` + 8/9 dígitos colados = telefone se NN for DDD válido e houver formato de assinante; senão decimal. Custo aceito: "Densidade 11,23456789", "Fator 12,987654321" mascarados. Risco aceito: "085,987654321" intacto.
+- 2026-10-15 · T-27 · onda 8 — "Fator 1,85 98765-4321" → "Fator 1,[TELEFONE]" (máscara mais ampla).
+- 2026-10-15 · T-28 · onda 8 — (gate) RED de (f) com asserção corrigida na implementação: aceito.
+- 2026-10-15 · T-28 · onda 8 — (gate) Vital numérico inválido derrubando o tick: bloqueante corrigido (campo inválido não gravado, demais gravados, aviso por campo).
+- 2026-10-15 · T-28 · onda 8 — Toques em DraftSaveResult.php e translations.json fora dos Arquivos prováveis: aceitos.
+- 2026-10-15 · T-28 · onda 8 — (rodada 1) Faixa: só a faixa da coluna (domínio sem faixa fisiológica); catch de onAutosave/Aplicar nunca silencioso (marca cv-autosave-error).
+- 2026-10-15 · T-28 · onda 8 — Texto maior que a coluna (ex.: mucosas > 60) cai no aviso de erro genérico e o tick não é gravado — pendência (sugestão: maxlength no campo).
+- 2026-10-15 · T-28 · onda 8 — Revisão da rodada 1 parou no limite de turnos e foi concluída por SendMessage.
+- 2026-10-15 · T-29 · onda 9 — (rodada 1) Toda recusa/erro em onAiDecide, nas duas telas, mantém o rascunho postado e a sugestão pendente na tela, com aviso, sem gravar nada.
+- 2026-10-15 · T-29 · onda 9 — Regra única em AiAssistService::resolveDecision: sem hash, igual à sugestão gravada → accepted; diferente → edited com o texto do usuário; vazio → recusado (EncounterView agora também recusa Aceitar vazio).
+
+- 2026-10-15 · plano · onda 10 — (usuário) Última onda focada, com escopo fechado nos 6 itens do /code-review de d5e657c..HEAD. Refatorações e docblocks da revisão final rodada 4 ficam como pendência.
+- 2026-10-15 · plano · onda 10 — Guarda de decimal (T-31): um casamento com celular (9 dígitos começando em 9, com ou sem DDD) logo depois de `\d[.,]` só é isento quando a sequência de dígitos R imediatamente antes do `[.,]` não é ela mesma precedida de `\d[.,]` e R tem 1 dígito (inclui `0`) ou 2 dígitos que não formam DDD. Fixo depois de `\d[.,]` segue a regra atual. O risco aceito de `085,987654321` deixa de existir, porque a regra nova o mascara sem custo extra.
+- 2026-10-15 · plano · onda 10 — Encontro finalizado (T-32): a regra de domínio é `status === finished` (o domínio só tem `in_progress`/`finished`), checada sob o `FOR UPDATE`. O resultado `closed` não grava nada, e a tela mostra a chave existente `This encounter is finished and can no longer be edited` sem apagar o texto local. Os vitais passam a ter mínimo 0 (peso 0..9999.99, como no PatientService).
+- 2026-10-15 · T-31 · onda 10 — (gate) "085,987654321" mascarado inteiro ([TELEFONE]), mais seguro que "085,[TELEFONE]".
+- 2026-10-15 · T-31 · onda 10 — (rodada 1) Guarda de decimal protege só até 9 dígitos fracionários; 10–13 dígitos com formato de telefone → [TELEFONE] inteiro; "3,14159265358979" intacto.
+- 2026-10-15 · T-32 · onda 10 — (rodada 1) Watchdog por requisição; aceite do resumo grava só ai_summary_text sob lock com checagem de status; EncounterRepository, interface e fake autorizados.
+- 2026-10-15 · T-32 · onda 10 — Resumo aceito/Descartar em encontro finalizado recusados via findById (não gravam rascunho).
+- 2026-10-15 · T-32 · onda 10 — pause/resume/finish lendo sem lock e regravando status via save() (corrida pausa × finish): pré-existente e fora do escopo da 8A — pendência.
+- 2026-10-15 · T-34 · onda 11 — O agente da T-34 alterou tasks.md (T-34 [ ]→[x]) por sed, fora do seu papel; o status coincide com o decidido e o fechador assumiu o arquivo.
+
+## Bloqueios
+- nenhum
+
+## Descobertas
+- [T-01] AiLocale::fromLanguage disponível (e1b410c): `en` se começa com `en`, senão `pt`.
+- [T-07] cv-ai-dictation.js lê data-label-listening/-no-speech/-audio-capture/-network/-error do botão (vazio cai para -error); a EncounterView (T-09) precisa emiti-los traduzidos.
+- [T-03] CLINICAL_TERMS inclui também sangue, pele, pelo, cor; AiPromptCatalogTest em HEAD falhava só nas asserções v2 do RED da T-06 (resolvido na T-06).
+- [T-04] AiTerms::VERSION = '2026-10-v2'; testes que semeiam termo aceito devem usar AiTerms::VERSION.
+- [T-06] AiPromptCatalog::VERSIONS `.v2`; mudar texto de prompt exige nova versão e SHA em AiPromptCatalogTest. patientHistory() devolve `status` nas prescrições e `pending_review` nos exames; examResultContext() ganhou `pending_review`.
+- [T-08] ExamResultForm: botão `ai_summarize` é TButton em `form_ExamResultAiSummary_<id>`; o onclick ainda contém `method=onAiExamSummary` no HTML renderizado (só o fonte não tem o literal).
+- [T-09] EncounterView emite data-label-* do ditado (5 chaves em translations.json); autosave leva draft_loaded_at e onAutosave descarta anamnesis_text se a última anamnesis_organize aceita/editada é posterior.
+- [T-13] AiProviderException ganhou costMicroUsd (último parâmetro); AiInteraction::recordFailure ganhou ?int $costMicroUsd (6º parâmetro).
+- [T-16] Correções 1 e 2 registradas em Decisões; "Ligar p/ tutor 98765-4321" sai intacto (o `/` que abre trecho com palavras corta o contexto; ruling mantido).
+- [T-22] PiiMinimizer::hasContactWordBefore só corta o escopo em `/` com espaço dos dois lados; "p/", "c/", "s/", "mg/dL" não cortam.
+- [T-20] ExamResultForm::onAiDecide recusa `accepted`/`edited` com texto normalizado vazio antes de assertSameResult/transação; Aceitar só vira `edited` com SHA postado não vazio e divergente.
+- [T-17] EncounterView: autosave envia anamnesis_base_sha256; onAutosave imprime span `cv-autosave-conflict` ou `cv-autosave-base`; draft_loaded_at e anamnesisDecidedSince removidos; chave nova de aviso em translations.json.
+- [T-22] PiiMinimizer::hasContactWordBefore só corta o escopo em `/` com espaço dos dois lados (" / "); "p/", "c/", "s/", "mg/dL" não cortam. "Ligar p/ tutor 98765-4321" → "Ligar p/ tutor [TELEFONE]". Commits 257cdf4 (RED) e o fix seguinte.
+- [T-20] ExamResultForm::onAiDecide (d393e74 RED, c69e78e): accepted/edited com ai_final_text normalizado vazio → TMessage 'Edited AI text must not be empty' antes de assertSameResult/transação (precede o "não encontrado"); Aceitar só vira edited com SHA postado não vazio e divergente. testInteractionOfAnotherExamIsNotFound agora posta texto não vazio.
+- [T-25] ExamResultForm::onAiDecide: Aceitar sem ai_suggestion_sha256 compara o texto normalizado com suggestion_text gravado (após o find, na transação): igual accepted, diferente edited com o texto postado; com hash e vazio inalterados (commits 0e04640 RED, 2507624).
+- [T-23] PiiMinimizer (ae8a880 RED, 03e7547): todo número com formato de telefone vira [TELEFONE]; exceções só unidade de LAB_UNITS logo depois (sem parênteses/+55) e marcador VR/ref sem celular 9xxxx. CONTACT_WORDS, hasContactWordBefore e a regra das metades 00 removidos; classifyDigits roda antes da regex de telefone. "Leucócitos 12 3500-4500" sem unidade agora sai "Leucócitos [TELEFONE]".
+- [T-23] Correção 1 (6db8563 RED, 062d331): a exceção VR/ref e a de unidade não valem para número com DDD entre parênteses ou +55 ("VR (85) 3456-7890" → "VR [TELEFONE]").
+- [T-24] EncounterService::autosave(int, array, ?string $expectedVersion, ?array $previousDraft = null): DraftSaveResult (5fee8ad RED, 62f2d3e); saveDraft() tem o comportamento antigo (usado por onAiDecide). Encounter::draftVersion() formata números na escala da coluna (decimal(4,1)/(6,2)/int), além do contrato. EncounterRepositoryInterface ganhou saveDraftIfUnchanged (seta updated_at = CURRENT_TIMESTAMP(6)). FakeEncounterRepository agora guarda cópia reconstituída com updated_at do relógio próprio (save() devolve a cópia guardada); hook beforeConditionalSave(). EncounterView: onAutosave imprime span cv-autosave-result; anamnesisSha e marcadores da T-17 removidos; chaves "Keep my text"/"Reload the page" em translations.json.
+- [T-23] Correção 2 (17049fa RED + fix): separador entre metades aceita espaço, '.', '/' e traços Unicode com espaços; dígitos colados 0+[operadora]+DDD+assinante (12–13) → [TELEFONE]; celular 9+8 nunca isento por unidade; pg/fL só com caixa exata e sem número depois. Risco aceito: fixo de 8 com DDD solto após VR/ref fica intacto (runbook, T-26).
+- [T-24] Correção 1 (ffb6500 RED, d5426e0): onAiDecide não grava rascunho em Descartar; Aplicar grava só anamnesis_text via autosave versionado (draft_version postado do THidden do form); conflito → decisão fica pending_review e a tela mostra o aviso; sucesso re-renderiza a página (sem goto). EncounterService::saveDraft removido.
+- [T-23] Correção 3 (a46eebc RED, 6d44921): tronco 0 (+ operadora opcional) antes do DDD e "(085)" entram no casamento e são mascarados por inteiro; DDD colado vale também para fixo ("0853456-7890" → [TELEFONE]).
+- [T-27] PiiMinimizer (4847599 RED, 527b2f9): fixo de 8 sem prefixo (DDD/(DDD)/+55/tronco 0) fica intacto; celular 9+8 sempre [TELEFONE]; casamento logo após \d[.,] fica intacto em todos os ramos, salvo item de lista (casamento anterior termina no [.,]); unidade em fim de frase (". 2 doses") mantém a exceção. PHONE_SHAPE tem grupos nomeados prefix/cell. "Tel: 3456-7890", "Hb 12,5 3500-4500" agora intactos.
+- [T-28] (407d8cc RED, 79d3ac7) EncounterRepositoryInterface: saveDraftIfUnchanged saiu; entram lockForDraft(int): ?Encounter (SELECT ... FOR UPDATE, LogicException sem transação) e updateDraft(Encounter): void (só DRAFT_FIELDS). save() de encontro existente não grava mais as colunas de rascunho. Encounter::applyDraft normaliza números ("38,5" → "38.5", peso "12.50", FC/FR int) e lança InvalidArgumentException em não numérico; weightKg()/temperatureC() passam a devolver string na escala. FakeEncounterRepository: conditionalSaves/beforeConditionalSave → locks/draftUpdates. EncounterView: THidden previous_draft no form; helper previousDraft renomeado postedPreviousDraft; onAiDecide envia previous_draft.
+- [T-28] Correção 1 (ebb210e RED + fix): DraftSaveResult ganhou `array $invalidFields = []` (3º parâmetro); Encounter::invalidDraftNumbers(array): list<string>; EncounterService::autosave tira do draft (e do previous_draft) número inválido e grava o resto; onAutosave imprime `<span class="cv-autosave-invalid" data-field="...">` por campo; chave nova "^1: invalid number, not saved" em translations.json; div #encounter_autosave_invalid na view.
+- [T-27] Correção 1 (151d80c RED, e77dcc9): guarda de decimal só para casamento só de dígitos (sem separador) após \d[.,]; com separador é telefone ("1,98765-4321" → "1,[TELEFONE]"); DDD solto aceita "/" e "," antes do assinante ("Tel 85/3456-7890" → [TELEFONE]); guarda do tronco 0 restaurada.
+- [T-28] Correção 2 (0882ff6 RED + fix): Encounter::invalidDraftNumbers também marca valor fora da faixa da coluna (decimal(4,1) ±999.9, decimal(6,2) ±9999.99, int unsigned 0..4294967295; sem faixa fisiológica, o domínio não tem constante). onAutosave em exceção imprime `<span class="cv-autosave-error" data-seq="N">…</span>`; onAiDecide com falha na gravação do Aplicar faz rollback, mantém os campos e mostra TMessage. Chave nova "Could not save the draft; your text is still on the screen." em translations.json.
+- [T-27] Correção 2 (8c589b6 RED, d34acb9): separador de telefone geral (espaços/NBSP + 1–3 chars \p{P}/\p{S}) após +55/tronco/operadora/DDD/9 inicial e entre metades; HALF_SEPARATOR removido; "1–3 dígitos,8–9 dígitos" (só vírgula) é decimal e fica intacto.
+- [T-27] Correção 3 (da3adf1 RED, 1ff881d): `NN,` + 8–9 dígitos colados é telefone se NN ∈ DDDs válidos (const DDDS) e assinante 9+8 ou fixo 2–5+7; senão decimal intacto. `Densidade 11,23456789`/`Fator 12,987654321` passam a mascarados (custo aceito); intactos trocados por 10/20. SUITE 1426/0.
+- [T-29] Correção 1 (5c76a22 RED, 431be24): onAiDecide da EncounterView e da ExamResultForm mantêm rascunho e sugestão pendente em qualquer recusa; resolveDecision (13026d0) é a regra única de Aceitar.
+- [T-30] e2970d1: runbook com fixo sem DDD intacto e atomicidade do autosave.
+- [T-31] (4ab5ddc RED, 55ea92a) PiiMinimizer::isDecimalPart ganhou `bool $isCell` (5º parâmetro): celular após `\d[.,]` só fica intacto se R (dígitos antes do `[.,]`) tem 1 dígito ou 2 fora de DDDS e não vem depois de `\d[.,]`; "123,987654321", "123,85987654321", "38,5,987654321" → mascarados; "085,987654321" → "[TELEFONE]" (inteiro, não "085,[TELEFONE]"). Fixo e listas inalterados.
+- [T-32] (0e7c216 RED, 33b1669) Encounter::isFinished(); DraftSaveResult ganhou `bool $closed = false` (4º parâmetro); EncounterService::autosave checa isFinished sob o lockForDraft e devolve closed sem gravar; onAutosave imprime data-status="closed"; NUMERIC_DRAFT_RANGE com mínimo 0 (negativo vai para invalidFields); isCurrentBase cobre pelas chaves cruas do previous_draft. Script do autosave: showError(), watchdog setTimeout 25 s, resposta sem marca do tick mais recente é erro (awaiting fica true). onAiDecide: Aplicar decide por closed; resumo/Descartar seguem pelo findById.
+- [T-32] Correção 1 (2e7948e RED, 88e1842): EncounterRepositoryInterface ganhou updateAiSummary(Encounter): void (só ai_summary_text/ai_summary_accepted_at); EncounterService::acceptAiSummary lê com lockForDraft (exige transação) e Encounter::acceptAiSummary lança InvalidStatusTransitionException em encontro finalizado. Watchdog do autosave por requisição (appliedSeq < sent). Risco registrado: pause/resume/finish ainda leem sem lock e save() regrava status/finished_at/resumo.
+- [T-31] Correção 1 (853b128 RED, 9102aef): pré-passe em maskPhones mascara 10–13 dígitos colados logo após `\d[.,]` quando a sequência inteira é (55|0+operadora)? + DDD válido + 9+8/2–9+7 ("7,85987654321" → "7,[TELEFONE]", "1,8534567890" → "1,[TELEFONE]"); "3,14159265358979" intacto; fração até 9 dígitos sem mudança.
+- [T-33] AiAssistService::normalizeText agora é public static (e780aa9 RED, 9075eba); EncounterView e ExamResultForm não têm mais cópia própria e chamam \CentralVet\Application\AiAssistService::normalizeText, inclusive no SHA de ai_suggestion_sha256.
+
+## Pendências
+- Manuais do usuário (fora do escopo): smoke real com `ANTHROPIC_API_KEY`; verificação visual das telas em dev (menu IA, AiSettingsForm com reaceite do termo v2, EncounterView com ditado e mensagens de erro, ExamResultForm com o botão de resumo por POST, alvos ≥ 44 px, rótulos à esquerda); EXPLAIN com volume de `monthlyTokenUsage`/`monthlySummary`; execução da limpeza SQL; chaves `Reload`/`System`/`Dark mode`/`Update`.
+- Produto, não pedidas: N+1 dos itens de prescrição no contexto; visão só leitura do exame sem anexo nem `markReviewed`; `AiInteractionList::userNames` sem teste; "Aceitar" com `ai_final_text` esvaziado na EncounterView aplica a sugestão original; DRAFT_FIELD inválido bloqueia a decisão na EncounterView.
+- T-02: sugestão — `httpsUrl` aceita query/fragment/userinfo e o gateway concatena `/v1/messages` (AiConfig.php:191-204).
+- T-04: sugestão — nenhum teste de tela semeia tenant v1 e afirma o aviso de termo não aceito (AiSettingsScreensIntegrationTest).
+- T-05: sugestão — testDecideUnknownDecisionFailsBeforeAuthorizationAndAudit não prova que `find()` não é chamado antes do guard (AiAssistServiceTest:507).
+- T-06: sugestão — trava texto×versão cobre só o `system`, não os rótulos do userContent; docblock de AiClinicalContextQueryInterface (:22,:27) defasado (candidato à T-15).
+- T-07: sugestão — asserções data-label-* do teste são substring no arquivo todo; acrescentar `clip-path: inset(50%)` ao lado de `clip` (cv-components.css:950).
+- T-03: sugestão — `x10³/µL`/`mil/mm³` fora de UNIT_AHEAD; nome de uma palavra igual a termo clínico segue candidato (limite conhecido); faltam testes de unidades `%`, `U/L`, `mmol/L`, `g/dL`, `/uL`, `/mm³`, `pg` e do celular sem DDD com unidade.
+- Onda 1 (validador): `grep method=onAiExamSummary` ainda acha ExamResultForm.php:507 (escopo da T-08, onda 2); critério "nenhum push" não verificável por remoto (`origin/feat/fase-8a-ai-gateway` inexistente; nenhum push feito); validador conferiu só a existência de reports/T-NN.md, não o conteúdo.
+- Onda 2: `origin/feat/fase-8a-ai-gateway` inexistente; "nenhum push" não verificável por remoto (nenhum push feito).
+- T-08: sugestão — nenhum teste prova que `\Error` em loadSavedResult/onAiExamSummary/onAiDecide é capturado; otherUnitId pode ser de outro tenant (docblock diz mesmo tenant); Aceitar sem SHA vira `edited` aqui e a EncounterView exige SHA não vazio (telas divergem).
+- T-09: sugestão — o tick atrasado do teste de autosave em voo não prova que só anamnesis_text é descartado (postar campo não-anamnese alterado); guarda decided_at × draft_loaded_at pressupõe sessão MySQL no fuso de APP_TIMEZONE, sem teste de fuso divergente.
+- T-10: sugestão — o subprocesso de terms_current não semeia ai_tenant_setting; gravar linha com AiTerms::VERSION e asserir `=== true`.
+- T-12: sugestão — `use DomainException;` antes de `use DateTimeImmutable;` em AiDomainTest.php:20-21.
+- T-13: sugestão — modelo desconhecido numa iteração: recordFailure reprecifica a soma por um só modelo (AiInteraction.php:211), contradizendo "modelo desconhecido → null".
+- T-14: sugestão — assertScreenKeysTranslated decodifica translations.json duas vezes; usar array_key_exists (UserMessageTest.php:537-541).
+- T-15: sugestão — linhas novas passam da quebra de ~80 colunas (0006-ai-gateway.md:24,37,40; ia-assistente.md:145).
+- Docblock de AiClinicalContextQueryInterface (:22,:27) defasado (sem status/pending_review), fora do escopo de T-06 e T-15; levar à revisão final.
+- Onda 3: `origin/feat/fase-8a-ai-gateway` inexistente; "nenhum push" não verificável por remoto (nenhum push feito).
+- T-16: sugestão — `(85) 9 8765-4321` (9 separado do assinante) não é mascarado pelo SUBSCRIBER (PiiMinimizer.php:57); rodada 3 reproduz mascarado, conferir.
+- T-16: sugestão — isClinicalRange recompõe a regex de LAB_UNITS a cada casamento; calcular uma vez em static (PiiMinimizer.php:163-166).
+- T-16: sugestão — palavra de contato na frase vence a unidade listada logo após o número ("Contato feito com tutor, leucócitos 12 3500-4500 x10³/µL" → máscara); limite conservador (PiiMinimizer.php:124-128).
+- T-16: nota — "Ligar p/ tutor 98765-4321" sai intacto desde 2b4945c (regressão frente a 26175c0, corte em `/` por ruling).
+- Onda 4: `origin/feat/fase-8a-ai-gateway` inexistente; "nenhum push" não verificável por remoto (nenhum push feito).
+- T-17: sugestão — docblock de `autosaveScript` ainda diz que o HTML re-renderizado é descartado (EncounterView.php:1121); TOCTOU entre `findById` (SHA) e `autosave` sem lock (UPDATE condicional ao SHA); sem teste do lado cliente do aviso; resposta sem marca ainda mostra "Saved at" (:1184-1189).
+- T-18: sugestão — runbook `docs/runbooks/ia-assistente.md:62` diz "Só https" sem citar que com `AI_PROVIDER=stub` a URL não é validada.
+- T-19: sugestão — docblock de AiLocale (:9-10) ficou circular ("Same rule as AiPromptCatalog::build"); trocar por "build and the AI screens delegate here".
+- T-20: sugestão — falta caso de teste para `decision=edited` com `ai_final_text` em branco (ExamResultAiIntegrationTest.php:318).
+- T-22: sugestão — corte só em " / " mascara valor de exame após `/` sem espaço de um lado (excesso de máscara, lado seguro; PiiMinimizer.php:157); o caso `Falar c/ responsável (85) 98765-4321` não exercita o `/` de abreviação (falta caso `c/` sem DDD).
+- Onda 5: `origin/feat/fase-8a-ai-gateway` inexistente; "nenhum push" não verificável por remoto (nenhum push feito).
+- T-23: sugestão — `(` aceito no marcador deixa "VR: (85 3456-7890" intacto; "Cel 987 654 321" e dígitos de largura total escapam; `0` solto/`0.xx` antes de faixa 4-4 com unidade é mascarado (sobre-mascaramento, PiiMinimizer.php:59,62,141,152).
+- T-24: sugestão — REPEATABLE READ: releitura no conflito devolve a versão do snapshot, "Manter meu texto" pode exigir dois cliques (EncounterService.php:199); tick em voo gera falso conflito/aviso e callback de script anterior age na página nova (EncounterView.php:1210,1253-1268,2087-2091); `previous_draft` parcial aceito (EncounterService.php:206-217); sem teste JS do cliente; catch do onAiDecide e `ai_free_text` perdem texto local como antes (EncounterView.php:2108-2131,2264-2294).
+- T-25: sugestão — caso igual sem hash não afirma `final_text`; testAcceptWithoutShaStaysAccepted pode ser fundido (ExamResultAiIntegrationTest.php:296,337).
+- Onda 6: a regra "sem hash compara com a sugestão gravada" ainda não está aplicada em EncounterView::onAiDecide (T-25 não a tocou); "nenhum push" não verificável por remoto (nenhum push feito).
+- T-26: sugestão — runbook mostra só o lado sem unidade (`Leucócitos 12 3500-4500` → `[TELEFONE]`); falta o contraste com unidade (`... x10³/µL` fica intacto) (ia-assistente.md:177-185).
+- T-26: sugestão — "`draft_version`, SHA-256 do conteúdo salvo" não diz que cobre só os 10 campos do rascunho clínico (Encounter::DRAFT_FIELDS, texto normalizado) (ia-assistente.md:150).
+- Onda 7: "nenhum push" não verificável por remoto (nenhum push feito).
+- T-27: sugestão — `pg2`/`pg.2` depois de fixo com DDD sem teste; `85 3456-7890 mg/dL.` fica intacto (exceção LAB_UNITS); runbook (T-30) pode citar (PiiMinimizer.php:182, PiiMinimizerTest.php:104,246).
+- T-27: sugestão — `Hb 12,55 3500-4500`→`Hb 12,[TELEFONE]`, `Glicose 85: 7000-9000`→`Glicose [TELEFONE]`, `Lote 21/34567890`→`Lote [TELEFONE]` (máscara mais ampla, lado seguro; com unidade fica intacto); runbook (T-30) pode citar (PiiMinimizer.php:65-75).
+- T-27: limite conhecido — `0.987654321` com ponto vira `[TELEFONE]` (sobre-mascaramento).
+- T-28: sugestão — texto maior que a coluna (mucous_membranes > 60, TEXT > 64 KB) cai no aviso genérico e o tick inteiro não é gravado; adicionar maxlength no campo e/ou validação de tamanho no domínio (Encounter.php).
+- T-28: sugestão — número inválido tirado do `previous_draft` pode gerar falso `conflict` no tick seguinte se a resposta anterior se perdeu (EncounterService.php:175,217).
+- T-28: sugestão — Aplicar com tick ainda não chegado: resposta `conflict` do script antigo chama `showConflict(true)` no DOM novo; aviso fica até o próximo tick (EncounterView.php:1340-1360).
+- T-28: sugestão — docblocks órfãos de `DRAFT_FIELDS` (EncounterView.php:66-84) e `NUMERIC_DRAFT_SCALE` (Encounter.php:70-83).
+- T-28: sugestão — paridade fake × PDO no retorno de `save()` (EncounterRepository.php:126; FakeEncounterRepository); teste de `acceptAiSummary` (d) só no fake e já passava no RED.
+- Onda 8: "nenhum push" não verificável por remoto (nenhum push feito).
+- T-29: sugestão — SHA renderizado com cópia privada de `normalizeText` em cada tela (EncounterView.php:1853, ExamResultForm.php:576) vs. AiAssistService.php:218; expor normalização/hash no serviço.
+- T-29: sugestão — EncounterView chama `resolveDecision` antes de conferir purpose/subject (EncounterView.php:2129-2131); conferir o subject antes, como a ExamResultForm.
+- T-30: sugestão — runbook ia-assistente.md:182 e :194-196: "celular 9+8 sempre mascarado" e frase do decimal são amplas demais (`1,987654321` intacto; `1,98765-4321` → `1,[TELEFONE]`).
+- T-30: sugestão — exceção do marcador cita só "DDD solto", mas `isClinicalNumber` aceita DDD colado após `VR`/`ref` (ia-assistente.md:190, :198-199; PiiMinimizer.php:202-218).
+- Onda 9: "nenhum push" não verificável por remoto (nenhum push feito).
+- T-31: sugestão — gluedPhonePattern aceita tronco 0 + operadora + DDD + celular (14 dígitos), mas o pré-passe limita a `\d{10,13}`; `1,02185987654321` fica intacto (PiiMinimizer.php:152).
+- T-32: sugestão — "Descartar" em corrida com `finish` só registra a decisão da interação (EncounterView.php:2157); `testApplyAfterFinishIsNotRecorded` é sequencial e não exercita a corrida.
+- T-32: sugestão — o teste do watchdog afere o código-fonte do script por regex, sem execução de JS (EncounterAiIntegrationTest.php:954-964).
+- T-32: pause/resume/finish leem sem lock e regravam status/colunas do resumo via save() (corrida pausa × finish pode reabrir o encontro): pré-existente à branch, fora do escopo da 8A.
+- Onda 10: "nenhum push" não verificável por remoto (nenhum push feito).
+- T-34: sugestão — parágrafo do decimal ("salvo quando `NN,` + 8–9 dígitos…") não ajustado e contradiz a regra nova; remeter à regra seguinte (ia-assistente.md:205-207).
+- T-34: sugestão — runbook omite que "Descartar" também é recusado com encontro finalizado na leitura (ia-assistente.md:176-180 vs EncounterView.php:2152-2157).
+- T-34: sugestão — runbook não diz que, com `closed`, os tiques param e a aba mostra "encontro finalizado" (ia-assistente.md:178-183 vs EncounterView.php:1374-1385).
+- Onda 11: "nenhum push" não verificável por remoto (nenhum push feito).
+
+## Riscos
+- Reaceite do termo: em produção, toda clínica com IA ligada perde o assistente até o administrador aceitar a v2. Mitigação: runbook (T-15) avisa; mensagem `ai_terms_pending` já traduzida.
+- Allowlist clínica: um nome cuja parte é termo clínico ("Luz", "Flor") pode sair no texto quando aparece sozinho. Aceito pela decisão do usuário; o nome completo continua mascarado.
+- Fuso: em hospedagem com sessão MySQL em fuso diferente de `APP_TIMEZONE`, o corte do mês desloca. Mitigação: premissa documentada no runbook (T-15).
+- SUITE sem filtro e compartilhada: com vários agentes na onda, `FAIL` de arquivo alheio é ruído (regra do agente).
+
+## Retomada
+- Pasta: `.claude/tasks/mar-20261015-1616-fase-8a-pendencias/`
+- Sessões: 7ae7100e-fb56-40d1-b5f9-954b0e3e5744
+- Branch de trabalho: feat/fase-8a-ai-gateway (base: main)
+- BASE da onda 1: 641c4f6
+- Commits por onda:
+- Entrega: . HEAD fe60580 → BASE 641c4f6 (commits internos desfeitos; alterações staged)
+  - Onda 1: BASE 641c4f6 → HEAD a5c5d93 (1da20bb, e1b410c, 5abf8ce, f5ff417, 83de556, 72a0986, 0c2ba0a, 6540b98, c43ed11, 1771452, 5b3f974, a5c5d93, 58cb4dd, 62f9c36)
+  - Onda 2: BASE 66c85b8 → HEAD c0ad508 (bbe3a4c, e77f659, befe3cc, 1cac5a3, 20c6b70, ac0d14f, 0973e43, 4348128, 4cc8127, 2d05567, c0ad508)
+  - Onda 3: BASE f891c25 → HEAD bd89df2 (16672cf, 27d1e7e, bd89df2)
+  - Onda 4: BASE 26175c0 → HEAD 82d77d6 (98aa6ee, 562df1e, 20896ff, 9908853, 2b4945c, 9fd4c8a, 82d77d6)
+  - Onda 5: BASE 154328d → HEAD 4507b84 (339c748, f14ffc7, cc74f8a, 02f8e10, d393e74, c69e78e, 257cdf4, 3ca14e0, 3b17129, 4507b84)
+  - Onda 6: BASE 004d11c → HEAD 6d44921 (ae8a880, 03e7547, 6db8563, 062d331, 17049fa, c6d6c87, a46eebc, 6d44921, 5fee8ad, 62f2d3e, ffb6500, d5426e0, 0e04640, 2507624)
+  - Onda 7: BASE c384651 → HEAD 580678d (ec61b11, 580678d)
+  - Onda 8: BASE d5e657c → HEAD 1ff881d (1ff881d, da3adf1, d34acb9, 8c589b6, 4aa2fdc, 0882ff6, e77dcc9, 151d80c, c065624, ebb210e, 79d3ac7, 407d8cc, 527b2f9, 4847599)
+  - Onda 9: BASE 77061ad → HEAD 431be24 (e2970d1, 92703c5, 13026d0, 5c76a22, 431be24)
+  - Onda 10: BASE fbf0469 → HEAD 9102aef (4ab5ddc, 0e7c216, 55ea92a, 33b1669, 853b128, 2e7948e, 88e1842, 9102aef)
+  - Onda 11: BASE baecd0b → HEAD 9075eba (e780aa9, 9075eba, 66f2933)
+- Último status conhecido: onda 11 concluída (T-33, T-34 [x]); gate SUITE 1452/1452, revisão rodada 1 aprovada. Resta a revisão final.
+- Próxima onda recomendada: nenhuma (revisão final)

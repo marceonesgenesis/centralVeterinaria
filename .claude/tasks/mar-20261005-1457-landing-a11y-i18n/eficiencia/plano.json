@@ -1,0 +1,254 @@
+{
+  "esquema": 1,
+  "plano": "/var/www/html/centralvet/.claude/tasks/mar-20261005-1457-landing-a11y-i18n",
+  "projeto": "/var/www/html/centralvet",
+  "repositorios": [],
+  "versao_plugin": "2.5.1?",
+  "gerado_em": "2026-10-05T15:17:28-03:00",
+  "sessoes": [
+    {
+      "id": "f5fb58b5-22f0-470a-ab96-189c6d59a62c",
+      "encontrada": true,
+      "transcript": "/home/marceonesdev/.claude/projects/-var-www-html-centralvet/f5fb58b5-22f0-470a-ab96-189c6d59a62c.jsonl"
+    }
+  ],
+  "planejamento": {
+    "tasks": 5,
+    "ondas": 2,
+    "revisoes_do_plano": 1,
+    "perguntas_planejador": 1,
+    "precisao_arquivos": 100,
+    "tasks_com_fora_do_previsto": 0,
+    "complexidade_x_rodadas": {
+      "média": 0,
+      "simples": 0,
+      "—": 0
+    }
+  },
+  "execucao": {
+    "tasks_registradas": 5,
+    "tasks_revisadas": 4,
+    "aprovadas_de_primeira": 4,
+    "rodadas_fix_loop": 0,
+    "breakers": 0,
+    "rulings": 11,
+    "perguntas_precisa_contexto": 0,
+    "red": {
+      "ok": 2,
+      "sem teste": 3
+    },
+    "ondas_de_correcao": [],
+    "tasks_de_correcao": 0
+  },
+  "sessao": {
+    "tokens_retidos_por_onda": [
+      32461,
+      28232,
+      17974,
+      22003,
+      7215
+    ],
+    "tokens_retidos_mediana": 22003,
+    "contexto_maximo": 256159,
+    "compactacoes": 0,
+    "turnos_validador": {
+      "max": 22,
+      "execucoes": 7,
+      "acima_da_meta": 0,
+      "meta": 30
+    },
+    "retornos": {
+      "total": 82,
+      "acima_do_limite": {
+        "planejador": 2,
+        "validador": 4,
+        "fechador": 3,
+        "implementador": 2
+      }
+    },
+    "retrabalho": {
+      "implementadores": 14,
+      "correcoes": 2,
+      "por_implementador": 0.14,
+      "custo_medio_correcao": null
+    },
+    "adesao_prompt": {
+      "disparos": 14,
+      "canonicos": 14,
+      "longos": 0
+    },
+    "duracao_min": 91.4,
+    "custo_tokens": {
+      "principal": 19932412,
+      "sub_agentes": 35754633
+    },
+    "planejador": {
+      "retornos": 4,
+      "com_perguntas": 1,
+      "mensagens": 1
+    }
+  },
+  "ultima_onda_medida": 2,
+  "ondas_sem_registro": [],
+  "causas": [
+    {
+      "id": "T-04",
+      "causa": "Edição do SQL histórico negada pelo classificador de permissões; usuário retirou a task do escopo"
+    },
+    {
+      "id": "T-05",
+      "causa": "Perfil Playwright persistente (sem contexto anônimo) e select #lead-vets nunca inválido no cliente exigiram limpar storage e aria-invalid sintético"
+    }
+  ],
+  "tasks": [
+    {
+      "esquema": 1,
+      "id": "T-01",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "frontend",
+      "persona": "Jaspion",
+      "complexidade": "média",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 5,
+      "arquivos_tocados": 5,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 0,
+      "rulings": 3,
+      "breaker": false,
+      "causa": null
+    },
+    {
+      "esquema": 1,
+      "id": "T-02",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "backend",
+      "persona": "Athena",
+      "complexidade": "simples",
+      "status": "[x]",
+      "produz": true,
+      "consome": false,
+      "red_previsto": "teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 3,
+      "arquivos_tocados": 3,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "ok",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 0,
+      "rulings": 0,
+      "breaker": false,
+      "causa": null
+    },
+    {
+      "esquema": 1,
+      "id": "T-03",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "backend",
+      "persona": "sim",
+      "complexidade": "—",
+      "status": "simples",
+      "produz": false,
+      "consome": false,
+      "red_previsto": "sem teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 2,
+      "arquivos_tocados": 2,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [],
+      "commits": 2,
+      "red": "sem teste",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 0,
+      "rulings": 0,
+      "breaker": false,
+      "causa": null
+    },
+    {
+      "esquema": 1,
+      "id": "T-04",
+      "onda": 1,
+      "origem": "plano",
+      "camada": "database",
+      "persona": "Maquiavel",
+      "complexidade": "simples",
+      "status": "[-] cancelada (fora do escopo)",
+      "produz": false,
+      "consome": false,
+      "red_previsto": "sem teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 0,
+      "arquivos_previstos": 1,
+      "arquivos_tocados": 0,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [
+        ".claude/tasks/mar-20261005-1353-landing-ajustes-deploy/sql/T-09-cleanup-landing-lead.sql"
+      ],
+      "commits": 0,
+      "red": "sem teste",
+      "reprovacoes_gate": null,
+      "bloqueantes_revisor": null,
+      "sugestoes_revisor": null,
+      "rulings": 2,
+      "breaker": false,
+      "causa": "Edição do SQL histórico negada pelo classificador de permissões; usuário retirou a task do escopo"
+    },
+    {
+      "esquema": 1,
+      "id": "T-05",
+      "onda": 2,
+      "origem": "plano",
+      "camada": "qa",
+      "persona": "Kratos",
+      "complexidade": "média",
+      "status": "[x]",
+      "produz": false,
+      "consome": true,
+      "red_previsto": "sem teste",
+      "modelo": "inherit",
+      "rodadas_fix_loop": 0,
+      "perguntas": 0,
+      "desvios": 2,
+      "arquivos_previstos": 1,
+      "arquivos_tocados": 0,
+      "fora_do_previsto": [],
+      "previstos_nao_tocados": [
+        ".claude/tasks/mar-20261005-1457-landing-a11y-i18n/reports/T-05.md"
+      ],
+      "commits": 0,
+      "red": "sem teste",
+      "reprovacoes_gate": 0,
+      "bloqueantes_revisor": 0,
+      "sugestoes_revisor": 3,
+      "rulings": 6,
+      "breaker": false,
+      "causa": "Perfil Playwright persistente (sem contexto anônimo) e select #lead-vets nunca inválido no cliente exigiram limpar storage e aria-invalid sintético"
+    }
+  ]
+}

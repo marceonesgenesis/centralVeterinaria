@@ -1,9 +1,27 @@
 <?php
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
+use CentralVet\Billing\AccessDecision;
+use CentralVet\Billing\SubscriptionAccessGuard;
+use CentralVet\Persistence\PdoConnectionFactory;
+use CentralVet\Persistence\SubscriptionRepository;
+use CentralVet\Security\CsrfToken;
+use CentralVet\Security\MutationRequestPolicy;
+use CentralVet\Security\RequestScheme;
+use CentralVet\Security\SearchParameterGuard;
+use CentralVet\Tenancy\AdiantiSessionContextSource;
+use CentralVet\Tenancy\Exception\MissingTenantContext;
+use CentralVet\Tenancy\TenantContext;
+use CentralVet\Tenancy\TenantUserActivation;
 
 class ApplicationAuthenticationService
 {
+    /** Decisões de SubscriptionAccessGuard em cache na sessão, por tenant e controller (T-19). */
+    public const SUBSCRIPTION_ACCESS_SESSION_KEY = 'cv_subscription_access';
+    
+    /** Validade, em segundos, de cada decisão em cache. */
+    public const SUBSCRIPTION_ACCESS_TTL = 60;
+    
     /**
      * Authenticate user and load permissions
      */
@@ -170,6 +188,20 @@ class ApplicationAuthenticationService
     {
         $ini  = AdiantiApplicationConfig::get();
         
+        // T-19: o primeiro login do convidado ativa o vínculo com a clínica.
+        // Falha aqui não impede o login; o próximo login tenta de novo.
+        try
+        {
+            TTransaction::open('permission');
+            TenantUserActivation::activateInvited(TTransaction::get(), (int) TSession::getValue('userid'));
+            TTransaction::close();
+        }
+        catch (\Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log('[tenant-user] activation failed: ' . $e->getMessage());
+        }
+        
         if (!empty($ini['hooks']['after_login']) && is_array($ini['hooks']['after_login']))
         {
             foreach ($ini['hooks']['after_login'] as $after_login_hook)
@@ -235,6 +267,303 @@ class ApplicationAuthenticationService
     }
     
     /**
+     * Guard central de mutação (S2) e das buscas do Adianti (S7), antes do
+     * despacho de engine.php/index.php: garante o token CSRF da sessão,
+     * espelha-o no cookie cv_csrf (lido pelo cv-shell.js para o cabeçalho
+     * X-CSRF-Token) e aplica a decisão da MutationRequestPolicy.
+     */
+    public static function enforceMutationGuard(): void
+    {
+        $token = TSession::getValue(MutationRequestPolicy::SESSION_KEY);
+        if (!is_string($token) || $token === '')
+        {
+            $token = CsrfToken::generate();
+            TSession::setValue(MutationRequestPolicy::SESSION_KEY, $token);
+        }
+        
+        if (($_COOKIE[MutationRequestPolicy::COOKIE_NAME] ?? null) !== $token && !headers_sent())
+        {
+            setcookie(MutationRequestPolicy::COOKIE_NAME, $token, [
+                'path'     => '/',
+                'secure'   => self::isHttps(),
+                'httponly' => false,
+                'samesite' => 'Strict',
+            ]);
+        }
+        
+        // A imagem PHP fixa request_order = "GP" (P1), e $_REQUEST não traz
+        // cookies. Em hospedagem sem essa configuração, request_order vazio faz
+        // $_REQUEST seguir variables_order (EGPCS) e incluir os cookies: o
+        // Adianti repassa $_REQUEST como $param e copiaria cv_csrf para as URLs
+        // que monta. withoutCsrfCookie fica como defesa; o token só trafega no
+        // cabeçalho.
+        $_REQUEST = self::withoutCsrfCookie($_REQUEST);
+        
+        $class = (string) ($_REQUEST['class'] ?? '');
+        
+        try
+        {
+            $tenantId = TenantContext::fromAuthenticatedSession(new AdiantiSessionContextSource())->tenantId();
+        }
+        catch (MissingTenantContext $e)
+        {
+            $tenantId = null;
+        }
+        
+        $searchDenial = SearchParameterGuard::check($class, $_REQUEST, $tenantId);
+        if ($searchDenial !== null)
+        {
+            self::denyRequest('[search-guard] denied ' . $class . ': ' . $searchDenial);
+        }
+        
+        $decision = MutationRequestPolicy::decideFromRequest($_SERVER, $_REQUEST, $token);
+        
+        if ($decision === MutationRequestPolicy::STRIP_METHOD)
+        {
+            unset($_REQUEST['method'], $_GET['method'], $_POST['method']);
+        }
+        else if ($decision === MutationRequestPolicy::DENY)
+        {
+            self::denyRequest('[csrf] denied ' . $class . '::' . (string) ($_REQUEST['method'] ?? ''));
+        }
+    }
+    
+    /**
+     * Parâmetros da requisição sem o cookie do token CSRF.
+     *
+     * @param array<string, mixed> $request
+     * @return array<string, mixed>
+     */
+    public static function withoutCsrfCookie(array $request): array
+    {
+        unset($request[MutationRequestPolicy::COOKIE_NAME]);
+        
+        return $request;
+    }
+    
+    /**
+     * Bloqueio por assinatura e plano (T-19), logo depois do guard de
+     * mutação e só com sessão logada: decide pelo SubscriptionAccessGuard
+     * (T-15), guarda a decisão na sessão por 60 s por tenant e controller (ou
+     * Classe::método das exceções de ALWAYS_ALLOWED_METHODS) e,
+     * se bloqueado, responde 403 com a mensagem da decisão e o link para a
+     * tela da assinatura, sem executar o controller. Sessão sem tenant ou sem
+     * controller segue sem bloqueio; tenant sem assinatura é legacy.
+     */
+    public static function enforceSubscriptionAccess(): void
+    {
+        // Classe e método da mesma fonte que o dispatch executa (regra da
+        // MutationRequestPolicy): com request_order=GP o POST venceria a query
+        // em $_REQUEST, e o run() da página executa $_GET.
+        $target = SubscriptionAccessGuard::requestTarget($_REQUEST, $_GET, $_POST);
+        if ($target !== null && $target['class'] === '')
+        {
+            return;
+        }
+        
+        try
+        {
+            $tenantId = TenantContext::fromAuthenticatedSession(new AdiantiSessionContextSource())->tenantId();
+        }
+        catch (MissingTenantContext $e)
+        {
+            return;
+        }
+        
+        $now = time();
+        $cache = TSession::getValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY);
+        $cache = is_array($cache) ? $cache : [];
+        if ($target === null)
+        {
+            self::denyRequest('[subscription-guard] denied divergent class/method');
+            return;
+        }
+        
+        $class = $target['class'];
+        $key = $target['key'];
+        $entry = self::cachedSubscriptionAccess($cache, $tenantId, $key, $now);
+        
+        if ($entry === null)
+        {
+            try
+            {
+                $guard = new SubscriptionAccessGuard(new SubscriptionRepository(PdoConnectionFactory::fromEnvironment()));
+                $decision = $guard->decide($tenantId, $target['class'], new DateTimeImmutable(), $target['method']);
+            }
+            catch (\Throwable $e)
+            {
+                // Sem banco a aplicação inteira já falha; não guarda decisão.
+                error_log('[subscription-guard] decision failed for tenant ' . $tenantId . ': ' . $e->getMessage());
+                return;
+            }
+            
+            $cache = self::rememberSubscriptionAccess($cache, $tenantId, $key, $decision, $now);
+            TSession::setValue(self::SUBSCRIPTION_ACCESS_SESSION_KEY, $cache);
+            $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $key)];
+        }
+        
+        if (!$entry['allowed'])
+        {
+            self::denyRequest(
+                '[subscription-guard] denied ' . $class . ' for tenant ' . $tenantId . ': ' . $entry['reason'],
+                (string) $entry['message_key'],
+                'index.php?class=SubscriptionStatusView'
+            );
+        }
+    }
+    
+    /** Chave da decisão em cache: tenant e controller. */
+    public static function subscriptionAccessCacheKey(int $tenantId, string $controller): string
+    {
+        return $tenantId . '|' . $controller;
+    }
+    
+    /**
+     * Decisão em cache ainda válida para o tenant e o controller, ou null.
+     *
+     * @param array<string, mixed> $cache
+     * @return array{allowed: bool, reason: string, message_key: ?string, expires_at: int}|null
+     */
+    public static function cachedSubscriptionAccess(array $cache, int $tenantId, string $controller, int $now): ?array
+    {
+        $entry = $cache[self::subscriptionAccessCacheKey($tenantId, $controller)] ?? null;
+        
+        if (!is_array($entry) || !isset($entry['expires_at'], $entry['allowed']) || (int) $entry['expires_at'] <= $now)
+        {
+            return null;
+        }
+        
+        return $entry;
+    }
+    
+    /**
+     * Cache com a decisão acrescentada (válida por SUBSCRIPTION_ACCESS_TTL)
+     * e sem as entradas vencidas.
+     *
+     * @param array<string, mixed> $cache
+     * @return array<string, array{allowed: bool, reason: string, message_key: ?string, expires_at: int}>
+     */
+    public static function rememberSubscriptionAccess(array $cache, int $tenantId, string $controller, AccessDecision $decision, int $now): array
+    {
+        $cache = array_filter(
+            $cache,
+            static fn ($entry): bool => is_array($entry) && (int) ($entry['expires_at'] ?? 0) > $now
+        );
+        
+        $cache[self::subscriptionAccessCacheKey($tenantId, $controller)] = [
+            'allowed'     => $decision->allowed(),
+            'reason'      => $decision->reason(),
+            'message_key' => $decision->messageKey(),
+            'expires_at'  => $now + self::SUBSCRIPTION_ACCESS_TTL,
+        ];
+        
+        return $cache;
+    }
+    
+    /**
+     * Responde 403 com a mensagem de T-01 (ou a chave informada, traduzida
+     * depois de fixar o idioma da sessão), o link opcional e encerra.
+     */
+    private static function denyRequest(string $logLine, ?string $messageKey = null, ?string $link = null): void
+    {
+        ApplicationTranslator::setLanguage(TSession::getValue('user_language'), true);
+        http_response_code(403);
+        error_log($logLine);
+        
+        $message = $messageKey !== null
+            ? _t($messageKey)
+            : _t('The request could not be verified. Reload the page and try again.');
+        
+        // GET de página inteira (index.php): checkMultiSession roda antes do
+        // layout, sem adianti.js, e o TMessage viraria só um <script> numa
+        // tela em branco. Vai uma página HTML autônoma com os links.
+        if ($link !== null && self::isFullPageRequest($_SERVER))
+        {
+            if (!headers_sent())
+            {
+                header('Content-Type: text/html; charset=utf-8');
+            }
+            
+            echo self::subscriptionBlockedPage(
+                $message,
+                _t('Subscription'),
+                $link,
+                _t('Exit'),
+                'index.php?class=LoginForm&method=onLogout'
+            );
+            exit;
+        }
+        
+        $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+        if ($link !== null)
+        {
+            $message .= '<br><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" generator="adianti">' . htmlspecialchars(_t('Subscription'), ENT_QUOTES, 'UTF-8') . '</a>';
+        }
+        
+        new TMessage('error', $message);
+        exit;
+    }
+    
+    /**
+     * Requisição de página inteira (index.php), e não de engine.php/AJAX.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function isFullPageRequest(array $server): bool
+    {
+        return basename((string) ($server['SCRIPT_NAME'] ?? '')) === 'index.php';
+    }
+    
+    /**
+     * Página HTML autônoma do 403 de assinatura/plano (sem adianti.js nem
+     * layout): mensagem e links para a assinatura e para sair, todo texto
+     * escapado, rótulos à esquerda e alvos de toque de 44 px.
+     */
+    public static function subscriptionBlockedPage(string $message, string $statusLabel, string $statusUrl, string $logoutLabel, string $logoutUrl): string
+    {
+        $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        
+        return '<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>' . $e($statusLabel) . '</title>
+<style>
+:root { --cv-touch-target: 44px; color-scheme: light dark; }
+body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f5f6f8; color: #1f2937; text-align: left; }
+main { max-width: 560px; margin: 48px auto; padding: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; text-align: left; }
+p { margin: 0 0 24px; font-size: 1.05rem; line-height: 1.5; text-align: left; }
+nav { display: flex; flex-wrap: wrap; gap: 12px; }
+a { display: inline-flex; align-items: center; min-height: 44px; min-height: var(--cv-touch-target); padding: 0 16px; border-radius: 6px; text-decoration: none; text-align: left; }
+a.primary { background: #1d4ed8; color: #fff; }
+a.secondary { border: 1px solid #9ca3af; color: #1f2937; }
+@media (prefers-color-scheme: dark) {
+  body { background: #111827; color: #e5e7eb; }
+  main { background: #1f2937; border-color: #374151; }
+  a.secondary { color: #e5e7eb; border-color: #6b7280; }
+}
+</style>
+</head>
+<body>
+<main role="alert">
+<p>' . $e($message) . '</p>
+<nav>
+<a class="primary" href="' . $e($statusUrl) . '">' . $e($statusLabel) . '</a>
+<a class="secondary" href="' . $e($logoutUrl) . '">' . $e($logoutLabel) . '</a>
+</nav>
+</main>
+</body>
+</html>
+';
+    }
+    
+    private static function isHttps(): bool
+    {
+        return RequestScheme::current();
+    }
+    
+    /**
      * Check multi session
      */
     public static function checkMultiSession()
@@ -245,6 +574,9 @@ class ApplicationAuthenticationService
         {
             return;
         }
+        
+        self::enforceMutationGuard();
+        self::enforceSubscriptionAccess();
         
         if (!isset($ini['general']['concurrent_sessions']))
         {

@@ -27,7 +27,7 @@ final class LoginRateLimiter
     ) {
     }
 
-    public static function fromEnvironment(): self
+    public static function fromEnvironment(string $prefix = 'centralvet:login-throttle:'): self
     {
         $driver = getenv('RATE_LIMIT_DRIVER') ?: 'redis';
         $decay = (int) (getenv('LOGIN_RATE_LIMIT_DECAY_SECONDS') ?: 900);
@@ -44,6 +44,7 @@ final class LoginRateLimiter
             $backend,
             (int) (getenv('LOGIN_RATE_LIMIT_MAX_ATTEMPTS') ?: 5),
             $decay,
+            $prefix,
         );
     }
 

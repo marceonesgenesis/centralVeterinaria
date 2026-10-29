@@ -42,6 +42,26 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adapter.adapt_statement('CREATE TABLE t (id int CHECK (id > 0))')
 
+    def test_drop_check_becomes_drop_triggers(self):
+        statements, checks = adapter.adapt_statement('ALTER TABLE stock_movement DROP CHECK stock_movement_reason_ck')
+        self.assertEqual(statements, [
+            'DROP TRIGGER IF EXISTS `stock_movement_reason_ck_bi`',
+            'DROP TRIGGER IF EXISTS `stock_movement_reason_ck_bu`',
+        ])
+        self.assertEqual(checks, [])
+
+    def test_verify_uses_table_from_query(self):
+        query = ("SELECT tc.constraint_name, cc.check_clause FROM information_schema.table_constraints tc "
+                 "JOIN information_schema.check_constraints cc ON cc.constraint_name = tc.constraint_name "
+                 "WHERE tc.table_schema = DATABASE() AND tc.table_name = 'bed' AND tc.constraint_type = 'CHECK'")
+        adapted = adapter.verification_query(query)
+        self.assertIn("EVENT_OBJECT_TABLE='bed'", adapted)
+        self.assertNotIn('landing_lead', adapted)
+        many = adapter.verification_query(query.replace("tc.table_name = 'bed'", "tc.table_name IN ('bed', 'hospitalization')"))
+        self.assertIn("EVENT_OBJECT_TABLE IN ('bed', 'hospitalization')", many)
+        with self.assertRaises(ValueError):
+            adapter.verification_query('SELECT 1 FROM information_schema.check_constraints')
+
 
 if __name__ == '__main__':
     unittest.main()

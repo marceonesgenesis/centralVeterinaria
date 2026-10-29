@@ -275,6 +275,12 @@ class PaymentForm extends TPage
         $receivable_id->setValue($receivable->id());
         $this->form->add($receivable_id);
 
+        // idempotência (T-11): um token por renderização; o reenvio do mesmo
+        // formulário cai em DuplicateSubmissionException no PaymentService.
+        $submission_token = new THidden('submission_token');
+        $submission_token->setValue(\CentralVet\Domain\SubmissionToken::generate());
+        $this->form->add($submission_token);
+
         $payment_method = new TCombo('payment_method');
         // lista única de formas (T-08): Payment::METHODS, rótulos de CvFormat::paymentMethod()
         $payment_items = [];
@@ -356,12 +362,21 @@ class PaymentForm extends TPage
                 $paymentMethod,
                 $amountCents,
                 $context->userId(),
-                'PaymentForm::onSave'
+                'PaymentForm::onSave',
+                submissionToken: (string) ($param['submission_token'] ?? ''),
             );
 
             TTransaction::close();
 
             new TMessage('info', _t('Payment registered successfully'));
+            $this->reloadSelf($receivableId);
+        }
+        catch (\CentralVet\Domain\Exception\DuplicateSubmissionException $e)
+        {
+            // reenvio do mesmo formulário: nada novo foi gravado; recarrega o
+            // recebível para mostrar o saldo já atualizado pelo primeiro envio
+            TTransaction::rollback();
+            new TMessage('info', _t('This submission was already processed'));
             $this->reloadSelf($receivableId);
         }
         catch (\CentralVet\Domain\Exception\OverpaymentException $e)
@@ -488,6 +503,7 @@ class PaymentForm extends TPage
             $financial_entries,
             $authorization,
             $context,
+            new \CentralVet\Persistence\SubmissionKeyRepository($context, $connection),
         );
     }
 

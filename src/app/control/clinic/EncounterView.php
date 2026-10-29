@@ -25,9 +25,15 @@ use CentralVet\Presentation\DateTimeInput;
  * oculta. Coluna direita: historico/timeline, anexos, retorno e resumo
  * financeiro.
  *
- * IA: NullAiClinicalAssistant continua carregado (onAcceptAiSummary), mas
- * os blocos de IA nao sao exibidos nesta fase (aiPanel/suggestionsPanel
- * mantidos sem uso).
+ * IA (Fase 8A): com a IA disponivel no tenant (AiAssistService::forContext()
+ * ->isAvailable()) e a acao permitida, a etapa Anamnese mostra o painel
+ * .cv-ai-panel com "Resumo do paciente" (onAiPatientSummary) e "Organizar
+ * anamnese" (ai_free_text + ditado CvDictation, onAiOrganizeAnamnesis).
+ * Toda sugestao passa por revisao humana (onAiDecide): o resumo aceito vai
+ * para EncounterService::acceptAiSummary() e a anamnese organizada e
+ * acrescentada ao texto postado via EncounterService::autosave() (so o
+ * campo anamnesis_text, com a versao da aba). Sem IA,
+ * nenhum campo de IA e renderizado.
  *
  * Pausa (rodada 2): Pausar/Retomar no cabecalho (EncounterService::pause/
  * resume, encounter.paused_at/paused_seconds, status continua
@@ -62,6 +68,18 @@ class EncounterView extends TPage
      * `[name="..."]` selectors the autosave client script reads on every
      * tick (see autosaveScript()).
      */
+    /**
+     * Label (translation key) of each numeric draft field, used by the
+     * autosave warning of an invalid number (T-28, correção 1).
+     */
+    private const NUMERIC_FIELD_LABELS = [
+        'temperature_c' => 'Temperature (C)',
+        'heart_rate_bpm' => 'Heart rate (bpm)',
+        'respiratory_rate_mpm' => 'Respiratory rate (mpm)',
+        'weight_kg' => 'Weight (kg)',
+        'capillary_refill_seconds' => 'Capillary refill (s)',
+    ];
+
     private const DRAFT_FIELDS = [
         'anamnesis_text',
         'temperature_c',
@@ -85,7 +103,21 @@ class EncounterView extends TPage
         'procedure' => ['Procedure', 'fa:syringe', 'ProcedureExecutionForm'],
         'vaccine' => ['Vaccine', 'fa:shield-alt', 'VaccinationForm'],
         'account' => ['Account', 'fa:file-invoice-dollar', 'EncounterAccountForm'],
+        'hospitalization' => ['Hospitalize', 'fa:procedures', 'HospitalizationAdmissionForm'],
+        'surgery' => ['Schedule surgery', 'fa:kit-medical', 'SurgeryScheduleForm'],
     ];
+
+    /** Encounter form, kept so an AI action can re-fill the posted (unsaved) draft. */
+    private ?TForm $encounterForm = null;
+
+    /** Where onAiPatientSummary() puts the suggestion under review (null: section hidden). */
+    private ?TElement $aiSummarySlot = null;
+
+    /** Where onAiOrganizeAnamnesis() puts the suggestion under review (null: section hidden). */
+    private ?TElement $aiAnamnesisSlot = null;
+
+    /** Free-text textarea of "Organize anamnesis" (null: section hidden). */
+    private ?TElement $aiFreeTextArea = null;
 
     /**
      * Page constructor.
@@ -306,10 +338,8 @@ class EncounterView extends TPage
             {
             }
 
-            // AI stays wired (hidden in this phase, see class docblock).
-            $assistant = new \CentralVet\Assistant\NullAiClinicalAssistant();
-            $aiSummary = $assistant->summarizePatientHistory($encounter->patientId());
-            $suggestions = $assistant->suggestNextSteps($encounterId);
+            $ai = self::aiState($context, $encounter, $encounterId);
+            $copilot = self::copilotAvailable($context);
 
             $timeline = $service->timeline($encounterId);
 
@@ -383,8 +413,8 @@ class EncounterView extends TPage
                 'planItems' => $planItems,
                 'professional' => $professional,
                 'unit' => $unit,
-                'aiSummary' => $aiSummary,
-                'suggestions' => $suggestions,
+                'ai' => $ai,
+                'copilot' => $copilot,
                 'timeline' => $timeline,
                 'documents' => $documents,
                 'account' => $account,
@@ -463,6 +493,12 @@ class EncounterView extends TPage
         $actions->{'class'} = 'cv-page-head__actions';
 
         $actions->add($this->timerElement($encounter));
+
+        if (!empty($data['copilot']))
+        {
+            // link, não headerButton(): esse posta o formulário do atendimento
+            $actions->add(AiCopilotPanel::hostLink(\CentralVet\Ai\Tools\ToolFamily::CLINICAL, $encounter->patientId()));
+        }
 
         $print = new TButton('print_encounter');
         $print->setLabel(_t('Print'));
@@ -739,6 +775,27 @@ class EncounterView extends TPage
         // 1. Anamnese
         $step1 = self::stepPanel($prefix . '1');
         $step1->add(self::fieldBlock(_t('Anamnesis (voice dictation available)'), $anamnesis));
+
+        if ($data['ai']['anamnesisDecidedAt'] !== null)
+        {
+            $step1->add(TElement::tag('p', CvFormat::e(_t('Anamnesis contains AI-organized text from ^1', $data['ai']['anamnesisDecidedAt']->format('d/m/Y H:i'))), [
+                'class' => 'cv-ai-anamnesis-notice',
+                'style' => 'margin:0 0 var(--cv-space-3); font-size:0.8125rem; color:var(--cv-color-text-muted); text-align:left',
+            ]));
+        }
+
+        $acceptedSummary = $this->acceptedSummaryBlock($encounter);
+
+        if ($acceptedSummary !== null)
+        {
+            $step1->add($acceptedSummary);
+        }
+
+        if (!$finished && ($data['ai']['summary'] || $data['ai']['anamnesis']))
+        {
+            $step1->add($this->aiPanel($data));
+        }
+
         $content->add($step1);
 
         // 2. Exame fisico: sinais vitais em grid + texto livre
@@ -780,8 +837,19 @@ class EncounterView extends TPage
 
         $content->add($step5);
 
+        // Draft version the tab started from (T-24): posted by the AI
+        // decision buttons and kept in sync by the autosave script.
+        $draftVersionField = new THidden('draft_version');
+        $content->add($draftVersionField);
+
+        // JSON of the autosave tick still in flight (T-28), filled by the
+        // autosave script and cleared on its answer: "Apply to anamnesis"
+        // posts it so a stored but unanswered tick is not a conflict.
+        $previousDraftField = new THidden('previous_draft');
+        $content->add($previousDraftField);
+
         $form->add($content);
-        $form->setFields(array_merge(array_values($vitalFields), $textFields));
+        $form->setFields(array_merge(array_values($vitalFields), $textFields, [$draftVersionField, $previousDraftField]));
 
         $formData = new stdClass;
         $formData->anamnesis_text = $encounter->anamnesisText();
@@ -794,8 +862,10 @@ class EncounterView extends TPage
         $formData->physical_exam_text = $encounter->physicalExamText();
         $formData->diagnosis_text = $encounter->diagnosisText();
         $formData->clinical_plan_text = $encounter->clinicalPlanText();
+        $formData->draft_version = $encounter->draftVersion();
 
         $form->setData($formData);
+        $this->encounterForm = $form;
 
         $body = new TElement('div');
         $body->add($form);
@@ -804,11 +874,18 @@ class EncounterView extends TPage
             'id' => 'encounter_autosave_indicator',
             'style' => 'font-size:12px; color:var(--cv-color-text-muted)',
         ]);
-        $body->add(TElement::tag('div', $status, ['style' => 'margin-top:var(--cv-space-3)']));
+        $body->add(TElement::tag('div', $status, ['style' => 'margin-top:var(--cv-space-3); text-align:left']));
 
         if (!$finished)
         {
-            $body->add($this->autosaveScript($encounter->id()));
+            // Warnings of numbers the autosave did not save (T-28, correção 1).
+            $body->add(TElement::tag('div', '', [
+                'id' => 'encounter_autosave_invalid',
+                'role' => 'alert',
+                'style' => 'display:none; margin-top:var(--cv-space-2); font-size:12px; color:var(--cv-color-danger, #b42318); text-align:left',
+            ]));
+            $body->add($this->autosaveConflictBox());
+            $body->add($this->autosaveScript($encounter->id(), $encounter->draftVersion()));
         }
 
         return CvCard::create(_t('Clinical record'), $body);
@@ -1079,19 +1156,70 @@ class EncounterView extends TPage
     }
 
     /**
+     * Hidden conflict actions next to the autosave indicator (Fase 8A,
+     * T-24): "Keep my text" adopts the version the server answered, so the
+     * next tick stores the local text; "Reload the page" reloads the
+     * encounter. autosaveScript() shows them on a conflict answer.
+     */
+    private function autosaveConflictBox(): TElement
+    {
+        $keep = TElement::tag('button', CvFormat::e(_t('Keep my text')), [
+            'type' => 'button',
+            'id' => 'encounter_autosave_keep',
+            'class' => 'btn btn-sm btn-outline-primary cv-touch-target',
+        ]);
+        $reload = TElement::tag('button', CvFormat::e(_t('Reload the page')), [
+            'type' => 'button',
+            'id' => 'encounter_autosave_reload',
+            'class' => 'btn btn-sm btn-outline-secondary cv-touch-target',
+        ]);
+
+        $box = TElement::tag('div', '', [
+            'id' => 'encounter_autosave_conflict',
+            'style' => 'display:none; flex-wrap:wrap; gap:var(--cv-space-2); margin-top:var(--cv-space-2); text-align:left',
+        ]);
+        $box->add($keep);
+        $box->add($reload);
+
+        return $box;
+    }
+
+    /**
      * Builds the client-side autosave loop: every 20s, reads the current
      * value of every self::DRAFT_FIELDS input of form_EncounterView_<id>
      * (by `[name="..."]` selector — hidden wizard steps included) and calls
      * onAutosave() through __adianti_ajax_exec() with automatic_output
-     * false (the re-rendered page HTML is discarded). The loop stops itself
-     * once the form is gone (navigated away), so it never posts another
-     * encounter's fields under this encounter id.
+     * false. The loop stops itself once the form is gone (navigated away),
+     * so it never posts another encounter's fields under this encounter id.
+     *
+     * Fase 8A, T-24: each tick sends `draft_version` (the
+     * Encounter::draftVersion() rendered with the page, then the one the
+     * last applied answer carried), `draft_seq` (increasing per tick) and,
+     * while the answer of the previous tick has not arrived, `previous_draft`
+     * (JSON of what that tick sent), so a lost answer does not turn the next
+     * tick into a conflict. The same JSON is kept in the form's hidden
+     * `previous_draft` while that tick is unanswered (cleared on its answer,
+     * T-28), so "Apply to anamnesis" posts it too. The answer `<span class="cv-autosave-result"
+     * data-status data-version data-seq>` is read by regex (in the test
+     * harness the response also carries the re-rendered page); an answer
+     * with a `data-seq` lower than the last applied one is ignored. `saved`
+     * adopts `data-version` and shows "Saved at"; `conflict` keeps the local
+     * text, shows the reload warning and the autosaveConflictBox() buttons.
+     * The version starts from the form's hidden `draft_version` when it
+     * holds one (a page re-rendered by an AI action keeps the tab's version)
+     * and is written back to it, so the AI decision buttons post it.
+     * window.cvAutosaveConflict['<form>'](version) shows the conflict state
+     * (used by onAiDecide()).
      */
-    private function autosaveScript(int $encounterId): TElement
+    private function autosaveScript(int $encounterId, string $draftVersion): TElement
     {
         $autosaveAction = new TAction([$this, 'onAutosave']);
         $autosaveAction->setParameter('encounter_id', $encounterId);
         $serializedAction = $autosaveAction->serialize(false);
+
+        $reloadAction = new TAction([$this, 'onReload']);
+        $reloadAction->setParameter('encounter_id', $encounterId);
+        $reloadUrl = json_encode($reloadAction->serialize(), JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
         $fieldsJs = implode(',', array_map(static function ($field)
         {
@@ -1099,32 +1227,189 @@ class EncounterView extends TPage
         }, self::DRAFT_FIELDS));
 
         $savedLabel = addslashes(_t('Saved at'));
+        $activeLabel = addslashes(_t('Autosave active'));
+        $conflictLabel = addslashes(_t('The anamnesis was changed in another window. Reload the page to keep editing it.'));
+        $errorLabel = addslashes(_t('Could not save the draft; your text is still on the screen.'));
+        $closedLabel = addslashes(_t('This encounter is finished and can no longer be edited'));
         $formId = 'form_EncounterView_' . $encounterId;
 
         $script = new TElement('script');
         $script->add(<<<JS
             (function() {
                 var draftFields = [{$fieldsJs}];
+                var draftVersion = '{$draftVersion}';
+                var versionField = function() {
+                    return $('#{$formId} [name="draft_version"]');
+                };
+                var setInFlight = function(values) {
+                    lastSent = values;
+                    $('#{$formId} [name="previous_draft"]').val(values === null ? '' : JSON.stringify(values));
+                };
+                var initialVersion = String(versionField().val() || '');
+                if (initialVersion !== '') {
+                    // 'none': the tab posted no version (conflict until "Keep my text").
+                    draftVersion = /^[0-9a-f]{64}$/.test(initialVersion) ? initialVersion : '';
+                }
+                var setVersion = function(version) {
+                    draftVersion = version;
+                    versionField().val(version);
+                };
+                var conflictVersion = null;
+                var seq = 0;
+                var appliedSeq = 0;
+                var lastSent = null;
+                var awaiting = false;
+                var indicatorText = function(text) {
+                    var indicator = document.getElementById('encounter_autosave_indicator');
+                    if (indicator) {
+                        indicator.textContent = text;
+                    }
+                };
+                // Numbers the server did not save: one line per field and the
+                // field marked invalid; the typed value stays in the field.
+                var showInvalid = function(response) {
+                    var box = document.getElementById('encounter_autosave_invalid');
+                    var pattern = /<span class="cv-autosave-invalid" data-field="([a-z_]+)">([^<]*)<\/span>/g;
+                    var match;
+                    var marked = {};
+                    if (box) {
+                        box.textContent = '';
+                    }
+                    while ((match = pattern.exec(response)) !== null) {
+                        marked[match[1]] = true;
+                        if (box) {
+                            var line = document.createElement('div');
+                            line.innerHTML = match[2];
+                            box.appendChild(line);
+                        }
+                    }
+                    draftFields.forEach(function(name) {
+                        $('#{$formId} [name="' + name + '"]').toggleClass('is-invalid', marked[name] === true);
+                    });
+                    if (box) {
+                        box.style.display = box.childNodes.length > 0 ? 'block' : 'none';
+                    }
+                };
+                // Failed tick (T-32): error label, never "Saved at"; the
+                // tick stays in flight, so the next one sends previous_draft.
+                var showError = function() {
+                    indicatorText('{$errorLabel}');
+                };
+                var showConflict = function(show) {
+                    var box = document.getElementById('encounter_autosave_conflict');
+                    if (box) {
+                        box.style.display = show ? 'flex' : 'none';
+                    }
+                };
+                $('#encounter_autosave_keep').off('click').on('click', function() {
+                    if (conflictVersion !== null) {
+                        setVersion(conflictVersion);
+                    }
+                    conflictVersion = null;
+                    setInFlight(null);
+                    awaiting = false;
+                    showConflict(false);
+                    indicatorText('{$activeLabel}');
+                });
+                $('#encounter_autosave_reload').off('click').on('click', function() {
+                    __adianti_load_page({$reloadUrl});
+                });
+                window.cvAutosaveConflict = window.cvAutosaveConflict || {};
+                window.cvAutosaveConflict['{$formId}'] = function(version) {
+                    conflictVersion = version;
+                    showConflict(true);
+                    indicatorText('{$conflictLabel}');
+                };
+                window.cvAutosaveTimers = window.cvAutosaveTimers || {};
+                if (window.cvAutosaveTimers['{$formId}']) {
+                    clearInterval(window.cvAutosaveTimers['{$formId}']);
+                }
                 var autosave = setInterval(function() {
                     var form = $('#{$formId}');
                     if (form.length === 0) {
                         clearInterval(autosave);
+                        if (window.cvAutosaveTimers['{$formId}'] === autosave) {
+                            delete window.cvAutosaveTimers['{$formId}'];
+                        }
                         return;
                     }
                     var query = '{$serializedAction}';
+                    var values = {};
                     draftFields.forEach(function(name) {
                         var el = form.find('[name="' + name + '"]');
                         if (el.length > 0) {
-                            query += '&' + encodeURIComponent(name) + '=' + encodeURIComponent(el.val() || '');
+                            values[name] = el.val() || '';
+                            query += '&' + encodeURIComponent(name) + '=' + encodeURIComponent(values[name]);
                         }
                     });
-                    __adianti_ajax_exec(query, function() {
-                        var indicator = document.getElementById('encounter_autosave_indicator');
-                        if (indicator) {
-                            indicator.textContent = '{$savedLabel} ' + new Date().toLocaleTimeString();
+                    seq += 1;
+                    var sent = seq;
+                    query += '&draft_version=' + encodeURIComponent(draftVersion) + '&draft_seq=' + sent;
+                    if (awaiting && lastSent !== null) {
+                        query += '&previous_draft=' + encodeURIComponent(JSON.stringify(lastSent));
+                    }
+                    setInFlight(values);
+                    awaiting = true;
+                    var answeredTick = false;
+                    // An HTTP error never calls the callback: 25 s without an
+                    // answer to this request (and to no newer one; the 20 s
+                    // tick has already moved seq) is shown as an error. The
+                    // tick stays in flight, so the next one sends previous_draft.
+                    var watchdog = setTimeout(function() {
+                        if (!answeredTick && appliedSeq < sent) {
+                            showError();
                         }
+                    }, 25000);
+                    __adianti_ajax_exec(query, function(response) {
+                        answeredTick = true;
+                        clearTimeout(watchdog);
+                        var result = /<span class="cv-autosave-result" data-status="(saved|conflict|closed)" data-version="([0-9a-f]{64})" data-seq="([0-9]+)"><\/span>/.exec(String(response || ''));
+                        if (!result) {
+                            // No result mark (cv-autosave-error, HTTP error page, login page, fatal): an older tick is ignored;
+                            // the latest keeps the local text, the version and lastSent in flight (previous_draft next).
+                            if (sent !== seq) {
+                                return;
+                            }
+                            showError();
+                            awaiting = true;
+                            return;
+                        }
+                        var answered = parseInt(result[3], 10);
+                        if (answered < appliedSeq) {
+                            return;
+                        }
+                        appliedSeq = answered;
+                        if (result[1] === 'closed') {
+                            // Finished in another window: stop the ticks and
+                            // leave the fields as they are.
+                            clearInterval(autosave);
+                            if (window.cvAutosaveTimers['{$formId}'] === autosave) {
+                                delete window.cvAutosaveTimers['{$formId}'];
+                            }
+                            awaiting = false;
+                            setInFlight(null);
+                            showConflict(false);
+                            indicatorText('{$closedLabel}');
+                            return;
+                        }
+                        showInvalid(String(response || ''));
+                        if (answered === seq) {
+                            awaiting = false;
+                            setInFlight(null);
+                        }
+                        if (result[1] === 'conflict') {
+                            conflictVersion = result[2];
+                            showConflict(true);
+                            indicatorText('{$conflictLabel}');
+                            return;
+                        }
+                        setVersion(result[2]);
+                        conflictVersion = null;
+                        showConflict(false);
+                        indicatorText('{$savedLabel} ' + new Date().toLocaleTimeString());
                     }, false);
                 }, 20000);
+                window.cvAutosaveTimers['{$formId}'] = autosave;
             })();
             JS
         );
@@ -1370,78 +1655,266 @@ class EncounterView extends TPage
     }
 
     /**
-     * AI summary panel — kept but NOT rendered in phase 10 (no AI block
-     * visible). onAcceptAiSummary() stays available.
+     * AI state of the screen (Fase 8A): which sections of the AI panel the
+     * user may see (AI available for the tenant and host action allowed;
+     * never on a finished encounter) and when an AI-organized text was last
+     * applied to the anamnesis. Any failure hides the panel; the encounter
+     * always renders.
+     *
+     * @return array{summary: bool, anamnesis: bool, anamnesisDecidedAt: ?DateTimeImmutable}
      */
-    private function aiPanel(array $data): TPanelGroup
+    private static function aiState(\CentralVet\Tenancy\TenantContext $context, $encounter, int $encounterId): array
     {
-        $panel = new TPanelGroup(_t('AI summary'));
-        $panel->class = 'cv-section';
+        $state = ['summary' => false, 'anamnesis' => false, 'anamnesisDecidedAt' => null];
 
-        if ($data['aiSummary'] === null)
+        try
         {
-            $panel->add('<p class="text-muted">' . _t('No summary available yet') . '</p>');
+            $assistant = \CentralVet\Application\AiAssistService::forContext($context, TTransaction::get(), self::aiLocale());
+            $applied = $assistant->latestDecided(\CentralVet\Domain\AiPurpose::ANAMNESIS_ORGANIZE, $encounterId);
+            $state['anamnesisDecidedAt'] = $applied?->decidedAt();
+
+            if (!self::isFinished($encounter) && $assistant->isAvailable())
+            {
+                $permissions = new \CentralVet\Authorization\AdiantiProgramPermissionProvider(new \CentralVet\Tenancy\AdiantiSessionContextSource());
+                $state['summary'] = $permissions->hasPermission($context, \CentralVet\Domain\AiPurpose::hostAction(\CentralVet\Domain\AiPurpose::PATIENT_SUMMARY));
+                $state['anamnesis'] = $permissions->hasPermission($context, \CentralVet\Domain\AiPurpose::hostAction(\CentralVet\Domain\AiPurpose::ANAMNESIS_ORGANIZE));
+            }
         }
-        else
+        catch (Throwable $e)
         {
-            $panel->add('<p>' . nl2br(htmlspecialchars($data['aiSummary'])) . '</p>');
-
-            $acceptAction = new TAction([$this, 'onAcceptAiSummary']);
-            $acceptAction->setParameter('encounter_id', $data['encounter']->id());
-
-            $acceptButton = new TButton('accept_ai_summary');
-            $acceptButton->setAction($acceptAction, _t('Accept'));
-            $acceptButton->setImage('fa:check');
-            $acceptButton->setFormName('form_EncounterView_' . $data['encounter']->id());
-            $acceptButton->class = 'btn btn-sm btn-primary';
-            $panel->add($acceptButton);
+            error_log(__METHOD__ . ': AI panel hidden (' . get_class($e) . ')');
         }
 
-        if ($data['encounter']->aiSummaryAcceptedAt() !== null)
+        return $state;
+    }
+
+    /**
+     * Whether the "Copiloto" link shows (Fase 8B):
+     * AiCopilotAvailability::reason('clinical') is null — a lightweight
+     * check (flag, terms, quota, configuration) that never builds the
+     * gateway, the Redis rate limiter nor the tool registry. Any failure
+     * hides it; the encounter always renders.
+     */
+    private static function copilotAvailable(\CentralVet\Tenancy\TenantContext $context): bool
+    {
+        try
         {
-            $panel->add(
-                '<p class="text-muted" style="margin-top:6px">' . _t('Accepted summary') . ': '
-                . nl2br(htmlspecialchars((string) $data['encounter']->aiSummaryText())) . '</p>'
-            );
+            return \CentralVet\Application\AiCopilotAvailability::forContext($context, TTransaction::get())
+                ->reason(\CentralVet\Ai\Tools\ToolFamily::CLINICAL) === null;
+        }
+        catch (Throwable $e)
+        {
+            error_log(__METHOD__ . ': copilot link hidden (' . get_class($e) . ')');
+
+            return false;
+        }
+    }
+
+    /** Prompt locale of the session language: `en` or `pt`. */
+    private static function aiLocale(): string
+    {
+        return \CentralVet\Ai\AiLocale::fromLanguage(ApplicationTranslator::getLanguage());
+    }
+
+    /**
+     * Accepted AI summary (encounter.ai_summary_text/ai_summary_accepted_at),
+     * shown whether or not the AI is still on. Null when none was accepted.
+     */
+    private function acceptedSummaryBlock($encounter): ?TElement
+    {
+        $acceptedAt = $encounter->aiSummaryAcceptedAt();
+
+        if ($acceptedAt === null)
+        {
+            return null;
+        }
+
+        $block = new TElement('div');
+        $block->{'class'} = 'cv-ai-accepted-summary';
+        $block->style = 'margin:0 0 var(--cv-space-3); text-align:left';
+        $block->add(TElement::tag('h3', CvFormat::e(_t('Patient summary')), ['style' => 'font-size:1rem; font-weight:600; margin:0 0 var(--cv-space-2)']));
+        $block->add(TElement::tag('p', nl2br(CvFormat::e((string) $encounter->aiSummaryText())), ['style' => 'margin:0 0 var(--cv-space-1)']));
+        $block->add(TElement::tag('small', CvFormat::e(_t('AI-generated summary, reviewed on ^1', $acceptedAt->format('d/m/Y H:i'))), ['style' => 'color:var(--cv-color-text-muted)']));
+
+        return $block;
+    }
+
+    /**
+     * AI panel (Fase 8A), inside form_EncounterView_<id> so its buttons post
+     * the anamnesis together with the AI fields. Rendered only when
+     * aiState() allows a section. Suggestions are added by the actions to
+     * the section slots.
+     */
+    private function aiPanel(array $data): TElement
+    {
+        $encounterId = $data['encounter']->id();
+
+        $panel = new TElement('section');
+        $panel->{'class'} = 'cv-ai-panel';
+        $panel->{'aria-label'} = CvFormat::e(_t('AI assistant'));
+
+        if ($data['ai']['summary'])
+        {
+            $section = new TElement('div');
+            $section->add(self::aiHeading(_t('Patient summary')));
+
+            $actions = new TElement('div');
+            $actions->{'class'} = 'cv-ai-actions';
+            $actions->add($this->aiButton($encounterId, 'ai_patient_summary', 'onAiPatientSummary', _t('Summarize history'), 'fa:magic', 'btn btn-outline-primary'));
+            $section->add($actions);
+
+            $this->aiSummarySlot = new TElement('div');
+            $section->add($this->aiSummarySlot);
+            $panel->add($section);
+        }
+
+        if ($data['ai']['anamnesis'])
+        {
+            $section = new TElement('div');
+            $section->add(self::aiHeading(_t('Organize anamnesis')));
+            $section->add(TElement::tag('label', CvFormat::e(_t('Free text or dictation (not saved automatically)')), [
+                'for' => 'ai_free_text',
+                'style' => 'display:block; font-weight:600; margin-bottom:4px; text-align:left',
+            ]));
+
+            $this->aiFreeTextArea = new TElement('textarea');
+            $this->aiFreeTextArea->{'name'} = 'ai_free_text';
+            $this->aiFreeTextArea->{'id'} = 'ai_free_text';
+            $this->aiFreeTextArea->{'class'} = 'form-control';
+            $this->aiFreeTextArea->{'rows'} = '5';
+            $this->aiFreeTextArea->{'maxlength'} = (string) \CentralVet\Application\AiAssistService::MAX_FREE_TEXT_CHARS;
+            $section->add($this->aiFreeTextArea);
+
+            $dictate = new TElement('button');
+            $dictate->{'type'} = 'button';
+            $dictate->{'id'} = 'ai_dictation_button';
+            $dictate->{'class'} = 'btn btn-outline-secondary cv-touch-target';
+            $dictate->{'aria-pressed'} = 'false';
+            $dictate->{'data-label-start'} = CvFormat::e(_t('Dictate'));
+            $dictate->{'data-label-stop'} = CvFormat::e(_t('Stop dictation'));
+            $dictate->{'data-label-denied'} = CvFormat::e(_t('Microphone access was denied. Type the text instead.'));
+            $dictate->{'data-label-notice'} = CvFormat::e(_t('Dictation uses your browser speech recognition (e.g. Google, Apple, Microsoft); the audio is sent to that service. If you prefer, type.'));
+            $dictate->{'data-label-listening'} = CvFormat::e(_t('Listening... speak now'));
+            $dictate->{'data-label-no-speech'} = CvFormat::e(_t('No speech was detected. Try again.'));
+            $dictate->{'data-label-audio-capture'} = CvFormat::e(_t('No microphone was found. Check the device.'));
+            $dictate->{'data-label-network'} = CvFormat::e(_t('The voice service is unavailable. Type the text instead.'));
+            $dictate->{'data-label-error'} = CvFormat::e(_t('Dictation failed. Type the text instead.'));
+            $dictate->add('<i class="fa fa-microphone" aria-hidden="true"></i> <span class="cv-dictation-label">' . CvFormat::e(_t('Dictate')) . '</span>');
+
+            $actions = new TElement('div');
+            $actions->{'class'} = 'cv-ai-actions';
+            $actions->style = 'margin-top:var(--cv-space-2)';
+            $actions->add($dictate);
+            $actions->add(TElement::tag('span', '', ['class' => 'cv-ai-status', 'role' => 'status', 'aria-live' => 'polite']));
+            $actions->add($this->aiButton($encounterId, 'ai_organize_anamnesis', 'onAiOrganizeAnamnesis', _t('Organize'), 'fa:magic', 'btn btn-outline-primary'));
+            $section->add($actions);
+
+            $this->aiAnamnesisSlot = new TElement('div');
+            $section->add($this->aiAnamnesisSlot);
+            $panel->add($section);
+
+            $lang = self::aiLocale() === 'en' ? 'en-US' : 'pt-BR';
+            $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
+            $panel->add(TElement::tag('script', '', ['src' => 'app/templates/adminbs5/js/cv-ai-dictation.js']));
+            $panel->add(TElement::tag('script',
+                '(function () { var tries = 0; (function bind() {'
+                . " if (window.CvDictation) { window.CvDictation.attach('ai_dictation_button', 'ai_free_text', "
+                . json_encode($lang, $flags) . ', ' . json_encode(_t('Voice dictation is not supported in this browser. Type the text instead.'), $flags) . '); return; }'
+                . ' if (++tries < 50) { setTimeout(bind, 100); } })(); })();'
+            ));
         }
 
         return $panel;
     }
 
-    /**
-     * Suggested next steps — kept but NOT rendered in phase 10 (no AI block
-     * visible).
-     */
-    private function suggestionsPanel(array $data): TPanelGroup
+    private static function aiHeading(string $text): TElement
     {
-        $panel = new TPanelGroup(_t('Suggested next steps'));
-        $panel->class = 'cv-section';
+        return TElement::tag('h3', CvFormat::e($text), ['style' => 'font-size:1rem; font-weight:600; margin:0 0 var(--cv-space-2); text-align:left']);
+    }
 
-        if (empty($data['suggestions']))
+    /**
+     * AI action button bound to form_EncounterView_<id> (posts the AI fields
+     * and the anamnesis), 44 px touch target.
+     *
+     * @param array<string, string> $parameters extra action parameters
+     */
+    private function aiButton(int $encounterId, string $name, string $method, string $label, string $icon, string $class, array $parameters = []): TButton
+    {
+        $button = $this->headerButton($encounterId, $name, $method, $label, $icon, $class . ' cv-touch-target');
+
+        if ($parameters !== [])
         {
-            $panel->add('<p class="text-muted">' . _t('No suggestions at the moment') . '</p>');
-            return $panel;
+            $action = new TAction([$this, $method]);
+            $action->setParameter('encounter_id', $encounterId);
+
+            foreach ($parameters as $key => $value)
+            {
+                $action->setParameter($key, $value);
+            }
+
+            $button->setAction($action, $label);
         }
 
-        foreach ($data['suggestions'] as $index => $suggestion)
+        return $button;
+    }
+
+    /**
+     * Suggestion under human review: origin badge, model and prompt
+     * version, editable text (always escaped) and the decision buttons
+     * (onAiDecide). The hidden SHA-256 lets onAiDecide tell an accepted
+     * text from an edited one.
+     */
+    private function aiSuggestionReview(int $encounterId, \CentralVet\Domain\AiSuggestion $suggestion, ?string $shownText = null): TElement
+    {
+        $text = \CentralVet\Application\AiAssistService::normalizeText($suggestion->text);
+        $shown = $shownText !== null ? \CentralVet\Application\AiAssistService::normalizeText($shownText) : $text;
+
+        $box = new TElement('div');
+        $box->{'class'} = 'cv-ai-suggestion';
+        $box->style = 'display:flex; flex-direction:column; gap:var(--cv-space-2); margin-top:var(--cv-space-3); text-align:left';
+        $box->add(TElement::tag('span', CvFormat::e(_t('Generated by AI — review before saving')), ['class' => 'cv-ai-origin']));
+        $box->add(TElement::tag('small', CvFormat::e(_t('Model ^1 · prompt ^2', $suggestion->model, $suggestion->promptVersion)), ['style' => 'color:var(--cv-color-text-muted)']));
+        $box->add(TElement::tag('label', CvFormat::e(_t('Suggestion (you can edit it)')), [
+            'for' => 'ai_final_text',
+            'style' => 'display:block; font-weight:600; margin:0; text-align:left',
+        ]));
+
+        $textarea = new TElement('textarea');
+        $textarea->{'name'} = 'ai_final_text';
+        $textarea->{'id'} = 'ai_final_text';
+        $textarea->{'class'} = 'form-control';
+        $textarea->{'rows'} = '8';
+        $textarea->add(CvFormat::e($shown));
+        $box->add($textarea);
+
+        $box->add(TElement::tag('input', '', ['type' => 'hidden', 'name' => 'interaction_id', 'value' => (string) $suggestion->interactionId]));
+        $box->add(TElement::tag('input', '', ['type' => 'hidden', 'name' => 'ai_suggestion_sha256', 'value' => hash('sha256', $text)]));
+
+        $actions = new TElement('div');
+        $actions->{'class'} = 'cv-ai-actions';
+
+        if ($suggestion->purpose === \CentralVet\Domain\AiPurpose::ANAMNESIS_ORGANIZE)
         {
-            $line = new TElement('div');
-            $line->style = 'display:flex; justify-content:space-between; align-items:center; gap:var(--cv-space-2); margin-bottom:var(--cv-space-1)';
-            $line->add('<span>' . htmlspecialchars($suggestion) . '</span>');
-
-            $applyButton = new TButton('apply_suggestion_' . $index);
-            $applyButton->setLabel(_t('Apply'));
-            $applyButton->class = 'btn btn-xs btn-outline-primary';
-            $applyButton->addFunction(
-                "var f = $('[name=\"clinical_plan_text\"]'); "
-                . "f.val((f.val() ? f.val() + '\\n' : '') + " . json_encode($suggestion) . ");"
-            );
-
-            $line->add($applyButton);
-            $panel->add($line);
+            $actions->add($this->aiButton($encounterId, 'ai_apply', 'onAiDecide', _t('Apply to anamnesis'), 'fa:check', 'btn btn-primary', ['decision' => 'accepted']));
+        }
+        else
+        {
+            $actions->add($this->aiButton($encounterId, 'ai_accept', 'onAiDecide', _t('Accept'), 'fa:check', 'btn btn-primary', ['decision' => 'accepted']));
+            $actions->add($this->aiButton($encounterId, 'ai_save_edit', 'onAiDecide', _t('Save edit'), 'fa:pen', 'btn btn-outline-primary', ['decision' => 'edited']));
         }
 
-        return $panel;
+        $actions->add($this->aiButton($encounterId, 'ai_discard', 'onAiDecide', _t('Discard'), 'fa:times', 'btn btn-outline-secondary', ['decision' => 'discarded']));
+        $box->add($actions);
+
+        return $box;
+    }
+
+    /** Posted text field (`$param[$name]`), normalized; '' when absent or not a string. */
+    private static function postedText($param, string $name): string
+    {
+        $value = is_array($param) ? ($param[$name] ?? '') : '';
+
+        return is_string($value) ? \CentralVet\Application\AiAssistService::normalizeText($value) : '';
     }
 
     /**
@@ -1590,73 +2063,508 @@ class EncounterView extends TPage
     }
 
     /**
-     * "Accept AI summary": re-derives the summary text server-side
-     * (NullAiClinicalAssistant::summarizePatientHistory()) instead of
-     * trusting a client-echoed value, then persists it via
-     * EncounterService::acceptAiSummary().
+     * "Summarize history" (AiAssistService::summarizePatient()). The
+     * suggestion is shown for review in the patient summary section;
+     * nothing is written to the encounter here.
      */
-    public function onAcceptAiSummary($param)
+    public function onAiPatientSummary($param)
+    {
+        $this->keepPostedDraft($param);
+        $encounterId = self::encounterIdParam($param);
+
+        $suggestion = $this->generateAiSuggestion($encounterId, static function (\CentralVet\Application\AiAssistService $assistant) use ($encounterId)
+        {
+            return $assistant->summarizePatient($encounterId);
+        });
+
+        if ($suggestion !== null && $this->aiSummarySlot !== null)
+        {
+            $this->aiSummarySlot->add($this->aiSuggestionReview($encounterId, $suggestion));
+        }
+    }
+
+    /**
+     * "Organize" (AiAssistService::organizeAnamnesis()) of the posted
+     * `ai_free_text` (typed or dictated, never autosaved). The suggestion is
+     * shown for review; the anamnesis only changes in onAiDecide().
+     */
+    public function onAiOrganizeAnamnesis($param)
+    {
+        $this->keepPostedDraft($param);
+        $encounterId = self::encounterIdParam($param);
+        $freeText = self::postedText($param, 'ai_free_text');
+
+        if ($this->aiFreeTextArea !== null)
+        {
+            $this->aiFreeTextArea->add(CvFormat::e($freeText));
+        }
+
+        $suggestion = $this->generateAiSuggestion($encounterId, static function (\CentralVet\Application\AiAssistService $assistant) use ($encounterId, $freeText)
+        {
+            return $assistant->organizeAnamnesis($encounterId, $freeText);
+        });
+
+        if ($suggestion !== null && $this->aiAnamnesisSlot !== null)
+        {
+            $this->aiAnamnesisSlot->add($this->aiSuggestionReview($encounterId, $suggestion));
+        }
+    }
+
+    /**
+     * Human decision on a suggestion (POST `interaction_id`, `decision`,
+     * `ai_final_text`, `ai_suggestion_sha256`, `draft_version` and the
+     * DRAFT_FIELDS of the form), in one transaction (Fase 8A, T-24,
+     * correção 1):
+     * - `discarded`: only the decision is recorded; no draft field is
+     *   written. The page comes back with the posted fields.
+     * - accepted/edited patient summary: EncounterService::acceptAiSummary()
+     *   (not a draft field); the page is re-rendered with the posted fields.
+     * - accepted/edited anamnesis: ONLY `anamnesis_text` (posted text, blank
+     *   line, accepted text) goes through EncounterService::autosave() with
+     *   the posted `draft_version` and `previous_draft` (the tick in flight,
+     *   T-28) — the same version guard and row lock as the periodic
+     *   autosave. On a conflict (stale tab, missing
+     *   version) the transaction is rolled back, so the decision stays
+     *   `pending_review`; the page keeps the posted fields and the
+     *   suggestion under review and shows the autosave conflict warning.
+     *   Saved: the page is re-rendered with the posted fields, the applied
+     *   anamnesis and the new version in `draft_version`.
+     * Other posted draft fields are never written here (the autosave does
+     * it). On a finished encounter nothing is recorded. The decision goes
+     * through AiAssistService::resolveDecision (T-29): "Accept" with a text
+     * that differs from the suggestion (by SHA, or by the stored suggestion
+     * without it) is recorded as `edited`; accepted/edited with an empty
+     * text is refused with a warning. An interaction of another encounter
+     * is refused as not found (rollback).
+     */
+    public function onAiDecide($param)
     {
         try
         {
-            $id = self::encounterIdParam($param);
+            $encounterId = self::encounterIdParam($param);
+            $interactionId = is_array($param) && isset($param['interaction_id']) && is_scalar($param['interaction_id']) ? (int) $param['interaction_id'] : 0;
+            $decision = is_array($param) && isset($param['decision']) && is_string($param['decision']) ? $param['decision'] : '';
 
-            if ($id <= 0)
+            if ($encounterId <= 0 || $interactionId <= 0)
             {
-                throw new InvalidArgumentException(_t('Invalid encounter id'));
+                throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
             }
+
+            if (!in_array($decision, ['accepted', 'edited', 'discarded'], true))
+            {
+                throw new InvalidArgumentException(_t('Invalid action'));
+            }
+
+            $postedText = is_string($param['ai_final_text'] ?? null) ? $param['ai_final_text'] : '';
+            $postedSha = is_string($param['ai_suggestion_sha256'] ?? null) ? $param['ai_suggestion_sha256'] : '';
 
             $context = self::resolveTenantContext();
 
             TTransaction::open('permission');
 
             $service = self::makeEncounterService($context);
-            $encounter = $service->findById($id);
+            $encounter = $service->findById($encounterId);
 
             if ($encounter === null)
             {
-                throw new InvalidArgumentException(_t('Encounter not found'));
+                throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
             }
 
-            $assistant = new \CentralVet\Assistant\NullAiClinicalAssistant();
-            $summary = $assistant->summarizePatientHistory($encounter->patientId());
+            // T-29: one rule for "Accept", shared with ExamResultForm
+            $stored = (new \CentralVet\Persistence\AiInteractionRepository($context, TTransaction::get()))->find($interactionId)
+                ?? throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
 
-            if ($summary === null)
+            // A finished encounter takes no decision. "Apply to anamnesis"
+            // is decided under the row lock by the autosave's `closed` and
+            // the summary by acceptAiSummary() under the same lock (T-32);
+            // "Discard", which writes nothing of the encounter, by the
+            // encounter read here.
+            if ($decision === 'discarded' && self::isFinished($encounter))
             {
-                TTransaction::close();
-                new TMessage('warning', _t('No summary available to accept'));
+                TTransaction::rollback();
+                $this->refuseDecision($param, 'error', _t('This encounter is finished and can no longer be edited'));
                 return;
             }
+            $resolved = \CentralVet\Application\AiAssistService::resolveDecision($decision, $postedText, $postedSha, (string) $stored->suggestionText());
+            $decision = $resolved['decision'];
 
-            $service->acceptAiSummary($id, $summary);
+            $assistant = \CentralVet\Application\AiAssistService::forContext($context, TTransaction::get(), self::aiLocale());
+            $interaction = $assistant->decide($interactionId, $decision, $resolved['final_text']);
+
+            if ($interaction->subjectType() !== \CentralVet\Domain\AiPurpose::SUBJECT_ENCOUNTER || $interaction->subjectId() !== $encounterId)
+            {
+                throw new \CentralVet\Domain\Exception\AiInteractionNotFoundException();
+            }
+
+            $final = $interaction->finalText();
+            $isSummary = $interaction->purpose() === \CentralVet\Domain\AiPurpose::PATIENT_SUMMARY;
+            $overrides = [];
+
+            if ($final !== null && $isSummary)
+            {
+                try
+                {
+                    $service->acceptAiSummary($encounterId, $final);
+                }
+                catch (\CentralVet\Domain\Exception\InvalidStatusTransitionException $e)
+                {
+                    // Finished under the lock (T-32, correção 1): no
+                    // summary and no decision.
+                    TTransaction::rollback();
+                    $this->refuseDecision($param, 'error', _t('This encounter is finished and can no longer be edited'));
+                    return;
+                }
+            }
+            elseif ($final !== null)
+            {
+                $typed = self::postedText($param, 'anamnesis_text');
+                $anamnesis = $typed === '' ? $final : $typed . "\n\n" . $final;
+                try
+                {
+                    $result = $service->autosave($encounterId, ['anamnesis_text' => $anamnesis], self::postedDraftVersion($param), self::postedPreviousDraft($param));
+                }
+                catch (Throwable $e)
+                {
+                    // The draft write failed (T-28, correção 2): no decision
+                    // is recorded and the posted fields stay on screen.
+                    TTransaction::rollback();
+                    error_log(__METHOD__ . ': ' . get_class($e));
+                    $this->refuseDecision($param, 'error', _t('Could not save the draft; your text is still on the screen.'));
+                    return;
+                }
+
+                if ($result->closed)
+                {
+                    // Finished under the lock (T-32): no draft and no
+                    // decision; the local text stays on screen.
+                    TTransaction::rollback();
+                    $this->refuseDecision($param, 'error', _t('This encounter is finished and can no longer be edited'));
+                    return;
+                }
+
+                if (!$result->saved)
+                {
+                    // Stale tab: nothing of the draft and no decision is
+                    // recorded; the suggestion stays under review.
+                    TTransaction::rollback();
+                    $this->showDecisionConflict($encounterId, $param, $result->version);
+                    return;
+                }
+
+                $overrides = ['anamnesis_text' => $anamnesis, 'draft_version' => $result->version];
+            }
 
             TTransaction::close();
 
-            new TMessage('info', _t('Summary accepted'), new TAction(['EncounterView', 'onReload'], ['encounter_id' => $id]));
+            if ($decision === 'discarded')
+            {
+                $this->keepPostedDraft($param);
+                return;
+            }
+
+            $this->rerenderWithPostedDraft($encounterId, $param, $overrides);
+        }
+        catch (\CentralVet\Domain\Exception\AiUnavailableException | \CentralVet\Domain\Exception\AiInteractionNotFoundException | \CentralVet\Domain\Exception\AiSubjectNotFoundException | InvalidArgumentException $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e) . ($e instanceof \CentralVet\Domain\Exception\AiUnavailableException ? ' ' . $e->reason() : ''));
+            $this->refuseDecision($param, 'warning', CvFormat::userError($e));
+        }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            // Another unit: shown as not found, like a foreign interaction.
+            TTransaction::rollback();
+            $this->refuseDecision($param, 'warning', CvFormat::userError(new \CentralVet\Domain\Exception\AiInteractionNotFoundException()));
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            $this->refuseDecision($param, 'error', _t('An authenticated session with an active unit is required'));
         }
         catch (Exception $e)
         {
             TTransaction::rollback();
-            error_log(__METHOD__ . ': ' . $e->getMessage());
+            error_log(__METHOD__ . ': ' . get_class($e));
+            $this->refuseDecision($param, 'error', CvFormat::userError($e));
+        }
+    }
+
+    /**
+     * Refused or failed decision (T-29, correção 1): nothing was recorded
+     * (the caller rolled back). The page keeps the posted draft fields and
+     * the suggestion still under review, then shows the message.
+     */
+    private function refuseDecision($param, string $type, string $message): void
+    {
+        $this->keepPostedDraft($param);
+        $this->keepPendingSuggestion($param);
+        new TMessage($type, $message);
+    }
+
+    /**
+     * Re-shows the posted suggestion for review, read again from the
+     * database: only when it is still `pending_review`, belongs to this
+     * encounter and to the active unit (a foreign one is never shown). The
+     * textarea keeps the posted text, or the suggestion when it was cleared.
+     */
+    private function keepPendingSuggestion($param): void
+    {
+        $encounterId = self::encounterIdParam($param);
+        $interactionId = is_array($param) && isset($param['interaction_id']) && is_scalar($param['interaction_id']) ? (int) $param['interaction_id'] : 0;
+
+        if ($encounterId <= 0 || $interactionId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            $context = self::resolveTenantContext();
+            TTransaction::open('permission');
+            $interaction = (new \CentralVet\Persistence\AiInteractionRepository($context, TTransaction::get()))->find($interactionId);
+            TTransaction::close();
+            $unitId = $context->requireUnitId();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+            return;
+        }
+
+        if ($interaction === null
+            || $interaction->id() === null
+            || $interaction->status() !== \CentralVet\Domain\AiInteraction::STATUS_PENDING_REVIEW
+            || $interaction->suggestionText() === null
+            || $interaction->subjectType() !== \CentralVet\Domain\AiPurpose::SUBJECT_ENCOUNTER
+            || $interaction->subjectId() !== $encounterId
+            || $interaction->systemUnitId() !== $unitId)
+        {
+            return;
+        }
+
+        $slot = $interaction->purpose() === \CentralVet\Domain\AiPurpose::PATIENT_SUMMARY ? $this->aiSummarySlot : $this->aiAnamnesisSlot;
+
+        if ($slot === null)
+        {
+            return;
+        }
+
+        $suggestion = new \CentralVet\Domain\AiSuggestion(
+            interactionId: (int) $interaction->id(),
+            purpose: $interaction->purpose(),
+            text: (string) $interaction->suggestionText(),
+            provider: $interaction->provider(),
+            model: (string) $interaction->model(),
+            promptVersion: $interaction->promptVersion(),
+        );
+        $posted = self::postedText($param, 'ai_final_text');
+        $slot->add($this->aiSuggestionReview($encounterId, $suggestion, $posted !== '' ? $posted : null));
+    }
+
+    /**
+     * Runs one AI generation in its own transaction. AiUnavailableException
+     * (disabled, quota, timeout, refusal...) commits, so the failed
+     * interaction stays recorded for usage and audit, and shows a warning;
+     * the encounter screen keeps rendering. Logs carry class and reason
+     * only, never clinical text.
+     *
+     * @param Closure(\CentralVet\Application\AiAssistService): \CentralVet\Domain\AiSuggestion $generate
+     */
+    private function generateAiSuggestion(int $encounterId, Closure $generate): ?\CentralVet\Domain\AiSuggestion
+    {
+        try
+        {
+            if ($encounterId <= 0)
+            {
+                throw new \CentralVet\Domain\Exception\AiSubjectNotFoundException();
+            }
+
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+
+            $suggestion = $generate(\CentralVet\Application\AiAssistService::forContext($context, TTransaction::get(), self::aiLocale()));
+
+            TTransaction::close();
+
+            return $suggestion;
+        }
+        catch (\CentralVet\Domain\Exception\AiUnavailableException $e)
+        {
+            TTransaction::close();
+            error_log(__METHOD__ . ': ' . get_class($e) . ' ' . $e->reason());
+            new TMessage('warning', CvFormat::userError($e));
+        }
+        catch (\CentralVet\Domain\Exception\AiSubjectNotFoundException $e)
+        {
+            TTransaction::rollback();
+            new TMessage('warning', CvFormat::userError($e));
+        }
+        catch (\CentralVet\Authorization\Exception\AuthorizationDenied $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('You are not allowed to use the AI assistant for this encounter'));
+        }
+        catch (\CentralVet\Tenancy\Exception\MissingTenantContext $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', _t('An authenticated session with an active unit is required'));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
             new TMessage('error', CvFormat::userError($e));
         }
+
+        return null;
+    }
+
+    /** Posted `draft_version` when it is a SHA-256 hex string, else null (conflict). */
+    private static function postedDraftVersion($param): ?string
+    {
+        $version = is_array($param) ? ($param['draft_version'] ?? null) : null;
+
+        return is_string($version) && preg_match('/^[0-9a-f]{64}$/', $version) === 1 ? $version : null;
+    }
+
+    /**
+     * Replaces this page's content by a fresh render of the encounter (after
+     * a recorded AI decision) and re-fills it with the posted draft fields
+     * plus $overrides (applied anamnesis, new draft_version), so text typed
+     * since the last autosave stays on screen without being written.
+     *
+     * @param array<string, string> $overrides
+     */
+    private function rerenderWithPostedDraft(int $encounterId, $param, array $overrides): void
+    {
+        $fresh = new self(['encounter_id' => $encounterId]);
+
+        $this->clearChildren();
+
+        foreach ($fresh->getChildren() as $child)
+        {
+            parent::add($child);
+        }
+
+        $this->encounterForm = $fresh->encounterForm;
+        $this->aiSummarySlot = $fresh->aiSummarySlot;
+        $this->aiAnamnesisSlot = $fresh->aiAnamnesisSlot;
+        $this->aiFreeTextArea = $fresh->aiFreeTextArea;
+
+        $this->keepPostedDraft(array_merge(is_array($param) ? $param : [], $overrides));
+    }
+
+    /**
+     * Apply refused by the version guard: the page keeps the posted fields
+     * and version, the suggestion stays under review with the posted text,
+     * and the autosave conflict state (warning + "Keep my text"/"Reload the
+     * page") is shown with the stored version.
+     */
+    private function showDecisionConflict(int $encounterId, $param, string $storedVersion): void
+    {
+        $this->keepPostedDraft($param);
+        $this->keepPendingSuggestion($param);
+
+        $message = _t('The anamnesis was changed in another window. Reload the page to keep editing it.');
+        $formId = 'form_EncounterView_' . $encounterId;
+        $script = new TElement('script');
+        $script->add("(function() { if (window.cvAutosaveConflict && window.cvAutosaveConflict['{$formId}']) { window.cvAutosaveConflict['{$formId}']('{$storedVersion}'); } })();");
+        parent::add($script);
+
+        new TMessage('warning', $message);
+    }
+
+    /**
+     * An AI action posts the whole encounter form: re-fill the draft fields
+     * with what was posted, so text typed since the last autosave is not
+     * lost when the page comes back with the suggestion.
+     */
+    private function keepPostedDraft($param): void
+    {
+        if ($this->encounterForm === null || !is_array($param))
+        {
+            return;
+        }
+
+        $data = new stdClass;
+
+        foreach (self::DRAFT_FIELDS as $field)
+        {
+            if (array_key_exists($field, $param) && is_string($param[$field]))
+            {
+                $data->{$field} = $param[$field];
+            }
+        }
+
+        // The tab keeps its own version (T-24): a stale tab must not adopt
+        // the version of the page re-rendered from the database.
+        $version = self::postedDraftVersion($param);
+
+        if ((array) $data !== [] || $version !== null)
+        {
+            $data->draft_version = $version ?? 'none';
+        }
+
+        if ((array) $data !== [])
+        {
+            $this->encounterForm->setData($data);
+        }
+    }
+
+    /**
+     * Posted DRAFT_FIELDS, exactly as onAutosave() builds its draft ('' is
+     * null; fields not posted are left out).
+     *
+     * @return array<string, mixed>
+     */
+    private static function postedDraft($param): array
+    {
+        $draft = [];
+
+        if (!is_array($param))
+        {
+            return $draft;
+        }
+
+        foreach (self::DRAFT_FIELDS as $field)
+        {
+            if (array_key_exists($field, $param) && (is_string($param[$field]) || $param[$field] === null))
+            {
+                $draft[$field] = $param[$field] !== '' ? $param[$field] : null;
+            }
+        }
+
+        return $draft;
     }
 
     /**
      * Periodic autosave (EncounterService::autosave()). Triggered by the
      * client-side setInterval() injected in autosaveScript(), via
-     * __adianti_ajax_exec() with automatic_output=false, so its (re-rendered)
-     * HTML response is discarded rather than shown — failures here are
+     * __adianti_ajax_exec() with automatic_output=false — failures here are
      * swallowed on purpose (never surfaced as a dialog mid-typing) but never
      * left to become a fatal error either.
+     *
+     * Fase 8A, T-24: reads `draft_version` (the version the tab started
+     * from; missing = conflict), `draft_seq` (integer, echoed back) and
+     * `previous_draft` (optional JSON with the DRAFT_FIELDS of the previous
+     * tick, whose answer the tab has not received) and hands them to the
+     * service, which decides and writes atomically. Prints
+     * `<span class="cv-autosave-result" data-status="saved|conflict|closed"
+     * data-version="<sha>" data-seq="<seq>"></span>`; on a conflict nothing
+     * is written and data-version is the stored version; `closed` (T-32):
+     * the encounter is finished and nothing is written.
      */
     public function onAutosave($param)
     {
+        $seq = is_array($param) ? max(0, (int) ($param['draft_seq'] ?? 0)) : 0;
+
         try
         {
             $id = self::encounterIdParam($param);
 
-            if ($id <= 0)
+            if ($id <= 0 || !is_array($param))
             {
                 return;
             }
@@ -1667,24 +2575,58 @@ class EncounterView extends TPage
 
             $service = self::makeEncounterService($context);
 
-            $draft = [];
-
-            foreach (self::DRAFT_FIELDS as $field)
-            {
-                if (array_key_exists($field, $param))
-                {
-                    $draft[$field] = $param[$field] !== '' ? $param[$field] : null;
-                }
-            }
-
-            $service->autosave($id, $draft);
+            $draft = self::postedDraft($param);
+            $result = $service->autosave($id, $draft, self::postedDraftVersion($param), self::postedPreviousDraft($param));
 
             TTransaction::close();
+
+            $status = $result->closed ? 'closed' : ($result->saved ? 'saved' : 'conflict');
+
+            echo '<span class="cv-autosave-result" data-status="' . $status
+                . '" data-version="' . CvFormat::e($result->version) . '" data-seq="' . $seq . '"></span>';
+
+            foreach ($result->invalidFields as $field)
+            {
+                $label = _t(self::NUMERIC_FIELD_LABELS[$field] ?? $field);
+                echo '<span class="cv-autosave-invalid" data-field="' . CvFormat::e($field) . '">'
+                    . CvFormat::e(_t('^1: invalid number, not saved', $label)) . '</span>';
+            }
         }
-        catch (Exception $e)
+        catch (Throwable $e)
         {
+            // Never silent (T-28, correção 2): the script shows the error
+            // mark and keeps the local text; nothing of the tick is written.
             TTransaction::rollback();
+            error_log(__METHOD__ . ': ' . get_class($e));
+            echo '<span class="cv-autosave-error" data-seq="' . $seq . '">'
+                . CvFormat::e(_t('Could not save the draft; your text is still on the screen.')) . '</span>';
         }
+    }
+
+    /**
+     * `previous_draft` posted by the autosave script: JSON object with the
+     * DRAFT_FIELDS the previous tick sent, read like postedDraft() ('' is
+     * null). Anything else is null.
+     *
+     * @return array<string, ?string>|null
+     */
+    private static function postedPreviousDraft($param): ?array
+    {
+        if (!is_array($param) || !is_string($param['previous_draft'] ?? null) || $param['previous_draft'] === '')
+        {
+            return null;
+        }
+
+        $decoded = json_decode($param['previous_draft'], true);
+
+        if (!is_array($decoded))
+        {
+            return null;
+        }
+
+        $draft = self::postedDraft($decoded);
+
+        return $draft === [] ? null : $draft;
     }
 
     /**
@@ -1795,13 +2737,17 @@ class EncounterView extends TPage
 
             $appointments = self::makeAppointmentService($context);
 
-            $appointments->schedule([
+            $appointment = $appointments->schedule([
                 'patient_id' => $encounter->patientId(),
                 'service_id' => $serviceId,
                 'professional_system_user_id' => $encounter->professionalSystemUserId(),
                 'scheduled_at' => $scheduledAt,
                 'system_unit_id' => $context->requireUnitId(),
             ], 'EncounterView::onScheduleFollowUp');
+
+            // Fase 7A: marca o agendamento como retorno deste atendimento,
+            // na mesma transação (lembrete de retorno da comunicação)
+            self::makeAppointmentFollowupService($context)->link((int) $appointment->id, $id);
 
             TTransaction::close();
 
@@ -2032,9 +2978,27 @@ class EncounterView extends TPage
     }
 
     /**
-     * Wires EncounterDocumentService (T-05) against the real S3-compatible
-     * storage adapter (Fase 0), same CentralVet\Storage\S3CompatibleStorage::fromEnvironment()
-     * factory the storage layer already exposes for this purpose, plus the
+     * Wires AppointmentFollowupService (Fase 7A, T-14) on the open
+     * TTransaction connection, so the follow-up link is written in the same
+     * transaction as the appointment scheduled by onScheduleFollowUp().
+     */
+    private static function makeAppointmentFollowupService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\AppointmentFollowupService
+    {
+        $connection = TTransaction::get();
+
+        return new \CentralVet\Application\AppointmentFollowupService(
+            new \CentralVet\Persistence\AppointmentFollowupRepository($context, $connection),
+            new \CentralVet\Persistence\AppointmentRepository($context, $connection),
+            new \CentralVet\Persistence\EncounterRepository($context, $connection),
+            $context,
+        );
+    }
+
+    /**
+     * Wires EncounterDocumentService (T-05) against the configured storage
+     * driver (CentralVet\Storage\StorageFactory::forWrites(), rodada 4) for
+     * new attachments, a per-row reader (StorageFactory::forProvider() on the
+     * stored_object.storage_provider) for downloads, plus the
      * `stored_object` index (T-52) and the encounter repository (download
      * checks the encounter's unit, rodada 3 T-03) on the open TTransaction
      * connection — so callers must have TTransaction::open('permission') first.
@@ -2042,10 +3006,11 @@ class EncounterView extends TPage
     private static function makeEncounterDocumentService(\CentralVet\Tenancy\TenantContext $context): \CentralVet\Application\EncounterDocumentService
     {
         return new \CentralVet\Application\EncounterDocumentService(
-            \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($context),
+            \CentralVet\Storage\StorageFactory::forWrites($context),
             $context,
             new \CentralVet\Persistence\StoredObjectRepository($context, TTransaction::get()),
             new \CentralVet\Persistence\EncounterRepository($context, TTransaction::get()),
+            static fn (string $storageProvider): \CentralVet\Storage\StorageInterface => \CentralVet\Storage\StorageFactory::forProvider($storageProvider, $context),
         );
     }
 

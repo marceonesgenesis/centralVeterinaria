@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Domain;
 
+use CentralVet\Domain\Exception\ProductWithoutSalePriceException;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -200,6 +201,22 @@ final class Product
     /** Suggested sale price in cents, or null when not informed. */
     public function salePriceCents(): ?int
     {
+        return $this->salePriceCents;
+    }
+
+    /**
+     * Price this product is sold for (Etapa 1 / F1). 0 is a valid price;
+     * null (not informed) is refused — there is no fallback to the unit
+     * cost.
+     *
+     * @throws ProductWithoutSalePriceException when salePriceCents() is null.
+     */
+    public function requireSalePriceCents(): int
+    {
+        if ($this->salePriceCents === null) {
+            throw new ProductWithoutSalePriceException();
+        }
+
         return $this->salePriceCents;
     }
 

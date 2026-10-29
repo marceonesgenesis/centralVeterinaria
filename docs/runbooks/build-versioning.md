@@ -1,25 +1,16 @@
 # Build versionado e pipeline de CI
 
-## Pipeline (`.github/workflows/ci.yml`)
+## Pipeline (`.github/workflows/ci.yml` e `scripts/ci/run.sh`)
 
-Roda em `push` e `pull_request`. Não publica nada e não se conecta a nenhum
-registry — build e teste acontecem só dentro do runner:
+A pipeline é o script versionado `scripts/ci/run.sh`: roda igual no GitHub
+Actions (em `push` e `pull_request`) e na máquina do desenvolvedor. Não publica
+nada e não usa registry; o detalhe das etapas e do uso local está em
+[`tests.md`](./tests.md) (seção "CI reproduzível"). O workflow só faz checkout,
+chama o script (`CI_PROJECT=centralvet-ci`, `CI_WORKDIR=var/ci`,
+`IMAGE_TAG=<sha>`) e guarda o log como artefato em caso de falha.
 
-1. Gera um `.env` efêmero no runner (credenciais aleatórias por execução,
-   via `openssl rand`; descartado com o runner, nunca commitado).
-2. `docker compose config --quiet` — valida a configuração antes de construir.
-3. `docker compose build app worker` — builda as imagens com a tag da vez
-   (ver abaixo).
-4. `docker compose up -d --wait mysql redis app worker` — sobe só os
-   serviços necessários e espera os healthchecks.
-5. `docker compose exec -T app php tests/run.php` — roda a suíte real de
-   T-11 (75 testes, contra Redis real).
-6. Em falha, imprime os últimos logs; ao final, sempre derruba a stack
-   (`docker compose down -v`), pois o runner é descartável.
-
-Este workflow foi preparado sem repositório Git inicializado, para ser
-ativado automaticamente quando o repositório remoto existir — nenhuma ação
-de push/deploy remoto foi executada para produzi-lo.
+Release e rollback (pacote da hospedagem, imagem por SHA, manifesto, preflight,
+fumaça): [`release.md`](./release.md).
 
 ## Estratégia de tag de imagem
 

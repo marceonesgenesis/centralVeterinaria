@@ -11,3 +11,8 @@ vendor/
 .vscode/
 .playwright-mcp/
 src/tmp/*
+var/releases/
+var/ci/
+var/drill/
+var/maintenance/
+docker/nginx/trusted-proxies.production.conf

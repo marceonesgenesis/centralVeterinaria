@@ -188,4 +188,87 @@ final class StockServiceTest
         Assert::count(1, $policy->requests);
         Assert::same('StockBatchForm::onSave', $policy->requests[0]->action());
     }
+
+    /**
+     * F2: the locked read saw enough stock, but the conditional UPDATE of
+     * the batch is refused (another consumer drained it): consume() throws
+     * InsufficientStockException for the units still missing and writes no
+     * movement for that batch.
+     */
+    public function testConsumeThrowsWhenTheConditionalDecreaseIsRefused(): void
+    {
+        $batches = new FakeStockBatchRepository(self::TENANT_ID);
+        $movements = new FakeStockMovementRepository(self::TENANT_ID);
+        $context = TenantContext::authenticated(self::TENANT_ID, 1, self::SYSTEM_UNIT_ID);
+        $service = new StockService($batches, $movements, new FakeAuthorizationPolicy(allowed: true), $context);
+
+        $batch = $this->receive('LOTE-D', '2026-01-01', 3);
+        $batches->save($batch);
+        $batches->refuseNextDecrease((int) $batch->id());
+
+        $caught = null;
+
+        try {
+            $service->consume(self::TENANT_ID, self::SYSTEM_UNIT_ID, self::PRODUCT_ID, 2, StockMovement::REASON_SALE_CONSUMPTION, 'sale', 7, self::PROFESSIONAL_ID);
+        } catch (InsufficientStockException $exception) {
+            $caught = $exception;
+        }
+
+        Assert::notNull($caught, 'A refused conditional decrease must throw InsufficientStockException');
+        Assert::same(2, $caught->shortfall);
+        Assert::count(0, $movements->listByProduct(self::PRODUCT_ID));
+    }
+
+    /**
+     * reverseReferenceConsumption() puts back what the reference consumed,
+     * writes one `in` movement per original `out` movement, ignores other
+     * references and returns 0 on a second call.
+     */
+    public function testReverseReferenceConsumptionRestoresOnceAndIgnoresOtherReferences(): void
+    {
+        $batches = new FakeStockBatchRepository(self::TENANT_ID);
+        $movements = new FakeStockMovementRepository(self::TENANT_ID);
+        $context = TenantContext::authenticated(self::TENANT_ID, 1, self::SYSTEM_UNIT_ID);
+        $service = new StockService($batches, $movements, new FakeAuthorizationPolicy(allowed: true), $context);
+
+        $first = $this->receive('LOTE-E', '2026-01-01', 2);
+        $second = $this->receive('LOTE-F', '2026-06-01', 10);
+        $batches->save($first);
+        $batches->save($second);
+
+        $service->consume(self::TENANT_ID, self::SYSTEM_UNIT_ID, self::PRODUCT_ID, 5, StockMovement::REASON_SALE_CONSUMPTION, 'sale', 7, self::PROFESSIONAL_ID);
+        $service->consume(self::TENANT_ID, self::SYSTEM_UNIT_ID, self::PRODUCT_ID, 1, StockMovement::REASON_SALE_CONSUMPTION, 'sale', 8, self::PROFESSIONAL_ID);
+
+        $restored = $service->reverseReferenceConsumption(self::TENANT_ID, 'sale', 7, StockMovement::REASON_SALE_CONSUMPTION, StockMovement::REASON_SALE_CANCELLATION, self::PROFESSIONAL_ID);
+
+        Assert::same(5, $restored);
+        Assert::same(2, $batches->findById($first->id())->quantity());
+        Assert::same(9, $batches->findById($second->id())->quantity(), 'Only sale 8 keeps its unit');
+
+        $reference = $movements->listByReference('sale', 7);
+        Assert::count(4, $reference);
+        Assert::same(StockMovement::TYPE_IN, $reference[2]->movementType());
+        Assert::same(StockMovement::REASON_SALE_CANCELLATION, $reference[2]->reason());
+        Assert::same($first->id(), $reference[2]->stockBatchId());
+        Assert::same(2, $reference[2]->quantity());
+        Assert::same($second->id(), $reference[3]->stockBatchId());
+        Assert::same(3, $reference[3]->quantity());
+
+        Assert::same(0, $service->reverseReferenceConsumption(self::TENANT_ID, 'sale', 7, StockMovement::REASON_SALE_CONSUMPTION, StockMovement::REASON_SALE_CANCELLATION, self::PROFESSIONAL_ID));
+        Assert::same(9, $batches->findById($second->id())->quantity());
+        Assert::count(4, $movements->listByReference('sale', 7));
+    }
+
+    private function receive(string $lot, string $expiry, int $quantity): StockBatch
+    {
+        return StockBatch::receive(
+            tenantId: self::TENANT_ID,
+            systemUnitId: self::SYSTEM_UNIT_ID,
+            productId: self::PRODUCT_ID,
+            lot: $lot,
+            expiryDate: new DateTimeImmutable($expiry),
+            quantity: $quantity,
+            receivedAt: new DateTimeImmutable('2025-06-01'),
+        );
+    }
 }

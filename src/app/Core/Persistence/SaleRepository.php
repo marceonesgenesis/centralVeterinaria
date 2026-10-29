@@ -46,6 +46,29 @@ final class SaleRepository extends AbstractTenantRepository implements SaleRepos
         return $row === false ? null : self::hydrate($row);
     }
 
+    /**
+     * Row-locking read for cancellation and checkout (Etapa 2 / T-09):
+     * `SELECT ... FOR UPDATE`, same pattern as
+     * EncounterRepository::lockForDraft(). The caller owns the transaction.
+     */
+    public function findByIdForUpdate(int $id): ?Sale
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('findByIdForUpdate() requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $id);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM sale WHERE {$query->whereSql()} LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
     /** Used by SaleService for a tutor's purchase history. */
     public function listByTutor(int $tutorId): array
     {
@@ -103,16 +126,24 @@ final class SaleRepository extends AbstractTenantRepository implements SaleRepos
         }
 
         // total_amount_cents/sold_at/etc. are set once at create() time and
-        // never revised (T-06's plan exposes no "edit a sale" use case);
-        // only status changes (e.g. a future cancel()) are ever re-saved.
+        // never revised (no "edit a sale" use case); only the status and
+        // the traceable cancellation (Sale::cancel(), Etapa 2 / T-09) are
+        // ever re-saved. sale_cancellation_ck (0016) requires the three
+        // cancellation columns together with status 'cancelled'.
         $query = $this->tenantQuery()->andEquals('id', $entity->id());
 
         $statement = $this->connection->prepare(
-            "UPDATE sale SET status = :status WHERE {$query->whereSql()}"
+            "UPDATE sale SET status = :status, cancelled_at = :cancelled_at,
+                cancelled_by_system_user_id = :cancelled_by_system_user_id,
+                cancellation_reason = :cancellation_reason
+             WHERE {$query->whereSql()}"
         );
         $statement->execute([
             ...$query->parameters(),
             ':status' => $entity->status(),
+            ':cancelled_at' => $entity->cancelledAt()?->format('Y-m-d H:i:s.u'),
+            ':cancelled_by_system_user_id' => $entity->cancelledBySystemUserId(),
+            ':cancellation_reason' => $entity->cancellationReason(),
         ]);
 
         return $entity;
@@ -153,6 +184,11 @@ final class SaleRepository extends AbstractTenantRepository implements SaleRepos
             totalAmountCents: (int) $row['total_amount_cents'],
             soldAt: new DateTimeImmutable((string) $row['sold_at']),
             createdAt: $row['created_at'] !== null ? new DateTimeImmutable((string) $row['created_at']) : null,
+            cancelledAt: ($row['cancelled_at'] ?? null) !== null ? new DateTimeImmutable((string) $row['cancelled_at']) : null,
+            cancelledBySystemUserId: ($row['cancelled_by_system_user_id'] ?? null) !== null
+                ? (int) $row['cancelled_by_system_user_id']
+                : null,
+            cancellationReason: ($row['cancellation_reason'] ?? null) !== null ? (string) $row['cancellation_reason'] : null,
         );
     }
 }

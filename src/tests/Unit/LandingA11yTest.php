@@ -33,12 +33,10 @@ final class LandingA11yTest
     {
         $template = $this->read(self::TEMPLATE);
 
-        foreach ([
-            'landing/landing.css?v=20261005-a11y',
-            'landing/translations.js?v=20261005-a11y',
-            'landing/landing.js?v=20261005-a11y',
-        ] as $marker) {
-            Assert::stringContains($marker, $template);
+        // Versão datada (AAAAMMDD-sufixo) em cada asset; a troca a cada mudança
+        // é conferida em LandingCheckoutWiringTest::testChangedAssetsHaveNewCacheBusters.
+        foreach (['landing/landing.css', 'landing/translations.js', 'landing/landing.js'] as $asset) {
+            Assert::same(1, preg_match('#"' . preg_quote($asset, '#') . '\?v=\d{8}-[a-z0-9-]+"#', $template), "{$asset} needs a dated ?v= cache buster");
         }
     }
 
@@ -62,7 +60,16 @@ final class LandingA11yTest
         Assert::stringContains('function cartFocusables()', $script);
         Assert::stringContains('ev.key === "Tab"', $script);
         Assert::stringContains('ev.shiftKey', $script);
-        Assert::stringContains('ev.preventDefault()', $script);
+        Assert::stringContains('ev.preventDefault(); last.focus();', $script);
+        Assert::stringContains('ev.preventDefault(); first.focus();', $script);
+        Assert::stringContains('if (ev.key === "Tab") wrapTab(ev);', $script);
+    }
+
+    public function testRemovePlanFocusesGoPlansInsideCart(): void
+    {
+        $script = $this->read(self::SCRIPT);
+
+        Assert::stringContains('renderCart(); $("go-plans").focus(); return; }', $script);
     }
 
     public function testScriptWiresFieldErrors(): void
@@ -91,6 +98,13 @@ final class LandingA11yTest
         Assert::stringContains('visibility 0s linear .25s', $style);
         Assert::stringContains('visibility: visible', $style);
         Assert::stringContains('.field [aria-invalid="true"]', $style);
+    }
+
+    public function testStyleKeepsInvalidBorderOnFocus(): void
+    {
+        $style = $this->read(self::STYLE);
+
+        Assert::stringContains('.field [aria-invalid="true"]:focus { border-color: #B3412E;', $style);
     }
 
     private function read(string $relative): string

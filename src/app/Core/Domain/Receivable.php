@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace CentralVet\Domain;
 
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\OverpaymentException;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
+ * Etapa 2 (T-08): a receivable comes from exactly one origin — a closed
+ * encounter account ({@see self::open()}) or a sale ({@see self::openForSale()}),
+ * mirroring receivable_origin_ck (migration 0016). It can be cancelled
+ * ({@see self::cancel()}), keeping paid_cents, and refuses payments once
+ * cancelled.
+ *
  * The amount owed by a tutor for a closed {@see EncounterAccount} (domain
  * aggregate for the `receivable` table): tracks paid_cents against
  * total_cents, with status moving from 'open' through 'partially_paid' to
@@ -52,14 +59,50 @@ final class Receivable
     private function __construct(
         private ?int $id,
         private readonly int $tenantId,
-        private readonly int $encounterAccountId,
+        private readonly ?int $encounterAccountId,
         private readonly int $tutorId,
         private readonly int $totalCents,
         private int $paidCents,
         private string $status,
         private readonly ?DateTimeImmutable $createdAt = null,
         private readonly ?DateTimeImmutable $updatedAt = null,
+        private readonly ?int $saleId = null,
     ) {
+    }
+
+    /**
+     * Opens the receivable of a sale (T-08): no encounter account, paid_cents
+     * at zero, 'open' — or already 'paid' when the sale total is zero (a
+     * zero-total sale gets no payment row, payment_amount_ck).
+     */
+    public static function openForSale(int $tenantId, int $saleId, int $tutorId, int $totalCents): self
+    {
+        if ($tenantId <= 0) {
+            throw new InvalidArgumentException('Tenant id must be positive');
+        }
+
+        if ($saleId <= 0) {
+            throw new InvalidArgumentException('sale_id must be positive');
+        }
+
+        if ($tutorId <= 0) {
+            throw new InvalidArgumentException('tutor_id must be positive');
+        }
+
+        if ($totalCents < 0) {
+            throw new InvalidArgumentException('total_cents cannot be negative');
+        }
+
+        return new self(
+            id: null,
+            tenantId: $tenantId,
+            encounterAccountId: null,
+            tutorId: $tutorId,
+            totalCents: $totalCents,
+            paidCents: 0,
+            status: $totalCents === 0 ? self::STATUS_PAID : self::STATUS_OPEN,
+            saleId: $saleId,
+        );
     }
 
     /**
@@ -119,7 +162,7 @@ final class Receivable
         return new self(
             id: (int) $row['id'],
             tenantId: (int) $row['tenant_id'],
-            encounterAccountId: (int) $row['encounter_account_id'],
+            encounterAccountId: isset($row['encounter_account_id']) ? (int) $row['encounter_account_id'] : null,
             tutorId: (int) $row['tutor_id'],
             totalCents: (int) $row['total_cents'],
             paidCents: (int) $row['paid_cents'],
@@ -130,7 +173,24 @@ final class Receivable
             updatedAt: isset($row['updated_at']) && $row['updated_at'] !== null
                 ? new DateTimeImmutable((string) $row['updated_at'])
                 : null,
+            saleId: isset($row['sale_id']) ? (int) $row['sale_id'] : null,
         );
+    }
+
+    /**
+     * Cancels the receivable (T-08): status becomes 'cancelled' and
+     * paid_cents is preserved (reversals are recorded separately in
+     * payment_reversal). Cancelling an already cancelled receivable changes
+     * nothing.
+     */
+    public function cancel(): void
+    {
+        $this->status = self::STATUS_CANCELLED;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
     }
 
     /**
@@ -146,9 +206,15 @@ final class Receivable
      *         paid_cents/status are left exactly as they were —
      *         `CentralVet\Application\PaymentService::register()` relies on
      *         this to guarantee nothing is persisted on overpayment.
+     * @throws InvalidStatusTransitionException when the receivable is
+     *         cancelled, before any field is mutated (T-08).
      */
     public function recordPayment(int $amountCents): void
     {
+        if ($this->isCancelled()) {
+            throw new InvalidStatusTransitionException('This receivable is cancelled and cannot receive payments');
+        }
+
         if ($amountCents < 1) {
             throw new InvalidArgumentException('amount_cents must be >= 1');
         }
@@ -187,9 +253,16 @@ final class Receivable
         return $this->tenantId;
     }
 
-    public function encounterAccountId(): int
+    /** Null for a sale receivable (T-08). */
+    public function encounterAccountId(): ?int
     {
         return $this->encounterAccountId;
+    }
+
+    /** Null for an encounter receivable (T-08). */
+    public function saleId(): ?int
+    {
+        return $this->saleId;
     }
 
     public function tutorId(): int

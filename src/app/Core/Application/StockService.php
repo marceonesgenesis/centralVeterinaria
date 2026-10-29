@@ -114,6 +114,15 @@ final class StockService
      * amount is fully covered, persisting one stock_movement row per batch
      * it actually decremented.
      *
+     * Concurrency (F2, Etapa 2): the batches are read with
+     * lockByProductOrderedByExpiry() (SELECT ... FOR UPDATE, so the caller
+     * must hold an open transaction) and each one is decremented with the
+     * conditional decreaseQuantity(); a concurrent sale of the same product
+     * waits for this transaction (or times out with 1205) instead of
+     * reading a stale balance. A refused decrement throws
+     * InsufficientStockException for the units still missing; the caller's
+     * transaction rollback discards anything written before it.
+     *
      * All-or-nothing: the total available balance across every one of the
      * product's batches in this unit is summed BEFORE any batch is
      * touched. If that sum is smaller than $quantity,
@@ -144,7 +153,7 @@ final class StockService
         }
 
         /** @var list<StockBatch> $batches */
-        $batches = $this->batches->listByProductOrderedByExpiry($productId, $systemUnitId);
+        $batches = $this->batches->lockByProductOrderedByExpiry($productId, $systemUnitId);
 
         $available = 0;
 
@@ -168,8 +177,10 @@ final class StockService
             }
 
             $taken = min($batch->quantity(), $remaining);
-            $batch->decrease($taken);
-            $this->batches->save($batch);
+
+            if (!$this->batches->decreaseQuantity((int) $batch->id(), $taken)) {
+                throw InsufficientStockException::forShortfall($productId, $remaining);
+            }
 
             $movement = StockMovement::record(
                 tenantId: $tenantId,
@@ -187,5 +198,64 @@ final class StockService
 
             $remaining -= $taken;
         }
+    }
+
+    /**
+     * Puts back every unit a reference consumed: for each `out` movement of
+     * ($referenceType, $referenceId) with $originalReason, the batch is
+     * increased by that quantity and an `in` movement with $reversalReason
+     * is written on the same reference and batch. Returns the units put
+     * back.
+     *
+     * Idempotent: when the reference already has any movement with
+     * $reversalReason, nothing is written and 0 is returned. Callers run it
+     * inside the same transaction that locks the reference (e.g. the sale
+     * row), so two concurrent reversals cannot both pass that check.
+     */
+    public function reverseReferenceConsumption(
+        int $tenantId,
+        string $referenceType,
+        int $referenceId,
+        string $originalReason,
+        string $reversalReason,
+        int $professionalSystemUserId,
+    ): int {
+        $this->context->assertTenant($tenantId);
+
+        /** @var list<StockMovement> $movements */
+        $movements = $this->movements->listByReference($referenceType, $referenceId);
+
+        foreach ($movements as $movement) {
+            if ($movement->reason() === $reversalReason) {
+                return 0;
+            }
+        }
+
+        $restored = 0;
+
+        foreach ($movements as $movement) {
+            if ($movement->movementType() !== StockMovement::TYPE_OUT || $movement->reason() !== $originalReason) {
+                continue;
+            }
+
+            $this->batches->increaseQuantity($movement->stockBatchId(), $movement->quantity());
+
+            $this->movements->save(StockMovement::record(
+                tenantId: $tenantId,
+                systemUnitId: $movement->systemUnitId(),
+                productId: $movement->productId(),
+                stockBatchId: $movement->stockBatchId(),
+                movementType: StockMovement::TYPE_IN,
+                quantity: $movement->quantity(),
+                reason: $reversalReason,
+                referenceType: $referenceType,
+                referenceId: $referenceId,
+                professionalSystemUserId: $professionalSystemUserId,
+            ));
+
+            $restored += $movement->quantity();
+        }
+
+        return $restored;
     }
 }

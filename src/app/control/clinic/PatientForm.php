@@ -20,7 +20,8 @@
  *
  * Alergia e foto (rodada 2, T-12): `allergies` vai em create()/update(); a
  * foto (TFile, arquivo já em tmp/) vai por PatientService::attachPhoto() para
- * o storage S3 (S3CompatibleStorage::fromEnvironment) e é servida por
+ * o storage da StorageFactory::forPatientPhotos (driver configurável, com
+ * leitura de fotos antigas no S3) e é servida por
  * PatientForm::onPhoto (static), que responde os bytes ou 404.
  *
  * @version    8.6
@@ -240,6 +241,17 @@ class PatientForm extends TStandardForm
             }
 
             $actions = [$back];
+            if ($this->viewPatient !== null)
+            {
+                $patient_id = (int) $this->viewPatient->id;
+                $actions[] = ['label' => _t('Documents'), 'icon' => 'fa:file-pdf', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentList&patient_id=' . $patient_id];
+                $actions[] = ['label' => _t('Medical certificate'), 'icon' => 'fa:file-medical', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentRequestForm&kind=medical_certificate&source_id=' . $patient_id];
+                $copilot = self::copilotLink($patient_id);
+                if ($copilot !== null)
+                {
+                    $actions[] = $copilot;
+                }
+            }
             if ($this->tutor_id !== null)
             {
                 $actions[] = ['label' => _t('New patient'), 'icon' => 'fa:plus', 'class' => 'btn btn-primary', 'action' => new TAction([__CLASS__, 'onEdit'], ['tutor_id' => $this->tutor_id])];
@@ -571,7 +583,7 @@ class PatientForm extends TStandardForm
                     new \CentralVet\Persistence\PatientRepository($tenant_context, $connection),
                     new \CentralVet\Persistence\TutorRepository($tenant_context, $connection),
                     $tenant_context,
-                    \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context),
+                    \CentralVet\Storage\StorageFactory::forPatientPhotos($tenant_context),
                 );
                 $photo = $service->photo($id);
                 TTransaction::close();
@@ -691,7 +703,7 @@ class PatientForm extends TStandardForm
     /**
      * Builds CentralVet\Application\PatientService with tenant-aware
      * repositories, reusing the authenticated session's tenant context.
-     * With $withStorage the S3-compatible storage is wired too (only when a
+     * With $withStorage the patient-photo storage (StorageFactory) is wired too (only when a
      * photo is being saved, so a missing storage config never breaks the
      * plain form). Must be called inside an open 'permission' TTransaction.
      */
@@ -702,9 +714,44 @@ class PatientForm extends TStandardForm
 
         $tutors = new \CentralVet\Persistence\TutorRepository($tenant_context, $connection);
         $patients = new \CentralVet\Persistence\PatientRepository($tenant_context, $connection);
-        $storage = $withStorage ? \CentralVet\Storage\S3CompatibleStorage::fromEnvironment($tenant_context) : null;
+        $storage = $withStorage ? \CentralVet\Storage\StorageFactory::forPatientPhotos($tenant_context) : null;
 
         return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context, $storage);
+    }
+
+    /**
+     * "Copiloto" link (Fase 8B): opens the AiCopilotPanel curtain anchored on
+     * the patient. A link, not a TButton, so the patient form is never
+     * posted. Only when AiCopilotAvailability::reason('clinical') is null
+     * (flag, terms, quota, configuration; no gateway, Redis limiter or tool
+     * registry); any failure (no tenant, database error) hides it.
+     */
+    private static function copilotLink(int $patientId): ?TElement
+    {
+        $family = \CentralVet\Ai\Tools\ToolFamily::CLINICAL;
+
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $available = \CentralVet\Application\AiCopilotAvailability::forContext($context, TTransaction::get())
+                ->reason($family) === null;
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': copilot link hidden (' . get_class($e) . ')');
+            return null;
+        }
+
+        if (!$available)
+        {
+            return null;
+        }
+
+        return AiCopilotPanel::hostLink($family, $patientId);
     }
 
     /**

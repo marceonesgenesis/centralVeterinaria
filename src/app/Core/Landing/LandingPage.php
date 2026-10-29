@@ -8,8 +8,9 @@ namespace CentralVet\Landing;
  * Landing pública servida em `/` (`landing.php`): decide entre a landing e o
  * sistema e monta o template com o token do formulário e o catálogo.
  *
- * - `landing`: GET/HEAD sem query string e sem sessão logada;
- * - `system`: sessão logada ou query string não vazia (302 para /index.php);
+ * - `landing`: GET/HEAD sem sessão logada e sem query string, ou com só a
+ *   volta do Stripe Checkout (`checkout=success|cancelled`, `order` opcional);
+ * - `system`: sessão logada ou qualquer outra query string (302 para /index.php);
  * - `method_not_allowed`: qualquer outro método (405).
  */
 final class LandingPage
@@ -28,11 +29,31 @@ final class LandingPage
             return self::ENTRY_METHOD_NOT_ALLOWED;
         }
 
-        if ($logged || $queryString !== '') {
+        if ($logged || ($queryString !== '' && !self::isCheckoutReturn($queryString))) {
             return self::ENTRY_SYSTEM;
         }
 
         return self::ENTRY_LANDING;
+    }
+
+    /**
+     * Volta do Stripe Checkout (T-16 `success_url`/`cancel_url`): só
+     * `checkout=success|cancelled` e, opcional, `order=<public_id>`.
+     */
+    private static function isCheckoutReturn(string $queryString): bool
+    {
+        parse_str($queryString, $query);
+        $checkout = $query['checkout'] ?? null;
+        if (!in_array($checkout, ['success', 'cancelled'], true)) {
+            return false;
+        }
+
+        $order = $query['order'] ?? null;
+        if ($order !== null && (!is_string($order) || preg_match('/^[A-Za-z0-9-]{1,64}$/', $order) !== 1)) {
+            return false;
+        }
+
+        return array_diff(array_keys($query), ['checkout', 'order']) === [];
     }
 
     /**

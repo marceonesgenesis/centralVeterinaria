@@ -94,6 +94,14 @@ final class UserMessageTest
         Assert::same(['key' => 'Bank account must belong to the current unit', 'params' => []], UserMessage::resolve('Bank account must belong to the current unit 3'));
     }
 
+    public function testReceivableAndCashSessionNotFoundResolve(): void
+    {
+        // Etapa 5, T-18: PaymentService::register sobre recebível ou caixa de outro tenant.
+        Assert::same(['key' => 'Receivable not found', 'params' => []], UserMessage::resolve('Receivable 59869 not found'));
+        Assert::same(['key' => 'Record not found', 'params' => []], UserMessage::resolve('Cash session 12 not found'));
+        Assert::null(UserMessage::resolve('Receivable 59869 not found for tenant 3'));
+    }
+
     public function testNameMarkupMessageIsCatalogued(): void
     {
         // Rodada 3, T-14: NameText::MARKUP_MESSAGE.
@@ -119,11 +127,486 @@ final class UserMessageTest
 
     public function testCatalogHasExactlyTheContractEntries(): void
     {
-        Assert::count(18, UserMessage::STATIC);
-        Assert::count(23, UserMessage::PATTERNS);
+        Assert::count(107, UserMessage::STATIC); // Etapa 3, T-01: +3 mensagens de assinatura e plano; T-24: +7 de equipe e unidades; T-29: +1 de tenant. Etapa 5, T-02: +6 (cancelamento, onboarding, piloto); T-12: +1 (último administrador).
+        Assert::count(112, UserMessage::PATTERNS); // Etapa 3, T-01: +4 (venda, forma de pagamento, quotas). Etapa 5, T-18: +2 (recebível e caixa não encontrados).
 
-        foreach (UserMessage::STATIC as $message => $key) {
-            Assert::same($message, $key);
+        // Etapa 5, T-02: mensagens de domínio estáticas que chegam traduzidas à tela.
+        $etapa5 = [
+            'No active subscription to cancel',
+            'The payment provider did not confirm the cancellation. Try again in a few minutes',
+            'The subscription is already scheduled for cancellation',
+            'Enter the clinic legal name',
+            'Enter the unit name',
+            'This module is not available in the pilot yet',
+            // Etapa 5, T-12: a clínica não fica sem administrador ativo.
+            'The clinic must keep at least one active administrator',
+        ];
+        foreach ($etapa5 as $message) {
+            Assert::same($message, UserMessage::STATIC[$message] ?? null, "Etapa 5 contract entry missing: {$message}");
         }
+
+        // Etapa 1, T-01: a mensagem crua cita campos técnicos; a chave é o texto para o usuário.
+        $renamed = [
+            'patient_id is required when encounter_id is informed' => 'Select the patient of the encounter',
+            // Etapa 3, T-29: reaproveita a chave existente de translations.json.
+            'Resource does not belong to the authenticated tenant' => 'The selected record does not belong to this clinic',
+        ];
+        foreach (UserMessage::STATIC as $message => $key) {
+            Assert::same($renamed[$message] ?? $message, $key);
+        }
+    }
+
+    public function testLastAdministratorMessageHasThePortugueseText(): void
+    {
+        $pt = null;
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            if (($entry['en'] ?? null) === 'The clinic must keep at least one active administrator') {
+                $pt = $entry['pt'] ?? null;
+            }
+        }
+
+        Assert::same('A clínica precisa manter pelo menos um administrador ativo', $pt);
+    }
+
+    public function testHospitalizationDomainMessagesResolve(): void
+    {
+        // Fase 6A, T-18: mensagens de leito, internação, prescrição e administração.
+        Assert::same(['key' => 'This bed is not available', 'params' => []], UserMessage::resolve('Bed 7 is not available'));
+        Assert::same(['key' => 'This bed is occupied and cannot be deactivated', 'params' => []], UserMessage::resolve('Bed 7 is occupied and cannot be deactivated'));
+        Assert::same(['key' => 'This administration is no longer pending', 'params' => []], UserMessage::resolve('Administration 3 is not pending'));
+        Assert::same(['key' => 'This prescription is no longer active', 'params' => []], UserMessage::resolve('Order 4 is not active'));
+        Assert::same(['key' => 'This hospitalization is no longer active', 'params' => []], UserMessage::resolve('Hospitalization 9 is not admitted'));
+        Assert::same(['key' => 'This patient is already hospitalized', 'params' => []], UserMessage::resolve('Patient 1452 already has an active hospitalization'));
+        Assert::same(['key' => 'The bed is not occupied by this hospitalization', 'params' => []], UserMessage::resolve('Bed 2 is not occupied by hospitalization 9'));
+        Assert::same(['key' => 'The encounter account is not open', 'params' => []], UserMessage::resolve('Encounter account 46 cannot be modified: status is "closed", not "open"'));
+        Assert::same(
+            ['key' => 'A bed with code "^1" already exists in this unit', 'params' => ['<b>L1</b>']],
+            UserMessage::resolve('A bed with code "<b>L1</b>" already exists in this unit'),
+        );
+    }
+
+    public function testHospitalizationRecordsNotFoundResolve(): void
+    {
+        $notFound = ['key' => 'Record not found', 'params' => []];
+
+        foreach (['Bed 7', 'Hospitalization 9', 'Administration 3', 'Order 4'] as $record) {
+            Assert::same($notFound, UserMessage::resolve("{$record} not found for this tenant"));
+        }
+        Assert::same($notFound, UserMessage::resolve('hospitalization_id 9 was not found for the authenticated tenant'));
+        Assert::same($notFound, UserMessage::resolve('product_id 8545 was not found among the active products of the authenticated tenant'));
+    }
+
+    public function testHospitalizationValidationMessagesResolve(): void
+    {
+        foreach ([
+            'ends_at must be after starts_at',
+            'Prescription period cannot exceed 30 days',
+            'frequency_hours must be between 1 and 168',
+            'quantity_per_administration is required when a product is selected',
+            'At least one vital sign is required',
+            'pain_score must be between 0 and 10',
+            'responsible_system_user_id must be an active user of this tenant',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+        }
+        Assert::same(['key' => '^1 must be a positive integer', 'params' => ['frequency_hours']], UserMessage::resolve('frequency_hours must be a positive integer'));
+        Assert::same(['key' => '^1 must be a whole number', 'params' => ['pain_score']], UserMessage::resolve('pain_score must be a whole number'));
+        Assert::same(['key' => '^1 must be a number', 'params' => ['weight_kg']], UserMessage::resolve('weight_kg must be a number'));
+    }
+
+    public function testHospitalizationReachableMessagesResolveWithoutFieldNames(): void
+    {
+        // T-18 correção 1: o form de parâmetros aceita "-" e o domínio recusa negativo; recusas restantes da varredura.
+        foreach ([
+            'temperature_c cannot be negative',
+            'heart_rate_bpm cannot be negative',
+            'respiratory_rate_rpm cannot be negative',
+            'weight_kg cannot be negative',
+            'from_bed_id and to_bed_id are required for a transfer',
+            'bed_id must be positive',
+            'responsible_system_user_id must be positive',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+        }
+        Assert::same(['key' => 'Invalid route', 'params' => []], UserMessage::resolve('Unknown route "nasal"'));
+        Assert::same(['key' => 'Invalid prescription type', 'params' => []], UserMessage::resolve('Unknown order_type "x"'));
+    }
+
+    public function testSurgeryDomainMessagesResolveWithoutInternalIds(): void
+    {
+        // Fase 6B, T-19: sala, status da cirurgia, checklist, equipe e materiais.
+        $english = self::translatedKeys();
+        $cases = [
+            'Surgery room 3 is already booked for this period' => 'This surgery room is already booked for this period',
+            'Surgery room 3 is not active' => 'This surgery room is not active',
+            'Surgery room 3 belongs to another unit' => 'This surgery room belongs to another unit',
+            'Surgery 9 is not scheduled' => 'This surgery is not scheduled',
+            'Surgery 9 is not in pre-op' => 'This surgery is not in pre-op',
+            'Surgery 9 is not in progress' => 'This surgery is not in progress',
+            'Surgery 9 is not completed' => 'This surgery is not completed',
+            'Surgery 9 is cancelled' => 'This surgery is cancelled',
+            'Surgery 9 has no recorded consent' => 'This surgery has no recorded consent',
+            'Surgery 9 is not open for pre-operative changes' => 'This surgery is no longer open for pre-operative changes',
+            'Surgery 9 cannot be cancelled in its current status' => 'This surgery cannot be cancelled in its current status',
+            'Surgery 9 changed status concurrently' => 'This surgery was changed by someone else; reload it and try again',
+            'Surgery 9 already has a follow-up appointment' => 'This surgery already has a follow-up appointment',
+            'Checklist phase "sign_in" is already confirmed for surgery 9' => 'This checklist phase is already confirmed',
+            'Checklist phase "sign_in" is not confirmed for surgery 9' => 'The "Before induction" checklist phase is not confirmed',
+            'Checklist phase "time_out" is not confirmed for surgery 9' => 'The "Before incision" checklist phase is not confirmed',
+            'Checklist phase "sign_out" is not confirmed for surgery 9' => 'The "Before leaving the room" checklist phase is not confirmed',
+            'Checklist phase "time_out" cannot be confirmed while surgery 9 is scheduled' => 'This checklist phase cannot be confirmed in the current surgery status',
+            'All checklist items of phase "sign_out" must be checked' => 'All items of this checklist phase must be checked',
+            'Team member 12 must be an active user of this tenant' => 'Every team member must be an active user of this tenant',
+            'Material 4 was already removed' => 'This material was already removed',
+            'Unknown surgery event type "x"' => 'Unknown surgery event type',
+            'Unknown checklist phase "x"' => 'Unknown checklist phase',
+            'Unknown checklist item "x"' => 'Unknown checklist item',
+            'Unknown team role "x"' => 'Unknown team role',
+        ];
+
+        foreach ($cases as $message => $key) {
+            $resolved = UserMessage::resolve($message);
+            Assert::same($key, $resolved['key'] ?? null, "Wrong key for: {$message}");
+            Assert::true(isset($english[$key]), "Missing translation for catalog key: {$key}");
+        }
+
+        Assert::same(
+            ['key' => 'A surgery room with code "^1" already exists in this unit', 'params' => ['<b>S1</b>']],
+            UserMessage::resolve('A surgery room with code "<b>S1</b>" already exists in this unit'),
+        );
+    }
+
+    public function testSurgeryValidationMessagesAreCatalogued(): void
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        foreach ([
+            'Surgery duration cannot exceed 24 hours',
+            'duration_minutes must be between 15 and 1440',
+            'scheduled_end_at must be after scheduled_start_at',
+            'quantity must be between 1 and 9999',
+            'consent_signer_name is required',
+            'consent_text is required',
+            'cancellation_reason_text is required',
+            'surgeon_system_user_id must be an active user of this tenant',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$message} must not show field names");
+        }
+    }
+
+    public function testCatalogTranslationsDoNotShowTechnicalFieldNames(): void
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        foreach (['temperature_c', 'heart_rate_bpm', 'respiratory_rate_rpm', 'weight_kg'] as $field) {
+            $pt = $translations["{$field} cannot be negative"] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$field} cannot be negative must name the field in Portuguese");
+        }
+    }
+
+    public function testEveryCatalogKeyHasATranslation(): void
+    {
+        $english = self::translatedKeys();
+
+        foreach (array_merge(array_values(UserMessage::STATIC), array_values(UserMessage::PATTERNS)) as $key) {
+            Assert::true(isset($english[$key]), "Missing translation for catalog key: {$key}");
+        }
+    }
+
+    public function testEveryHospitalizationScreenKeyHasATranslation(): void
+    {
+        // Rótulos de tela de T-12..T-17: _t('...') dos controllers, _t{...} do menu e rótulos de CvNav/PLAN_ACTIONS.
+        self::assertScreenKeysTranslated(['Board', 'Beds', 'Hospitalization', 'Hospitalize'], ['Bed*.php', 'Hospitalization*.php'], 8);
+    }
+
+    public function testEverySurgeryScreenKeyHasATranslation(): void
+    {
+        // Fase 6B, T-19: _t('...') das telas Surgery*, SurgeryAgendaView, menu, CvNav, PLAN_ACTIONS,
+        // badges de status, fases e itens do checklist e o texto padrão do consentimento.
+        $keys = [
+            'Surgeries', 'Surgery rooms', 'Rooms', 'Schedule surgery', 'Surgery consent default text',
+            'Scheduled', 'Pre-op', 'In progress', 'Completed', 'Cancelled',
+        ];
+        foreach (\CentralVet\Domain\SurgeryChecklist::PHASES as $phase) {
+            $keys[] = \CentralVet\Domain\SurgeryChecklist::phaseLabel($phase);
+            foreach (\CentralVet\Domain\SurgeryChecklist::items($phase) as $code) {
+                $keys[] = \CentralVet\Domain\SurgeryChecklist::label($code);
+            }
+        }
+        self::assertScreenKeysTranslated($keys, ['Surgery*.php', '../../Core/Presentation/SurgeryAgendaView.php'], 10);
+    }
+
+    public function testCommunicationDomainMessagesResolveWithoutInternalIds(): void
+    {
+        // Fase 7A, T-21: consentimento, templates, mensagens, retorno e central de pendências.
+        $translations = self::translations();
+        $cases = [
+            'Tutor 41 has not opted in to email messages' => 'The tutor has not consented to e-mail messages',
+            'Tutor 41 has not opted in to whatsapp messages' => 'The tutor has not consented to WhatsApp messages',
+            'Tutor 41 has opted out of email messages' => 'The tutor refused e-mail messages',
+            'Tutor 41 has opted out of whatsapp messages' => 'The tutor refused WhatsApp messages',
+            'Unknown communication channel "sms"' => 'Invalid communication channel',
+            'Unknown message purpose "x"' => 'Invalid message purpose',
+            'Unknown legal basis "x"' => 'Invalid legal basis',
+            'Unknown consent source "x"' => 'Invalid consent source',
+            'Unknown communication preference status "x"' => 'Invalid communication preference status',
+            'Unknown message template status "x"' => 'Invalid message template status',
+            'Appointment 77 and encounter 88 belong to different patients' => 'The appointment and the encounter belong to different patients',
+            'Tutor 41 has no e-mail address' => 'The tutor has no e-mail address',
+            'Message 52 is no longer awaiting manual send' => 'This message is no longer awaiting manual send',
+            'Message 52 is no longer queued' => 'This message is no longer queued',
+            'Message 52 was cancelled because the tutor opted out of whatsapp messages' => 'The tutor refused WhatsApp messages. The message was cancelled',
+            'Message 52 was cancelled because the tutor has not opted in to whatsapp messages' => 'The tutor has not consented to WhatsApp messages. The message was cancelled',
+            'Message 52 has not failed' => 'This message has not failed',
+            'Message 52 is not a WhatsApp message' => 'This message is not a WhatsApp message',
+            'Template 63 does not match the message purpose and channel' => 'This template does not match the message purpose and channel',
+            'patient_id 74 was not found for tutor_id 41' => 'The patient does not belong to this tutor',
+            'Invalid deep-link parameter phone' => 'Invalid deep-link parameter',
+            'tutor_id 41 was not found for the authenticated tenant' => 'Record not found',
+            'template_id 63 was not found for the authenticated tenant' => 'Record not found',
+            'message_id 52 was not found for the authenticated tenant' => 'Record not found',
+            'appointment_id 77 was not found for the authenticated tenant' => 'Record not found',
+        ];
+
+        foreach ($cases as $message => $key) {
+            $resolved = UserMessage::resolve($message);
+            Assert::same($key, $resolved['key'] ?? null, "Wrong key for: {$message}");
+            $pt = $translations[$key] ?? '';
+            Assert::true($pt !== '' && preg_match('/\d|_/', $pt) !== 1, "Translation for {$key} must exist without ids or field names");
+        }
+
+        Assert::same(
+            ['key' => 'Unknown placeholder "^1" in template', 'params' => ['<b>x</b>']],
+            UserMessage::resolve('Unknown placeholder "<b>x</b>" in template'),
+        );
+        Assert::true(isset($translations['Unknown placeholder "^1" in template']), 'Missing translation for the placeholder message');
+    }
+
+    public function testCommunicationValidationMessagesAreCatalogued(): void
+    {
+        $translations = self::translations();
+
+        foreach ([
+            'Another active template already exists for this purpose and channel',
+            'subject is required for email templates',
+            'subject must be at most 190 characters',
+            'body must be between 1 and 2000 characters',
+            'body must not be empty',
+            'recipient must be between 1 and 190 characters',
+            'subject must be between 1 and 190 characters for email messages',
+            'source_type and a positive source_id must be given together',
+            'Invalid phone number for WhatsApp',
+            'Identifiers must be positive integers',
+            'Invalid pending item type',
+            'Invalid pending item priority',
+            'Invalid deep-link class',
+            'Invalid deep-link parameter key',
+            'Replace the template placeholders before sending the message',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && !str_contains($pt, '_'), "Translation for {$message} must not show field names");
+        }
+    }
+
+    public function testEveryCommunicationScreenKeyHasATranslation(): void
+    {
+        // Fase 7A, T-21: _t('...') dos 7 controllers novos e do TutorForm, _t{...} do menu,
+        // rótulos do CvNav('communication') e rótulos indiretos (tipos e prioridades da central).
+        $keys = [
+            'Pending items', 'CRM / Communication', 'Messages', 'Message templates',
+            'Exam results to record', 'Exam results to review', 'Return appointments', 'Vaccines due',
+            'Medication administrations', 'Failed messages', 'WhatsApp messages to send', 'Open receivables',
+            'Urgent', 'High', 'Normal', 'Low',
+        ];
+        self::assertScreenKeysTranslated(
+            $keys,
+            ['MessageTemplate*.php', 'Communication*.php', 'TutorCommunicationForm.php', 'PendingCenter.php', 'TutorForm.php'],
+            8,
+        );
+    }
+
+    public function testDocumentDomainMessagesResolve(): void
+    {
+        // Fase 7B, T-19: pedido, download, nova tentativa, templates e geração de documentos.
+        $translations = self::translations();
+        $cases = [
+            'Document not found' => ['Document not found', []],
+            'Document source not found' => ['Document source not found', []],
+            'Patient has no vaccinations to print' => ['Patient has no vaccinations to print', []],
+            'Surgery consent has not been recorded' => ['Surgery consent has not been recorded', []],
+            'Document text has unresolved placeholders' => ['Document text has unresolved placeholders', []],
+            'Document template is not available' => ['Document template is not available', []],
+            'A document template with this name already exists' => ['A document template with this name already exists', []],
+            'Could not allocate document version' => ['Could not allocate document version', []],
+            'Document body must be between 1 and 20000 characters' => ['Document body must be between 1 and 20000 characters', []],
+            'body must be between 1 and 20000 characters' => ['body must be between 1 and 20000 characters', []],
+            'Unknown document kind "x"' => ['Unknown document kind', []],
+            'Document kind "vaccination_card" does not accept a body' => ['This document type does not support this option', []],
+            'Document kind "prescription" does not use templates' => ['This document type does not support this option', []],
+            'Document kind "prescription" has no default template' => ['This document type does not support this option', []],
+            'Unknown document template status "x"' => ['Invalid document template status', []],
+            'Document generation failed: render_failed' => ['The document could not be generated', []],
+            'Document 7 can no longer be retried' => ['Document ^1 can no longer be retried', ['7']],
+            'Unknown placeholder: {{cpf}}' => ['Unknown placeholder: {{^1}}', ['cpf']],
+            // T-23 da 7B (onda 8): internas do domínio, catalogadas para nunca sair cruas.
+            'Generated document has no id yet' => ['Generated document has no id yet', []],
+            'Document source type "surgery" does not match kind "prescription"' => ['The document source does not match the document type', []],
+        ];
+
+        foreach ($cases as $message => [$key, $params]) {
+            Assert::same(['key' => $key, 'params' => $params], UserMessage::resolve($message), "Wrong resolution for: {$message}");
+            $pt = $translations[$key] ?? '';
+            Assert::true($pt !== '' && $pt !== $key && !str_contains($pt, '_'), "Translation for {$key} must exist in Portuguese without field names");
+        }
+
+        Assert::same('Documento não encontrado', $translations['Document not found'] ?? null);
+        Assert::true(str_contains($translations['Document ^1 can no longer be retried'] ?? '', '^1'), 'The retry message must keep the document id');
+        Assert::same('O paciente não tem vacinas para imprimir', $translations['Patient has no vaccinations to print'] ?? null);
+    }
+
+    public function testEveryDocumentScreenKeyHasATranslation(): void
+    {
+        // Fase 7B, T-19: _t('...') das 4 telas novas, _t{...} do menu, CvNav('documents'),
+        // card da central de pendências e links das telas clínicas da T-18.
+        $keys = [
+            'Documents', 'Document templates', 'Failed documents', 'Archive PDF', 'Consent PDF',
+            'Medical certificate', 'Vaccination card', 'Prescription', 'Surgery consent',
+        ];
+        self::assertScreenKeysTranslated($keys, ['Document*.php', 'PrescriptionForm.php', 'PatientForm.php', 'VaccinationCardView.php', 'SurgeryView.php'], 8);
+    }
+
+    public function testAiUnavailableReasonsResolveToTranslatedMessagesWithoutCodes(): void
+    {
+        // Fase 8A, T-17: os 13 motivos de AiUnavailableException viram aviso traduzido, sem o código cru.
+        $translations = self::translations();
+        $keys = [];
+
+        foreach (\CentralVet\Domain\Exception\AiUnavailableException::REASONS as $reason) {
+            $message = (new \CentralVet\Domain\Exception\AiUnavailableException($reason))->getMessage();
+            $resolved = UserMessage::resolve($message);
+            Assert::true($resolved !== null, "AI reason not catalogued: {$reason}");
+            Assert::same([], $resolved['params'], "AI reason must not carry params: {$reason}");
+            Assert::true(!str_contains($resolved['key'], 'ai_'), "AI key must not show the reason code: {$reason}");
+            $pt = $translations[$resolved['key']] ?? '';
+            Assert::true($pt !== '' && $pt !== $resolved['key'] && !str_contains($pt, '_'), "Missing Portuguese translation for AI reason: {$reason}");
+            $keys[] = $resolved['key'];
+        }
+
+        Assert::count(13, array_unique($keys));
+        Assert::same(
+            'O assistente de IA está desligado para esta clínica.',
+            $translations[UserMessage::resolve('AI assistant is unavailable: ai_disabled')['key'] ?? ''] ?? null,
+        );
+        Assert::same(
+            'A IA não respondeu a tempo. Continue manualmente e tente de novo mais tarde.',
+            $translations[UserMessage::resolve('AI assistant is unavailable: ai_timeout')['key'] ?? ''] ?? null,
+        );
+        Assert::same(null, UserMessage::resolve('AI assistant is unavailable: ai_disabled' . "\n"));
+    }
+
+    public function testAiDomainMessagesAreCatalogued(): void
+    {
+        $translations = self::translations();
+
+        foreach ([
+            'AI suggestion not found',
+            'AI subject not found',
+            'Invalid monthly token quota',
+            'Unknown AI decision',
+            'Edited AI text must not be empty',
+        ] as $message) {
+            Assert::same(['key' => $message, 'params' => []], UserMessage::resolve($message));
+            $pt = $translations[$message] ?? '';
+            Assert::true($pt !== '' && $pt !== $message && !str_contains($pt, '_'), "Missing Portuguese translation for: {$message}");
+        }
+
+        Assert::same('Sugestão de IA não encontrada.', $translations['AI suggestion not found'] ?? null);
+    }
+
+    public function testEveryAiScreenKeyHasATranslation(): void
+    {
+        // Fase 8A, T-17: _t('...') de AiSettingsForm, AiInteractionList, EncounterView e ExamResultForm
+        // e os _t{...} do submenu de IA (T-16).
+        self::assertScreenKeysTranslated(
+            ['AI assistant', 'AI settings', 'AI interactions'],
+            ['AiSettingsForm.php', 'AiInteractionList.php', 'EncounterView.php', 'ExamResultForm.php'],
+            4,
+        );
+    }
+
+    public function testEveryCopilotScreenKeyHasATranslation(): void
+    {
+        // Fase 8B, T-17: _t('...') de AiCopilotPanel, AiConversationList e AiToolCallList
+        // e os _t{...} novos do submenu de IA.
+        self::assertScreenKeysTranslated(
+            ['My conversations', 'Tool audit'],
+            ['AiCopilotPanel.php', 'AiConversationList.php', 'AiToolCallList.php'],
+            3,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function translations(): array
+    {
+        $translations = [];
+        foreach (json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true) as $entry) {
+            $translations[$entry['en']] = $entry['pt'];
+        }
+
+        return $translations;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param list<string> $patterns globs relative to app/control/clinic
+     */
+    private static function assertScreenKeysTranslated(array $keys, array $patterns, int $minFiles): void
+    {
+        $english = self::translatedKeys();
+        $files = [];
+        foreach ($patterns as $pattern) {
+            $files = array_merge($files, glob(dirname(__DIR__, 2) . '/app/control/clinic/' . $pattern) ?: []);
+        }
+        Assert::true(count($files) >= $minFiles, 'Screen controllers not found');
+
+        foreach ($files as $file) {
+            preg_match_all("/_t\(\s*'((?:[^'\\\\]|\\\\.)*)'/", (string) file_get_contents($file), $matches);
+            foreach ($matches[1] as $key) {
+                $keys[] = stripslashes($key);
+            }
+        }
+
+        $translations = self::translations();
+        foreach (array_unique($keys) as $key) {
+            Assert::true(isset($english[$key]), "Missing translation for screen key: {$key}");
+            Assert::true(trim((string) ($translations[$key] ?? '')) !== '', "Empty pt translation for screen key: {$key}");
+        }
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function translatedKeys(): array
+    {
+        $entries = json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/app/config/translations.json'), true);
+        Assert::true(is_array($entries), 'translations.json must be a JSON list');
+
+        $english = [];
+        foreach ($entries as $entry) {
+            $english[$entry['en']] = true;
+        }
+
+        return $english;
     }
 }

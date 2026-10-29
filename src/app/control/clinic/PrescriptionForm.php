@@ -80,7 +80,7 @@ class PrescriptionForm extends TPage
         'issued' => ['Issued', 'success'],
     ];
 
-    /** Nome do formulário principal (TCombo::reload e TButton::setFormName). */
+    /** Nome do formulário principal (CvCombo::reload e TButton::setFormName). */
     private const FORM_NAME = 'form_Prescription';
 
     private const SIDE_HISTORY_LIMIT = 5;
@@ -155,10 +155,18 @@ class PrescriptionForm extends TPage
                     $pdfLink->href = 'engine.php?class=PrescriptionForm&method=onGeneratePdf&static=1&prescription_id=' . $this->savedPrescriptionId;
                     $pdfLink->target = '_blank';
                     $pdfLink->rel = 'noopener';
-                    $pdfLink->class = 'btn btn-sm btn-outline-secondary cv-rx-pdf-link';
+                    $pdfLink->class = 'btn btn-sm btn-outline-secondary cv-touch-target cv-rx-pdf-link';
                     $pdfLink->add(new TImage('fa:file-pdf'));
                     $pdfLink->add(' ' . CvFormat::e(_t('Generate PDF')));
                     $main->add($pdfLink);
+
+                    $archiveLink = new TElement('a');
+                    $archiveLink->href = 'index.php?class=DocumentRequestForm&kind=prescription&source_id=' . $this->savedPrescriptionId;
+                    $archiveLink->class = 'btn btn-sm btn-outline-secondary cv-touch-target cv-rx-pdf-link';
+                    $archiveLink->generator = 'adianti';
+                    $archiveLink->add(new TImage('fa:box-archive'));
+                    $archiveLink->add(' ' . CvFormat::e(_t('Archive PDF')));
+                    $main->add($archiveLink);
                 }
 
                 $main->add($this->form);
@@ -967,7 +975,7 @@ class PrescriptionForm extends TPage
             TSession::setValue(self::templateSourceKey($encounterId), null);
 
             // o modelo novo entra no combo sem recarregar a página
-            TCombo::reload(self::FORM_NAME, 'template_id', self::loadTemplateOptions(), true);
+            CvCombo::reload(self::FORM_NAME, 'template_id', self::loadTemplateOptions(), true);
 
             new TMessage('info', _t('Template saved'));
         }

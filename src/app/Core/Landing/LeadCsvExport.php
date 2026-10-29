@@ -15,6 +15,9 @@ use CentralVet\Support\CsvCell;
  */
 final class LeadCsvExport
 {
+    /** Idioma do Adianti → `lang` do HTML (mesmo mapa de `src/landing/i18n.js`). */
+    private const HTML_LANG = ['pt' => 'pt-BR', 'en' => 'en-US', 'es' => 'es'];
+
     private function __construct()
     {
     }
@@ -80,14 +83,16 @@ final class LeadCsvExport
 
     /**
      * Página HTML mínima para a aba `_blank` do onExport quando a exportação
-     * falha: mensagem escapada, sem Adianti.
+     * falha: mensagem escapada, sem Adianti. O idioma ativo (`pt`|`en`|`es`)
+     * vem por parâmetro e só o valor mapeado vai para o `lang`.
      */
-    public static function failurePage(string $message): string
+    public static function failurePage(string $message, string $language = 'pt'): string
     {
         $safe = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $lang = self::HTML_LANG[$language] ?? self::HTML_LANG['pt'];
 
         return "<!doctype html>\n"
-            . "<html lang=\"pt-BR\">\n"
+            . "<html lang=\"{$lang}\">\n"
             . "<head>\n"
             . "<meta charset=\"utf-8\">\n"
             . "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"

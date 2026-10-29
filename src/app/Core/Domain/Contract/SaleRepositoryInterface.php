@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Domain\Contract;
 
+use CentralVet\Domain\Sale;
 use CentralVet\Persistence\TenantRepositoryInterface;
 
 /**
@@ -20,4 +21,13 @@ interface SaleRepositoryInterface extends TenantRepositoryInterface
      * @return list<TEntity>
      */
     public function listByTutor(int $tutorId): array;
+
+    /**
+     * Row-locking read (`SELECT ... FOR UPDATE`) of a sale of the current
+     * tenant, held until the caller's transaction ends (Etapa 2 / T-09).
+     *
+     * @throws \LogicException('findByIdForUpdate() requires an open transaction')
+     *         when called outside a transaction.
+     */
+    public function findByIdForUpdate(int $id): ?Sale;
 }
