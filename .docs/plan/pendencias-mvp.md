@@ -32,8 +32,8 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 - [x] Branches `merge/task/etapa-4-operacao-dev` e `task/etapa-5-piloto-lancamento` enviadas com sucesso ao GitHub remoto.
 - [x] PR da Etapa 4 integrado em `dev`.
 - [x] PR da Etapa 5 integrado em `dev` (com Área de Gestão, novos módulos do MVP e jornada de homologação).
+- [x] PR de `dev` para `main` integrado com sucesso na branch `main` (PR #21).
 - [ ] Primeira execução real do workflow `.github/workflows/ci.yml` no GitHub Actions.
-- [ ] Testar na `dev` online; depois, PR de `dev` para `main`: [Abrir PR de dev para main](https://github.com/marceonesgenesis/centralVeterinaria/compare/main...dev?expand=1)
 
 ### 2.3 Banco e ambientes (P0)
 
@@ -90,7 +90,7 @@ Nenhum item abaixo bloqueia o piloto. Todos foram triados nas revisões finais.
 **Testes**
 - [x] `AiNavigationIntegrationTest` isolado filtrando estritamente os grupos rastreados na asserção.
 - [x] A idempotência dos vínculos de perfil coberta por teste de integração real no MySQL (`RoleGroupsSeedIntegrationTest`).
-- A exclusão dos perfis nos grants de IA só tem prova textual.
+- [x] A exclusão dos perfis nos grants de IA validada em `ClinicRoleProfilesTest` (Recepção e Financeiro sem IA; Veterinário sem ferramentas de administração).
 
 ### 2.7 Módulos já construídos que entram no MVP (P0)
 
