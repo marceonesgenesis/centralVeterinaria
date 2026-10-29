@@ -48,12 +48,12 @@ O probe usa o tenant 1 e `DOCUMENT_SYSTEM_USER_ID`. Os limiares estão em
 
 ## Alerta de estorno automático do Pix após o cancelamento
 
-Além das 9 chaves, o reconciliador (`bin/billing-reconcile.php`) avisa o
+Além das 9 chaves, o reconciliador (`src/bin/billing-reconcile.php`) avisa o
 operador quando estorna sozinho um Pix pago depois do cancelamento da
 assinatura. O e-mail usa `BILLING_OPERATOR_EMAIL`, tem assunto próprio de
 estorno de Pix pós-cancelamento e referência `cancelled-pix-refund-<id>`
-(`<id>` é o da fatura). Vazio o destinatário, só vai ao `error_log`. A rodada
-conta o estorno em `cancelled_pix_refunded` (ver "Reconciliação da cobrança" em
+(`<id>` é o da fatura). Sem `BILLING_OPERATOR_EMAIL` configurado, o envio de
+alerta ao operador é pulado. A rodada conta o estorno em `cancelled_pix_refunded` (ver "Reconciliação da cobrança" em
 [`shared-hosting-mysql57.md`](./shared-hosting-mysql57.md)). Confira o estorno no
 painel do Stripe e avise o cliente.
 

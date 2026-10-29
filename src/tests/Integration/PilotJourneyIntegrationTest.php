@@ -143,6 +143,96 @@ final class PilotJourneyIntegrationTest extends MysqlIntegrationTestCase
         $this->assertJourney($this->journey($this->clinic('business', 'B')));
     }
 
+    public function testJourneyOnTenantWithPlanEnterpriseCoversHospitalizationSurgeryCommunicationAndAiCopilot(): void
+    {
+        $clinic = $this->clinic('enterprise', 'E');
+        $team = $this->team($clinic);
+        $patient = $this->registerPatient($clinic, $team);
+
+        // Comunicação: preferência registrada para o tutor
+        $this->pdo->prepare("INSERT INTO communication_preference (tenant_id, tutor_id, channel, status, consent_source, changed_by_system_user_id, changed_at, created_at, updated_at) VALUES (?, ?, 'whatsapp', 'opted_in', 'in_person', ?, NOW(6), NOW(6), NOW(6))")
+            ->execute([$clinic['tenant'], $patient['tutor'], $team[ClinicRoleProfiles::RECEPTION]]);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM communication_preference WHERE tenant_id = ? AND tutor_id = ? AND status = "opted_in"', [$clinic['tenant'], $patient['tutor']]));
+
+        // Recepção: agendamento e check-in
+        $appointment = $this->appointmentService($clinic, $team, ClinicRoleProfiles::RECEPTION)
+            ->schedule($this->appointmentData($clinic, $team, $patient, '+1 day 11:00'), 'AppointmentForm::onSave');
+        $appointmentId = (int) $appointment->id;
+        $this->queueService($clinic, $team)->checkIn([
+            'patient_id' => $patient['patient'],
+            'professional_system_user_id' => $team[ClinicRoleProfiles::VETERINARIAN],
+            'system_unit_id' => $clinic['unit'],
+            'appointment_id' => $appointmentId,
+        ], 'AgendaView::onCheckIn');
+
+        // Veterinário: atendimento clínico
+        $encounters = $this->encounterService($clinic, $team, ClinicRoleProfiles::VETERINARIAN);
+        $encounterId = (int) $encounters->start([
+            'patient_id' => $patient['patient'],
+            'professional_system_user_id' => $team[ClinicRoleProfiles::VETERINARIAN],
+            'system_unit_id' => $clinic['unit'],
+            'appointment_id' => $appointmentId,
+        ], 'EncounterView::onStart')->id();
+
+        // Copiloto de IA: interação clínica assistida com prompt e tokens
+        $sha = hash('sha256', 'clinical query');
+        $cid = bin2hex(random_bytes(16));
+        $this->pdo->prepare("INSERT INTO ai_interaction (tenant_id, system_unit_id, system_user_id, purpose, subject_type, subject_id, prompt_version, provider, model, status, input_sha256, input_tokens, output_tokens, cost_micro_usd, correlation_id, created_at, updated_at) VALUES (?, ?, ?, 'copilot_clinical', 'encounter', ?, 'v1', 'anthropic', 'claude-sonnet-5-5', 'answered', ?, 180, 65, 1200, ?, NOW(6), NOW(6))")
+            ->execute([$clinic['tenant'], $clinic['unit'], $team[ClinicRoleProfiles::VETERINARIAN], $encounterId, $sha, $cid]);
+        $interactionCount = $this->count('SELECT COUNT(*) FROM ai_interaction WHERE tenant_id = ? AND input_tokens > 0', [$clinic['tenant']]);
+        Assert::same(1, $interactionCount, 'AI interaction recorded with input tokens');
+
+        // Internação: leito e admissão
+        $bedId = $this->nextId('bed');
+        $this->pdo->prepare("INSERT INTO bed (id, tenant_id, system_unit_id, code, name, daily_rate_cents, status) VALUES (?, ?, ?, 'L-01', 'Leito Canil 01', 5000, 'available')")
+            ->execute([$bedId, $clinic['tenant'], $clinic['unit']]);
+        $hospitalizationId = $this->nextId('hospitalization');
+        $this->pdo->prepare("INSERT INTO hospitalization (id, tenant_id, system_unit_id, patient_id, encounter_id, bed_id, responsible_system_user_id, admitted_by_system_user_id, reason_text, daily_rate_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Observação pós-cirúrgica', 5000, 'admitted')")
+            ->execute([$hospitalizationId, $clinic['tenant'], $clinic['unit'], $patient['patient'], $encounterId, $bedId, $team[ClinicRoleProfiles::VETERINARIAN], $team[ClinicRoleProfiles::VETERINARIAN]]);
+        $this->pdo->prepare("UPDATE bed SET status = 'occupied', current_hospitalization_id = ? WHERE id = ?")
+            ->execute([$hospitalizationId, $bedId]);
+        Assert::same('occupied', (string) $this->value('SELECT status FROM bed WHERE id = ?', [$bedId]));
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM hospitalization WHERE tenant_id = ? AND status = "admitted"', [$clinic['tenant']]));
+
+        // Cirurgia: sala cirúrgica, catálogo de procedimento e agendamento
+        $roomId = $this->nextId('surgery_room');
+        $this->pdo->prepare("INSERT INTO surgery_room (id, tenant_id, system_unit_id, code, name, status) VALUES (?, ?, ?, 'CC-01', 'Centro Cirúrgico 1', 'active')")
+            ->execute([$roomId, $clinic['tenant'], $clinic['unit']]);
+        $procId = $this->nextId('procedure_catalog_item');
+        $this->pdo->prepare("INSERT INTO procedure_catalog_item (id, tenant_id, name, price_cents, duration_minutes, active) VALUES (?, ?, 'Castração Eletiva', 35000, 60, 1)")
+            ->execute([$procId, $clinic['tenant']]);
+        $surgeryId = $this->nextId('surgery');
+        $this->pdo->prepare("INSERT INTO surgery (id, tenant_id, system_unit_id, patient_id, encounter_id, room_id, procedure_catalog_item_id, procedure_name, procedure_price_cents, surgeon_system_user_id, scheduled_by_system_user_id, scheduled_start_at, scheduled_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Castração Eletiva', 35000, ?, ?, NOW(6), DATE_ADD(NOW(6), INTERVAL 1 HOUR), 'scheduled')")
+            ->execute([$surgeryId, $clinic['tenant'], $clinic['unit'], $patient['patient'], $encounterId, $roomId, $procId, $team[ClinicRoleProfiles::VETERINARIAN], $team[ClinicRoleProfiles::VETERINARIAN]]);
+        Assert::same(1, $this->count('SELECT COUNT(*) FROM surgery WHERE tenant_id = ? AND status = "scheduled"', [$clinic['tenant']]));
+
+        // Prescrição e emissão de PDF
+        $prescriptionId = (int) $this->prescriptionService($clinic, $team, ClinicRoleProfiles::VETERINARIAN)
+            ->create($this->prescriptionData($encounterId, $patient['patient'], $team), 'PrescriptionForm::onSave')->id();
+        $storage = new FakeStorage();
+        $vetContext = $this->context($clinic, $team[ClinicRoleProfiles::VETERINARIAN]);
+        $documentId = (int) $this->documentRequestService($vetContext, $storage, ClinicRoleProfiles::VETERINARIAN)
+            ->request(DocumentKind::PRESCRIPTION, $prescriptionId, null, null, false, 'DocumentRequestForm::onSave')->id();
+        $result = $this->documentGenerationService($vetContext, $storage)->generate($documentId, true);
+        Assert::same(DocumentGenerationResult::READY, $result->status(), 'prescription PDF generated');
+        $encounters->finish($encounterId, 'EncounterView::onFinish');
+
+        // Financeiro: caixa, conta e quitação
+        $cashSessionId = (int) $this->cashService($clinic, $team, ClinicRoleProfiles::FINANCE)
+            ->open($clinic['unit'], 0, $team[ClinicRoleProfiles::FINANCE], 'CashSessionForm::onOpen')->id();
+        $accounts = $this->accountService($clinic, $team, ClinicRoleProfiles::FINANCE);
+        $accountId = (int) $accounts->openOrGet($encounterId, 'EncounterAccountForm::onLoad')->id();
+        $accounts->addManualItem($accountId, 'Atendimento Integrado', self::CONSULTATION_CENTS, 'EncounterAccountForm::onAddItem');
+        $receivableId = (int) $accounts->close($accountId, 'EncounterAccountForm::onClose')->id();
+
+        $payments = $this->paymentService($clinic, $team, ClinicRoleProfiles::FINANCE);
+        $finance = $team[ClinicRoleProfiles::FINANCE];
+        $payments->register($receivableId, $cashSessionId, Payment::METHOD_PIX, self::CONSULTATION_CENTS, $finance,
+            'PaymentForm::onSave', SubmissionToken::generate());
+
+        Assert::same('paid', (string) $this->value('SELECT status FROM receivable WHERE id = ?', [$receivableId]));
+    }
+
     public function testRestrictedProfilesAreDeniedOutsideTheirPrograms(): void
     {
         $a = $this->clinic('pro', 'A');

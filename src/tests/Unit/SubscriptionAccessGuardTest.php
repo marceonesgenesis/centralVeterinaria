@@ -235,27 +235,38 @@ final class SubscriptionAccessGuardTest
      * Etapa 5, T-07: controller liberado pelo plano mas cuja feature está
      * fora do recorte do piloto (OfferScope) é bloqueado com not_released.
      */
-    public function testEnterpriseActiveIsNotReleasedOnHospitalAndAdvancedAi(): void
+    public function testEnterpriseActiveHasFullAccessToHospitalAndAi(): void
     {
         [$guard] = $this->guardWith('enterprise', null, $this->pilotScope());
 
         foreach (['HospitalizationBoard', 'AiCopilotPanel'] as $controller) {
             $decision = $guard->decide(self::TENANT, $controller, $this->now());
-            Assert::false($decision->allowed(), $controller . ' must be outside the pilot');
-            Assert::same(AccessDecision::REASON_NOT_RELEASED, $decision->reason());
-            Assert::same('not_released', $decision->reason());
-            Assert::same('This module is not available in the pilot yet', $decision->messageKey());
+            Assert::true($decision->allowed(), $controller . ' must be released in the MVP');
+            Assert::same('full', $decision->reason());
         }
     }
 
-    public function testProActiveIsNotReleasedOnCommunication(): void
+    public function testProActiveHasFullAccessToCommunication(): void
     {
         [$guard] = $this->guardWith('pro', null, $this->pilotScope());
 
         $decision = $guard->decide(self::TENANT, 'CommunicationComposeForm', $this->now());
 
+        Assert::true($decision->allowed(), 'Communication is released in MVP');
+        Assert::same('full', $decision->reason());
+    }
+
+    public function testUnreleasedFeatureReturnsNotReleased(): void
+    {
+        $restrictedOffer = new OfferScope(PilotSettings::fromArray([]), []);
+
+        [$guard] = $this->guardWith('enterprise', null, $restrictedOffer);
+
+        $decision = $guard->decide(self::TENANT, 'HospitalizationBoard', $this->now());
         Assert::false($decision->allowed());
+        Assert::same(AccessDecision::REASON_NOT_RELEASED, $decision->reason());
         Assert::same('not_released', $decision->reason());
+        Assert::same('This module is not available in the pilot yet', $decision->messageKey());
     }
 
     public function testProActiveKeepsFullAccessToReleasedSaleList(): void
