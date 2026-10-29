@@ -127,28 +127,108 @@ final class EncounterService
     }
 
     /**
-     * Autosaves a partial clinical draft: only the keys present in $draft
-     * are overwritten (see {@see Encounter::applyDraft()}), every other
-     * field on the encounter keeps its current, already-persisted value.
+     * Draft save guarded by the draft version (Fase 8A, T-24): the periodic
+     * autosave and the AI "Apply to anamnesis" (anamnesis_text only) of
+     * EncounterView. There is no unversioned draft save.
+     *
+     * Reads the encounter once, with the row lock
+     * (EncounterRepositoryInterface::lockForDraft(), `SELECT ... FOR
+     * UPDATE`, Fase 8A T-28), so the read is the latest committed row and no
+     * other write reaches it before this transaction ends. The caller must
+     * have a transaction open. The tab's base is accepted when
+     * $expectedVersion is the stored {@see Encounter::draftVersion()}, or
+     * when $previousDraft (what the tab's previous tick sent, while its
+     * response has not arrived) applied to a copy of the stored encounter
+     * keeps the stored version — that tick is already stored. A draft that
+     * does not change the version answers `saved` without writing.
+     * Otherwise only the draft columns are written
+     * (EncounterRepositoryInterface::updateDraft()). The version covers only
+     * the draft fields, so pause, resume, finish and the accepted summary
+     * never turn a tick into a conflict.
+     *
+     * On a conflict (including $expectedVersion === null, a client without
+     * version) no field is written and the result carries the version of
+     * the locked read.
+     *
+     * A numeric field of $draft (or $previousDraft) that is not a number is
+     * left out before anything else: it keeps the stored value, the other
+     * fields are saved as usual and the result lists it in
+     * `invalidFields` (T-28, correção 1).
+     *
+     * A finished encounter (checked on the locked read, before any
+     * comparison) answers `closed` and writes nothing (T-32).
      *
      * @param array<string, mixed> $draft subset of anamnesis_text,
      *        temperature_c, heart_rate_bpm, respiratory_rate_mpm, weight_kg,
      *        mucous_membranes, capillary_refill_seconds, physical_exam_text,
-     *        diagnosis_text, clinical_plan_text.
+     *        diagnosis_text, clinical_plan_text (only these keys are written).
+     * @param array<string, mixed>|null $previousDraft same keys as $draft.
      *
      * @throws InvalidArgumentException when no encounter with this id exists
      *         for the authenticated tenant.
      */
-    public function autosave(int $id, array $draft): Encounter
+    public function autosave(int $id, array $draft, ?string $expectedVersion, ?array $previousDraft = null): DraftSaveResult
     {
-        $encounter = $this->requireEncounter($id);
+        // A numeric field that is not a number is left out (it keeps the
+        // stored value) instead of failing the whole tick (T-28, correção 1).
+        $invalid = Encounter::invalidDraftNumbers($draft);
+        $draft = array_diff_key($draft, array_flip($invalid));
 
-        $encounter->applyDraft($draft);
+        $encounter = $this->encounters->lockForDraft($id);
 
-        /** @var Encounter $saved */
-        $saved = $this->encounters->save($encounter);
+        if ($encounter === null) {
+            throw new InvalidArgumentException(
+                "encounter {$id} was not found for the authenticated tenant"
+            );
+        }
 
-        return $saved;
+        $current = $encounter->draftVersion();
+
+        // Checked under the row lock, before any comparison (T-32): a
+        // finished encounter takes no draft.
+        if ($encounter->isFinished()) {
+            return new DraftSaveResult(false, $current, [], closed: true);
+        }
+
+        if ($expectedVersion === null || !$this->isCurrentBase($encounter, $current, $expectedVersion, $draft, $previousDraft)) {
+            return new DraftSaveResult(false, $current, $invalid);
+        }
+
+        $candidate = clone $encounter;
+        $candidate->applyDraft($draft);
+        $next = $candidate->draftVersion();
+
+        if ($next === $current) {
+            return new DraftSaveResult(true, $current, $invalid);
+        }
+
+        $this->encounters->updateDraft($candidate);
+
+        return new DraftSaveResult(true, $next, $invalid);
+    }
+
+    /**
+     * @param array<string, mixed> $draft
+     * @param array<string, mixed>|null $previousDraft
+     */
+    private function isCurrentBase(Encounter $encounter, string $current, string $expectedVersion, array $draft, ?array $previousDraft): bool
+    {
+        if (hash_equals($current, $expectedVersion)) {
+            return true;
+        }
+
+        // The previous tick only vouches for the fields it sent (all of
+        // them, invalid numbers included, T-32): a draft with fields the
+        // previous tick did not carry needs the real base. Only its valid
+        // values are applied, as its own autosave() stored only those.
+        if ($previousDraft === null || $previousDraft === [] || array_diff_key($draft, $previousDraft) !== []) {
+            return false;
+        }
+
+        $previous = clone $encounter;
+        $previous->applyDraft(array_diff_key($previousDraft, array_flip(Encounter::invalidDraftNumbers($previousDraft))));
+
+        return hash_equals($current, $previous->draftVersion());
     }
 
     /**
@@ -258,19 +338,31 @@ final class EncounterService
     }
 
     /**
+     * Stores the accepted AI summary (T-32, correção 1): the encounter is
+     * read under the row lock (lockForDraft(), so the caller must hold a
+     * transaction) and only the summary columns are written
+     * (updateAiSummary()); status, finished_at and pause are never
+     * rewritten from this read.
+     *
      * @throws InvalidArgumentException when no encounter with this id exists
      *         for the authenticated tenant.
+     * @throws \CentralVet\Domain\Exception\InvalidStatusTransitionException
+     *         when the encounter is finished (checked under the lock).
      */
     public function acceptAiSummary(int $id, string $summaryText): Encounter
     {
-        $encounter = $this->requireEncounter($id);
+        $encounter = $this->encounters->lockForDraft($id);
+
+        if ($encounter === null) {
+            throw new InvalidArgumentException(
+                "encounter {$id} was not found for the authenticated tenant"
+            );
+        }
 
         $encounter->acceptAiSummary($summaryText, new DateTimeImmutable());
+        $this->encounters->updateAiSummary($encounter);
 
-        /** @var Encounter $saved */
-        $saved = $this->encounters->save($encounter);
-
-        return $saved;
+        return $encounter;
     }
 
     /**

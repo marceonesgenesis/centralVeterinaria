@@ -150,6 +150,44 @@
                 <icon>fas:kit-medical fa-fw</icon>
                 <action>SurgeryRoomList</action>
             </menuitem>
+            <menuitem label='_t{Subscription}'>
+                <icon>fas:file-invoice-dollar fa-fw</icon>
+                <action>SubscriptionStatusView</action>
+            </menuitem>
+            <menuitem label='_t{Team}'>
+                <icon>fas:users fa-fw</icon>
+                <action>ClinicUserList</action>
+            </menuitem>
+            <menuitem label='_t{Clinic units}'>
+                <icon>fas:building fa-fw</icon>
+                <action>ClinicUnitList</action>
+            </menuitem>
+
+            <menuitem label='_t{AI assistant}'>
+                <icon>fas:comments fa-fw</icon>
+                <menu>
+                    <menuitem label='_t{AI settings}'>
+                        <icon>fas:sliders fa-fw</icon>
+                        <action>AiSettingsForm</action>
+                    </menuitem>
+                    <menuitem label='_t{AI interactions}'>
+                        <icon>fas:list-check fa-fw</icon>
+                        <action>AiInteractionList</action>
+                    </menuitem>
+                    <menuitem label='_t{My conversations}'>
+                        <icon>fas:clock-rotate-left fa-fw</icon>
+                        <action>AiConversationList</action>
+                    </menuitem>
+                    <menuitem label='_t{Tool audit}'>
+                        <icon>fas:shield-halved fa-fw</icon>
+                        <action>AiToolCallList</action>
+                    </menuitem>
+                    <menuitem label='_t{Management copilot}'>
+                        <icon>fas:chart-line fa-fw</icon>
+                        <action>AiCopilotPanel#method=onOpen#family=management</action>
+                    </menuitem>
+                </menu>
+            </menuitem>
 
             <menuitem label='_t{Administration}'>
                 <icon>fas:sliders fa-fw</icon>

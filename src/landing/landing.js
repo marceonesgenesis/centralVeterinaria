@@ -1,9 +1,12 @@
 /*
  * Landing pública do Central Vet Pro: planos, comparativo, carrinho de um
- * plano (localStorage "cvp-cart-plan") e envio do lead para POST /lead.php.
+ * plano (localStorage "cvp-cart-plan") e envio do lead para POST /lead.php,
+ * e a compra (seção #assinar) por POST /checkout.php, que devolve a URL do
+ * Stripe Checkout; a volta (landing.php?checkout=success|cancelled) mostra o
+ * resultado em #checkout-result.
  *
  * Planos, preços (centavos), comparativo, opções de veterinários, UFs e o
- * texto do consentimento vêm de <script type="application/json"
+ * textos do consentimento e dos termos e as formas de pagamento vêm de <script type="application/json"
  * id="cv-landing-data"> (LandingCatalog::publicJson). O token do formulário
  * vem de <meta name="cv-lead-token">. Nenhum preço é fixado aqui.
  */
@@ -19,6 +22,15 @@
   var MSG_RATE_LIMITED = "Muitos envios a partir desta rede. Tente de novo em alguns minutos.";
   var MSG_EXPIRED = "Sua sessão do formulário expirou. Recarregue a página e envie de novo.";
   var MSG_FIX_FIELDS = "Revise os campos destacados e envie de novo.";
+  var CHECKOUT_PATH = "checkout.php";
+  var MSG_GATEWAY = "Não foi possível iniciar o pagamento. Tente de novo em instantes.";
+  var MSG_PAID = "Pagamento recebido. Você receberá por e-mail o convite para definir sua senha.";
+  var MSG_CANCELLED = "Pagamento não concluído. Nenhum valor foi cobrado.";
+  /* Chave do 422 de checkout.php => sufixo do campo na seção #assinar. */
+  var CHECKOUT_FIELDS = {
+    plan_id: "plan", payment_method: "method", responsible_name: "name", responsible_email: "email",
+    responsible_phone: "phone", clinic_name: "clinic", terms_accepted: "terms", terms_version: "terms", contact_consent: "consent"
+  };
 
   var $ = function (id) { return document.getElementById(id); };
   var I18N = window.CvLandingI18n;
@@ -38,11 +50,13 @@
   var VETS = DATA.vets && typeof DATA.vets === "object" ? DATA.vets : {};
   var UFS = Array.isArray(DATA.ufs) ? DATA.ufs : [];
   var CONSENT_TEXT = DATA.consent && DATA.consent.text ? String(DATA.consent.text) : "";
+  var TERMS = DATA.terms && typeof DATA.terms === "object" ? DATA.terms : {};
+  var METHODS = Array.isArray(DATA.payment_methods) ? DATA.payment_methods : [];
   var TOKEN = readToken();
 
   var brl = new Intl.NumberFormat(I18N.locale(), { style: "currency", currency: "BRL" });
   var amount = new Intl.NumberFormat(I18N.locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  var state = { planId: null, sent: null };
+  var state = { planId: null, sent: null, subscribePlanId: null };
   try { var saved = localStorage.getItem(STORE_KEY); if (saved && planById(saved)) state.planId = saved; } catch (e) {}
 
   var checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -64,8 +78,9 @@
         "<div><h3>" + esc(p.name) + '</h3><p class="for">' + esc(p.for_who) + "</p></div>" +
         '<div class="price"><span class="cur">R$</span><span class="val mono">' + esc(amount.format(reais(p))) + '</span><span class="per">/mês</span></div>' +
         '<p class="includes">Inclui</p><ul>' + lis + "</ul>" +
-        '<button type="button" class="btn ' + (p.featured || inCart ? "btn-primary" : "btn-ghost") + '" data-add="' + esc(p.id) + '">' +
-        (inCart ? "No carrinho ✓" : "Adicionar ao carrinho") + "</button></article>";
+        '<div class="plan-actions"><button type="button" class="btn btn-primary" data-plan="' + esc(p.id) + '">Assinar</button>' +
+        '<button type="button" class="btn btn-ghost" data-add="' + esc(p.id) + '">' +
+        (inCart ? "No carrinho ✓" : "Adicionar ao carrinho") + "</button></div></article>";
     }).join("");
     I18N.translate($("plans"));
   }
@@ -244,7 +259,135 @@
     }
   }
 
+  /* Compra pela landing: seção #assinar e POST /checkout.php (T-16). */
+  function renderMethods() {
+    var box = $("sub-methods");
+    if (!box || box.childElementCount) return;
+    box.innerHTML = METHODS.map(function (m, i) {
+      var id = "sub-method-" + esc(m.id);
+      return '<label class="method" for="' + id + '"><input type="radio" name="payment_method" id="' + id + '" value="' + esc(m.id) + '"' +
+        (i === 0 ? " checked" : "") + "><span>" + esc(m.label) + "</span></label>";
+    }).join("");
+    I18N.translate(box);
+  }
+
+  function renderSubscribePlan() {
+    var plan = planById(state.subscribePlanId); if (!plan) return;
+    $("sub-plan-name").textContent = plan.name;
+    var price = $("sub-plan-price");
+    price.setAttribute("data-money-cents", String(Number(plan.price_cents)));
+    price.textContent = money(plan);
+  }
+
+  function openSubscribe(planId) {
+    if (!planById(planId)) return;
+    state.subscribePlanId = planId;
+    var section = $("assinar");
+    $("sub-terms-text").textContent = TERMS.text ? String(TERMS.text) : "";
+    $("sub-consent-text").textContent = CONSENT_TEXT;
+    renderMethods(); renderSubscribePlan(); subErr("plan", "");
+    section.hidden = false;
+    I18N.translate(section);
+    section.scrollIntoView({ block: "start" });
+    $("subscribe-title").focus({ preventScroll: true });
+  }
+
+  function subErr(suffix, msg) {
+    var el = $("sub-" + suffix + "-err"); if (el) { el.textContent = msg || ""; I18N.translate(el); }
+    var controls = suffix === "method" ? document.querySelectorAll('#sub-methods input') : [$("sub-" + suffix)];
+    Array.prototype.forEach.call(controls, function (control) {
+      if (!control || control.tagName !== "INPUT") return;
+      if (msg) control.setAttribute("aria-invalid", "true"); else control.removeAttribute("aria-invalid");
+    });
+  }
+  function focusFirstSubscribeError() {
+    var first = document.querySelector("#subscribe-form .err:not(:empty)");
+    if (!first) return;
+    var f = first.parentElement.querySelector("input,a[href]"); if (f) f.focus();
+  }
+  function chosenMethod() {
+    var checked = document.querySelector('#sub-methods input[name="payment_method"]:checked');
+    return checked ? checked.value : "";
+  }
+
+  function submitSubscribe(ev) {
+    ev.preventDefault();
+    var plan = planById(state.subscribePlanId);
+    var name = val("sub-name"), email = val("sub-email"), phone = val("sub-phone"), clinic = val("sub-clinic"), method = chosenMethod();
+    var digits = phone.replace(/\D/g, ""), ok = true;
+    function check(suffix, valid, msg) { subErr(suffix, valid ? "" : msg); ok = ok && valid; }
+    check("plan", !!plan, "Escolha um plano.");
+    check("name", name.length >= 3, "Informe o nome do responsável.");
+    check("email", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), "Informe um e-mail válido.");
+    check("phone", digits.length >= 10 && digits.length <= 13, "Informe o telefone com DDD.");
+    check("clinic", clinic.length >= 2, "Informe o nome da clínica.");
+    check("method", method !== "", "Escolha a forma de pagamento: cartão ou Pix.");
+    var terms = $("sub-terms").checked;
+    check("terms", terms, "Aceite os Termos de Assinatura para continuar.");
+    subErr("consent", "");
+    if (!ok) { focusFirstSubscribeError(); return; }
+
+    var btn = $("submit-subscribe"), status = $("subscribe-status");
+    btn.disabled = true; btn.textContent = "Abrindo o pagamento…"; status.classList.remove("bad"); status.textContent = "";
+    I18N.translate(btn);
+    var honeypot = $("sub-website");
+    var payload = {
+      plan_id: plan.id, payment_method: method,
+      responsible_name: name.slice(0, 160), responsible_email: email.slice(0, 190), responsible_phone: phone.slice(0, 30), clinic_name: clinic.slice(0, 190),
+      terms_accepted: terms === true, terms_version: String(TERMS.version || ""), contact_consent: $("sub-consent").checked === true,
+      form_token: TOKEN, website: honeypot ? honeypot.value : ""
+    };
+
+    fetch(CHECKOUT_PATH, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) { return { status: res.status, json: json || {} }; });
+      })
+      .then(function (r) {
+        var url = r.status === 201 && typeof r.json.checkout_url === "string" ? r.json.checkout_url : "";
+        if (/^https:\/\//.test(url)) { window.location.assign(url); return; }
+        var message = MSG_GENERIC;
+        if (r.status === 422) message = showCheckoutErrors(r.json.errors);
+        else if (r.status === 502) message = MSG_GATEWAY;
+        else if (r.status === 429) message = MSG_RATE_LIMITED;
+        else if (r.status === 403) message = MSG_EXPIRED;
+        fail(message);
+      })
+      .catch(function () { fail(MSG_GENERIC); });
+
+    function fail(message) {
+      btn.disabled = false; btn.textContent = "Ir para o pagamento"; I18N.translate(btn);
+      status.classList.add("bad");
+      status.textContent = message;
+      I18N.translate(status);
+    }
+  }
+
+  function showCheckoutErrors(errors) {
+    var unknown = [];
+    Object.keys(errors || {}).forEach(function (key) {
+      var suffix = CHECKOUT_FIELDS[key];
+      if (suffix && $("sub-" + suffix + "-err")) subErr(suffix, String(errors[key])); else unknown.push(String(errors[key]));
+    });
+    focusFirstSubscribeError();
+    return unknown.length ? unknown.join(" ") : MSG_FIX_FIELDS;
+  }
+
+  function showCheckoutReturn() {
+    var result = "";
+    try { result = new URLSearchParams(window.location.search).get("checkout") || ""; } catch (e) { return; }
+    var message = result === "success" ? MSG_PAID : result === "cancelled" ? MSG_CANCELLED : "";
+    var box = $("checkout-result");
+    if (!message || !box) return;
+    box.textContent = message;
+    box.classList.toggle("ok", result === "success");
+    box.hidden = false;
+    I18N.translate(box);
+    box.focus();
+  }
+
   document.addEventListener("click", function (ev) {
+    var plan = ev.target.closest("[data-plan]");
+    if (plan) { openSubscribe(plan.getAttribute("data-plan")); return; }
     var t = ev.target.closest("[data-add],#open-cart,#close-cart,#scrim,#remove-plan,#go-plans,#new-order");
     if (!t) return;
     if (t.hasAttribute("data-add")) { state.planId = t.getAttribute("data-add"); state.sent = null; persist(); renderCount(); renderPlans(); openCart(); return; }
@@ -253,7 +396,10 @@
     if (t.id === "remove-plan") { state.planId = null; persist(); renderCount(); renderPlans(); renderCart(); $("go-plans").focus(); return; }
     if (t.id === "new-order") { state.sent = null; renderCart(); closeCart(); return; }
   });
-  document.addEventListener("submit", function (ev) { if (ev.target && ev.target.id === "lead-form") submitLead(ev); });
+  document.addEventListener("submit", function (ev) {
+    if (ev.target && ev.target.id === "lead-form") submitLead(ev);
+    else if (ev.target && ev.target.id === "subscribe-form") submitSubscribe(ev);
+  });
   function cartFocusables() {
     var selector = "a[href],button,input,select,textarea,[tabindex]";
     return Array.prototype.filter.call($("cart").querySelectorAll(selector), function (el) {
@@ -278,11 +424,18 @@
   document.addEventListener("cv:languagechange", function () {
     brl = new Intl.NumberFormat(I18N.locale(), { style: "currency", currency: "BRL" });
     amount = new Intl.NumberFormat(I18N.locale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    renderPlans(); renderCompare();
+    renderPlans(); renderCompare(); renderSubscribePlan();
     var button = $("submit-lead"), plan = planById(state.planId);
     if (button && plan && !button.disabled) button.textContent = submitLabel(plan);
   });
 
-  renderPlans(); renderCompare(); renderCount(); renderCart();
+  /* Volta do Stripe pelo botão Voltar (bfcache): destrava o envio. */
+  window.addEventListener("pageshow", function (ev) {
+    var btn = $("submit-subscribe");
+    if (!ev.persisted || !btn || !btn.disabled) return;
+    btn.disabled = false; btn.textContent = "Ir para o pagamento"; I18N.translate(btn);
+  });
+
+  renderPlans(); renderCompare(); renderCount(); renderCart(); showCheckoutReturn();
   if (window.location.hash === "#cart") openCart();
 })();

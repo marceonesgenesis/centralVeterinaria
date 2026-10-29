@@ -304,6 +304,24 @@ FROM system_program p WHERE p.controller='SaleForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
 
 INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Sale List', 'SaleList'
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE controller='SaleList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='SaleList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Sale Cancel Form', 'SaleCancelForm'
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE controller='SaleCancelForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='SaleCancelForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
 SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Service Form', 'ServiceForm'
 WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE controller='ServiceForm');
 
@@ -1007,5 +1025,149 @@ SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), g
 FROM system_program p JOIN system_group g ON g.name='Clínico – Cirurgia'
 WHERE p.controller='DocumentTemplateForm'
 AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=g.id AND existing_link.system_program_id=p.id);
+
+-- Fase 8A — AI Gateway: 2 programas de configuração e uso de IA, concedidos só ao grupo 1
+-- (Template - Admin). As ações de IA nas telas clínicas usam EncounterView e ExamResultForm.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Settings', 'AiSettingsForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiSettingsForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='AiSettingsForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Interaction List', 'AiInteractionList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiInteractionList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='AiInteractionList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+-- Fase 8B — Copiloto: AiCopilotPanel (cortina do copiloto) e AiConversationList (Minhas conversas)
+-- para todo grupo que já tem EncounterView; AiToolCallList (auditoria de ferramentas) só para o
+-- grupo 1 (Template - Admin). Um INSERT ... SELECT concede a vários grupos: o id de cada vínculo
+-- novo é MAX(id) + a posição do grupo entre os grupos com EncounterView que ainda não têm o programa.
+-- Os grupos de plano ('Central Vet - Plano %', plan-groups.sql) ficam fora dos dois critérios: a IA
+-- só entra no Enterprise, por plan-groups.sql, mesmo quando este seed é reaplicado depois dele.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Copilot Panel', 'AiCopilotPanel'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiCopilotPanel');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
+       + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
+          FROM system_group_program earlier_link
+          JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          JOIN system_group earlier_group ON earlier_group.id=earlier_link.system_group_id AND COALESCE(earlier_group.name,'') NOT LIKE 'Central Vet - Plano %'
+          WHERE earlier_link.system_group_id <= clinical_group.system_group_id
+          AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
+       clinical_group.system_group_id, p.id
+FROM system_program p
+JOIN (SELECT DISTINCT encounter_link.system_group_id
+      FROM system_group_program encounter_link
+      JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
+      JOIN system_group encounter_group ON encounter_group.id=encounter_link.system_group_id
+      WHERE encounter_view.controller='EncounterView'
+      AND COALESCE(encounter_group.name,'') NOT LIKE 'Central Vet - Plano %') clinical_group
+WHERE p.controller='AiCopilotPanel'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Conversation List', 'AiConversationList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiConversationList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program current_links)
+       + (SELECT COUNT(DISTINCT earlier_link.system_group_id)
+          FROM system_group_program earlier_link
+          JOIN system_program earlier_view ON earlier_view.id=earlier_link.system_program_id AND earlier_view.controller='EncounterView'
+          JOIN system_group earlier_group ON earlier_group.id=earlier_link.system_group_id AND COALESCE(earlier_group.name,'') NOT LIKE 'Central Vet - Plano %'
+          WHERE earlier_link.system_group_id <= clinical_group.system_group_id
+          AND NOT EXISTS (SELECT 1 FROM system_group_program granted_link WHERE granted_link.system_group_id=earlier_link.system_group_id AND granted_link.system_program_id=p.id)),
+       clinical_group.system_group_id, p.id
+FROM system_program p
+JOIN (SELECT DISTINCT encounter_link.system_group_id
+      FROM system_group_program encounter_link
+      JOIN system_program encounter_view ON encounter_view.id=encounter_link.system_program_id
+      JOIN system_group encounter_group ON encounter_group.id=encounter_link.system_group_id
+      WHERE encounter_view.controller='EncounterView'
+      AND COALESCE(encounter_group.name,'') NOT LIKE 'Central Vet - Plano %') clinical_group
+WHERE p.controller='AiConversationList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=clinical_group.system_group_id AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - AI Tool Call List', 'AiToolCallList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='AiToolCallList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='AiToolCallList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+-- Etapa 3 (T-21): tela da assinatura (só leitura), concedida ao grupo 1; os grupos de
+-- plano a recebem em plan-groups.sql.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Subscription Status', 'SubscriptionStatusView'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='SubscriptionStatusView');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='SubscriptionStatusView'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+-- Etapa 3 (T-24/T-25): equipe e unidades por clínica (filtram pelo tenant da sessão),
+-- concedidas ao grupo 1; os grupos de plano as recebem em plan-groups.sql.
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Team', 'ClinicUserList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUserList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUserList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Team Form', 'ClinicUserForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUserForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUserForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Units', 'ClinicUnitList'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUnitList');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUnitList'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
+
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_program current_programs), 'Central Vet - Clinic Unit Form', 'ClinicUnitForm'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_program existing_program WHERE existing_program.controller='ClinicUnitForm');
+
+INSERT INTO system_group_program (id, system_group_id, system_program_id)
+SELECT (SELECT COALESCE(MAX(id),0)+1 FROM system_group_program current_links), 1, p.id
+FROM system_program p WHERE p.controller='ClinicUnitForm'
+AND NOT EXISTS (SELECT 1 FROM system_group_program existing_link WHERE existing_link.system_group_id=1 AND existing_link.system_program_id=p.id);
 
 COMMIT;

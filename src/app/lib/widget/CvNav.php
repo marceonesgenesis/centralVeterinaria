@@ -28,6 +28,7 @@ class CvNav
             'stock' => [
                 'products'   => ['Products',   'index.php?class=ProductList'],
                 'sales'      => ['Sales',      'index.php?class=SaleForm'],
+                'sale_history' => ['Sale history', 'index.php?class=SaleList'],
                 'movements'  => ['Movements',  null],
                 'categories' => ['Categories', null],
                 'suppliers'  => ['Suppliers',  null],

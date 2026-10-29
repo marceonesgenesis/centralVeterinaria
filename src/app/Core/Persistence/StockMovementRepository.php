@@ -70,6 +70,26 @@ final class StockMovementRepository extends AbstractTenantRepository implements 
         return $movements;
     }
 
+    public function listByReference(string $referenceType, int $referenceId): array
+    {
+        $query = $this->tenantQuery()
+            ->andEquals('reference_type', $referenceType)
+            ->andEquals('reference_id', $referenceId);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM stock_movement WHERE {$query->whereSql()} ORDER BY id ASC"
+        );
+        $statement->execute($query->parameters());
+
+        $movements = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $movements[] = self::hydrate($row);
+        }
+
+        return $movements;
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof StockMovement) {

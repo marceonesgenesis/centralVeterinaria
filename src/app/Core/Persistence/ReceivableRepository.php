@@ -57,6 +57,40 @@ final class ReceivableRepository extends AbstractTenantRepository implements Rec
         return $row === false ? null : self::hydrate($row);
     }
 
+    /** SELECT ... FOR UPDATE inside the caller's transaction (T-08; pattern of EncounterRepository::lockForDraft()). */
+    public function findByIdForUpdate(int $id): ?object
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('findByIdForUpdate() requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $id);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM receivable WHERE {$query->whereSql()} LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
+    /** The receivable of a sale (T-08; receivable_sale_uq guarantees at most one). */
+    public function findBySaleId(int $saleId): ?object
+    {
+        $query = $this->tenantQuery()->andEquals('sale_id', $saleId);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM receivable WHERE {$query->whereSql()} LIMIT 1"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
     /**
      * 'open'/'partially_paid' are fixed literals appended to the WHERE
      * clause, not caller input, so they are safe outside TenantQuery's
@@ -91,15 +125,16 @@ final class ReceivableRepository extends AbstractTenantRepository implements Rec
             $statement = $this->connection->prepare(
                 <<<'SQL'
                 INSERT INTO receivable (
-                    tenant_id, encounter_account_id, tutor_id, total_cents, paid_cents, status
+                    tenant_id, encounter_account_id, sale_id, tutor_id, total_cents, paid_cents, status
                 ) VALUES (
-                    :tenant_id, :encounter_account_id, :tutor_id, :total_cents, :paid_cents, :status
+                    :tenant_id, :encounter_account_id, :sale_id, :tutor_id, :total_cents, :paid_cents, :status
                 )
                 SQL
             );
             $statement->execute([
                 ':tenant_id' => $entity->tenantId(),
                 ':encounter_account_id' => $entity->encounterAccountId(),
+                ':sale_id' => $entity->saleId(),
                 ':tutor_id' => $entity->tutorId(),
                 ':total_cents' => $entity->totalCents(),
                 ':paid_cents' => $entity->paidCents(),

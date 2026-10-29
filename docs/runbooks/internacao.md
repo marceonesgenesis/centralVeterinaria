@@ -99,7 +99,7 @@ começam com `SET NAMES utf8mb4;` e o cliente roda com
 
 **Aplicação (MySQL 8)**
 
-1. Backup: `./scripts/backup.sh` e `gzip -t var/backups/centralvet-<timestamp>.sql.gz`.
+1. Backup: `./scripts/backup.sh` e conferir o backup cifrado (`scripts/restore-drill.sh var/backups/centralvet-<timestamp>.tar.gpg`, ver [`restore-backup.md`](./restore-backup.md)).
 2. Anotar, só com `SELECT`, `COUNT(*)`/`MAX(id)` de `system_group`,
    `system_program` e `system_group_program`, e `COUNT(*)` de
    `encounter_account_item` e `stock_movement`.

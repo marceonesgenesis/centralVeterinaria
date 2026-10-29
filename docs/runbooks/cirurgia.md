@@ -164,7 +164,7 @@ verify confere 18 caracteres / 21 bytes, 9 concessões no grupo 1, 9 em
 
 **Aplicação (MySQL 8)**
 
-1. Backup: `./scripts/backup.sh` e `gzip -t var/backups/centralvet-<timestamp>.sql.gz`.
+1. Backup: `./scripts/backup.sh` e conferir o backup cifrado (`scripts/restore-drill.sh var/backups/centralvet-<timestamp>.tar.gpg`, ver [`restore-backup.md`](./restore-backup.md)).
 2. Anotar, só com `SELECT`, `COUNT(*)`/`MAX(id)` de `system_group`,
    `system_program` e `system_group_program` (esperado 4/117/127 antes da
    DML) e `COUNT(*)` de `encounter_account_item`, `stock_movement`,

@@ -1,0 +1,56 @@
+# Revisão final
+Escopo: `git diff feat/fase-8b-copiloto-mcp...task/fase-8b-pendencias` (merge-base 14139af, 45 commits, 59 arquivos em src/ e docs/). Verificado: nenhum arquivo fora do Mapa; `git diff … -- src/composer.json src/app/config/framework_hashes.php src/app/templates/adminbs5/custom.css src/lib/adianti` → 0 linhas; nenhum `text-align` novo no diff; `AiCopilotPanel::hostLink` leva `cv-touch-target`; chaves novas de translations.json com en/pt e na ordem por `en`; nenhum item de Excluído implementado. Review Focus: T-14 com repositórios reais no fluxo clínico (AiCopilotServiceForContextIntegrationTest:208, mcp_tool_call gravado); T-20 (ObterExames/ObterHistorico com excerptLengths ⊆ freeTextFields; ObterProntuario/ObterPaciente sem excerptLengths); T-03 (AnthropicMessagesGatewayTest); T-16 (pré-check indisponível → motivo + textarea readonly, AiCopilotPanelIntegrationTest:1878-1914 do diff); T-15 (testBinSkipsWhenAnotherRunHoldsTheLock).
+## Triagem
+- [aberta] SQL dev/produção da 0015 e DML do bloco 8B → fora do código, exige autorização SQL expressa
+- [aberta] Verificação visual do trilho `.tswitch` + `cv-touch-target` → manual no navegador, nada no diff
+- [aberta] Bloco 8B do seed no MySQL 5.7 → só inspeção; agora citado no runbook (ia-assistente.md § Seed), sem execução
+- [aberta] "Nenhum push" não verificável por remoto → nada a fazer
+- [aberta] T-01 docblocks sem `@throws InvalidArgumentException` da guarda → src/app/Core/Domain/AiInteraction.php:177, :207
+- [aberta] T-02 sem teste com duas chaves extras (e cada chave extra gera a mesma linha de erro repetida) → src/tests/Unit/JsonSchemaValidatorTest.php:88; a metade "docblock de sameContext" ficou verdadeira com a T-20 (src/app/Core/Ai/Tools/ToolPolicy.php:79-84)
+- [aberta] T-03 objeto vazio aninhado em input de tool_use volta `[]` no replay → src/app/Core/Ai/AnthropicMessagesGateway.php:131
+- [aberta] T-04 isSummaryEntry aceita tool/label não escalares (cast de array em fitSummary) → src/app/Core/Domain/AiConversationMessage.php:179, :198
+- [aberta] T-05 helper encounterRow fora do arranjo → src/tests/Unit/ClinicalToolsPatientTest.php:242 (as falhas de ExamResultAiIntegrationTest não reapareceram: gate da onda 3 1758/1758)
+- [aberta] T-06 trait sem contrato verificável de `$this->query`; ObterPrescricoesTool minimiza via/posologia/duracao sem knownNames (tutorNames) → src/app/Core/Ai/Tools/Clinical/ResolvesPatientInUnit.php:14, ObterPrescricoesTool.php:103
+- [aberta] T-07 fixture tenant_b_encounter em unitA; DSN da 2ª conexão duplicado → src/tests/Integration/CopilotClinicalQueryIntegrationTest.php:389, :2183 do diff (testUnitsAAndBBelongToTenantAAndVanishOnRollback)
+- [aberta] T-08 METHODS mistura métodos e a chave de seed inactive_professionals → src/tests/Support/FakeCopilotAgendaQuery.php:25
+- [aberta] T-09 fixture com data fixa 2031-08-01 vence em 2031-08-02 → src/tests/Integration/CopilotStockQueryIntegrationTest.php:61, :84; a parte "citar no runbook" foi feita (docs/runbooks/ia-assistente.md, item Estoque com CURDATE() × relógio da app)
+- [aberta] T-10 RED com dias_em_atraso=9; otherUnitId sem filtro por tenant → src/tests/Integration/CopilotFinanceQueryIntegrationTest.php:292
+- [aberta] T-11 ramo catch da closure de forContext sem teste → src/app/Core/Application/AiCopilotAvailability.php:65
+- [aberta] T-12 teste não assere a resposta gravada na conversa → src/tests/Unit/AiCopilotServiceTest.php:644-660
+- [aberta] T-14 sem teste com repositórios reais de mcp_tool_call numa pergunta de gestão (clínica coberta em AiCopilotServiceForContextIntegrationTest:208); docblocks largos → src/app/Core/Persistence/McpToolCallRepository.php:21, AiConversationRepository.php:21
+- [aberta] T-15 fopen que falha cai em "locked" e sai 0 → src/bin/ai-conversation-retention.php:24; a saída `{"skipped":"locked"}` já está no runbook (ia-assistente.md:346-350)
+- [aberta] T-16 sem teste de RuntimeException na montagem → ai_provider_error nem de ai_quota_exceeded no pré-check (só ai_disabled); pergunta > MAX_QUESTION_CHARS cai no `catch (Exception)` sem rascunho → src/app/control/clinic/AiCopilotPanel.php:281
+- [aberta] T-17 relatório cita 1444 entradas (arquivo tem mais) → informativa, sem impacto
+- [aberta] Validador: contagem no dev sem baseline anterior → informativa
+- [aberta] T-20 com o repositório real a linha `denied` do ToolContext divergente não é gravada (T-14 lança, ToolPolicy::deny só loga "audit failed"); ToolResultTest não confere a mensagem → src/app/Core/Ai/Tools/ToolPolicy.php:206, src/app/Core/Persistence/McpToolCallRepository.php:40. Não promovida: o fluxo real monta o ToolContext do mesmo TenantContext e a falha de auditoria é logada.
+- [aberta] T-21 só not_found asserido na coluna Motivo; "Permissão negada" não distingue negações → src/tests/Integration/AiCopilotListsIntegrationTest.php:1691, :1732 do diff
+- [aberta] T-22 sem teste de onAsk com resposta anterior; foco real/anel e re-exec do `<script src>` a cada render não conferidos no navegador → src/app/control/clinic/AiCopilotPanel.php:384
+- [aberta] T-23 assertCopilotLink não afirma fa:comments nem o span "Copilot" → src/tests/Integration/CopilotHostButtonsIntegrationTest.php:155-164
+- [aberta] T-24 linha longa/quebra irregular da trava → docs/runbooks/ia-assistente.md:349
+## Rulings
+- plano · onda 0 — Triagem da Revisão final Rodada 2 da 8B: cada [aberta] e [sugestão] virou task, documentação (T-24) ou "não fazer" com motivo
+- plano · onda 0 — Branch base feat/fase-8b-copiloto-mcp @ 14139af (não main), pedido do usuário
+- plano · onda 0 — Não fazer: rate limit depois de assertInScope (8B T-08), ruling T-08 · onda 2
+- plano · onda 0 — Não fazer: McpToolCallRepository::search tenant-wide (8B T-09), intencional
+- plano · onda 0 — Não fazer: 10º parâmetro ?PiiMinimizer (8B T-13), rulings T-08 · onda 2 e T-13 · onda 3
+- plano · onda 0 — Não fazer: superseded na mesma unidade e draft como ativa (8B T-06), rulings T-06 · onda 1 e T-11 · onda 2
+- plano · onda 0 — Não fazer: forbidden × not_offered (8B T-25), ruling T-25 · onda 8
+- plano · onda 0 — Não fazer: RBAC de onOpen no link Copiloto (8B T-16), ruling T-16 · onda 5 (audit_log por exibição)
+- plano · onda 0 — Não fazer: iterable × array no ToolRegistry e $clock sem uso (8B T-04)
+- plano · onda 0 — Não fazer: asserção do JS por str_contains (8B T-14), sem runner de JS
+- plano · onda 0 — Não fazer: RED do cenário 3 da 8B T-28 e histórico sem flag desligada
+- plano · onda 0 — Não fazer: duplicação reason × availability e conversas entre serviços (já delegam)
+- plano · onda 0 — Não fazer: "33 chaves" e SET NULL em tasks.md da 8B (rulings valem; RESTRICT no runbook)
+- plano · onda 0 — Fora por premissa: CSRF na exclusão, MCP externo, dependência nova, push/PR, apagar auditoria
+- plano · onda 0 — Lote vencido sai por CURDATE() sem mudar a interface (T-09)
+- plano · onda 0 — Falha do insert da ai_interaction após a resposta: log com correlation_id e relança (T-12)
+- T-02 · onda 1 — RED be0025f com JsonSchemaValidatorTest.php (dentro dos Arquivos prováveis) aceito
+- T-08 · onda 1 — RED 3175920 com FakeCopilotAgendaQuery.php (dentro dos Arquivos prováveis) aceito
+- T-16 · onda 1 — RuntimeException na montagem vira AiUnavailableException('ai_provider_error'); $fallbackReason de load removido
+- plano · onda 1 — linha "Branch base" de plan.md reformatada; ponto de partida em linha própria
+- T-21 · onda 2 — reuso de `Record not found` (6 chaves novas) e vínculo tenant_user no teste de XSS com limpeza no tearDown
+- T-23 · onda 3 — wrapper copilotLink da EncounterView removido; render chama AiCopilotPanel::hostLink direto
+- T-24 · onda 3 — sugestão de estilo da linha longa da trava não aplicada (segue pendência)
+## Achados
+- [sugestão] onAsk com conversa existente e IA ficando indisponível no pré-check agora mostra só o motivo e o rascunho (renderMessageOnly), sem a conversa e sem a lista de anteriores, que antes continuavam visíveis com o motivo; o usuário precisa reabrir a cortina → src/app/control/clinic/AiCopilotPanel.php:160-166
+- [sugestão] pergunta em branco (T-16) não passa por RBAC de onAsk, só pelo onOpen do histórico em load; usuário sem permissão de perguntar vê o aviso "Digite uma pergunta" e o formulário em vez de "Permissão negada" → src/app/control/clinic/AiCopilotPanel.php:110-118

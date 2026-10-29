@@ -33,9 +33,21 @@ consultar TRIGGERS quando o MySQL 8 usa `information_schema.check_constraints`.
 
 `src/init.php` carrega opcionalmente `app/config/hosting-environment.php`.
 Esse arquivo privado deve definir APP_SEED, DB_HOST, DB_PORT, DB_DATABASE,
-DB_USERNAME, DB_PASSWORD, APP_ENV, APP_DEBUG e APP_TIMEZONE usando `putenv()`.
+DB_USERNAME, DB_PASSWORD, APP_ENV, APP_DEBUG, APP_TIMEZONE e APP_PUBLIC_URL
+usando `putenv()`.
 Não versionar esse arquivo. Bloquear acesso HTTP aos diretórios `app/config`
 e `app/database` com `.htaccess` (`Require all denied`).
+
+`APP_PUBLIC_URL` é a base dos links de redefinição de senha; sem ela o reset
+não envia e-mail. Use o domínio real, com `https` e o subdiretório se houver:
+
+```php
+putenv('APP_PUBLIC_URL=https://<domínio>');
+```
+
+O limite de tentativas do reset reaproveita `LOGIN_RATE_LIMIT_*` e o
+`RATE_LIMIT_DRIVER` (ver [`environments.md`](./environments.md)). A proteção
+CSRF não exige configuração; o cookie `cv_csrf` só depende da sessão.
 
 Defina `DB_STRICT_MODE=true` para que cada conexão da aplicação use o modo
 SQL estrito, independentemente da configuração global da hospedagem. Isso
@@ -55,6 +67,26 @@ abre `index.php?class=LoginForm`. Assets, login, endpoint de leads e
 redirecionamentos da landing usam caminhos relativos, compatíveis com
 instalação na raiz do domínio ou em um subdiretório. Sessões autenticadas e
 pedidos com query string seguem para `index.php` no mesmo diretório.
+
+### request_order (cookies fora de $_REQUEST)
+
+Com o `request_order` padrão de algumas hospedagens (vazio, caindo em
+`variables_order` = `EGPCS`), os cookies entram em `$_REQUEST`, e o Adianti
+copia `$_REQUEST` ao montar links de paginação, ordenação e filtros. Sintoma:
+`PHPSESSID=` aparece nas URLs das listas paginadas (ex.:
+`index.php?class=SystemUserList&...&PHPSESSID=...`), expondo a sessão em
+histórico, logs e cabeçalho `Referer`. Fixe só GET e POST no `.user.ini` da
+raiz da aplicação (ou no `php.ini`, pelo painel do provedor):
+
+```ini
+request_order = "GP"
+```
+
+A imagem Docker já aplica a mesma linha (`docker/php/conf.d/app.ini`). Como
+conferir: um script temporário com `<?php echo ini_get('request_order');`
+deve imprimir `GP` (apague-o depois; o `.user.ini` pode levar até
+`user_ini.cache_ttl`, 300 s por padrão, para valer), e a lista paginada não
+deve conter `PHPSESSID` no HTML.
 
 ### IP do visitante e limite de envios da landing
 
@@ -114,9 +146,24 @@ compatibilidade com MySQL 5.7 antes de executar. Este bootstrap inicial não
 
 Os schemas iniciais do Adianti não cadastram automaticamente os controladores
 de negócio do Central Vet. O seed de programas/permissões separado está em
-`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra 45
-controladores, libera-os somente para o grupo administrador e configura a
+`src/app/database/seeds/initial-application-programs.sql`. Ele cadastra os
+controladores, libera-os para o grupo administrador e configura a
 permissão de desconto por método. Não contém dados clínicos de demonstração.
+O total de programas muda a cada tela nova; para saber quantos o seed cadastra,
+use `grep -c "INSERT INTO system_program " src/app/database/seeds/initial-application-programs.sql`
+em vez de um número fixo. Depois de aplicar, confira por nome as telas mais
+recentes (por exemplo, as da Etapa 2) e a liberação para o grupo 1:
+
+```sql
+SELECT p.controller, COUNT(gp.id) AS liberado_grupo_1
+FROM system_program p
+LEFT JOIN system_group_program gp
+       ON gp.system_program_id = p.id AND gp.system_group_id = 1
+WHERE p.controller IN ('SaleList', 'SaleCancelForm')
+GROUP BY p.controller;
+```
+
+O resultado esperado são duas linhas, cada uma com `liberado_grupo_1` = 1.
 
 Esse seed foi aplicado no banco online com autorização específica em
 2026-10-02, dentro de uma transação, após guardar e validar o snapshot das
@@ -322,3 +369,448 @@ variáveis de banco (`DB_*`), de Redis (`REDIS_*`) e `DOCUMENT_*`
 crontab com segredo à vista. A saída é um JSON de contadores, sem dado
 pessoal; sai com 1 se algum tenant falhou.
 
+
+## Migration 0014 (IA)
+
+A `20261007_0014_phase8a_ai_gateway.sql` cria três tabelas (`feature_flag`,
+`ai_tenant_setting` e `ai_interaction`), 8 CHECKs, 2 chaves de unicidade
+(`feature_flag_tenant_key_uq` e a PK de `ai_tenant_setting`) e 9 FKs. Não
+altera tabelas existentes nem semeia dados: a IA fica desligada em todo tenant.
+São 9 FKs (o cabeçalho da 0014 diz 8).
+
+O preparador só lê arquivos `NN-*.sql`; apontá-lo direto para
+`src/app/database/migrations` falha (`No numbered SQL files found`). Copie a
+0014 com o prefixo `18-` (depois do `17-` da 0013) para um diretório temporário
+privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261007_0014_phase8a_ai_gateway.sql \
+  "$d/18-20261007_0014_phase8a_ai_gateway.sql"
+cp src/app/database/migrations/20261007_0014_phase8a_ai_gateway.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+grep -n "CREATE TRIGGER \`feature_flag\|CREATE TRIGGER \`ai_" \
+  "$d/out/18-20261007_0014_phase8a_ai_gateway.sql"
+```
+
+Confira que o verify do 5.7 lista as 3 tabelas. Aplique só com backup e
+autorização SQL específica; depois, a DML dos programas `AiSettingsForm` e
+`AiInteractionList` (grupo 1), que está em
+`src/app/database/seeds/initial-application-programs.sql` (bloco "Fase 8A — AI
+Gateway", linhas 1011-1034; idempotente, com `NOT EXISTS`).
+
+### Ambiente da IA
+
+- Defina no ambiente da hospedagem (nunca em código nem no crontab) as variáveis
+  `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` (a chave real só aqui),
+  `ANTHROPIC_BASE_URL`, `AI_MODEL`, `AI_EFFORT`, `AI_MAX_OUTPUT_TOKENS`,
+  `AI_TIMEOUT_SECONDS`, `AI_CONNECT_TIMEOUT_SECONDS` e `AI_FALLBACKS`; todas têm
+  padrão, só a chave é obrigatória. Não use `AI_PROVIDER=stub` em produção.
+- Exige a extensão PHP `ext-curl` e HTTPS de saída (TCP 443) para
+  `api.anthropic.com`; hospedagem que bloqueia saída resulta em `ai_timeout`.
+- Variáveis, custo e falhas: [`ia-assistente.md`](./ia-assistente.md).
+
+
+## Migration 0015 (copiloto)
+
+A `20261015_0015_phase8b_copilot.sql` cria 3 tabelas (`ai_conversation`,
+`ai_conversation_message` e `mcp_tool_call`) com 6 CHECKs novos e 9 FKs, e
+**amplia os 6 CHECKs de `ai_interaction`** (`purpose`, `subject`, `status`,
+`failed`, `decided` e `final`), cada um em DROP CHECK seguido de ADD
+CONSTRAINT: finalidades `copilot_*`, sujeito `ai_conversation` e status
+`answered`. Entre o drop e o create de cada CHECK a tabela fica sem a regra;
+aplique em janela curta, com backup. Não semeia dados; o copiloto de gestão só
+liga com a flag `ai_copilot_management`.
+
+Copie a 0015 com o prefixo `19-` (depois do `18-` da 0014) para um diretório
+temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261015_0015_phase8b_copilot.sql \
+  "$d/19-20261015_0015_phase8b_copilot.sql"
+cp src/app/database/migrations/20261015_0015_phase8b_copilot.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Confira a ordem DROP TRIGGER, CREATE TRIGGER dos 6 CHECKs de `ai_interaction`
+no arquivo preparado (cada `<nome>_bi`/`<nome>_bu` sai do drop antes do create):
+
+```bash
+grep -n "TRIGGER IF EXISTS .*ai_interaction\|CREATE TRIGGER .*ai_interaction" \
+  "$d/out/19-20261015_0015_phase8b_copilot.sql"
+```
+
+Esperado: 12 `DROP TRIGGER IF EXISTS` e 12 `CREATE TRIGGER` (um par `_bi`/`_bu`
+por CHECK), cada drop antes do create do mesmo nome.
+
+Aplique só com autorização SQL específica. Antes, anote
+`SELECT COUNT(*) FROM ai_interaction`; depois, rode o mesmo comando e exija o
+**mesmo número** (a migration só amplia CHECKs, não apaga linhas).
+
+Na conferência, **não** use o `.verify.sql` original: ele consulta
+`information_schema.check_constraints`, que o 5.7 não tem. Use o verify adaptado
+que o preparador grava em `$d/out/manifest.json` (chave `verification`, arquivo
+`20261015_0015_phase8b_copilot.verify.sql`), onde a consulta de CHECKs vira
+`information_schema.TRIGGERS` (`EVENT_OBJECT_TABLE`); as demais consultas
+(tabelas, colunas, FKs) são as mesmas. Depois, a DML dos programas do copiloto
+no seed `initial-application-programs.sql`.
+
+### Cron da retenção do copiloto
+
+As conversas com mais de 90 dias sem atividade são apagadas por script, uma vez
+por dia, a partir da raiz de `src/` (a saída é um JSON de contadores, sem dado
+pessoal; sai com 1 em erro):
+
+```cron
+# Retenção de 90 dias das conversas do copiloto (diária, 03:30)
+30 3 * * * cd /caminho/da/aplicacao/src && php bin/ai-conversation-retention.php >> /caminho/dos/logs/ai-conversation-retention.log 2>&1
+```
+
+Sem a variável `RATE_LIMIT_DRIVER=files`, o limitador de chamadas do copiloto
+exige Redis acessível. Detalhes: [`ia-assistente.md`](./ia-assistente.md).
+
+## Migration 0016 (venda e financeiro)
+
+A `20261021_0016_etapa2_sale_finance.sql` liga a venda ao financeiro e torna o
+cancelamento rastreável: `receivable.encounter_account_id` passa a aceitar
+NULL e ganha a coluna `sale_id` (UNIQUE `receivable_sale_uq`, FK para `sale` e
+o CHECK `receivable_origin_ck`: o recebível vem de uma conta de atendimento
+**ou** de uma venda); `sale` ganha `cancelled_at`,
+`cancelled_by_system_user_id` e `cancellation_reason` (CHECK
+`sale_cancellation_ck`); cria `payment_reversal` (estorno de um recebimento,
+UNIQUE por `payment_id`) e `submission_key` (token de envio de formulário,
+UNIQUE por tenant/escopo/token); e **amplia `stock_movement_reason_ck`** com
+`sale_cancellation`, em DROP CHECK seguido de ADD CONSTRAINT. São 5 CHECKs
+novos e 1 ampliado (12 triggers no 5.7). Não semeia dados; os `ALTER TABLE` em
+`receivable` e `sale` reconstroem as tabelas, então aplique em janela curta,
+com backup. Antes, confira que nenhuma venda está `cancelled`
+(`SELECT COUNT(*) FROM sale WHERE status = 'cancelled'` deve dar 0), senão o
+`sale_cancellation_ck` recusa a migration.
+
+Copie a migration com o prefixo `20-` (depois do `19-` da 0015) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261021_0016_etapa2_sale_finance.sql \
+  "$d/20-20261021_0016_etapa2_sale_finance.sql"
+cp src/app/database/migrations/20261021_0016_etapa2_sale_finance.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 6 checks and 12 triggers`. No arquivo preparado,
+os `DROP TRIGGER IF EXISTS` de `stock_movement_reason_ck_bi`/`_bu` vêm antes
+dos `CREATE TRIGGER` do mesmo nome.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM receivable` e `SELECT COUNT(*) FROM sale` e exija os
+**mesmos números**. Na conferência, use o verify adaptado de
+`$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
+CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0.
+
+## Migration 0017 (cobrança da assinatura)
+
+A `20261021_0017_etapa3_billing.sql` cria as 4 tabelas da contratação:
+`billing_order` (pedido feito na landing, com plano, preço do servidor,
+responsável, aceite dos termos e progresso do provisionamento),
+`subscription` (uma por pedido e no máximo uma por tenant; `stripe_subscription_id`
+nulo no Pix), `subscription_invoice` (fatura Stripe no cartão ou fatura local
+com `local_key` `pix:<assinatura>:<data>` no Pix; CHECK
+`subscription_invoice_ref_ck`) e `billing_event` (evento Stripe recebido, único
+por `provider`/`event_id`). São 9 CHECKs novos (18 triggers no 5.7), 9 UNIQUEs e
+4 FKs. Não altera tabela existente nem semeia dados; os tenants de hoje ficam
+sem assinatura (acesso `legacy`). **Aplique a 0017 antes de subir o código da
+Etapa 3**: a guarda de login lê `subscription`. `billing_order` e
+`billing_event.payload` guardam dado pessoal (LGPD).
+
+Copie a migration com o prefixo `21-` (depois do `20-` da 0016) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261021_0017_etapa3_billing.sql \
+  "$d/21-20261021_0017_etapa3_billing.sql"
+cp src/app/database/migrations/20261021_0017_etapa3_billing.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 9 checks and 18 triggers`.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM tenant` e `SELECT COUNT(*) FROM system_users` e exija os
+**mesmos números**. Na conferência, use o verify adaptado de
+`$d/out/manifest.json` (chave `verification`), como na 0015: a consulta de
+CHECKs vira `information_schema.TRIGGERS`; as linhas de violação devem dar 0 e
+as 4 tabelas novas, 0 linhas.
+
+### Reconciliação da cobrança
+
+O `bin/billing-reconcile.php` (Etapa 3) recupera o que o webhook não aplicou:
+busca no Stripe os eventos desde o último recebido menos 1 dia (`GET
+/v1/events`, paginado; sem eventos, os últimos 3 dias) e aplica os que faltam;
+retoma pedidos pagos sem provisionamento, provisionamentos falhos e convites
+não enviados; emite a fatura Pix 3 dias antes do fim do período, marca a
+assinatura `past_due` quando a fatura Pix vence e gera PaymentIntent novo
+quando o Pix expira; e suspende a assinatura cuja tolerância de 7 dias acabou.
+Também estorna o pedido pago cujo e-mail do responsável já é login
+(`provisioning_failed`/`login_conflict`, a corrida em que o e-mail vira login
+entre o checkout e o webhook): no cartão, cancela a Subscription do Stripe
+(`GET` e, se ainda ativa, `DELETE /v1/subscriptions/<id>`); nos dois meios,
+estorna o pagamento inteiro (`POST /v1/refunds`), cancela a assinatura local
+(o Pix não ganha fatura nova) e marca o pedido `refunded`. Cada passo fica
+gravado no pedido e a rodada seguinte retoma do passo pendente. As escritas no
+Stripe são esse `DELETE`, esse `POST /v1/refunds` e o `POST
+/v1/payment_intents` do Pix, todas com `Idempotency-Key`. Rode por cron a cada 15 minutos, a partir da raiz de `src/`:
+
+```cron
+# Reconciliação da cobrança (a cada 15 minutos)
+*/15 * * * * cd /caminho/da/aplicacao/src && php bin/billing-reconcile.php >> /caminho/dos/logs/billing-reconcile.log 2>&1
+```
+
+A saída é uma linha de contadores (`billing-reconcile events_fetched=<n>
+events_ingested=<n> orders_fulfilled=<n> orders_failed=<n> orders_refunded=<n>
+pix_invoices_issued=<n> pix_invoices_overdue=<n> pix_intents_refreshed=<n>
+subscriptions_suspended=<n>`), sem dado pessoal; sai 0, ou 1 em erro de Stripe
+ou de banco (`billing-reconcile error=<classe>`, só a classe da exceção). Cada
+pedido, fatura ou assinatura roda em transação própria: a falha de um item vai
+para o log e não interrompe os outros. Execuções sobrepostas não acumulam (trava
+de arquivo `flock` no diretório temporário; a segunda sai 0 com
+`billing-reconcile skipped_locked`). O ambiente do cron precisa de `DB_*`,
+`STRIPE_*`, `SMTP_*`/`COMMUNICATION_*` e `APP_PUBLIC_URL`, como o webhook (nunca na
+linha do crontab).
+
+`orders_refunded` conta os pedidos estornados na rodada. Cada estorno vai ao log
+como `[LoginConflictRefund] {"event":"login_conflict_refunded",...}` (pedido,
+meio de pagamento e id do estorno) e, com `BILLING_OPERATOR_EMAIL` preenchido
+no ambiente do cron, sai um e-mail de alerta ao operador com o pedido, o
+plano, o valor, a clínica e o e-mail do responsável (vazio: só o log; a falha
+do e-mail não desfaz o estorno). Falha no Stripe sai no log como
+`login_conflict_refund_failed` com o passo (`cancel_subscription` ou `refund`,
+os dois que chamam o Stripe; a gravação final do estorno é local e não falha
+por erro do Stripe) e o pedido continua `provisioning_failed` até a próxima
+rodada. Avise o cliente: o e-mail já tinha login, então ele deve entrar com a
+conta existente ou comprar com outro e-mail.
+
+Endpoint do webhook no painel do Stripe (Developers → Webhooks → Add
+endpoint):
+
+- URL: `https://<domínio>/billing-webhook.php` (POST, autenticado pela
+  `Stripe-Signature`; o segredo `whsec_…` do endpoint vai em
+  `STRIPE_WEBHOOK_SECRET`, nunca em código nem no crontab).
+- Versão da API: `2024-06-20` (a mesma de `StripeConfig::API_VERSION`).
+- Eventos: `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded`,
+  `checkout.session.async_payment_failed`, `checkout.session.expired`,
+  `invoice.created`, `invoice.finalized`, `invoice.paid`,
+  `invoice.payment_failed`, `invoice.voided`, `invoice.marked_uncollectible`,
+  `customer.subscription.updated`, `customer.subscription.deleted`,
+  `payment_intent.succeeded` e `charge.refunded`.
+
+## Migration 0018 (estorno do pedido com e-mail já cadastrado)
+
+A `20261026_0018_billing_order_refund.sql` acrescenta a `billing_order` as
+colunas `subscription_cancelled_at`, `stripe_refund_id` e `refunded_at` (todas
+nulas, depois de `invite_sent_at`) e amplia o CHECK `billing_order_status_ck`
+com `refunded` (DROP CHECK seguido de ADD CONSTRAINT, 2 triggers no 5.7). É o
+estado terminal do pedido pago cujo e-mail do responsável já é login
+(`provisioning_failed`/`login_conflict`): o estorno (cancelar a assinatura do
+cartão, registrar o reembolso do Stripe e marcar o pedido `refunded`) grava o
+progresso nessas colunas, e o provisionamento deixa de reprocessar esse
+pedido. Não cria tabela nem semeia dados; os
+pedidos existentes ficam com as 3 colunas nulas. **Aplique a 0018 antes de
+subir o código desta onda**: todo INSERT/UPDATE em `billing_order` grava as 3
+colunas e, sem elas, falha com `Unknown column`.
+
+Copie a migration com o prefixo `22-` (depois do `21-` da 0017) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261026_0018_billing_order_refund.sql \
+  "$d/22-20261026_0018_billing_order_refund.sql"
+cp src/app/database/migrations/20261026_0018_billing_order_refund.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 1 checks and 2 triggers`.
+
+Aplique só com autorização SQL específica. Antes e depois, anote
+`SELECT COUNT(*) FROM billing_order` e exija o **mesmo número**. Na
+conferência, use o verify adaptado de `$d/out/manifest.json` (chave
+`verification`), como na 0015: a consulta de CHECKs vira
+`information_schema.TRIGGERS`; as linhas de violação devem dar 0 e as 3 colunas
+novas aparecem.
+
+## Migration 0019 (monitoramento operacional)
+
+A `20261026_0019_ops_monitoring.sql` cria 2 tabelas novas e vazias, sem chave
+estrangeira nem CHECK (0 triggers no 5.7): `ops_heartbeat` (uma linha por rotina,
+com o último sucesso e um detalhe curto: `backup`, `billing-reconcile`,
+`billing-event-retention`, `ops-monitor`) e `ops_alert_state` (uma linha por
+chave de alerta, com o último envio ao operador e a contagem, para a
+deduplicação de 6 h). Não altera tabela existente nem semeia dados, e não guarda
+dado pessoal. **Aplique a 0019 antes de agendar** o `ops-monitor`, o backup com
+heartbeat e a retenção (ver [`cron.md`](./cron.md)): sem as tabelas, o
+`ops-monitor` falha e o `backup_stale` fica de pé. No 5.7 só a collation é
+convertida (as colunas de data têm `DEFAULT CURRENT_TIMESTAMP(6)` explícito).
+
+Copie a migration com o prefixo `23-` (depois do `22-` da 0018) para um
+diretório temporário privado e prepare dele:
+
+```bash
+d=$(mktemp -d)
+cp src/app/database/migrations/20261026_0019_ops_monitoring.sql \
+  "$d/23-20261026_0019_ops_monitoring.sql"
+cp src/app/database/migrations/20261026_0019_ops_monitoring.verify.sql "$d/"
+python3 scripts/prepare-mysql57.py "$d" "$d/out"
+```
+
+Esperado: `Prepared 1 stages, 0 checks and 0 triggers`.
+
+Aplique só com autorização SQL específica, depois do backup. Antes e depois,
+anote `SELECT COUNT(*) FROM tenant` e exija o **mesmo número**; na conferência,
+use o verify adaptado de `$d/out/manifest.json` (chave `verification`): as 2
+tabelas novas existem e estão vazias. Rollback: restaurar o backup anterior
+(ver [`restore-backup.md`](./restore-backup.md)) ou uma migration reversa
+numerada; apagar as duas tabelas só perde heartbeat e deduplicação.
+
+## Migrations pendentes e preflight na hospedagem
+
+Sem Docker, a pendência de migrations e a configuração se conferem por PHP CLI,
+a partir da raiz de `src/`:
+
+```bash
+php bin/migration-status.php
+php bin/preflight.php --with-db
+```
+
+- `bin/migration-status.php` compara os arquivos de
+  `src/app/database/migrations/` com `schema_migrations` e imprime `applied`,
+  `pending` e `unknown` por versão e, por último, `migration-status
+  database=<nome> applied=<n> pending=<n> unknown=<n>`; sai 0 só com
+  `pending=0 unknown=0`, 1 com pendência e 2 em erro. Só lê. As migrations da
+  hospedagem entram em `schema_migrations` pelo preparador 5.7 com a versão
+  completa (ex.: `20261026_0019_ops_monitoring`).
+- `bin/preflight.php --with-db` confere ambiente, PHP, extensões e, pelo `DB_*`
+  de runtime, a versão do MySQL (5.7 com `DB_STRICT_MODE=false` dá WARN) e as
+  migrations pendentes. Em hospedagem sem nginx, `TRUST_FORWARDED_PROTO=true`
+  só é seguro atrás de um proxy que sobrescreve `X-Forwarded-Proto`; o cookie de
+  sessão `Secure` depende de a requisição ser HTTPS (ver
+  [`environments.md`](./environments.md)). Códigos e checagens:
+  [`release.md`](./release.md).
+
+Rode os dois depois de cada atualização do pacote e de cada migration.
+
+## Backup e restauração na hospedagem
+
+### Gerar
+
+`bin/hosting-backup.php` não usa Docker, `gpg` nem `mysqldump`: faz o dump por
+PDO (tabelas, dados em lotes de 500 linhas e triggers), empacota `src/files` e a
+pasta de documentos (`DOCUMENT_STORAGE_LOCAL_ROOT`) e cifra com `openssl` no
+formato `CVBK1` (AES-256-CTR + HMAC-SHA256, chave derivada da frase por PBKDF2).
+Agende pelo painel ([`cron.md`](./cron.md)); para rodar à mão:
+
+```bash
+cd /caminho/da/aplicacao/src
+php bin/hosting-backup.php
+```
+
+Variáveis no ambiente do cron: `BACKUP_PASSPHRASE_FILE` (obrigatória; arquivo
+fora do `public_html`, permissão 0600, fora do repositório e do backup),
+`BACKUP_DIR` (padrão `var/backups` na raiz do projeto, fora do `public_html`),
+`BACKUP_RETENTION_DAYS` (padrão 14) e `BACKUP_OFFSITE_DIR` (opcional). Códigos:
+0 criado; 2 configuração (opção inválida, `BACKUP_RETENTION_DAYS` inválido ou
+frase ausente/ilegível); 3 falha de dump, de leitura de `src/files` ou dos
+documentos, ou de escrita em `BACKUP_DIR` (nada parcial fica lá); 4 cópia
+externa falhou (o arquivo local fica, sem heartbeat). O
+`Backup created: <caminho>` indica o `centralvet-<data>.tar.gz.cvbk`. O
+heartbeat `backup` depende da migration 0019. Baixe os arquivos por SFTP para
+fora do provedor com frequência: o disco da hospedagem não é cópia externa.
+
+**Permissões (`--user 1000:33`).** No ambiente Docker (dev ou ensaio), rodar
+`bin/hosting-backup.php` por `docker compose run` exige `--user 1000:33`: o
+volume de documentos é 0750 de `www-data` (grupo 33), o container não tem
+`DAC_OVERRIDE` e `var/drill` é 0700 do usuário 1000 do host; com o usuário
+padrão a leitura dos documentos ou a escrita em `BACKUP_DIR` falha e o script
+sai com código 3 (a frase ilegível em `var/drill` sai antes, como erro de
+configuração). Exemplo
+(ensaio, sem gravar heartbeat no dev):
+
+```bash
+docker compose run --rm --no-deps -T --user 1000:33 \
+  -v "$PWD/src:/var/www/html/src:ro" -v "$PWD/var/drill:/var/www/html/var/drill" \
+  -e BACKUP_DIR=/var/www/html/var/drill/backups-hosting \
+  -e BACKUP_PASSPHRASE_FILE=/var/www/html/var/drill/passphrase \
+  app php bin/hosting-backup.php --no-heartbeat
+```
+
+Na hospedagem compartilhada real não há `--user`: o agendador roda como o
+usuário da conta, que precisa **ler** `src/files` e a pasta de documentos e
+**escrever** em `BACKUP_DIR` (e em `BACKUP_OFFSITE_DIR`, se houver).
+
+### Restaurar (decifrar com `--decrypt`)
+
+O agendador não restaura sozinho. Com autorização explícita e um backup do
+estado atual:
+
+0. **Pause o agendador e ponha o site em manutenção.** No painel, desative
+   todas as entradas do agendador ([`cron.md`](./cron.md)) e ative a página de
+   manutenção (ou uma regra no `.htaccess` que responda 503), para nenhum cron
+   ou requisição escrever no banco nem nas pastas durante os passos 3 e 4.
+   Não há `scripts/cron-run.sh` nem flag de manutenção fora do Docker.
+1. Decifre o pacote (a frase vem do mesmo `BACKUP_PASSPHRASE_FILE`):
+
+   ```bash
+   cd /caminho/da/aplicacao/src
+   php bin/hosting-backup.php --decrypt ../var/backups/centralvet-<data>.tar.gz.cvbk /caminho/privado/restore.tar.gz
+   ```
+
+   Sai 5 (e não cria a saída) com frase errada ou arquivo alterado; 2 por
+   argumento e 3 por arquivo.
+2. Extraia fora do `public_html` e confira o `MANIFEST`
+   (`format=centralvet-backup-v1`, `rows <tabela>=<n>` e um `sha256` por parte):
+
+   ```bash
+   mkdir /caminho/privado/restore && tar -xzf /caminho/privado/restore.tar.gz -C /caminho/privado/restore
+   cat /caminho/privado/restore/MANIFEST
+   (cd /caminho/privado/restore && sha256sum db.sql.gz files.tar.gz documents.tar.gz)
+   ```
+3. Importe o banco com o cliente disponível: `db.sql.gz` traz `DROP TABLE IF
+   EXISTS`, `CREATE TABLE`, `INSERT` e os triggers entre `DELIMITER ;;`, sem
+   `DEFINER`. Com o cliente `mysql` (SSH ou máquina com acesso remoto):
+
+   ```bash
+   gunzip -c /caminho/privado/restore/db.sql.gz | mysql -h <host> -u <usuario> -p <banco>
+   ```
+
+   Sem `mysql`, use o importador do painel (phpMyAdmin) com o `.sql`
+   descompactado, conferindo que o cliente respeita `DELIMITER` (senão os
+   triggers falham: importe-os à parte). O usuário precisa de `DROP`, `CREATE`,
+   `INSERT` e `TRIGGER` no banco; use o usuário de migration, nunca o de runtime.
+4. Reponha os arquivos: `files.tar.gz` em `src/files` e `documents.tar.gz` na
+   pasta `DOCUMENT_STORAGE_LOCAL_ROOT` (0750, dono do usuário do PHP):
+
+   ```bash
+   tar -xzf /caminho/privado/restore/files.tar.gz -C /caminho/da/aplicacao/src/files
+   tar -xzf /caminho/privado/restore/documents.tar.gz -C <DOCUMENT_STORAGE_LOCAL_ROOT>
+   ```
+
+   Confira a raiz interna de cada tar (`tar -tzf ... | head`) antes de extrair,
+   para não aninhar uma pasta dentro da outra.
+5. Apague `/caminho/privado/restore*` (contêm dado pessoal em claro) e rode
+   `php bin/migration-status.php`, `php bin/preflight.php --with-db` e a fumaça
+   ([`release.md`](./release.md)). Rode `bin/billing-reconcile.php` uma vez para
+   recuperar do Stripe os eventos posteriores ao backup.
+6. Tire o site da manutenção e reative as entradas do agendador do painel.
+
+### Ensaiar
+
+O ensaio automatizado desse formato roda pela pilha Docker, em um projeto
+descartável: `scripts/restore-drill.sh var/drill/backups-hosting/<arquivo>.tar.gz.cvbk`
+decifra o pacote, restaura e compara com o `MANIFEST` (medido: 13 s,
+`mismatches=0`). Gere o backup do ensaio com `php bin/hosting-backup.php
+--no-heartbeat` e `BACKUP_DIR` apontando para `var/drill/backups-hosting`.
+Resultados e passo a passo:
+[`ensaio-restauracao-rollback.md`](./ensaio-restauracao-rollback.md).

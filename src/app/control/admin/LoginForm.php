@@ -97,12 +97,10 @@ class LoginForm extends TPage
         
         $this->form->addAction(_t('Log in'), new TAction([$this, 'onLogin']), '' );
         
-        if (isset($ini['permission']['user_register']) && $ini['permission']['user_register'] == '1')
-        {
-            $createAccount = $this->form->addFooterAction(_t('Create account'), new TAction([self::class, 'onCreateAccount']), '');
-            $createAccount->setProperty('type', 'button');
-            $createAccount->setProperty('onclick', "window.location.href = 'landing.php#cart'; return false;");
-        }
+        // "Criar conta" leva à landing (contratação); o cadastro legado fica desligado
+        $createAccount = $this->form->addFooterAction(_t('Create account'), new TAction([self::class, 'onCreateAccount']), '');
+        $createAccount->setProperty('type', 'button');
+        $createAccount->setProperty('onclick', "window.location.href = 'landing.php#cart'; return false;");
         
         if (isset($ini['permission']['reset_password']) && $ini['permission']['reset_password'] == '1')
         {
@@ -170,7 +168,7 @@ class LoginForm extends TPage
             if ($rate_limiter->tooManyAttempts($rate_limit_identity))
             {
                 $already_throttled = true;
-                throw new Exception(_t('Too many login attempts. Try again in %s seconds.', $rate_limiter->secondsUntilAvailable($rate_limit_identity)));
+                throw new Exception(_t('Too many login attempts. Try again in ^1 seconds.', $rate_limiter->secondsUntilAvailable($rate_limit_identity)));
             }
 
             // regenerate the session id (and drop the old one) before

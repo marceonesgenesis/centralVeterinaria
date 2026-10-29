@@ -20,4 +20,12 @@ interface StockMovementRepositoryInterface extends TenantRepositoryInterface
      * @return list<TEntity>
      */
     public function listByProduct(int $productId): array;
+
+    /**
+     * Lists the movements of one reference (e.g. 'sale', 42) within the
+     * current tenant, in id order.
+     *
+     * @return list<TEntity>
+     */
+    public function listByReference(string $referenceType, int $referenceId): array;
 }

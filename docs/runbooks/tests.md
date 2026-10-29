@@ -5,7 +5,7 @@ A suíte real (`CentralVet\Tests\`) usa um runner próprio em
 Redis do Compose. O container `app` já precisa estar de pé (ver
 [`local-environment.md`](./local-environment.md)).
 
-## Dentro do container (forma de referência, usada pela CI)
+## Dentro do container (execução manual da suíte)
 
 ```bash
 docker compose exec app php tests/run.php
@@ -18,6 +18,35 @@ Saída esperada (evidência do Gate T-11, revalidada após a correção de build
 ```
 Total: 75, Passed: 75, Failed: 0, Skipped: 0
 ```
+
+## CI reproduzível (`scripts/ci/run.sh`)
+
+A CI é um script, não passos soltos no workflow: roda igual no GitHub Actions e
+na máquina do desenvolvedor, em um projeto Compose e um env-file próprios, sem
+tocar o `.env` da raiz nem os volumes do dev.
+
+```bash
+CI_PROJECT=centralvet-ci-local CI_WORKDIR=var/ci/local IMAGE_TAG=ci-local scripts/ci/run.sh
+```
+
+Variáveis: `CI_PROJECT` (padrão `centralvet-ci`; o projeto `centralvet` é
+recusado), `CI_WORKDIR` (padrão `var/ci`, relativo à raiz; apagado e recriado,
+recebe o `.env` gerado com segredos de `openssl rand` e o bootstrap do Adianti)
+e `IMAGE_TAG` (padrão `ci`). O script exporta `COMPOSE_PROJECT_NAME` e
+`COMPOSE_ENV_FILES`. Cada etapa é anunciada por `ci: step <nome>`, nesta
+ordem: `env`, `guard`, `build`, `up`, `migrator`, `bootstrap`, `provision`
+(cria `centralvet_test` e aplica o schema também ao `centralvet` efêmero da CI),
+`schema` (`migration-status`: `pending=0 unknown=0`), `lint` (`php -l` em todo o
+PHP e `bash -n` nos scripts), `script-tests` (os `*.test.sh`) e `suite`
+(`tests/run.php` sem filtro, na imagem construída do checkout).
+
+A última linha é `ci: passed` (código 0) ou `ci: failed step=<nome>` (código
+1). Um trap derruba o projeto com `down -v --remove-orphans` (em falha, imprime
+antes os logs de `mysql` e `redis`), então nada sobra: confira com
+`docker volume ls -q --filter name=<CI_PROJECT>`. Referência de uma execução
+local: `Total: 2390, Passed: 2390, Failed: 0`, `ci: passed`. Pré-requisitos:
+Docker com rede (imagens base e Packagist). O workflow
+(`.github/workflows/ci.yml`) só chama o script e guarda o log em falha.
 
 ## Isolamento do Redis de teste
 
@@ -230,3 +259,23 @@ placeholder de checksum (`000…0`), que só no dev foi trocado pelo SHA-256
 aprovado na hora de aplicar. Como o `centralvet_test` nasce dos arquivos em
 disco, essas linhas de `centralvet_test.schema_migrations` ficam com zeros.
 Isso é esperado e não indica falha do provisionamento.
+
+**Migration nova num banco já provisionado.** O `provision.sh` recusa um
+`centralvet_test` existente; uma migration posterior ao provisionamento (ex.:
+a `20261021_0016_etapa2_sale_finance.sql`, a
+`20261021_0017_etapa3_billing.sql` ou a
+`20261026_0018_billing_order_refund.sql` ou a
+`20261026_0019_ops_monitoring.sql`, já listadas no script) é aplicada
+só ela, com autorização SQL específica do usuário e o root do container
+`mysql`, seguida do `.verify.sql` dela pelo mesmo cliente. Sem a migration, os
+testes MySQL que dependem dela saem `FAIL` por coluna ou tabela ausente (falha
+de ambiente, não do código):
+
+```bash
+m=src/app/database/migrations/20261021_0016_etapa2_sale_finance
+# ou: m=src/app/database/migrations/20261021_0017_etapa3_billing
+# ou: m=src/app/database/migrations/20261026_0018_billing_order_refund
+# ou: m=src/app/database/migrations/20261026_0019_ops_monitoring
+docker compose exec -T mysql sh -ceu 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 centralvet_test' < "$m.sql"
+docker compose exec -T mysql sh -ceu 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -t centralvet_test' < "$m.verify.sql"
+```

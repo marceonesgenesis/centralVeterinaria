@@ -1,0 +1,81 @@
+# Revisão final
+Branch feat/fase-8a-ai-gateway contra main (merge-base 5e4b238), 142 arquivos. Revisados: AiAssistService, AiSettingsService, AiInteractionRepository, migração 0014, AnthropicMessagesGateway, AiConfig, AiGatewayFactory, StubAiGateway, PiiMinimizer, as SQL de AiClinicalContextQuery, os diffs de EncounterView e ExamResultForm, AiSettingsForm, AiInteractionList (consultas), CSS, menu, seed, provision.sh, env, JsonLogger/AuditRedactor, runbooks e smoke/cleanup da T-19. Ficaram sem leitura linha a linha (aviso do orquestrador sobre o limite de turnos): AiPromptCatalog (só o uso do PiiMinimizer), AiTenantSettingRepository, FeatureFlagRepository, cv-ai-dictation.js, translations.json/UserMessage e o corpo dos testes (só a lista de casos). A SUITE não foi rodada, porque escreve no centralvet_test e esta revisão é read-only.
+Greps do critério geral: `grep -rln api.anthropic.com src/tests` → nada; em src/app → só AiConfig.php. Arquivo fora do Mapa: docs/architecture/adr/0006-ai-gateway.md (é a renumeração da 0004 já registrada pelo ruling da T-18).
+## Triagem
+- [resolvida] T-01: passo PREP57 com cópia `18-` no runbook 5.7 → docs/runbooks/shared-hosting-mysql57.md § Migration 0014
+- [aberta] T-02: falta no docblock de insert que exige desfecho, e o AiDomainTest não afirma AiSubjectNotFoundException nem a igualdade dos REASONS (só a contagem 13) → src/tests/Unit/AiDomainTest.php:217
+- [aberta] T-03: sem #[\SensitiveParameter] em $apiKey/$env → src/app/Core/Ai/AiConfig.php:24,:60
+- [resolvida] Validador onda 1: 0014 e DML da T-04 aplicados e verificados → notes.md § Decisões (bloqueio · onda 2); operacional, fora do diff
+- [aberta] T-05: no fake, latestDecidedFor ordena por decided_at e monthRows não limita o fim do mês, ao contrário do PDO → src/tests/Support/FakeAiInteractionRepository.php
+- [aberta] T-06: EXPLAIN com volume não feito; o mês é calculado em UTC e comparado com timestamp no fuso da sessão MySQL → src/app/Core/Persistence/AiInteractionRepository.php monthRange
+- [aberta] T-07: sem teste com bloco fallback em content; o custo da falha pós-fallback usa um só modelo → AiInteraction::recordFailure
+- [aberta] T-08: limitações do PiiMinimizer (faixas de exame tratadas como telefone, NFD, apóstrofo/hífen, celular sem DDD; falta teste de "texto muda, versão muda") → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-09: historyPrescriptions inclui draft; exames em pending_review sem sinalização; N+1 limitado → src/app/Core/Persistence/AiClinicalContextQuery.php
+- [aberta] T-10: `.cv-ai-status:empty{display:none}` numa live region; erros no-speech/audio-capture/network sem retorno → src/app/templates/adminbs5/cv-components.css
+- [resolvida] T-18 (1ª): declaração do ditado e contagem de 9 FKs nos runbooks/ADR; o cabeçalho da 0014 fica com 8 por ruling (checksum) → docs/runbooks/ia-assistente.md:26,:162; docs/architecture/adr/0006-ai-gateway.md:33
+- [aberta] Validador onda 2: contagens e grep da chave no banco não exercitados nos gates; ficaram para o deploy em dev → notes.md § Decisões T-19 · onda 6
+- [aberta] T-11: forContext sem teste; o metadata de autorização leva o $decision cru, e a ExamResultForm o repassa sem validar → src/app/Core/Application/AiAssistService.php:189 (metadata), src/app/control/clinic/ExamResultForm.php onAiDecide
+- [aberta] T-12: forContext sem teste; find() chamado duas vezes em changeMonthlyQuota → src/app/Core/Application/AiSettingsService.php:177
+- [aberta] T-13: declaração do ditado fora de AiTerms::text/VERSION; asserção frouxa; userNames sem cobertura → src/app/control/clinic/AiSettingsForm.php termsCard
+- [aberta] T-14: caminho edited/descarte com rascunho sem teste; autosave em voo; "Aceitar" com ai_final_text vazio aplica a sugestão original; DRAFT_FIELD inválido bloqueia a decisão → src/app/control/clinic/EncounterView.php onAiDecide
+- [aberta] T-15: sem regressão dos caminhos legados; testDisabledAiHidesThePanel sem controle positivo; visão só leitura sem anexo nem markReviewed; catch só de Exception → src/app/control/clinic/ExamResultForm.php
+- [resolvida] T-16: rótulos do menu traduzidos pela T-17 → src/app/config/translations.json (commit 76c24a5)
+- [aberta] Validador onda 4: smoke de tela adiado para verificação manual em dev → notes.md § Decisões T-19 · onda 6
+- [aberta] T-18 (2ª): shared-hosting-mysql57.md manda para uma DML "descrita em ia-assistente.md" que o runbook não descreve; "o termo de uso o declara" é impreciso; o padrão de APP_ENV não está documentado → docs/runbooks/shared-hosting-mysql57.md § Migration 0014; docs/runbooks/ia-assistente.md:28,:63
+- [aberta] T-17: assertScreenKeysTranslated não confere pt não vazio; o RED 444f2ac está sem Co-Authored-By → src/tests/Unit/UserMessageTest.php:538
+- [aberta] Fora da 8A: chaves Reload/System/Dark mode/Update sem pt → motivo: templates gerais, fora do escopo
+- [aberta] T-19: smoke real da API pendente até a chave entrar no .env → notes.md § Pendências
+- [aberta] T-19: verificação manual de telas no deploy em dev → notes.md § Pendências
+- [aberta] T-19: @gate_start sem uso; a seção 4 manda "preencher literais" que não existem; falta surgery.followup_appointment_id → .claude/tasks/mar-20261007-1508-fase-8a-ai-gateway/sql/T-19-cleanup.sql:39,:135,:151
+- [resolvida] Rodada 2: bloqueante da revisão final (rollback da falha do provedor em ExamResultForm::onAiExamSummary) → 1565241 ExamResultForm.php:289-314 (catch AiUnavailableException com TTransaction::close() guardado por $opened); teste ee56a46 testProviderFailureIsCommittedAndAudited
+## Rulings
+- plano · onda 0 — Escopo 8A núcleo (3 casos de uso com revisão humana); suggestionsPanel sai na T-14
+- plano · onda 0 — Cliente HTTP curl próprio, sem SDK, composer.json intocado (usuário confirmou)
+- plano · onda 0 — Modelo claude-sonnet-5-5, effort low, sem thinking/sampling, fallbacks default
+- plano · onda 0 — Chamada síncrona, timeout 30 s / conexão 5 s, sem retentativa nem fila
+- plano · onda 0 — Sem prompt caching
+- plano · onda 0 — Dados: feature_flag, ai_tenant_setting, ai_interaction; da entrada só o SHA-256
+- plano · onda 0 — Persistência após revisão: acceptAiSummary, autosave com texto anexado, exame só em final_text
+- plano · onda 0 — RBAC pela ação da tela hospedeira; AiSettingsForm/AiInteractionList só no grupo 1
+- plano · onda 0 — Porta antiga removida na T-14
+- plano · onda 0 — Gates com AI_PROVIDER=stub; E2E real limitado a 3 chamadas
+- plano · onda 0 — Branch feat/fase-8a-ai-gateway, base main @ 5e4b238
+- plano · onda 0 — Baseline php-lint 0 linhas, test-prepare-mysql57 8 OK
+- T-03 · onda 1 — Host montado no AiConfigTest; o grep é só proxy
+- T-01 · onda 1 — PREP57 literal falha; usar cópia 18- (levado ao runbook)
+- gate · onda 1 — AI_PROVIDER=anthropic padrão com chave vazia aceito
+- bloqueio · onda 1 — 0014/DML exigem aprovação SQL
+- bloqueio · onda 2 — 0014 e DML T-04 aplicados com aprovação, backup e checksum c24b4dc8…
+- T-07 · onda 2 — [plano-mandou] custo soma usage.iterations com fallback
+- T-10 · onda 2 — [plano-mandou, usuário] Web Speech mantido, com declaração de que o áudio vai ao serviço do navegador
+- T-08 · onda 2 — Ajuste do texto de teste no commit de implementação; RED válido
+- gate · onda 3 — Itens "não rodado" ficam para os gates 4–6
+- plano · onda 3 — T-16 mantida na onda 4
+- T-11 · onda 3 — Desvios aceitos: latestDecided só da unidade ativa; texto em branco = ai_provider_error; falha de auditoria propaga
+- T-12 · onda 3 — Desvios aceitos: mutação sem efeito não grava; month_tokens via monthlyTokenUsage; limite 1..200
+- T-14 · onda 4 — Docblock de AiAssistantInterface fora dos Arquivos prováveis, aceito
+- T-14 · onda 4 — [plano-mandou] onAiDecide persiste os DRAFT_FIELDS postados; encontro finalizado não grava
+- T-15 · onda 4 — Visão só leitura para resultado salvo aceita
+- gate · onda 4 — Smoke Playwright adiado; banco inalterado
+- T-18 · onda 5 — ADR renumerada para 0006; a 0014 foi restaurada byte a byte (9 FKs só nos runbooks)
+- T-17 · onda 5 — Ajuste autorizado da linha 188 do ExamResultAiIntegrationTest; 13 motivos como PATTERNS
+- gate · onda 5 — Antes da onda 6, pedir chave e credenciais
+- T-19 · onda 6 — (usuário) Telas no navegador puladas; verificação manual em dev
+- T-19 · onda 6 — Roteiro C trocado por smoke de CLI; pendente até a chave
+- T-19 · onda 6 — Nenhum dado F8A criado; limpeza não executada, SQL preparado
+## Achados
+- [resolvida na rodada 2 · era bloqueante] ExamResultForm::onAiExamSummary pega AiUnavailableException (timeout, 429, 529, recusa, truncado, erro do provedor) no catch(Exception) e faz TTransaction::rollback(). Com isso some a linha `failed` que AiAssistService::fail() gravou em ai_interaction, junto com a auditoria ai.suggestion.failed e os tokens/custo dessas falhas (recusa e max_tokens cobram tokens). A cota mensal deixa de contar essas chamadas e o objetivo "cada chamada é registrada em ai_interaction" não vale para o resumo de exame. EncounterView::generateAiSuggestion faz o certo: dá commit nesse caso. Nenhum teste cobre falha no exame (ExamResultAiIntegrationTest só tem 5 casos de sucesso/ocultação). → src/app/control/clinic/ExamResultForm.php:282-302 (rollback em :300)
+- [sugestão] ExamResultForm::onAiDecide com "Aceitar" depois de editar o texto grava `accepted` com a sugestão original e descarta a edição sem avisar. A EncounterView compara o SHA-256 e converte para `edited`. → src/app/control/clinic/ExamResultForm.php:313 (decide com $decision cru)
+- [sugestão] ExamResultForm::onAiDecide não valida `decision` antes do decide(): a string postada vai crua para o metadata da auditoria de autorização (agrava a pendência da T-11) → src/app/control/clinic/ExamResultForm.php:313; src/app/Core/Application/AiAssistService.php:189
+- [sugestão] O resumo de exame é disparado por GET (link `<a href=...onAiExamSummary>`): uma chamada paga ao provedor pode ser acionada por prefetch ou por link externo → src/app/control/clinic/ExamResultForm.php:490
+- [sugestão] O locale do prompt diverge entre as telas: na EncounterView um idioma diferente de en vira pt, na ExamResultForm um idioma diferente de pt vira en → src/app/control/clinic/EncounterView.php:1446; src/app/control/clinic/ExamResultForm.php:581
+- [sugestão] O PiiMinimizer mascara toda parte de nome com 3 ou mais letras. Nomes comuns como "Maria das Dores", "Flor" ou "Luz" apagam termos clínicos ("dores", "dor") do texto enviado e degradam a sugestão. PARTICLES só cobre preposições. → src/app/Core/Ai/PiiMinimizer.php:23
+- [sugestão] ANTHROPIC_BASE_URL não exige https: uma configuração errada mandaria o x-api-key em texto claro → src/app/Core/Ai/AiConfig.php:74
+- [sugestão] Os testes de tela não cobrem interaction_id de outra unidade (AuthorizationDenied mostrado como "não encontrada"), só o de outro encounter/exame → src/tests/Integration/EncounterAiIntegrationTest.php:297; src/tests/Integration/ExamResultAiIntegrationTest.php:173
+## Rodada 2
+- Escopo: só o bloqueante da rodada 1 (rollback da falha do provedor em ExamResultForm::onAiExamSummary), conferido em ee56a46 (RED) e 1565241 (fix).
+- Fix: `catch (AiUnavailableException)` antes do `catch (Exception)` faz `TTransaction::close()` (commit) só se a transação foi aberta (`$opened`), loga classe + reason e mostra `TMessage('warning', CvFormat::userError($e))`. As demais exceções continuam com rollback. É o mesmo padrão de EncounterView::generateAiSuggestion → src/app/control/clinic/ExamResultForm.php:289-320.
+- RED: testProviderFailureIsCommittedAndAudited (AI_STUB_BEHAVIOR=timeout) afirma 1 linha `failed`/`ai_timeout` commitada, 1 audit `ai.suggestion.failed` com o entity_id dela, exam_result igual (HEX) e painel renderizado. Falhou antes do fix com "the failed interaction is committed", ou seja, pela ausência do comportamento e não por setup → reports/T-15.md:62-65.
+- Validador: SUITE 1323/1323, ExamResultAiIntegrationTest com 6 PASS, LINT ok → reviews/T-15.md § Complemento.
+- Regressão: nenhuma. As exceções lançadas antes de TTransaction::open (requiredInt, assertSameResult, resolveTenantContext) não são AiUnavailableException ou já têm o guard de $opened. Os commits tocam só ExamResultForm.php e o teste, sem escrita nova em exam_result.
+- Bloqueante: resolvido. Achados novos: nenhum.

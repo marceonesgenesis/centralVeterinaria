@@ -18,7 +18,8 @@ use InvalidArgumentException;
  * only link back to the priced catalog entry.
  *
  * description_text and unit_price_cents are captured at sale time (copied
- * from the referenced Product::name()/unitCostCents() or
+ * from the referenced Product::name()/requireSalePriceCents() — the sale
+ * price, never the unit cost (Etapa 1 / F1) — or
  * ProcedureCatalogItem::name()/priceCents() by SaleService::create()), not
  * looked up live — so a sale's receipt still reads correctly even if the
  * catalog entry is later renamed, re-priced or deactivated.

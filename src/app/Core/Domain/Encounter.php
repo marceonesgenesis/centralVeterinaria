@@ -49,7 +49,8 @@ final class Encounter
     ];
 
     /**
-     * Draft field names accepted by {@see self::applyDraft()}, matching
+     * Draft field names accepted by {@see self::applyDraft()} (and hashed,
+     * in this order, by {@see self::draftVersion()}), matching
      * `EncounterService::autosave()`'s $draft keys 1:1 and, in turn, the
      * migration's clinical columns (anamnesis/vitals/exam/diagnosis/plan).
      */
@@ -64,6 +65,35 @@ final class Encounter
         'physical_exam_text',
         'diagnosis_text',
         'clinical_plan_text',
+    ];
+
+    /**
+     * Decimal places of the numeric draft columns (`decimal(4,1)`,
+     * `decimal(6,2)`, `int`): {@see self::draftVersion()} formats a number
+     * the way the column stores it, so the version computed after a save
+     * matches the one computed from the reloaded row.
+     */
+    /**
+     * Range each numeric draft column can hold (T-28, correção 2), with
+     * minimum 0 (T-32): no vital sign is negative (weight 0..9999.99, as in
+     * PatientService). The maximum is the column's: decimal(4,1) 999.9,
+     * decimal(6,2) 9999.99, int unsigned 4294967295; a value above it would
+     * fail the UPDATE under STRICT_TRANS_TABLES.
+     */
+    private const NUMERIC_DRAFT_RANGE = [
+        'temperature_c' => [0, 999.9],
+        'heart_rate_bpm' => [0, 4294967295],
+        'respiratory_rate_mpm' => [0, 4294967295],
+        'weight_kg' => [0, 9999.99],
+        'capillary_refill_seconds' => [0, 999.9],
+    ];
+
+    private const NUMERIC_DRAFT_SCALE = [
+        'temperature_c' => 1,
+        'heart_rate_bpm' => 0,
+        'respiratory_rate_mpm' => 0,
+        'weight_kg' => 2,
+        'capillary_refill_seconds' => 1,
     ];
 
     private function __construct(
@@ -227,7 +257,15 @@ final class Encounter
      * `EncounterService::autosave()` accept an arbitrary subset of fields on
      * every call without callers having to resend the whole record.
      *
+     * Numbers are normalized the way their column stores them (Fase 8A,
+     * T-28): decimal comma becomes a point, `temperature_c` and
+     * `capillary_refill_seconds` get 1 decimal place, `weight_kg` 2, the
+     * rates become int; blank is null. So {@see self::draftVersion()} right
+     * after a write equals the one recomputed from the reloaded row.
+     *
      * @param array<string, mixed> $draft
+     *
+     * @throws InvalidArgumentException when a numeric field is not a number.
      */
     public function applyDraft(array $draft): void
     {
@@ -236,19 +274,19 @@ final class Encounter
         }
 
         if (array_key_exists('temperature_c', $draft)) {
-            $this->temperatureC = $draft['temperature_c'];
+            $this->temperatureC = self::draftDecimal('temperature_c', $draft['temperature_c']);
         }
 
         if (array_key_exists('heart_rate_bpm', $draft)) {
-            $this->heartRateBpm = $draft['heart_rate_bpm'] !== null ? (int) $draft['heart_rate_bpm'] : null;
+            $this->heartRateBpm = self::draftInteger('heart_rate_bpm', $draft['heart_rate_bpm']);
         }
 
         if (array_key_exists('respiratory_rate_mpm', $draft)) {
-            $this->respiratoryRateMpm = $draft['respiratory_rate_mpm'] !== null ? (int) $draft['respiratory_rate_mpm'] : null;
+            $this->respiratoryRateMpm = self::draftInteger('respiratory_rate_mpm', $draft['respiratory_rate_mpm']);
         }
 
         if (array_key_exists('weight_kg', $draft)) {
-            $this->weightKg = $draft['weight_kg'];
+            $this->weightKg = self::draftDecimal('weight_kg', $draft['weight_kg']);
         }
 
         if (array_key_exists('mucous_membranes', $draft)) {
@@ -256,7 +294,7 @@ final class Encounter
         }
 
         if (array_key_exists('capillary_refill_seconds', $draft)) {
-            $this->capillaryRefillSeconds = $draft['capillary_refill_seconds'];
+            $this->capillaryRefillSeconds = self::draftDecimal('capillary_refill_seconds', $draft['capillary_refill_seconds']);
         }
 
         if (array_key_exists('physical_exam_text', $draft)) {
@@ -270,6 +308,134 @@ final class Encounter
         if (array_key_exists('clinical_plan_text', $draft)) {
             $this->clinicalPlanText = $draft['clinical_plan_text'] !== null ? (string) $draft['clinical_plan_text'] : null;
         }
+    }
+
+    /**
+     * Version of the clinical draft (Fase 8A, T-24): SHA-256 of the JSON map
+     * field -> value of {@see self::DRAFT_FIELDS}, in the constant's order.
+     * Text has CRLF/CR turned into LF and is trimmed; a number is a string
+     * with the column's scale ({@see self::NUMERIC_DRAFT_SCALE}); empty is
+     * null. The autosave compares it to the version the tab started from.
+     */
+    public function draftVersion(): string
+    {
+        $values = [
+            'anamnesis_text' => $this->anamnesisText,
+            'temperature_c' => $this->temperatureC,
+            'heart_rate_bpm' => $this->heartRateBpm,
+            'respiratory_rate_mpm' => $this->respiratoryRateMpm,
+            'weight_kg' => $this->weightKg,
+            'mucous_membranes' => $this->mucousMembranes,
+            'capillary_refill_seconds' => $this->capillaryRefillSeconds,
+            'physical_exam_text' => $this->physicalExamText,
+            'diagnosis_text' => $this->diagnosisText,
+            'clinical_plan_text' => $this->clinicalPlanText,
+        ];
+        $map = [];
+
+        foreach (self::DRAFT_FIELDS as $field) {
+            $map[$field] = self::versionValue($values[$field], self::NUMERIC_DRAFT_SCALE[$field] ?? null);
+        }
+
+        return hash('sha256', (string) json_encode($map, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Numeric fields of $draft whose value is not a number (T-28, correção
+     * 1), in {@see self::DRAFT_FIELDS} order. applyDraft() refuses them, so
+     * the autosave leaves them out and writes the other fields.
+     *
+     * @param array<string, mixed> $draft
+     * @return list<string>
+     */
+    public static function invalidDraftNumbers(array $draft): array
+    {
+        $invalid = [];
+
+        foreach (self::DRAFT_FIELDS as $field) {
+            if (!array_key_exists($field, $draft) || !array_key_exists($field, self::NUMERIC_DRAFT_SCALE)) {
+                continue;
+            }
+
+            try {
+                self::draftNumber($field, $draft[$field]);
+            } catch (InvalidArgumentException) {
+                $invalid[] = $field;
+            }
+        }
+
+        return $invalid;
+    }
+
+    /** Decimal draft value at its column scale ("38,5" -> "38.5"); blank is null. */
+    private static function draftDecimal(string $field, mixed $value): ?string
+    {
+        $number = self::draftNumber($field, $value);
+
+        return $number === null ? null : number_format($number, self::NUMERIC_DRAFT_SCALE[$field], '.', '');
+    }
+
+    /** Integer draft value (rounded, like the `int` column); blank is null. */
+    private static function draftInteger(string $field, mixed $value): ?int
+    {
+        $number = self::draftNumber($field, $value);
+
+        return $number === null ? null : (int) round($number);
+    }
+
+    private static function draftNumber(string $field, mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return self::inColumnRange($field, (float) $value);
+        }
+
+        $text = is_string($value) ? str_replace(',', '.', trim($value)) : null;
+
+        if ($text === '') {
+            return null;
+        }
+
+        if ($text === null || !is_numeric($text)) {
+            throw new InvalidArgumentException("{$field} must be a number");
+        }
+
+        return self::inColumnRange($field, (float) $text);
+    }
+
+    /** $number rounded to the column scale, refused when the column cannot hold it. */
+    private static function inColumnRange(string $field, float $number): float
+    {
+        $rounded = round($number, self::NUMERIC_DRAFT_SCALE[$field]);
+        [$min, $max] = self::NUMERIC_DRAFT_RANGE[$field];
+
+        if (!is_finite($rounded) || $rounded < $min || $rounded > $max) {
+            throw new InvalidArgumentException("{$field} is out of range");
+        }
+
+        return $rounded;
+    }
+
+    private static function versionValue(float|int|string|null $value, ?int $scale): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $text = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+
+        if ($text === '') {
+            return null;
+        }
+
+        if ($scale !== null && is_numeric($text)) {
+            return number_format((float) $text, $scale, '.', '');
+        }
+
+        return $text;
     }
 
     /**
@@ -338,6 +504,12 @@ final class Encounter
         $this->accumulatePause($now);
     }
 
+    /** Finished encounters take no draft, decision or lifecycle change (T-32). */
+    public function isFinished(): bool
+    {
+        return $this->status === self::STATUS_FINISHED;
+    }
+
     public function isPaused(): bool
     {
         return $this->pausedAt !== null;
@@ -365,9 +537,22 @@ final class Encounter
         return $this->id !== null ? (string) $this->id : '(new)';
     }
 
-    /** Records the AI-generated summary the professional accepted, with the acceptance timestamp. */
+    /**
+     * Records the AI-generated summary the professional accepted, with the
+     * acceptance timestamp.
+     *
+     * @throws InvalidStatusTransitionException when finished (T-32,
+     *         correção 1): a finished encounter takes no summary, like no
+     *         draft.
+     */
     public function acceptAiSummary(string $summaryText, DateTimeImmutable $now): void
     {
+        if ($this->status === self::STATUS_FINISHED) {
+            throw new InvalidStatusTransitionException(
+                sprintf('Encounter %s is finished and takes no summary', $this->label())
+            );
+        }
+
         $this->aiSummaryText = $summaryText;
         $this->aiSummaryAcceptedAt = $now;
     }

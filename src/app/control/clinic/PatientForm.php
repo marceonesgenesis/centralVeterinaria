@@ -246,6 +246,11 @@ class PatientForm extends TStandardForm
                 $patient_id = (int) $this->viewPatient->id;
                 $actions[] = ['label' => _t('Documents'), 'icon' => 'fa:file-pdf', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentList&patient_id=' . $patient_id];
                 $actions[] = ['label' => _t('Medical certificate'), 'icon' => 'fa:file-medical', 'class' => 'btn btn-default cv-touch-target', 'href' => 'index.php?class=DocumentRequestForm&kind=medical_certificate&source_id=' . $patient_id];
+                $copilot = self::copilotLink($patient_id);
+                if ($copilot !== null)
+                {
+                    $actions[] = $copilot;
+                }
             }
             if ($this->tutor_id !== null)
             {
@@ -712,6 +717,41 @@ class PatientForm extends TStandardForm
         $storage = $withStorage ? \CentralVet\Storage\StorageFactory::forPatientPhotos($tenant_context) : null;
 
         return new \CentralVet\Application\PatientService($patients, $tutors, $tenant_context, $storage);
+    }
+
+    /**
+     * "Copiloto" link (Fase 8B): opens the AiCopilotPanel curtain anchored on
+     * the patient. A link, not a TButton, so the patient form is never
+     * posted. Only when AiCopilotAvailability::reason('clinical') is null
+     * (flag, terms, quota, configuration; no gateway, Redis limiter or tool
+     * registry); any failure (no tenant, database error) hides it.
+     */
+    private static function copilotLink(int $patientId): ?TElement
+    {
+        $family = \CentralVet\Ai\Tools\ToolFamily::CLINICAL;
+
+        try
+        {
+            $context = self::resolveTenantContext();
+
+            TTransaction::open('permission');
+            $available = \CentralVet\Application\AiCopilotAvailability::forContext($context, TTransaction::get())
+                ->reason($family) === null;
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            error_log(__METHOD__ . ': copilot link hidden (' . get_class($e) . ')');
+            return null;
+        }
+
+        if (!$available)
+        {
+            return null;
+        }
+
+        return AiCopilotPanel::hostLink($family, $patientId);
     }
 
     /**

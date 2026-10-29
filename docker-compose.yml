@@ -11,6 +11,8 @@ x-php-service: &php-service
     APP_DEBUG: ${APP_DEBUG:-false}
     APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
     APP_SEED: ${APP_SEED:?APP_SEED must be set}
+    APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8081}
+    TRUST_FORWARDED_PROTO: ${TRUST_FORWARDED_PROTO:-false}
     DB_HOST: ${DB_HOST:-mysql}
     DB_PORT: ${DB_PORT:-3306}
     DB_DATABASE: ${MYSQL_DATABASE:-centralvet}
@@ -25,6 +27,13 @@ x-php-service: &php-service
     SESSION_LIFETIME: ${SESSION_LIFETIME:-7200}
     LOGIN_RATE_LIMIT_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:-5}
     LOGIN_RATE_LIMIT_DECAY_SECONDS: ${LOGIN_RATE_LIMIT_DECAY_SECONDS:-900}
+    STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+    STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
+    STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+    STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+    STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+    BILLING_OPERATOR_EMAIL: ${BILLING_OPERATOR_EMAIL:-}
     WORKER_QUEUE_NAMES: ${WORKER_QUEUE_NAMES:-default}
     QUEUE_BACKOFF_SECONDS: ${QUEUE_BACKOFF_SECONDS:-5}
     COMMUNICATION_EMAIL_DRIVER: ${COMMUNICATION_EMAIL_DRIVER:-log}
@@ -53,6 +62,16 @@ x-php-service: &php-service
     DOCUMENT_STORAGE_LOCAL_ROOT: ${DOCUMENT_STORAGE_LOCAL_ROOT:-/var/www/html/var/documents}
     DOCUMENT_SYSTEM_USER_ID: ${DOCUMENT_SYSTEM_USER_ID:-1}
     DOCUMENT_SWEEP_INTERVAL_SECONDS: ${DOCUMENT_SWEEP_INTERVAL_SECONDS:-600}
+    AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+    AI_MODEL: ${AI_MODEL:-claude-sonnet-5-5}
+    AI_EFFORT: ${AI_EFFORT:-low}
+    AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-8000}
+    AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-30}
+    AI_CONNECT_TIMEOUT_SECONDS: ${AI_CONNECT_TIMEOUT_SECONDS:-5}
+    AI_FALLBACKS: ${AI_FALLBACKS:-default}
+    AI_STUB_BEHAVIOR: ${AI_STUB_BEHAVIOR:-ok}
   volumes:
     - app_files:/var/www/html/src/files
     - app_documents:/var/www/html/var/documents
@@ -88,6 +107,9 @@ services:
     volumes:
       - ./src:/var/www/html/src:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Proxies confiáveis (set_real_ip_from) incluídos pelo default.conf;
+      # em produção, aponte para uma cópia de trusted-proxies.production.conf.example.
+      - ${NGINX_TRUSTED_PROXIES_FILE:-./docker/nginx/trusted-proxies.dev.conf}:/etc/nginx/trusted-proxies.conf:ro
     networks:
       - frontend
       - backend

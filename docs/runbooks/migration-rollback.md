@@ -31,8 +31,12 @@ obrigatório do runbook de migrations), a forma mais segura de rollback é
 restaurar esse backup, e não tentar um DDL inverso manual:
 
 ```bash
-CONFIRM_RESTORE=RESTORE_CENTRALVET ./scripts/restore.sh var/backups/<arquivo-pre-migration>.sql.gz
+CONFIRM_RESTORE=RESTORE_CENTRALVET ./scripts/restore.sh var/backups/<arquivo-pre-migration>.tar.gpg
 ```
+
+O arquivo é o `centralvet-*.tar.gpg` do `scripts/backup.sh` (na hospedagem, o
+`.tar.gz.cvbk`; ver [`restore-backup.md`](./restore-backup.md)). O restore
+confere o `MANIFEST` antes de escrever e recria o banco, `files` e `documents`.
 
 Isso descarta qualquer dado gravado depois do backup — por isso a decisão de
 usar esta opção também exige autorização explícita, avaliando o que seria
@@ -52,5 +56,8 @@ checksum, apresentação de efeito/risco, autorização, aplicação única,
 - Registrar no histórico de execução (`notes.md`/ADR relevante) o que deu
   errado, a opção de rollback usada e a evidência do `.verify.sql` pós-rollback.
 - Se o rollback foi por restauração de backup, revalidar a aplicação
-  (`docker compose exec app php tests/run.php`, `/health`) antes de liberar
-  o ambiente novamente.
+  (`scripts/release/smoke.sh <url>`, `/health`) e conferir
+  `scripts/db/migration-status.sh`: as migrations desfeitas voltam a
+  `pending`. O rollback de um release inteiro está em
+  [`release.md`](./release.md) e foi ensaiado em
+  [`ensaio-restauracao-rollback.md`](./ensaio-restauracao-rollback.md).

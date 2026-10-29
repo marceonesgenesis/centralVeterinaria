@@ -23,11 +23,6 @@
                 <action>LoginForm</action>
             </menuitem>
             
-            <menuitem label='_t{Create account}'>
-                <icon>fa:user-plus fa-fw</icon>
-                <action>SystemRegistrationForm</action>
-            </menuitem>
-            
             <menuitem label='_t{Reset password}'>
                 <icon>fa:eraser fa-fw</icon>
                 <action>SystemRequestPasswordResetForm</action>

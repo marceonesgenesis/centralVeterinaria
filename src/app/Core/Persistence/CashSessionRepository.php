@@ -61,6 +61,44 @@ final class CashSessionRepository extends AbstractTenantRepository implements Ca
         return $row === false ? null : self::hydrate($row);
     }
 
+    public function findByIdForUpdate(int $id): ?object
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('findByIdForUpdate requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $id);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM cash_session WHERE {$query->whereSql()} LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
+    public function findOpenBySystemUnitForUpdate(int $systemUnitId): ?object
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('findOpenBySystemUnitForUpdate requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()
+            ->andEquals('system_unit_id', $systemUnitId)
+            ->andEquals('status', CashSession::STATUS_OPEN);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM cash_session WHERE {$query->whereSql()} ORDER BY id DESC LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute($query->parameters());
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof CashSession) {

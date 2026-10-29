@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CentralVet\Session;
 
+use CentralVet\Security\RequestScheme;
 use SessionHandlerInterface;
 
 /**
@@ -19,6 +20,10 @@ final class SessionHandlerFactory
 {
     public static function createFromEnvironment(): ?SessionHandlerInterface
     {
+        if (PHP_SAPI !== 'cli') {
+            RequestScheme::secureSessionCookie(RequestScheme::current());
+        }
+
         if (!self::isRedisEnabled()) {
             return null;
         }

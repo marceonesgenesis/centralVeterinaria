@@ -13,7 +13,8 @@ qualquer clínica. Nome e preço do plano são gravados a partir do
 ## Aplicação
 
 1. Backup testado: `./scripts/backup.sh` (ou `make backup`) e
-   `gzip -t var/backups/centralvet-<timestamp>.sql.gz`.
+   conferir o backup cifrado com `scripts/restore-drill.sh var/backups/centralvet-<timestamp>.tar.gpg`
+   (ver [`restore-backup.md`](./restore-backup.md)).
 2. Anotar antes, só com `SELECT`, `COUNT(*)` de `tenant`, `patient`, `tutor`,
    `system_program` e `system_group_program`.
 3. `sha256sum src/app/database/migrations/20261001_0009_landing_lead.sql` e
