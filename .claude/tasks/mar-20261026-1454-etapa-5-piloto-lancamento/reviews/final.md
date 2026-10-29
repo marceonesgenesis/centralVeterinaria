@@ -98,3 +98,39 @@ Branch `task/etapa-5-piloto-lancamento` (a852e0e) contra `task/etapa-4-operacao`
 - `legal.php`, `SupportView`, `PilotSettings`, telas de onboarding, `menu.xml` e runbooks não lidos em detalhe (suporte e onboarding alinhados só por leitura do stat e de notes.md)
 - Se `AiCopilotAvailability` já considera o recorte
 - Fumaça no navegador e na :8081
+
+## Revisão final — rodada 2
+Escopo: `a852e0e..ede5b44` (Onda 6: T-21, T-22, T-23) contra o bloqueante da rodada 1. Resultado: **bloqueante resolvido**; nenhum bloqueante novo; critério da etapa atendido no código, com sugestões abertas.
+
+### Bloqueante da rodada 1 (Pix pago depois do cancelamento) → resolvido
+- Emissão: `PixInvoiceIssuer::issueNext` não emite com `cancelAtPeriodEnd()` → `src/app/Core/Billing/PixInvoiceIssuer.php:74`
+- Fatura futura já emitida: `request()` cancela o PI no Stripe (Idempotency-Key `cancel-pix-intent-<id>`) antes da transação e, na transação, relê a fatura com trava e a anula (`voidForCancellation`, só `open` com `local_key`); falha do Stripe vira PROVIDER_FAILED sem gravar nada; com cancelamento já agendado, a fatura que sobrou ainda é anulada → `SubscriptionCancellationService.php:63-106`, `SubscriptionInvoice.php:224`
+- Fatura `void` não é renovada: `listOpenPix` só lista `open` → `Persistence/SubscriptionInvoiceRepository.php:136`
+- Pagamento que chega mesmo assim: `markPaidByPaymentIntent` aceita `void`→`paid`; o processador não avança a assinatura (`$wasVoid` ou `period_start >= current_period_end` com agendado/`cancelled`) e `Subscription::markInvoicePaid` também recusa → `BillingEventProcessor.php:278-300`, `Subscription.php:259`. A assinatura `cancelled` segue sem reativação (`Subscription.php:252`)
+- Estorno uma única vez: reconciliador (fase 1a, depois de `reconcileEvents`) chama `CancelledPixRefundService::refund`, que relê fatura → assinatura com trava, reconfere o critério, estorna com Idempotency-Key `refund-cancelled-pix-<id>` (`charge_already_refunded` reaproveita o estorno existente) e grava `refunded`; a fila exige `paid` e `amount_refunded_cents = 0`, então não repete → `CancelledPixRefundService.php:191-282`, `SubscriptionInvoiceRepository.php:152-168`
+- Alerta: `error_log` `cancelled_pix_refunded` sempre e e-mail a `BILLING_OPERATOR_EMAIL` quando definido; contador `cancelled_pix_refunded` no CLI → `CancelledPixRefundService.php:226-317`, `src/bin/billing-reconcile.php:666`
+- Wiring: `SubscriptionCancelForm` passa o `SubscriptionInvoiceRepository` → `src/app/control/admin/SubscriptionCancelForm.php:102`
+
+### Triagem das pendências novas (Onda 6)
+- [aberta] T-21: corrida com a fase 3 (`futurePixInvoices` sem trava antes da transação) → janela = chamada de rede do PI dentro do `issuePixInvoices`. A fatura que sobra fica `open`, entra em `listOpenPix` (não filtra `cancel_at_period_end`), pode ter o PI renovado e marcar a assinatura `past_due` no vencimento, até a finalização. Não há perda de dinheiro: o pagamento cai em `paidAfterCancellation` e no estorno da fase 1a. Fere só a promessa "fatura não pagável" numa corrida estreita → `SubscriptionCancellationService.php:450`, `SubscriptionInvoiceRepository.php:136`
+- [aberta] T-21: ordem de trava invertida (cancelamento: assinatura→fatura; processador/estorno: fatura→assinatura). Deadlock só com pagamento e cancelamento simultâneos da mesma fatura. Vítima processador: o ingestor retenta 1213 e, se falhar, marca `failed` e responde 500 (Stripe reenvia; o reconciliador reingere) → `BillingEventIngestor.php:19-30`. Vítima cancelamento: `TransactionRunner` não retenta; nada é gravado, a tela mostra erro e o PI (já `succeeded`) é cobrado com a assinatura renovada sem a marca de cancelamento. É uma renovação legítima, e o usuário repete o pedido. Sem cobrança sem estorno nem perda de dado; segue sugestão
+- [aberta] T-21: ramo `payment_intent_unexpected_state` + GET `succeeded` sem teste → `src/tests/Unit/SubscriptionCancellationServiceTest.php:209-245`. Leitura do caminho: anula a fatura e agenda; o webhook posterior passa por `$wasVoid` e a fase 1a estorna (fatura de período futuro e assinatura agendada na mesma transação). Se o webhook já tinha sido processado, a fatura está `paid` e o período avançou antes da marca, o que é uma renovação legítima. Sem risco de dinheiro; falta só a cobertura
+- [aberta] T-22: guarda novo de `Subscription::markInvoicePaid` sem teste próprio → `src/app/Core/Billing/Subscription.php:259`
+- [aberta] T-22: docblock duplicado antes de `paidAfterCancellation`; `marked()` perde o seu → `BillingEventProcessor.php:347-355`
+- [aberta] T-22: `$wasVoid` sem cancelamento não avança e não entra na fila de estorno. Hoje o único caminho para `void` local é o cancelamento, que grava a marca na mesma transação. Só uma reativação manual pelo suporte entre a anulação e o pagamento deixaria o pagamento sem estorno → `BillingEventProcessor.php:293`
+- [aberta] T-23: `observabilidade.md:51` cita `bin/` em vez de `src/bin/`; `:55` diz que sem `BILLING_OPERATOR_EMAIL` o alerta "vai ao error_log" (o código só não envia; o log é do evento) → `docs/runbooks/observabilidade.md:51,55`
+- As pendências da rodada 1 mantêm a classificação: a Onda 6 não tocou nos arquivos delas. Exceção: os itens de docs da T-03/T-08/T-20 (`release.md` e `shared-hosting-mysql57.md` com `support_email`/contadores), tratados em 7d260f4 e não reconferidos linha a linha
+
+### Rulings (Onda 6)
+- plano · onda 6 — T-21 anula a fatura futura e cancela o PI; T-22 estorna o Pix pago após o cancelamento; sem migration; `TERMS_VERSION` inalterado
+- T-21 · onda 6 — Linhas `Task:` fora do trailer em d6b9eb2/b985e48 aceitas sem reescrever o histórico
+- T-22 · onda 6 — Idem para 76a1ec6/0fc7b16
+- T-23 · onda 6 — Complemento do runbook mysql57 com `cancelled_pix_refunded`
+
+### Achados
+- [sugestão] Fatura futura que escapa da corrida segue em `listOpenPix` (PI renovado, `markOverdue`) até a finalização; filtrar `cancel_at_period_end = 1` com `period_start >= current_period_end`, ou anular na fase de finalização → `src/app/Core/Persistence/SubscriptionInvoiceRepository.php:136`
+
+### Não verificado
+- SUITE/LINT/BASHN/CI não rodados nesta rodada (vale o relato do gate: 2541/2541)
+- Testes de `CancelledPixRefundServiceTest`, `BillingReconcilerIntegrationTest` e `BillingEventProcessorTest` lidos só pelo stat do diff, não linha a linha
+- Itens "Não verificado" da rodada 1 continuam iguais (segredos, migration 0020, fumaça)
