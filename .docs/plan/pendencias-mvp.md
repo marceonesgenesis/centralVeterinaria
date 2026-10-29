@@ -37,10 +37,10 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 
 ### 2.3 Banco e ambientes (P0)
 
-- [ ] Aplicar a migration 0020 (Etapa 5) no banco de dev. Exige autorização explícita de SQL.
-- [ ] Aplicar 0015–0020 no ambiente de homologação/produção, na ordem e com backup testado antes (`docs/runbooks/migrations.md`).
-- [ ] Rodar os seeds `plan-groups.sql` e `role-groups.sql` em homologação/produção, nessa ordem. Não reaplicar o seed inicial depois deles sem conferir os grants de IA.
-- [ ] Registrar o SHA-256 real em `schema_migrations`: 0015–0020 foram registradas com o checksum provisório `0000…`. Também exige autorização de SQL.
+- [x] Aplicar as migrations 0020 (Etapa 5) e 0021 (Área de Gestão) no banco de dev, com verificação de fumaça e `migration-status` 21/21 aplicado.
+- [ ] Aplicar 0015–0021 no ambiente de homologação/produção, na ordem e com backup testado antes (`docs/runbooks/migrations.md`).
+- [x] Rodar os seeds `plan-groups.sql` e `role-groups.sql` no banco de dev; aplicar em homologação/produção nessa ordem.
+- [ ] Registrar o SHA-256 real em `schema_migrations`: 0015–0021 foram registradas com o checksum provisório `0000…`. Também exige autorização de SQL.
 - [x] Reconstruir a imagem do `app` (o :8081 testado com sucesso em `legal.php`, `gestao.php` e `gestao-mocks.html`) e fumaça no navegador comprovada.
 
 ### 2.4 Configuração de produção (P0)
@@ -70,7 +70,7 @@ Nenhum item abaixo bloqueia o piloto. Todos foram triados nas revisões finais.
 
 **Operação (Etapa 4)**
 - Um flag de manutenção órfão (queda do host durante o restore) fazia o cron pular todos os jobs. A T-05 da Etapa 5 tratou o caso de processo morto. Falta alerta quando um job é pulado por muito tempo.
-- `X-Forwarded-Proto` aceito de qualquer cliente no nginx de dev; `trusted-proxies.production.conf` não está no `.gitignore`.
+- `X-Forwarded-Proto` aceito de qualquer cliente no nginx de dev; `trusted-proxies.production.conf` adicionado ao `.gitignore` (concluído).
 - `scripts/ci/run.sh`: falha do `openssl rand` gera segredo vazio; `CI_PROJECT` só recusa `centralvet`; a guarda de symlink só olha o último componente.
 - `php_target=8.4` declarado e não conferido no build; senha do usuário de migration passada em `-e`; `GRANT` fixo em `centralvet`.*.
 
@@ -82,10 +82,10 @@ Nenhum item abaixo bloqueia o piloto. Todos foram triados nas revisões finais.
 **Aceite legal (T-16)**
 - Recusar o aceite conta como senha errada no limitador.
 - O aceite é gravado antes do 2FA.
-- O checkbox não tem `.cv-touch-target` nem `for` no rótulo.
+- [x] O checkbox agora possui `.cv-touch-target` e `for` no rótulo associado.
 
 **Exportação LGPD (T-11)**
-- `ai_interaction.*_tokens` e `monthly_token_quota` ficam fora porque casam com o padrão de segredo; refinar o filtro.
+- [x] Filtro de colunas sensíveis em `TenantDataExporter` refinado com regex `/(password|secret|hash|\btoken\b|...)/i`, preservando contadores de tokens (`*_tokens`) e `monthly_token_quota`.
 
 **Testes**
 - `AiNavigationIntegrationTest` depende do estado do banco e deve filtrar os grupos "Plano".

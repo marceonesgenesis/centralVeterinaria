@@ -22,7 +22,7 @@ final class TenantDataExporter
 {
     public const EXCLUDED_TABLES = ['billing_event', 'feature_flag'];
 
-    public const SENSITIVE_COLUMN_PATTERN = '/(password|token|secret|hash)/i';
+    public const SENSITIVE_COLUMN_PATTERN = '/(password|secret|hash|\btoken\b|auth_token|api_token|access_token|refresh_token|csrf_token)/i';
 
     private const USERS_HEADER = ['id', 'name', 'login', 'email', 'status'];
 

@@ -21,7 +21,7 @@ CREATE TABLE backoffice_user_profile (
     PRIMARY KEY (id),
     UNIQUE KEY backoffice_user_profile_user_uq (user_id),
     CONSTRAINT backoffice_profile_role_ck CHECK (profile_role IN ('admin', 'commercial', 'financial', 'support')),
-    CONSTRAINT backoffice_user_fk FOREIGN KEY (user_id) REFERENCES system_user (id)
+    CONSTRAINT backoffice_user_fk FOREIGN KEY (user_id) REFERENCES system_users (id)
         ON UPDATE RESTRICT ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -68,7 +68,7 @@ CREATE TABLE backoffice_invite (
     CONSTRAINT backoffice_invite_status_ck CHECK (status IN ('pending', 'accepted', 'in_trial', 'converted', 'expired', 'cancelled')),
     CONSTRAINT backoffice_invite_tenant_fk FOREIGN KEY (tenant_id) REFERENCES tenant (id)
         ON UPDATE RESTRICT ON DELETE SET NULL,
-    CONSTRAINT backoffice_invite_user_fk FOREIGN KEY (created_by_user_id) REFERENCES system_user (id)
+    CONSTRAINT backoffice_invite_user_fk FOREIGN KEY (created_by_user_id) REFERENCES system_users (id)
         ON UPDATE RESTRICT ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -119,7 +119,7 @@ CREATE TABLE backoffice_marketing_campaign (
     updated_at timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT backoffice_campaign_status_ck CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'cancelled')),
-    CONSTRAINT backoffice_campaign_user_fk FOREIGN KEY (created_by_user_id) REFERENCES system_user (id)
+    CONSTRAINT backoffice_campaign_user_fk FOREIGN KEY (created_by_user_id) REFERENCES system_users (id)
         ON UPDATE RESTRICT ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -162,4 +162,8 @@ VALUES
 
 INSERT INTO backoffice_support_config (support_email, support_whatsapp, out_of_hours_message)
 VALUES ('suporte@centralvet.com.br', '+55 (11) 98765-4321', 'Nosso horário de atendimento é de segunda a sexta, das 8h às 18h. Seu chamado foi registrado e será atendido no próximo dia útil.');
+
+INSERT INTO schema_migrations (version, checksum)
+VALUES ('20261029_0021_backoffice_gestao',
+        '0000000000000000000000000000000000000000000000000000000000000000' /* 64-char PLACEHOLDER: replace before applying */);
 

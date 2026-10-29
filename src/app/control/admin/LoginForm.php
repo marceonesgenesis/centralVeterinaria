@@ -422,9 +422,14 @@ class LoginForm extends TPage
             $check = new TCheckButton('accept_legal');
             $check->setIndexValue('Y');
             $check->setUseSwitch(false);
+            $check->{'class'} = 'cv-touch-target';
+            $check->id = 'accept_legal_checkbox';
+
+            $label = new TLabel(_t('I have read and accept the Terms of Use and the Privacy Policy'));
+            $label->{'for'} = 'accept_legal_checkbox';
 
             $form->addContent([$links]);
-            $form->addFields([$check, new TLabel(_t('I have read and accept the Terms of Use and the Privacy Policy'))]);
+            $form->addFields([$check, $label]);
             $btn = $form->addAction(_t('Accept'), $action, 'fas:check');
             $btn->class = 'btn btn-primary cv-touch-target';
 
