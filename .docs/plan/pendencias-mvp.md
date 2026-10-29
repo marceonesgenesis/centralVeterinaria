@@ -30,10 +30,10 @@ Recorte do piloto implementado na Etapa 5: núcleo clínico, exames, vacinação
 ### 2.2 Integração e publicação (P0)
 
 - [x] Branches `merge/task/etapa-4-operacao-dev` e `task/etapa-5-piloto-lancamento` enviadas com sucesso ao GitHub remoto.
-- [ ] PR da Etapa 4 para `dev`: [Abrir PR Etapa 4](https://github.com/marceonesgenesis/centralVeterinaria/compare/dev...merge/task/etapa-4-operacao-dev?expand=1)
-- [ ] PR da Etapa 5 para `dev`: [Abrir PR Etapa 5](https://github.com/marceonesgenesis/centralVeterinaria/compare/dev...task/etapa-5-piloto-lancamento?expand=1)
-- [ ] Primeira execução real do workflow `.github/workflows/ci.yml` no GitHub.
-- [ ] Testar na `dev` online; depois, PR da mesma branch para `main`.
+- [x] PR da Etapa 4 integrado em `dev`.
+- [x] PR da Etapa 5 integrado em `dev` (com Área de Gestão, novos módulos do MVP e jornada de homologação).
+- [ ] Primeira execução real do workflow `.github/workflows/ci.yml` no GitHub Actions.
+- [ ] Testar na `dev` online; depois, PR de `dev` para `main`: [Abrir PR de dev para main](https://github.com/marceonesgenesis/centralVeterinaria/compare/main...dev?expand=1)
 
 ### 2.3 Banco e ambientes (P0)
 
