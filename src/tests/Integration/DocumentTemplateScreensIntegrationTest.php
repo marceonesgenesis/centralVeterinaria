@@ -82,6 +82,21 @@ final class DocumentTemplateScreensIntegrationTest
         Assert::same(['found' => DocumentTemplateRenderer::PLACEHOLDERS], $result);
     }
 
+    public function testFormBackLinkReturnsToTheTemplateList(): void
+    {
+        $result = $this->runInAdianti(
+            'if (!class_exists("DocumentTemplateForm")) { echo "@@DOCTEMPLATE@@", json_encode(["missing" => true]); return; }'
+            . '$page = new DocumentTemplateForm([]);'
+            . 'ob_start(); $page->show(); $html = ob_get_clean();'
+            . 'preg_match_all("/<a\\s[^>]*>/i", $html, $tags);'
+            . '$back = array_filter($tags[0], fn ($t) => str_contains($t, "href=\"index.php?class=DocumentTemplateList\"")'
+            . ' && preg_match("/class=\"[^\"]*\\bcv-touch-target\\b/", $t) === 1);'
+            . 'echo "@@DOCTEMPLATE@@", json_encode(["back" => count($back)]);'
+        );
+
+        Assert::same(['back' => 1], $result, 'the form must link back to DocumentTemplateList with a cv-touch-target <a>');
+    }
+
     public function testDeclaredActionsIncludeSaveAndMatchThePattern(): void
     {
         $decoded = $this->runInAdianti(

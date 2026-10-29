@@ -34,6 +34,7 @@ final class StockMovement
     public const REASON_MANUAL_ADJUSTMENT = 'manual_adjustment';
     public const REASON_HOSPITALIZATION_CONSUMPTION = 'hospitalization_consumption';
     public const REASON_SURGERY_CONSUMPTION = 'surgery_consumption';
+    public const REASON_SALE_CANCELLATION = 'sale_cancellation';
 
     private const REASONS = [
         self::REASON_PURCHASE_ENTRY,
@@ -42,6 +43,7 @@ final class StockMovement
         self::REASON_MANUAL_ADJUSTMENT,
         self::REASON_HOSPITALIZATION_CONSUMPTION,
         self::REASON_SURGERY_CONSUMPTION,
+        self::REASON_SALE_CANCELLATION,
     ];
 
     private function __construct(

@@ -4,13 +4,22 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_SQL="$ROOT_DIR/src/app/database/permission.sql"
-OUTPUT_DIR="$ROOT_DIR/var/sql-bootstrap"
+# BOOTSTRAP_OUTPUT_DIR and BOOTSTRAP_ENV_FILE (relative paths are relative to
+# the project root) let scripts/ci/run.sh write into its own work directory
+# and env-file; the defaults keep the original behavior.
+resolve_path() {
+    case "$1" in
+        /*) printf '%s' "$1" ;;
+        *) printf '%s/%s' "$ROOT_DIR" "$1" ;;
+    esac
+}
+OUTPUT_DIR=$(resolve_path "${BOOTSTRAP_OUTPUT_DIR:-var/sql-bootstrap}")
 OUTPUT_SQL="$OUTPUT_DIR/permission.sanitized.sql"
 PERMISSION_MYSQL_SQL="$OUTPUT_DIR/01-permission.mysql.sql"
 COMMUNICATION_MYSQL_SQL="$OUTPUT_DIR/02-communication.mysql.sql"
 LOG_MYSQL_SQL="$OUTPUT_DIR/03-log.mysql.sql"
 MANIFEST="$OUTPUT_DIR/manifest.txt"
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE=$(resolve_path "${BOOTSTRAP_ENV_FILE:-.env}")
 
 umask 077
 mkdir -p "$OUTPUT_DIR"
@@ -69,7 +78,7 @@ sed 's/^---/-- /' "$ROOT_DIR/src/app/database/communication.sql" > "$COMMUNICATI
 sed 's/^---/-- /' "$ROOT_DIR/src/app/database/log.sql" > "$LOG_MYSQL_SQL"
 chmod 600 "$PERMISSION_MYSQL_SQL" "$COMMUNICATION_MYSQL_SQL" "$LOG_MYSQL_SQL"
 
-temp_env=$(mktemp "$ROOT_DIR/.env.XXXXXX")
+temp_env=$(mktemp "$(dirname "$ENV_FILE")/.env.XXXXXX")
 awk '!/^CENTRALVET_ADMIN_PASSWORD=/' "$ENV_FILE" > "$temp_env"
 printf 'CENTRALVET_ADMIN_PASSWORD=%s\n' "$admin_password" >> "$temp_env"
 mv "$temp_env" "$ENV_FILE"
@@ -86,7 +95,7 @@ chmod 600 "$ENV_FILE"
     printf 'source_seed_count=%s\n' "$original_seed_count"
     printf 'sanitized_seed_count=%s\n' "$sanitized_seed_count"
     printf 'removed_demo_seed_rows=4\n'
-    printf 'admin_password_storage=.env:CENTRALVET_ADMIN_PASSWORD\n'
+    printf 'admin_password_storage=%s:CENTRALVET_ADMIN_PASSWORD\n' "${BOOTSTRAP_ENV_FILE:-.env}"
 } > "$MANIFEST"
 chmod 600 "$MANIFEST"
 

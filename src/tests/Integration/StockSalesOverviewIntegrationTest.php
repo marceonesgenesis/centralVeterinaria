@@ -298,9 +298,14 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
         string $soldAt,
         string $status,
     ): int {
+        // sale_cancellation_ck (migration 0016): a cancelled sale carries all three
+        // cancellation columns, a completed sale carries none of them.
+        $cancelled = $status === 'cancelled';
         $statement = $this->pdo->prepare(
-            'INSERT INTO sale (tenant_id, system_unit_id, tutor_id, patient_id, system_user_id, status, total_amount_cents, sold_at)
-             VALUES (:tenant_id, :unit_id, :tutor_id, :patient_id, :user_id, :status, :total, :sold_at)',
+            'INSERT INTO sale (tenant_id, system_unit_id, tutor_id, patient_id, system_user_id, status, total_amount_cents, sold_at,
+                               cancelled_at, cancelled_by_system_user_id, cancellation_reason)
+             VALUES (:tenant_id, :unit_id, :tutor_id, :patient_id, :user_id, :status, :total, :sold_at,
+                     :cancelled_at, :cancelled_by, :cancellation_reason)',
         );
         $statement->execute([
             'tenant_id' => $tenantId,
@@ -311,6 +316,9 @@ final class StockSalesOverviewIntegrationTest extends MysqlIntegrationTestCase
             'status' => $status,
             'total' => $totalCents,
             'sold_at' => $soldAt,
+            'cancelled_at' => $cancelled ? $soldAt : null,
+            'cancelled_by' => $cancelled ? $this->userId : null,
+            'cancellation_reason' => $cancelled ? 'F10 fixture cancellation' : null,
         ]);
 
         return (int) $this->pdo->lastInsertId();

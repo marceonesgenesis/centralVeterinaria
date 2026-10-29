@@ -58,6 +58,23 @@ final class FakeReceivableRepository implements ReceivableRepositoryInterface
         return null;
     }
 
+    /** No transaction in memory: behaves like findById() (the real repository locks the row). */
+    public function findByIdForUpdate(int $id): ?object
+    {
+        return $this->findById($id);
+    }
+
+    public function findBySaleId(int $saleId): ?object
+    {
+        foreach ($this->receivables as $receivable) {
+            if ($receivable->tenantId() === $this->tenantId && $receivable->saleId() === $saleId) {
+                return $receivable;
+            }
+        }
+
+        return null;
+    }
+
     /** @return list<Receivable> */
     public function listOpen(): array
     {

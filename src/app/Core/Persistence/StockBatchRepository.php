@@ -71,6 +71,69 @@ final class StockBatchRepository extends AbstractTenantRepository implements Sto
         return $batches;
     }
 
+    public function lockByProductOrderedByExpiry(int $productId, int $systemUnitId): array
+    {
+        if (!$this->connection->inTransaction()) {
+            throw new \LogicException('lockByProductOrderedByExpiry() requires an open transaction');
+        }
+
+        $query = $this->tenantQuery()
+            ->andEquals('product_id', $productId)
+            ->andEquals('system_unit_id', $systemUnitId);
+
+        $statement = $this->connection->prepare(
+            "SELECT * FROM stock_batch WHERE {$query->whereSql()} "
+            . 'ORDER BY expiry_date IS NULL, expiry_date ASC, id ASC FOR UPDATE'
+        );
+        $statement->execute($query->parameters());
+
+        $batches = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $batches[] = self::hydrate($row);
+        }
+
+        return $batches;
+    }
+
+    public function decreaseQuantity(int $batchId, int $quantity): bool
+    {
+        if ($quantity < 1) {
+            throw new InvalidArgumentException('quantity must be >= 1');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $batchId);
+
+        $statement = $this->connection->prepare(
+            "UPDATE stock_batch SET quantity = quantity - :quantity WHERE {$query->whereSql()} "
+            . 'AND quantity >= :quantity_floor'
+        );
+        $statement->execute([
+            ...$query->parameters(),
+            ':quantity' => $quantity,
+            ':quantity_floor' => $quantity,
+        ]);
+
+        return $statement->rowCount() === 1;
+    }
+
+    public function increaseQuantity(int $batchId, int $quantity): void
+    {
+        if ($quantity < 1) {
+            throw new InvalidArgumentException('quantity must be >= 1');
+        }
+
+        $query = $this->tenantQuery()->andEquals('id', $batchId);
+
+        $statement = $this->connection->prepare(
+            "UPDATE stock_batch SET quantity = quantity + :quantity WHERE {$query->whereSql()}"
+        );
+        $statement->execute([
+            ...$query->parameters(),
+            ':quantity' => $quantity,
+        ]);
+    }
+
     public function save(object $entity): object
     {
         if (!$entity instanceof StockBatch) {

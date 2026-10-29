@@ -51,6 +51,19 @@ final class FakeSaleRepository implements SaleRepositoryInterface
         return $sale;
     }
 
+    /**
+     * Mirrors SaleRepository::findByIdForUpdate() without a real lock; the
+     * fake has no transaction, so the LogicException guard is not
+     * reproduced here (integration tests cover it).
+     */
+    public function findByIdForUpdate(int $id): ?Sale
+    {
+        /** @var Sale|null $sale */
+        $sale = $this->findById($id);
+
+        return $sale;
+    }
+
     /** @return list<Sale> */
     public function listByTutor(int $tutorId): array
     {

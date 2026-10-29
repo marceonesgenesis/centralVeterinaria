@@ -20,6 +20,7 @@
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --radius: 14px;
   --wrap: 1180px;
+  --cv-touch-target: 44px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -46,7 +47,7 @@ a { color: var(--accent); }
 .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 16px/1 var(--font-body);
-  border-radius: 999px; padding: 14px 22px; border: 1.5px solid transparent; cursor: pointer; text-decoration: none; transition: transform .15s ease, background .15s ease; }
+  min-height: var(--cv-touch-target); border-radius: 999px; padding: 14px 22px; border: 1.5px solid transparent; cursor: pointer; text-decoration: none; transition: transform .15s ease, background .15s ease; }
 .btn:active { transform: translateY(1px); }
 .btn-primary { background: var(--accent); color: var(--accent-ink); }
 .btn-primary:hover { filter: brightness(1.08); }
@@ -159,8 +160,9 @@ section.block.block-flush { padding-top: 0; }
 .plan li svg { width: 18px; height: 18px; margin-top: 3px; color: var(--accent); }
 .plan li .tag { margin-left: 4px; vertical-align: 1px; }
 .plan .includes { font-size: 13px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; text-transform: uppercase; }
-.plan .btn { margin-top: auto; width: 100%; }
-.plan.in-cart .btn-primary { background: var(--ok); }
+.plan-actions { margin-top: auto; display: grid; gap: 10px; }
+.plan .btn { width: 100%; }
+.plan.in-cart [data-add] { border-color: var(--ok); color: var(--ok); }
 @media (max-width: 1060px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
 .plans-note { margin-top: 22px; color: var(--ink-soft); font-size: 14px; }
@@ -240,3 +242,28 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 /* Honeypot do formulário de lead: fora da tela, invisível para leitores de tela. */
 .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+/* Compra pela landing (#assinar) e volta do Stripe Checkout (#checkout-result). Rótulos à esquerda. */
+.checkout-result { max-width: var(--wrap); margin: 16px auto 0; padding: 14px 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--amber-soft); color: var(--ink); font-weight: 600; text-align: left; }
+.checkout-result.ok { background: color-mix(in srgb, var(--ok) 15%, var(--surface)); border-color: var(--ok); }
+.checkout-result[hidden], .subscribe[hidden] { display: none; }
+.subscribe { background: var(--surface); text-align: left; }
+.subscribe-form { max-width: 640px; gap: 18px; }
+.subscribe-plan { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.subscribe-plan-label { font-size: 13px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; text-transform: uppercase; }
+.subscribe-plan-name { font: 700 20px/1.3 var(--font-display); }
+.subscribe-change { display: inline-flex; align-items: center; min-height: var(--cv-touch-target); font-weight: 600; justify-self: start; }
+.subscribe-group, .methods { border: 0; padding: 0; margin: 0; min-width: 0; gap: 14px; }
+.subscribe-group legend, .methods legend { font: 700 17px/1.3 var(--font-display); padding: 0; margin-bottom: 10px; text-align: left; }
+.methods-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.methods .method { display: inline-flex; align-items: center; gap: 10px; min-height: var(--cv-touch-target); padding: 8px 16px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; font-weight: 600; text-align: left; }
+.methods .method input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.methods .method:has(input:checked) { border-color: var(--accent); }
+.methods [aria-invalid="true"] { outline: 2px solid #B3412E; }
+.subscribe .check { min-height: var(--cv-touch-target); cursor: pointer; text-align: left; font-weight: 400; }
+.subscribe .err { color: #B3412E; font-size: 13px; }
+.subscribe-actions { display: grid; gap: 10px; justify-items: start; }
+
+/* Etapa 5 T-13: links dos Termos de Uso e da Política de Privacidade (aceite do checkout e rodapé). */
+.legal-links { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; text-align: left; }
+.legal-links a { display: inline-flex; align-items: center; min-height: var(--cv-touch-target); color: inherit; text-decoration: underline; }

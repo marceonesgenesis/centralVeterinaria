@@ -123,8 +123,11 @@ final class CashSessionService
         int $closedBySystemUserId,
         string $action,
     ): CashSession {
+        // FOR UPDATE (Etapa 3, T-03): a payment or reversal in flight on this
+        // till finishes first; one that arrives later waits and then sees
+        // the session closed. The caller owns the transaction.
         /** @var CashSession|null $session */
-        $session = $this->sessions->findById($cashSessionId);
+        $session = $this->sessions->findByIdForUpdate($cashSessionId);
 
         if ($session === null) {
             throw new InvalidArgumentException("Cash session {$cashSessionId} not found");
@@ -152,26 +155,38 @@ final class CashSessionService
     }
 
     /**
-     * Sums `payment.amount_cents` recorded in $cashSessionId, grouped by
-     * `payment_method`, for the closing screen. See the class docblock's
-     * PDO dependency note for why this reads `payment` directly instead of
-     * through a Repository interface.
+     * Net amount per `payment_method` recorded in $cashSessionId, for the
+     * closing screen: sum of `payment.amount_cents` minus sum of
+     * `payment_reversal.amount_cents` with the same cash_session_id (Etapa
+     * 2, T-08 — a reversal lands in the session open when it was made, so
+     * a method can net to 0 or below in that session). See the class
+     * docblock's PDO dependency note for why this reads the tables directly.
      *
-     * @return array<string, int> payment_method => total amount_cents
+     * @return array<string, int> payment_method => net amount_cents
      */
     public function totalsByPaymentMethod(int $cashSessionId): array
     {
         $statement = $this->connection->prepare(
             <<<'SQL'
-            SELECT payment_method, SUM(amount_cents) AS total_cents
-            FROM payment
-            WHERE tenant_id = :tenant_id AND cash_session_id = :cash_session_id
+            SELECT payment_method, SUM(signed_cents) AS total_cents
+            FROM (
+                SELECT payment_method, CAST(amount_cents AS SIGNED) AS signed_cents
+                FROM payment
+                WHERE tenant_id = :tenant_id AND cash_session_id = :cash_session_id
+                UNION ALL
+                SELECT payment_method, -CAST(amount_cents AS SIGNED) AS signed_cents
+                FROM payment_reversal
+                WHERE tenant_id = :reversal_tenant_id AND cash_session_id = :reversal_cash_session_id
+            ) movements
             GROUP BY payment_method
+            ORDER BY payment_method
             SQL
         );
         $statement->execute([
             ':tenant_id' => $this->context->tenantId(),
             ':cash_session_id' => $cashSessionId,
+            ':reversal_tenant_id' => $this->context->tenantId(),
+            ':reversal_cash_session_id' => $cashSessionId,
         ]);
 
         $totals = [];

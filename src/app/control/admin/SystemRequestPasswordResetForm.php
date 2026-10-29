@@ -1,6 +1,12 @@
 <?php
-use \Firebase\JWT\JWT;
-use \Firebase\JWT\Key;
+use CentralVet\Communication\EmailProviderFactory;
+use CentralVet\Observability\Logging\JsonLogger;
+use CentralVet\Security\LoginRateLimiter;
+use CentralVet\Security\PasswordResetMailer;
+use CentralVet\Security\PasswordResetRequest;
+use CentralVet\Security\PasswordResetToken;
+use CentralVet\Security\PublicUrl;
+use CentralVet\Security\TooManyPasswordResetAttempts;
 
 /**
  * SystemRequestPasswordResetForm
@@ -52,7 +58,12 @@ class SystemRequestPasswordResetForm extends TPage
     }
     
     /**
-     * Authenticate the User
+     * Requests a password reset e-mail.
+     *
+     * The answer is the same for unknown, inactive and active logins, and also
+     * when APP_PUBLIC_URL or the mail delivery fail (logged with error_log), so
+     * it does not reveal whether the login exists. Only the throttle answers
+     * differently, and it does not depend on the login existing.
      */
     public static function onRequest($param)
     {
@@ -69,52 +80,66 @@ class SystemRequestPasswordResetForm extends TPage
             {
                 throw new Exception(_t('A new seed is required in the application.ini for security reasons'));
             }
-            
-            TTransaction::open('permission');
-            
-            $login = $param['login'];
-            $user  = SystemUser::newFromLogin($login);
-            
-            if ($user instanceof SystemUser)
-            {
-                if ($user->active == 'N')
-                {
-                    throw new Exception(_t('Inactive user'));
-                }
-                else
-                {
-                    $key = APPLICATION_NAME . $ini['general']['seed'];
-                    
-                    $token = array(
-                        "user" => $user->login,
-                        "expires" => strtotime("+ 3 hours")
-                    );
-                    
-                    $jwt = JWT::encode($token, $key, 'HS256');
-                    
-                    $referer = $_SERVER['HTTP_REFERER'];
-                    $url = substr($referer, 0, strpos($referer, 'index.php'));
-                    $url .= 'index.php?class=SystemPasswordResetForm&method=onLoad&jwt='.$jwt;
-                    
-                    $replaces = [];
-                    $replaces['name'] = $user->name;
-                    $replaces['link'] = $url;
-                    $html = new THtmlRenderer('app/resources/system/admin/reset_password.html');
-                    $html->enableSection('main', $replaces);
-                    
-                    MailService::send( $user->email, _t('Password reset'), $html->getContents(), 'html' );
-                    new TMessage('info', _t('Message sent successfully'));
-                }
-            }
-            else
-            {
-                throw new Exception(_t('User not found'));
-            }
         }
         catch (Exception $e)
         {
-            new TMessage('error',$e->getMessage());
-            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+            return;
         }
+        
+        try
+        {
+            $request = new PasswordResetRequest(
+                LoginRateLimiter::fromEnvironment(PasswordResetRequest::PREFIX),
+                new PasswordResetToken(APPLICATION_NAME . $ini['general']['seed']),
+                PublicUrl::fromEnvironment()
+            );
+            
+            $request->handle(
+                (string) ($param['login'] ?? ''),
+                (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+                static function (string $login): ?array {
+                    TTransaction::open('permission');
+                    try
+                    {
+                        $user = SystemUser::newFromLogin($login);
+                        TTransaction::close();
+                    }
+                    catch (Throwable $e)
+                    {
+                        TTransaction::rollback();
+                        throw $e;
+                    }
+                    
+                    if (!$user instanceof SystemUser)
+                    {
+                        return null;
+                    }
+                    
+                    return [
+                        'login'    => (string) $user->login,
+                        'name'     => (string) $user->name,
+                        'email'    => (string) $user->email,
+                        'active'   => (string) $user->active,
+                        'password' => (string) $user->password,
+                    ];
+                },
+                static function (string $email, string $name, string $link): void {
+                    (new PasswordResetMailer(EmailProviderFactory::fromEnvironment(JsonLogger::fromEnvironment('password-reset')), Closure::fromCallable('_t')))->send($email, $name, $link);
+                },
+                time()
+            );
+        }
+        catch (TooManyPasswordResetAttempts $e)
+        {
+            new TMessage('error', _t('Too many password reset attempts. Try again in ^1 seconds.', $e->secondsUntilAvailable));
+            return;
+        }
+        catch (Throwable $e)
+        {
+            error_log('SystemRequestPasswordResetForm::onRequest: ' . get_class($e) . ': ' . $e->getMessage());
+        }
+        
+        new TMessage('info', _t('If the login is registered and active, you will receive an e-mail with the instructions to reset the password.'));
     }
 }

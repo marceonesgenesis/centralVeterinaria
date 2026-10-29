@@ -42,6 +42,23 @@ final class TopbarTouchTargetTest
         }
     }
 
+    /**
+     * Rodada 4, T-07: a busca global (`.cv-global-search__input`) mede 2.5rem
+     * em custom.css (protegido); cv-components.css sobe para 44 px.
+     */
+    public function testGlobalSearchInputIsTouchTarget(): void
+    {
+        $final = $this->finalDeclarations('.cv-global-search__input');
+
+        foreach (['height', 'min-height'] as $property) {
+            Assert::same(
+                'var(--cv-touch-target)',
+                $final[$property] ?? null,
+                ".cv-global-search__input {$property} must end as var(--cv-touch-target)"
+            );
+        }
+    }
+
     public function testLayoutKeepsTheThreeHeaderControls(): void
     {
         $layout = (string) file_get_contents(dirname(__DIR__, 2) . self::TEMPLATE . 'layout.html');

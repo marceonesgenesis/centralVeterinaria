@@ -48,13 +48,7 @@ class CvFormat
      */
     public static function paymentMethod(string $value): string
     {
-        $labels = [
-            \CentralVet\Domain\Payment::METHOD_CASH          => 'Cash',
-            \CentralVet\Domain\Payment::METHOD_DEBIT_CARD    => 'Debit card',
-            \CentralVet\Domain\Payment::METHOD_CREDIT_CARD   => 'Credit card',
-            \CentralVet\Domain\Payment::METHOD_PIX           => 'Pix',
-            \CentralVet\Domain\Payment::METHOD_BANK_TRANSFER => 'Bank transfer',
-        ];
+        $labels = \CentralVet\Domain\Payment::METHOD_LABELS;
 
         return isset($labels[$value]) ? _t($labels[$value]) : $value;
     }

@@ -8,7 +8,7 @@
  * Abaixo do texto, um bloco de ajuda lista os placeholders de
  * DocumentTemplateRenderer::PLACEHOLDERS entre `{{ }}`. Sem regra própria:
  * onSave() chama CentralVet\Application\DocumentTemplateService::save(); a
- * edição carrega o template pelo listAll() do service (escopado ao tenant).
+ * edição carrega o template pelo findById() do service (escopado ao tenant).
  *
  * Rotas: index.php?class=DocumentTemplateForm (novo) e
  * index.php?class=DocumentTemplateForm&id=<template_id>.
@@ -145,7 +145,7 @@ class DocumentTemplateForm extends TPage
     }
 
     /**
-     * Carrega o template `id` entre os do tenant (DocumentTemplateService::listAll()).
+     * Carrega o template `id` do tenant (DocumentTemplateService::findById()).
      * Sem id, formulário vazio; id de outro tenant ou inexistente, erro.
      */
     public function onEdit($param = null)
@@ -166,22 +166,9 @@ class DocumentTemplateForm extends TPage
 
             TTransaction::open('permission');
 
-            $found = null;
-            foreach (self::makeDocumentTemplateService($context)->listAll(self::ACTION_EDIT) as $template)
-            {
-                if ($template->id() === $template_id)
-                {
-                    $found = $template;
-                    break;
-                }
-            }
+            $found = self::makeDocumentTemplateService($context)->findById($template_id, self::ACTION_EDIT);
 
             TTransaction::close();
-
-            if ($found === null)
-            {
-                throw new \CentralVet\Domain\Exception\CrossTenantReferenceException("template_id {$template_id} was not found for the authenticated tenant");
-            }
 
             $data = new stdClass;
             $data->id        = $found->id();

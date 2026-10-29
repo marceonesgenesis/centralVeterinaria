@@ -1,0 +1,583 @@
+# Revisão final
+## Rodada 5
+Escopo: `git diff --stat main...feat/fase-8a-ai-gateway` (195 arquivos), plano em 641c4f6..HEAD (HEAD fe60580). As ondas 10 e 11 (`git diff fbf0469..HEAD -- . ':!.claude'`, 15 arquivos) foram lidas linha a linha.
+- Os 15 arquivos estão no Mapa de arquivos. EncounterRepository, a interface e o fake foram autorizados pelo ruling da T-32 (rodada 1).
+- Nada de Excluído foi implementado: não há coluna de versão nem migration, e `AiAssistService::decide` não mudou.
+- A T-33 é uma refatoração da rodada 4 que a linha "Ondas 10–11" de § Excluído deixava como pendência. Ela entrou por decisão do usuário na onda 11 (plan.md:35). A linha de Excluído ficou defasada, mas é artefato do plano e não conta como achado.
+Critério de promoção (orquestrador): só vira bloqueante o que esta branch introduziu e que seja vazamento de PII em formato plausível, perda de texto do usuário ou gravação indevida em prontuário finalizado. Nada se enquadrou.
+Verificações:
+- SUITE: `Total: 1452, Passed: 1452, Failed: 0, Skipped: 0`.
+- `php -l` não acusa erro nos PHP das ondas 10 e 11.
+- `git branch -r` não lista a branch remota (nenhum push).
+- `grep -rn 'function normalizeText\|self::normalizeText' src/app` só encontra AiAssistService.php:197,206,217.
+Saída de `PiiMinimizer::minimize` em HEAD:
+- Mascarados:
+  - "Densidade 123,987654321" → "123,[TELEFONE]"
+  - "Tel 123,85987654321" → "123,[TELEFONE]"
+  - "38,5,987654321" → "38,5,[TELEFONE]"
+  - "Fator 12,987654321" → "Fator [TELEFONE]"
+  - "085,987654321" → "[TELEFONE]"
+  - "7,85987654321" → "7,[TELEFONE]"
+  - "1,8534567890" → "1,[TELEFONE]"
+  - "1,5585987654321" → "1,[TELEFONE]"
+  - "1.85987654321" → "1.[TELEFONE]"
+  - "Peso 12,5,85987654321" → "12,5,[TELEFONE]"
+  - "Tutor 5,85 98765-4321" → "5,[TELEFONE]"
+  - "Tel.85987654321" → "Tel.[TELEFONE]"
+- Intactos:
+  - "Hb 1,987654321", "Fator 10,987654321" e "0,987654321": regra decidida pelo usuário na onda 10.
+  - "3,14159265358979".
+  - "1,02185987654321": pendência T-31; o formato não é plausível.
+  - "Tutor 1,987654321": é a mesma regra de "1 dígito antes da vírgula", decidida pelo usuário.
+- Os casos da rodada 4 dão a mesma saída, sem regressão: "Tutor ligou do [TELEFONE] ontem", "VR [TELEFONE]", "Tel: 3456-7890" intacto, "VR: 12 3512-4587" intacto e "ref 85 8765-4321" intacto (risco aceito).
+Encontro finalizado:
+- Autosave e Aplicar: `isFinished()` é checado sob o lock, depois de `lockForDraft()`, antes de comparar versões; devolve `closed` e não grava nada (EncounterService.php:177,189-190). O Aplicar faz rollback quando recebe `closed` (EncounterView.php:2206-2213).
+- Aceite do resumo: lê com `lockForDraft()` e grava só as colunas do resumo (EncounterService.php:354-365; EncounterRepository.php:181-205). O domínio lança exceção se o encontro está finalizado (Encounter.php:546-550); o controller faz rollback e recusa (EncounterView.php:2175-2186).
+- `accepted` sempre tem `finalText` não nulo (AiInteraction.php:234), então todo Aceitar/Editar passa por um dos dois caminhos com lock.
+- Descartar grava só a decisão em `ai_interaction`, nunca o encontro. A corrida dele com `finish` fica na pendência T-32.
+Perda de texto:
+- Uma resposta sem marca mantém o texto local e o `lastSent` em voo (EncounterView.php:1359-1367).
+- Com `closed`, os tiques param e os campos ficam como estão (EncounterView.php:1374-1386).
+- Toda recusa em `onAiDecide` mantém o rascunho e a sugestão pendente (`refuseDecision`, EncounterView.php:2267-2272).
+## Triagem
+- [aberta] Pendências manuais do usuário (smoke com chave, verificação visual, EXPLAIN, limpeza SQL, chaves Reload/System/Dark mode/Update) → fora do escopo (plan.md § Excluído)
+- [aberta] Produto, não pedidas: N+1 dos itens de prescrição, exame só leitura e userNames sem teste → fora do escopo (plan.md § Excluído)
+- [resolvida] Produto: "Aceitar" com `ai_final_text` esvaziado na EncounterView → recusado por `resolveDecision` (AiAssistService.php:199-201)
+- [resolvida] Produto: DRAFT_FIELD inválido bloqueia a decisão → `onAiDecide` grava só `anamnesis_text`, e o autosave tira o número inválido (T-28)
+- [aberta] (rodada 1) Chave de tradução da declaração antiga do ditado sem uso → src/app/config/translations.json:5379
+- [aberta] T-02 `httpsUrl` aceita query/fragment/userinfo → src/app/Core/Ai/AiConfig.php:192-206
+- [aberta] T-04 nenhum teste de tela com tenant v1 → src/tests/Integration/AiSettingsScreensIntegrationTest.php
+- [aberta] T-05 `find()` antes da guarda não é provado → src/tests/Unit/AiAssistServiceTest.php
+- [aberta] T-06 a trava texto × versão cobre só o `system` → src/tests/Unit/AiPromptCatalogTest.php
+- [aberta] T-07 falta `clip-path: inset(50%)`; as asserções seguem por substring → src/app/templates/adminbs5/cv-components.css:944-952
+- [aberta] T-03 testes de `U/L`, `mmol/L` e `/uL` → src/tests/Unit/PiiMinimizerTest.php
+- [resolvida] Onda 1 (validador) → `grep method=onAiExamSummary` sem linhas; `git branch -r` não lista a branch remota
+- [resolvida] Onda 2 "nenhum push" → `git branch -r`
+- [aberta] T-08 `\Error` capturado sem teste; otherUnitId pode ser de outro tenant → src/tests/Integration/ExamResultAiIntegrationTest.php
+- [resolvida] T-09 tick atrasado e fuso divergente → a guarda por horário saiu (T-24/T-28)
+- [aberta] T-10 o subprocesso de terms_current não semeia ai_tenant_setting → src/tests/Integration/AiSettingsServiceForContextIntegrationTest.php
+- [aberta] T-12 ordem dos `use` → src/tests/Unit/AiDomainTest.php:20-21
+- [aberta] T-13 modelo desconhecido reprecificado por um só modelo → src/app/Core/Domain/AiInteraction.php:211
+- [aberta] T-14 translations.json decodificado duas vezes → src/tests/Unit/UserMessageTest.php:537-541
+- [aberta] T-15 linhas com mais de ~80 colunas → docs/architecture/adr/0006-ai-gateway.md:24,37,40; docs/runbooks/ia-assistente.md:145
+- [resolvida] Docblock de AiClinicalContextQueryInterface → 98aa6ee (T-21)
+- [resolvida] Onda 3 "nenhum push" → `git branch -r`
+- [resolvida] T-16 `(85) 9 8765-4321` → "[TELEFONE]"
+- [resolvida] T-16 regex de LAB_UNITS recomposta → `static $pattern`
+- [resolvida] T-16 palavra de contato vence a unidade → o escopo de contato saiu (T-23)
+- [resolvida] T-16 "Ligar p/ tutor 98765-4321" → "Ligar p/ tutor [TELEFONE]" (reproduzido)
+- [resolvida] Onda 4 "nenhum push" → `git branch -r`
+- [aberta] T-17 falta teste do lado cliente (JS do autosave) → src/app/control/clinic/EncounterView.php:1229-1406
+- [aberta] T-18 o runbook não diz que, com AI_PROVIDER=stub, a URL não é validada → docs/runbooks/ia-assistente.md:62
+- [aberta] T-19 docblock circular → src/app/Core/Ai/AiLocale.php:9-10
+- [resolvida] T-20 `edited` com texto em branco → AiAssistServiceTest::testResolveDecisionRefusesAnEmptyText
+- [resolvida] T-22 excesso de máscara após `/` e caso `c/` → o escopo saiu (T-23)
+- [resolvida] Onda 5 "nenhum push" → `git branch -r`
+- [aberta] T-23 "VR: (85 3456-7890", "Cel 987 654 321" e dígitos de largura total; sobre-mascaramento com `0`/`0.xx`. São formatos pouco plausíveis, por isso não foram promovidos → src/app/Core/Ai/PiiMinimizer.php
+- [resolvida] T-24 snapshot do REPEATABLE READ e "Manter meu texto" → `FOR UPDATE` (EncounterRepository.php:134-150)
+- [resolvida] T-24 falso conflito do Aplicar com tick em voo → `previous_draft` postado
+- [resolvida] T-24 o catch do `onAiDecide` perdia o texto local → `refuseDecision` (EncounterView.php:2267-2272)
+- [aberta] T-24 restam o callback do script anterior agindo na página nova, o `previous_draft` parcial aceito (EncounterService.php:224) e a falta de teste JS. O `ai_free_text` não volta numa recusa do `onAiDecide`, mas a sugestão gerada a partir dele fica pendente na tela, então o conteúdo não se perde → src/app/control/clinic/EncounterView.php:2454-2479
+- [resolvida] T-25 o caso igual sem hash agora afirma `final_text` null
+- [resolvida] Onda 6 → a regra sem hash está na EncounterView (T-29); "nenhum push" → `git branch -r`
+- [resolvida] T-26 contraste com unidade → docs/runbooks/ia-assistente.md:199-200
+- [resolvida] T-26 `draft_version` cobre só os campos do rascunho → docs/runbooks/ia-assistente.md:150-151
+- [resolvida] Onda 7 "nenhum push" → `git branch -r`
+- [resolvida] (rodada 2) O conflito do autosave nunca se desfazia → "Manter meu texto" adota a versão do servidor
+- [resolvida] (rodada 2) "Contato 9 8765-4321" → "Contato [TELEFONE]"
+- [resolvida] (rodada 3) finish/pause/resume/acceptAiSummary regravavam o rascunho → `save()` não grava as colunas de rascunho; o resumo agora usa `updateAiSummary` (EncounterRepository.php:181-205)
+- [resolvida] (rodada 3) O runbook dizia "atômica" sem ressalva → docs/runbooks/ia-assistente.md:150-156
+- [aberta] T-27 `pg2`/`pg.2` depois de fixo com DDD sem teste; "85 3456-7890 mg/dL." fica intacto → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-27 máscara mais ampla, do lado seguro ("Hb 12,55 3500-4500", "Glicose 85: 7000-9000", "Lote 21/34567890") → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-27 limite conhecido: `0.987654321`. Desde a T-31, `0,987654321` fica intacto (1 dígito) → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-28 texto maior que a coluna cai no aviso genérico e o tick não é gravado. O texto fica na tela → src/app/Core/Domain/Encounter.php
+- [resolvida] T-28 número inválido tirado do `previous_draft` gerava falso conflito → `isCurrentBase` passa a cobrir as chaves cruas e aplicar só os valores válidos (EncounterService.php:224-229; EncounterServiceTest.php:277-281)
+- [aberta] T-28 Aplicar com tick não chegado: o script antigo chama `showConflict` no DOM novo → src/app/control/clinic/EncounterView.php:1390-1396
+- [aberta] T-28 docblocks órfãos → src/app/Core/Domain/Encounter.php:70-83; src/app/control/clinic/EncounterView.php:66-83
+- [aberta] T-28 paridade fake × PDO no retorno de `save()` → src/tests/Support/FakeEncounterRepository.php
+- [resolvida] Onda 8 "nenhum push" → `git branch -r`
+- [resolvida] T-29 cópia privada de `normalizeText` em cada tela → T-33: só AiAssistService.php:217, que as duas telas chamam (EncounterView.php:1839-1840,2128; ExamResultForm.php:469,692)
+- [aberta] T-29 a EncounterView chama `resolveDecision`/`decide` antes de conferir o subject. Há rollback no throw → src/app/control/clinic/EncounterView.php:2158-2167
+- [aberta] T-30 "Celular ... sempre mascarado, sem exceção" contradiz o parágrafo de :209-215 ("Hb 1,987654321" intacto) → docs/runbooks/ia-assistente.md:194
+- [aberta] T-30 o runbook diz "DDD solto" na exceção do marcador, mas o código aceita DDD colado → docs/runbooks/ia-assistente.md:201
+- [resolvida] Onda 9 "nenhum push" → `git branch -r`
+- [aberta] T-31 tronco 0 + operadora + DDD + celular (14 dígitos) colados depois de `\d[.,]` fica intacto ("1,02185987654321", reproduzido). O formato não é plausível em texto clínico → src/app/Core/Ai/PiiMinimizer.php:152
+- [aberta] T-32 "Descartar" em corrida com `finish` só registra a decisão em `ai_interaction` e não grava o encontro → src/app/control/clinic/EncounterView.php:2152
+- [aberta] T-32 o teste do watchdog afere o fonte por regex, sem executar JS → src/tests/Integration/EncounterAiIntegrationTest.php:954-964
+- [aberta] T-32 pause/resume/finish leem sem lock e regravam o status via `save()`. É anterior à branch e fica fora do escopo da 8A → src/app/Core/Application/EncounterService.php
+- [resolvida] Onda 10 "nenhum push" → `git branch -r`
+- [aberta] T-34 o parágrafo do decimal ("salvo quando `NN,` + 8–9 dígitos…") não remete à regra seguinte → docs/runbooks/ia-assistente.md:205-207
+- [aberta] T-34 o runbook omite que "Descartar" é recusado quando a leitura já mostra o encontro finalizado → docs/runbooks/ia-assistente.md:176-180
+- [aberta] T-34 o runbook não diz que, com `closed`, os tiques param e a aba mostra "encontro finalizado" → docs/runbooks/ia-assistente.md:176-183
+- [resolvida] Onda 11 "nenhum push" → `git branch -r`
+## Rulings
+- plano · onda 0 — Continuação na branch feat/fase-8a-ai-gateway (HEAD 641c4f6), sem branch nova e sem push; base main
+- plano · onda 0 — (usuário) PiiMinimizer conservador com allowlist clínica (só partes de nome). Depois: restringido na onda 4, ampliado na onda 6 (T-23), ajustado na onda 8 (T-27) e na onda 10 (T-31).
+- plano · onda 0 — (usuário) Contexto com prescrições draft e exames pending_review marcados; prompts .v2
+- plano · onda 0 — (usuário) Declaração do ditado em AiTerms, VERSION 2026-10-v2, reaceite por hasAcceptedTerms
+- plano · onda 0 — ANTHROPIC_BASE_URL só https (ajustada na onda 5, T-18: só com AI_PROVIDER=anthropic)
+- plano · onda 0 — Fuso: mês da cota em date_default_timezone_get(); premissa no runbook
+- plano · onda 0 — Locale único em CentralVet\Ai\AiLocale
+- plano · onda 0 — Autosave em voo: guarda draft_loaded_at × decided_at (revogada na onda 5, T-17)
+- plano · onda 0 — Custo pós-fallback calculado pelo gateway (AiProviderException::costMicroUsd())
+- plano · onda 0 — T-19-cleanup.sql editado sem commit; a prova é o diff contra a baseline
+- plano · onda 0 — Baseline php-lint com 0 linhas
+- plano · onda 0 — (usuário) Branch base main confirmada
+- plano · onda 0 — (usuário) Mês da cota em APP_TIMEZONE confirmado
+- plano · onda 0 — (usuário) Guarda draft_loaded_at × decided_at mantida (revogada na onda 5)
+- plano · onda 0 — (usuário) Celular sem DDD como [TELEFONE] confirmado (restringido na onda 4, restaurado na onda 6, sempre mascarado desde a onda 8; depois de `\d[.,]` segue a regra da onda 10)
+- plano · onda 1 — Observação da branch movida para a linha "Observação" (repos.py)
+- T-07 · onda 1 — Contrato data-label-* do ditado com fallback para -error
+- T-08 · onda 2 — Literal method=onAiExamSummary ausente do fonte; Aceitar sem SHA vira edited (revogado na onda 5, T-20; redefinido na onda 6, T-25; unificado na onda 9, T-29)
+- T-09 · onda 2 — Três casos já verdes no RED aceitos
+- T-10 · onda 2 — terms_current conferido em subprocesso com transação revertida
+- T-13 · onda 2 — RED com opus-5-5 × sonnet-5
+- T-15 · onda 3 — Edição não versionada do T-19-cleanup.sql aceita
+- plano · onda 4 — Bloqueante PII: CORRIGIR → T-16 (a isenção por metades 00 e o contexto de contato foram revogados na onda 6)
+- plano · onda 5 — Guarda do autosave por SHA-256 da anamnese → T-17 (revogada na onda 6, T-24)
+- plano · onda 5 — https exigido só com AI_PROVIDER=anthropic → T-18
+- plano · onda 5 — Revoga T-08 · onda 2: sem SHA fica accepted e texto vazio é recusado → T-20 (o caso sem hash foi revogado na onda 6; a recusa do vazio continua em resolveDecision, T-29)
+- plano · onda 5 — Fora do escopo: mover a lógica dos dois onAiDecide para AiAssistService::decide (a regra de "Aceitar" foi unificada na onda 9; a normalização, na onda 11, T-33)
+- T-16 · onda 4 — Bloqueante plano-mandou da revisão final: corrigir
+- T-16 · onda 4 — (rodada 1) Palavra de contato vale na frase (revogada na onda 6); ref/VR só isenta o número imediato (segue valendo)
+- T-16 · onda 4 — (rodada 2) Escopo de contato termina em quebra de linha, `;` ou `/` (revogada na onda 6)
+- T-16 · onda 4 — `98765-4321` sem palavra de contato fica intacto (revogada na onda 6: vira [TELEFONE])
+- plano · onda 5 — `/` só encerra o escopo de contato como " / " → T-22 (revogada na onda 6)
+- T-22 · onda 5 — Abreviações p/, c/, s/ não cortam o escopo (revogada na onda 6)
+- T-17 · onda 5 — Desvio aceito: o JS identifica a marca por regex na resposta
+- T-19 · onda 5 — Idioma `es` formata números como pt em AiSettingsForm (intencional)
+- T-20 · onda 5 — testInteractionOfAnotherExamIsNotFound posta texto não vazio
+- plano · onda 6 — (usuário) PII mascarado por padrão, com exceção só para unidade ou marcador VR/ref → T-23 (revogado em parte na onda 8)
+- plano · onda 6 — (usuário) Autosave versionado no serviço → T-24 (guarda trocada por FOR UPDATE na onda 8, T-28)
+- plano · onda 6 — (usuário) "Aceitar" sem hash na ExamResultForm compara com suggestion_text → T-25 (alinhado na EncounterView na onda 9, T-29)
+- plano · onda 7 — Runbook ia-assistente.md atualizado depois das T-23/T-24 → T-26
+- T-23 · onda 6 — Exceção VR/ref não vale com parênteses no DDD ou +55
+- T-23 · onda 6 — (rodada 1) Itens 1–3 corrigidos; item 4 é risco aceito (fixo com DDD solto após VR/ref, ia-assistente.md:217-221)
+- T-23 · onda 6 — (rodada 2) Número com formato de telefone mascarado por inteiro, prefixo 0 incluído
+- T-23 · onda 6 — Efeitos aceitos: "2024/2025" e "123456-7890" viram [TELEFONE]
+- T-24 · onda 6 — (gate) RED inválido aceito: 5fee8ad tocou FakeEncounterRepository.php
+- T-24 · onda 6 — (rodada 1) onAiDecide: Descartar não grava; Aplicar grava só anamnesis_text com guarda; conflito → pending_review
+- T-24 · onda 6 — Atomicidade por updated_at timestamp(6) (revogada na onda 8: FOR UPDATE, T-28)
+- plano · onda 8 — (usuário) Fixo de 8 sem DDD/+55/tronco/parênteses fica intacto; celular 9+8 sempre mascarado → T-27
+- plano · onda 8 — (code-review) FOR UPDATE + draftVersion só dos campos de rascunho; números normalizados; save() sem colunas de rascunho; Aplicar envia previous_draft → T-28
+- plano · onda 9 — Regra de "Aceitar" unificada em AiAssistService::resolveDecision nas duas telas → T-29; runbook → T-30
+- T-27 · onda 8 — (usuário) Fixo 4+4 sem DDD intacto; celular sempre; fixo com DDD/+55/0/parênteses mascarado
+- T-27 · onda 8 — Guarda de decimal só para sequência sem separador interno; "/" e "," aceitos entre DDD e assinante
+- T-27 · onda 8 — Separador geral de 1–3 chars; 4 ou mais não casa (limite aceito)
+- T-27 · onda 8 — `NN,` + 8/9 dígitos colados é telefone se NN for DDD válido; custo aceito "Densidade 11,23456789". O risco "085,987654321 intacto" foi eliminado na onda 10 (T-31): agora é mascarado.
+- T-27 · onda 8 — "Fator 1,85 98765-4321" → "Fator 1,[TELEFONE]"
+- T-28 · onda 8 — (gate) RED de (f) com asserção corrigida na implementação: aceito
+- T-28 · onda 8 — (gate) Vital numérico inválido: campo inválido não gravado, demais gravados, aviso por campo
+- T-28 · onda 8 — Toques em DraftSaveResult.php e translations.json fora dos Arquivos prováveis: aceitos
+- T-28 · onda 8 — (rodada 1) Só a faixa da coluna (mínimo 0 desde a onda 10, T-32); catch nunca silencioso
+- T-28 · onda 8 — Texto maior que a coluna cai no aviso genérico: pendência (sugestão)
+- T-28 · onda 8 — Revisão da rodada 1 concluída por SendMessage após o limite de turnos
+- T-29 · onda 9 — (rodada 1) Toda recusa/erro em onAiDecide mantém o rascunho e a sugestão pendente, sem gravar
+- T-29 · onda 9 — Regra única em resolveDecision: sem hash, igual à sugestão → accepted; diferente → edited; vazio → recusado
+- plano · onda 10 — (usuário) Última onda focada, com escopo fechado nos 6 itens do /code-review de d5e657c..HEAD. Refatorações e docblocks da rodada 4 ficam como pendência (a T-33 entrou na onda 11 por decisão do usuário).
+- plano · onda 10 — Guarda de decimal da T-31: celular depois de `\d[.,]` só fica intacto se R tem 1 dígito ou 2 dígitos fora de DDD e não vem depois de `\d[.,]`. "085,987654321" passa a mascarado.
+- plano · onda 10 — Encontro finalizado da T-32: `status === finished` checado sob o FOR UPDATE; `closed` não grava nada; a tela usa a chave existente; vitais com mínimo 0
+- T-31 · onda 10 — (gate) "085,987654321" mascarado inteiro ([TELEFONE])
+- T-31 · onda 10 — (rodada 1) Guarda de decimal até 9 dígitos fracionários; 10–13 com formato de telefone → [TELEFONE]; "3,14159265358979" intacto
+- T-32 · onda 10 — (rodada 1) Watchdog por requisição; o aceite do resumo grava só ai_summary_text sob lock com checagem de status; EncounterRepository, interface e fake autorizados
+- T-32 · onda 10 — Resumo aceito/Descartar em encontro finalizado recusados via findById (não gravam rascunho). Desde a correção 1, o resumo é decidido sob o lock.
+- T-32 · onda 10 — pause/resume/finish sem lock: pré-existente e fora do escopo da 8A, fica como pendência
+- T-34 · onda 11 — O agente da T-34 alterou tasks.md por sed, fora do papel; o status coincide e o fechador assumiu o arquivo
+## Achados
+- Nenhum achado novo nesta rodada. Nenhuma pendência cumpre o critério de promoção. As sugestões das T-31..T-34 estão na Triagem como abertas.
+## Rodada 4 (histórico)
+Escopo: `git diff --stat main...feat/fase-8a-ai-gateway` (184 arquivos), plano em 641c4f6..HEAD (HEAD fbf0469). As ondas 8 e 9 (`git diff d5e657c..HEAD -- . ':!.claude'`, 17 arquivos) foram lidas linha a linha. Os arquivos tocados estão no Mapa de arquivos, com duas exceções aceitas por ruling da T-28: DraftSaveResult.php e translations.json. Nada de Excluído foi implementado: não há coluna de versão nem migration. A unificação da regra de "Aceitar" em `AiAssistService::resolveDecision` contraria a linha "Onda de correção" de § Excluído, mas foi decidida no plano da onda 9 (T-29). Essa linha de plan.md ficou defasada; é artefato do plano e não conta como achado.
+Verificações:
+- SUITE: `Total: 1439, Passed: 1439, Failed: 0, Skipped: 0`.
+- `php -l` sem erro nos 9 PHP de app das ondas 8 e 9; translations.json é JSON válido.
+- Estas buscas não devolvem nenhuma linha: `grep -rn "method=onAiExamSummary" src/app/control` e `grep -rn "2026-10-v1" src/app`.
+- `git branch -r` não lista origin/feat/fase-8a-ai-gateway.
+- O SHA renderizado nas duas telas é o da sugestão, não o do texto mantido depois de uma recusa (EncounterView.php:1809-1828; ExamResultForm.php:698). Por isso um "Aceitar" depois de uma recusa não aprova um texto editado como se fosse a sugestão.
+Saída de `PiiMinimizer::minimize` em HEAD, conferida contra os rulings das ondas 6 e 8:
+- Mascarados: "Tutor ligou do 98765-4321 ontem", "Leucócitos 12 3500-4500" (sem unidade), "(85) 8765-4321", "+55 85 8765-4321", "85 3456-7890", "VR (85) 3456-7890", "1,98765-4321" (vira "1,[TELEFONE]"), "Tel 85/3456-7890", "Densidade 11,23456789" (custo aceito), "Contato 9 8765-4321", "0853456-7890", "Plaquetas 912345678" (celular sempre mascarado) e "Ligar p/ tutor 98765-4321".
+- Intactos: "Leucócitos 12 3500-4500 x10³/µL", "VR: 12 3512-4587", "Tel: 3456-7890" e "2000-5000" (fixo sem DDD, onda 8), "Hb 12,5 3500-4500", "1,987654321", "085,987654321" (risco aceito), "ref 85 8765-4321" (risco aceito, ia-assistente.md:198-202) e "85 3456-7890 mg/dL.".
+Review Focus:
+- T-23 → PiiMinimizerTest, saída acima.
+- T-24 com T-28 → EncounterAiIntegrationTest:677, :714, :879, :915 e :939; EncounterServiceTest. Todos passam na SUITE.
+Código × rulings das ondas 8 e 9:
+- T-28: `lockForDraft` faz `SELECT ... FOR UPDATE` e lança LogicException fora de transação (EncounterRepository.php:134-150). O UPDATE de `save()` não grava as colunas de rascunho (:112-124). Um número inválido ou fora da faixa da coluna fica de fora e os demais campos são gravados (EncounterService.php:167-203; Encounter.php:83-89). `onAutosave` nunca falha em silêncio (EncounterView.php:2521).
+- T-29: as duas telas chamam `resolveDecision` (AiAssistService.php:187; EncounterView.php:2131; ExamResultForm.php:388). Toda recusa mantém o rascunho e a sugestão pendente (EncounterView.php:2220-2290; ExamResultForm.php:422-480). A sugestão só é reexibida se for `pending_review`, da mesma unidade e do mesmo assunto.
+### Triagem
+- [aberta] Pendências manuais do usuário (smoke com chave, verificação visual, EXPLAIN, limpeza SQL, chaves Reload/System/Dark mode/Update) → fora do escopo (plan.md § Excluído)
+- [aberta] Produto, não pedidas: N+1 dos itens de prescrição, exame só leitura e userNames sem teste → fora do escopo (plan.md § Excluído)
+- [resolvida] Produto: "Aceitar" com `ai_final_text` esvaziado na EncounterView aplicava a sugestão original. Agora é recusado (AiAssistService.php:199-201) com o rascunho e a sugestão mantidos (EncounterAiIntegrationTest:426,447).
+- [resolvida] Produto: "DRAFT_FIELD inválido bloqueia a decisão" → `onAiDecide` grava só `anamnesis_text`, e o autosave tira o número inválido e avisa (T-28)
+- [aberta] (rodada 1, sugestão) Chave de tradução da declaração antiga do ditado sem uso → src/app/config/translations.json:5379
+- [aberta] T-02 `httpsUrl` aceita query/fragment/userinfo → src/app/Core/Ai/AiConfig.php:192-206
+- [aberta] T-04 nenhum teste de tela com tenant v1 → src/tests/Integration/AiSettingsScreensIntegrationTest.php
+- [aberta] T-05 `find()` antes da guarda não é provado → src/tests/Unit/AiAssistServiceTest.php
+- [aberta] T-06 a trava texto × versão cobre só o `system` → src/tests/Unit/AiPromptCatalogTest.php
+- [aberta] T-07 falta `clip-path: inset(50%)`; as asserções seguem por substring → src/app/templates/adminbs5/cv-components.css:944-952
+- [aberta] T-03 ainda faltam testes de `U/L`, `mmol/L` e `/uL` (`grep` sem linhas) → src/tests/Unit/PiiMinimizerTest.php
+- [resolvida] Onda 1 (validador) → `grep method=onAiExamSummary` sem linhas; `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] Onda 2 "nenhum push" → `git branch -r`
+- [aberta] T-08 `\Error` capturado sem teste; otherUnitId pode ser de outro tenant. A divergência entre as telas no "Aceitar sem SHA" foi resolvida pela T-29 (EncounterView.php:2131; ExamResultForm.php:388). → src/tests/Integration/ExamResultAiIntegrationTest.php
+- [resolvida] T-09 tick atrasado e fuso divergente → a guarda por horário saiu (T-24/T-28)
+- [aberta] T-10 o subprocesso de terms_current não semeia ai_tenant_setting → src/tests/Integration/AiSettingsServiceForContextIntegrationTest.php
+- [aberta] T-12 ordem dos `use` → src/tests/Unit/AiDomainTest.php:20-21
+- [aberta] T-13 modelo desconhecido reprecificado por um só modelo → src/app/Core/Domain/AiInteraction.php:211
+- [aberta] T-14 translations.json decodificado duas vezes → src/tests/Unit/UserMessageTest.php:537-541
+- [aberta] T-15 linhas com mais de ~80 colunas → docs/architecture/adr/0006-ai-gateway.md:24,37,40; docs/runbooks/ia-assistente.md:145
+- [resolvida] Docblock de AiClinicalContextQueryInterface → 98aa6ee (T-21)
+- [resolvida] Onda 3 "nenhum push" → `git branch -r`
+- [resolvida] T-16 `(85) 9 8765-4321` → "[TELEFONE]"
+- [resolvida] T-16 regex de LAB_UNITS recomposta → `static $pattern`
+- [resolvida] T-16 palavra de contato vence a unidade → o escopo de contato saiu (T-23)
+- [resolvida] T-16 nota "Ligar p/ tutor 98765-4321" → "Ligar p/ tutor [TELEFONE]" (reproduzido)
+- [resolvida] Onda 4 "nenhum push" → `git branch -r`
+- [aberta] T-17 falta teste do lado cliente (JS do autosave) → src/app/control/clinic/EncounterView.php:1206
+- [aberta] T-18 o runbook não diz que, com AI_PROVIDER=stub, a URL não é validada → docs/runbooks/ia-assistente.md:62
+- [aberta] T-19 docblock circular → src/app/Core/Ai/AiLocale.php:9-10
+- [resolvida] T-20 faltava o caso `edited` com texto em branco → AiAssistServiceTest::testResolveDecisionRefusesAnEmptyText (:601) cobre accepted e edited, com e sem hash, na regra única das duas telas
+- [resolvida] T-22 excesso de máscara após `/` e caso `c/` → o escopo saiu (T-23)
+- [resolvida] Onda 5 "nenhum push" → `git branch -r`
+- [aberta] T-23 "VR: (85 3456-7890" e "Cel 987 654 321" seguem intactos (reproduzido); dígitos de largura total; sobre-mascaramento com `0`/`0.xx` → src/app/Core/Ai/PiiMinimizer.php
+- [resolvida] T-24 snapshot do REPEATABLE READ e "Manter meu texto" com dois cliques → leitura com `FOR UPDATE` (EncounterRepository.php:134-150)
+- [resolvida] T-24 falso conflito do Aplicar com tick em voo → `previous_draft` postado (EncounterView.php:834-845; EncounterAiIntegrationTest:939)
+- [resolvida] T-24 o catch do `onAiDecide` perdia o texto local → `refuseDecision` mantém o rascunho e a sugestão (EncounterView.php:2220)
+- [aberta] T-24 restam:
+  - o callback do script anterior age na página nova;
+  - `previous_draft` parcial é aceito;
+  - não há teste JS;
+  - `ai_free_text` perde texto no catch.
+  → src/app/control/clinic/EncounterView.php:1206-1370; src/app/Core/Application/EncounterService.php:206-225
+- [resolvida] T-25 o caso igual sem hash não afirmava `final_text` → testResolveDecisionAcceptedWithoutShaAndSameTextStaysAccepted afirma `final_text` null
+- [resolvida] Onda 6: a regra "sem hash compara com a sugestão gravada" está na EncounterView (T-29, EncounterView.php:2131; EncounterAiIntegrationTest:404). "Nenhum push" → `git branch -r`.
+- [resolvida] T-26 contraste com unidade → docs/runbooks/ia-assistente.md:188-189
+- [resolvida] T-26 `draft_version` cobre só os campos do rascunho → docs/runbooks/ia-assistente.md:150-151
+- [resolvida] Onda 7 "nenhum push" → `git branch -r`
+- [resolvida] (rodada 2, sugestão) O conflito do autosave nunca se desfazia → "Manter meu texto" adota a versão do servidor
+- [resolvida] (rodada 2, sugestão) "Contato 9 8765-4321" → "Contato [TELEFONE]" (reproduzido)
+- [resolvida] (rodada 3, sugestão) `finish`, `pause`, `resume` e `acceptAiSummary` regravavam o rascunho → o UPDATE de `save()` não grava mais as colunas de rascunho (EncounterRepository.php:112-124); EncounterAiIntegrationTest:879,915
+- [resolvida] (rodada 3, sugestão) O runbook dizia "atômica" sem ressalva → descreve `FOR UPDATE` e o ciclo de vida sem regravar (docs/runbooks/ia-assistente.md:150-156)
+- [aberta] T-27 `pg2`/`pg.2` depois de fixo com DDD sem teste; "85 3456-7890 mg/dL." fica intacto (reproduzido) → src/app/Core/Ai/PiiMinimizer.php; src/tests/Unit/PiiMinimizerTest.php
+- [aberta] T-27 máscara mais ampla, do lado seguro ("Hb 12,55 3500-4500", "Glicose 85: 7000-9000", "Lote 21/34567890") → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-27 limite conhecido: `0.987654321` vira [TELEFONE] → src/app/Core/Ai/PiiMinimizer.php
+- [aberta] T-28 texto maior que a coluna cai no aviso genérico e o tick inteiro não é gravado → src/app/Core/Domain/Encounter.php
+- [aberta] T-28 número inválido tirado do `previous_draft` pode gerar falso conflito → src/app/Core/Application/EncounterService.php:174-176
+- [aberta] T-28 Aplicar com tick não chegado: o script antigo chama `showConflict` no DOM novo → src/app/control/clinic/EncounterView.php:1340-1370
+- [aberta] T-28 docblocks órfãos: as constantes novas entraram entre o docblock e a constante que ele descreve → src/app/Core/Domain/Encounter.php:70-91; src/app/control/clinic/EncounterView.php:66-83
+- [aberta] T-28 paridade fake × PDO no retorno de `save()`; o teste (d) de `acceptAiSummary` existe só no fake → src/tests/Support/FakeEncounterRepository.php
+- [resolvida] Onda 8 "nenhum push" → `git branch -r`
+- [aberta] T-29 cópia privada de `normalizeText` em cada tela → src/app/control/clinic/EncounterView.php:1853; src/app/control/clinic/ExamResultForm.php:642
+- [aberta] T-29 a EncounterView chama `resolveDecision` antes de conferir purpose e subject → src/app/control/clinic/EncounterView.php:2129-2131
+- [aberta] T-30 "celular 9+8 sempre mascarado" e a frase do decimal são amplas demais: "1,987654321" fica intacto (reproduzido) → docs/runbooks/ia-assistente.md:182,192-195
+- [aberta] T-30 o runbook diz que a exceção do marcador vale para "DDD solto", mas o código também aceita DDD colado → docs/runbooks/ia-assistente.md:190
+- [resolvida] Onda 9 "nenhum push" → `git branch -r`
+### Rulings
+- plano · onda 0 — Continuação na branch feat/fase-8a-ai-gateway (HEAD 641c4f6), sem branch nova e sem push; base main
+- plano · onda 0 — (usuário) PiiMinimizer conservador com allowlist clínica (só partes de nome). Foi restringido na onda 4, ampliado na onda 6 (T-23: mascarar por padrão) e ajustado na onda 8 (T-27: fixo sem DDD intacto).
+- plano · onda 0 — (usuário) Contexto com prescrições draft e exames pending_review marcados; prompts .v2
+- plano · onda 0 — (usuário) Declaração do ditado em AiTerms, VERSION 2026-10-v2, reaceite por hasAcceptedTerms
+- plano · onda 0 — ANTHROPIC_BASE_URL só https (ajustada na onda 5, T-18: só com AI_PROVIDER=anthropic)
+- plano · onda 0 — Fuso: mês da cota em date_default_timezone_get(); premissa no runbook
+- plano · onda 0 — Locale único em CentralVet\Ai\AiLocale
+- plano · onda 0 — Autosave em voo: guarda draft_loaded_at × decided_at (revogada na onda 5, T-17)
+- plano · onda 0 — Custo pós-fallback calculado pelo gateway (AiProviderException::costMicroUsd())
+- plano · onda 0 — T-19-cleanup.sql editado sem commit; a prova é o diff contra a baseline
+- plano · onda 0 — Baseline php-lint com 0 linhas
+- plano · onda 0 — (usuário) Branch base main confirmada
+- plano · onda 0 — (usuário) Mês da cota em APP_TIMEZONE confirmado
+- plano · onda 0 — (usuário) Guarda draft_loaded_at × decided_at mantida (revogada na onda 5)
+- plano · onda 0 — (usuário) Celular sem DDD como [TELEFONE] confirmado (restringido na onda 4; restaurado na onda 6; sempre mascarado desde a onda 8)
+- plano · onda 1 — Observação da branch movida para a linha "Observação" (repos.py)
+- T-07 · onda 1 — Contrato data-label-* do ditado com fallback para -error
+- T-08 · onda 2 — Literal method=onAiExamSummary ausente do fonte; Aceitar sem SHA vira edited (revogado na onda 5, T-20; o caso sem hash foi redefinido na onda 6, T-25, e unificado na onda 9, T-29)
+- T-09 · onda 2 — Três casos já verdes no RED aceitos
+- T-10 · onda 2 — terms_current conferido em subprocesso com transação revertida
+- T-13 · onda 2 — RED com opus-5-5 × sonnet-5
+- T-15 · onda 3 — Edição não versionada do T-19-cleanup.sql aceita
+- plano · onda 4 — Bloqueante PII: CORRIGIR → T-16. A regra "DDD entre parênteses ou +55 é sempre contato" continua valendo. A isenção por metades 00 e o contexto de contato foram revogados na onda 6.
+- plano · onda 5 — Guarda do autosave por SHA-256 da anamnese → T-17 (revogada na onda 6, T-24)
+- plano · onda 5 — https exigido só com AI_PROVIDER=anthropic → T-18
+- plano · onda 5 — Revoga T-08 · onda 2: sem SHA fica accepted e texto vazio é recusado → T-20. O caso sem hash foi revogado na onda 6 (T-25). A recusa do vazio continua, agora em resolveDecision (T-29).
+- plano · onda 5 — Fora do escopo: mover a lógica dos dois onAiDecide para AiAssistService::decide (a regra de "Aceitar" foi unificada na onda 9 em resolveDecision, por decisão do plano; allowlist e decide seguem como estavam)
+- T-16 · onda 4 — Bloqueante plano-mandou da revisão final: corrigir
+- T-16 · onda 4 — (rodada 1) Palavra de contato vale na frase (revogada na onda 6); ref/VR só isenta o número imediato (segue valendo)
+- T-16 · onda 4 — (rodada 2) Escopo de contato termina em quebra de linha, `;` ou `/` (revogada na onda 6)
+- T-16 · onda 4 — `98765-4321` sem palavra de contato fica intacto (revogada na onda 6: vira [TELEFONE])
+- plano · onda 5 — `/` só encerra o escopo de contato como " / " → T-22 (revogada na onda 6)
+- T-22 · onda 5 — Abreviações p/, c/, s/ não cortam o escopo (revogada na onda 6; "Ligar p/ tutor 98765-4321" continua mascarado)
+- T-17 · onda 5 — Desvio aceito: o JS identifica a marca por regex na resposta (segue com cv-autosave-result, -invalid e -error)
+- T-19 · onda 5 — Idioma `es` formata números como pt em AiSettingsForm (intencional)
+- T-20 · onda 5 — testInteractionOfAnotherExamIsNotFound posta texto não vazio. Desde a T-29, a recusa do vazio vem depois do `find`, dentro da transação, e não mais antes do "não encontrado".
+- plano · onda 6 — (usuário) PII mascarado por padrão, com exceção só para unidade ou marcador VR/ref → T-23 (revogado em parte na onda 8: fixo 4+4 sem prefixo fica intacto)
+- plano · onda 6 — (usuário) Autosave versionado no serviço → T-24 (a guarda por updated_at foi trocada por FOR UPDATE na onda 8, T-28)
+- plano · onda 6 — (usuário) "Aceitar" sem hash na ExamResultForm compara com suggestion_text → T-25 (a EncounterView foi alinhada na onda 9, T-29)
+- plano · onda 7 — Runbook ia-assistente.md atualizado depois das T-23/T-24 → T-26
+- T-23 · onda 6 — Exceção VR/ref não vale com parênteses no DDD ou +55
+- T-23 · onda 6 — (rodada 1) Itens 1–3 corrigidos; item 4 é risco aceito (fixo com DDD solto após VR/ref, ia-assistente.md:198-202)
+- T-23 · onda 6 — (rodada 2) Número com formato de telefone mascarado por inteiro, prefixo 0 incluído
+- T-23 · onda 6 — Efeitos aceitos: "2024/2025" e "123456-7890" viram [TELEFONE]. "Hb 12,5 3500-4500" deixou de ser mascarado na onda 8 (T-27, guarda de decimal).
+- T-24 · onda 6 — (gate) RED inválido aceito: 5fee8ad tocou FakeEncounterRepository.php
+- T-24 · onda 6 — (rodada 1) onAiDecide: Descartar não grava; Aplicar grava só anamnesis_text com guarda; conflito → pending_review; saveDraft removido
+- T-24 · onda 6 — Atomicidade por updated_at timestamp(6) (revogada na onda 8: FOR UPDATE, T-28)
+- plano · onda 8 — (usuário) Fixo de 8 sem DDD/+55/tronco/parênteses fica intacto; celular 9+8 sempre mascarado; o resto não muda → T-27
+- plano · onda 8 — (code-review) FOR UPDATE + draftVersion só dos campos de rascunho; números normalizados; save() sem colunas de rascunho; Aplicar envia previous_draft; onAutosave usa postedDraftVersion() → T-28
+- plano · onda 9 — Regra de "Aceitar" unificada em AiAssistService::resolveDecision nas duas telas; Aceitar vazio recusado também na EncounterView → T-29; runbook → T-30
+- T-27 · onda 8 — (usuário) Fixo 4+4 sem DDD intacto; celular sempre; fixo com DDD/+55/0/parênteses mascarado
+- T-27 · onda 8 — Guarda de decimal só para sequência sem separador interno; "/" e "," aceitos entre DDD e assinante
+- T-27 · onda 8 — Separador geral de 1–3 chars de espaço/pontuação/símbolo; com 4 ou mais não casa (limite aceito)
+- T-27 · onda 8 — `NN,` + 8/9 dígitos colados é telefone se NN for DDD válido. Custo aceito: "Densidade 11,23456789". Risco aceito: "085,987654321" intacto.
+- T-27 · onda 8 — "Fator 1,85 98765-4321" → "Fator 1,[TELEFONE]"
+- T-28 · onda 8 — (gate) RED de (f) com asserção corrigida na implementação: aceito
+- T-28 · onda 8 — (gate) Vital numérico inválido: campo inválido não gravado, demais gravados, aviso por campo
+- T-28 · onda 8 — Toques em DraftSaveResult.php e translations.json fora dos Arquivos prováveis: aceitos
+- T-28 · onda 8 — (rodada 1) Só a faixa da coluna; o catch de onAutosave/Aplicar nunca é silencioso (cv-autosave-error)
+- T-28 · onda 8 — Texto maior que a coluna cai no aviso genérico: pendência (sugestão)
+- T-28 · onda 8 — Revisão da rodada 1 concluída por SendMessage após o limite de turnos
+- T-29 · onda 9 — (rodada 1) Toda recusa/erro em onAiDecide, nas duas telas, mantém o rascunho e a sugestão pendente, sem gravar
+- T-29 · onda 9 — Regra única em resolveDecision: sem hash, igual à sugestão → accepted; diferente → edited; vazio → recusado
+### Achados
+- nenhum achado novo nesta rodada. As sugestões das T-27..T-30 já estão em § Pendências e aparecem na Triagem como abertas.
+## Rodada 3 (histórico)
+Escopo: `git diff --stat main...feat/fase-8a-ai-gateway` (173 arquivos), plano em 641c4f6..HEAD (HEAD d5e657c). As ondas 6 e 7 (`git diff 004d11c..HEAD -- . ':!.claude'`, 15 arquivos) foram lidas linha a linha. Todos os arquivos tocados estão no Mapa de arquivos. Nada de Excluído foi implementado: a EncounterView segue sem a regra "sem hash compara com a sugestão" e não há coluna de versão nem migration.
+Verificações:
+- SUITE: `Total: 1409, Passed: 1409, Failed: 0, Skipped: 0`.
+- `php -l` sem erro nos 9 PHP das ondas 6 e 7.
+- Estas buscas não devolvem nenhuma linha: `grep -rn "method=onAiExamSummary" src/app/control` e `grep -rn "2026-10-v1" src/app`.
+- `grep -c "anamnesis_base_sha256\|cv-autosave-conflict\|anamnesisSha" EncounterView.php` e `grep -c "hasContactWordBefore\|CONTACT_WORDS" PiiMinimizer.php` dão 0.
+- `git branch -r` não lista origin/feat/fase-8a-ai-gateway.
+- `onAutosave` não chama `findById` (EncounterView.php:2352-2363).
+Saída de `PiiMinimizer::minimize` em HEAD:
+- Mascarados: "Tutor ligou do 98765-4321 ontem" → "Tutor ligou do [TELEFONE] ontem". Também saem como [TELEFONE]: "Ref 11 98765-4321", "Tutor: 11 3400-5600", "Tel: 3456-7890", "telefone: 1198765-4321", "Contato 9 8765-4321", "VR (85) 3456-7890", "Hb 12,5 3500-4500" e "Lote 20241015" (este é efeito aceito).
+- Intactos: "Leucócitos 12 3500-4500 x10³/µL", "VR: 12 3512-4587", "20 1000-4800 mm³" e "ref 85 8765-4321". O último é o risco aceito no ruling da T-23 e está no runbook (ia-assistente.md:187-192).
+Review Focus:
+- T-23 → PiiMinimizerTest.php:66,139,161.
+- T-24 → EncounterServiceTest::testAutosaveFromStaleTabWritesNoDraftField e testAutosaveAfterLostResponseSavesWhenPreviousDraftIsStored; EncounterAiIntegrationTest::testAutosaveFromAStaleTabWritesNoDraftField (:464), testLostAutosaveResponseDoesNotLockTheTab (:577) e testStaleTabApplyKeepsTheOtherTabDraftAndShowsConflict (:523). Todos dão PASS.
+Código × rulings da onda 6:
+- T-24 rodada 1: Descartar não grava rascunho (EncounterView.php:2099-2103). Aplicar grava só `anamnesis_text` com a versão postada (:2083). No conflito há rollback e a decisão fica `pending_review` (:2085-2091). `saveDraft` não existe mais.
+- T-23: o celular nunca é isento (PiiMinimizer.php:155-158). `(`, `+` e o `0` inicial nunca são isentos (:152).
+- T-25: a comparação com `suggestion_text` acontece depois do `find`, dentro da transação (ExamResultForm.php:406-414).
+### Triagem
+- [aberta] Pendências manuais do usuário (smoke com chave, verificação visual, EXPLAIN, limpeza SQL, chaves Reload/System/Dark mode/Update) → fora do escopo (plan.md § Excluído)
+- [aberta] Produto, não pedidas (N+1, exame só leitura, userNames, Aceitar com texto esvaziado na EncounterView) → fora do escopo (plan.md § Excluído). O subitem "DRAFT_FIELD inválido bloqueia a decisão" deixou de valer, porque onAiDecide grava só `anamnesis_text` (EncounterView.php:2083).
+- [aberta] (rodada 1, sugestão) Chave de tradução da declaração antiga do ditado sem uso → src/app/config/translations.json:5371
+- [aberta] T-02 `httpsUrl` aceita query/fragment/userinfo → src/app/Core/Ai/AiConfig.php:192-206
+- [aberta] T-04 nenhum teste de tela com tenant v1 → src/tests/Integration/AiSettingsScreensIntegrationTest.php
+- [aberta] T-05 `find()` antes da guarda não é provado → src/tests/Unit/AiAssistServiceTest.php
+- [aberta] T-06 a trava texto × versão cobre só o `system` (o docblock foi resolvido em 98aa6ee) → src/tests/Unit/AiPromptCatalogTest.php
+- [aberta] T-07 falta `clip-path: inset(50%)`; as asserções seguem por substring → src/app/templates/adminbs5/cv-components.css:944-952
+- [aberta] T-03 ainda faltam testes de `U/L`, `mmol/L` e `/uL` (`pg` foi coberto em :106,:128) → src/tests/Unit/PiiMinimizerTest.php
+- [resolvida] Onda 1 (validador) → `grep method=onAiExamSummary` sem linhas; `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] Onda 2 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-08 `\Error` capturado sem teste e otherUnitId possivelmente de outro tenant. As telas voltaram a divergir no "Aceitar sem SHA": a ExamResultForm compara com a sugestão gravada (T-25) e a EncounterView só rebaixa com SHA, o que o plano exclui na onda 6. → src/tests/Integration/ExamResultAiIntegrationTest.php; src/app/control/clinic/EncounterView.php (onAiDecide)
+- [resolvida] T-09 tick atrasado e fuso divergente → a guarda por horário saiu; T-24 versiona todos os DRAFT_FIELDS (EncounterServiceTest:166, EncounterAiIntegrationTest:464)
+- [aberta] T-10 o subprocesso de terms_current não semeia ai_tenant_setting → src/tests/Integration/AiSettingsServiceForContextIntegrationTest.php
+- [aberta] T-12 ordem dos `use` → src/tests/Unit/AiDomainTest.php:20-21
+- [aberta] T-13 modelo desconhecido reprecificado por um só modelo → src/app/Core/Domain/AiInteraction.php:211
+- [aberta] T-14 translations.json decodificado duas vezes → src/tests/Unit/UserMessageTest.php:537-541
+- [aberta] T-15 linhas com mais de ~80 colunas (as linhas novas da T-26 respeitam o limite) → docs/architecture/adr/0006-ai-gateway.md:24,37,40; docs/runbooks/ia-assistente.md:145
+- [resolvida] Docblock de AiClinicalContextQueryInterface → 98aa6ee (T-21)
+- [resolvida] Onda 3 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] T-16 `(85) 9 8765-4321` → `minimize` devolve "[TELEFONE]"
+- [resolvida] T-16 regex de LAB_UNITS recomposta → `static $pattern` (PiiMinimizer.php:166-176)
+- [resolvida] T-16 palavra de contato vence a unidade → o escopo de contato saiu (T-23); "Contato feito com tutor, leucócitos 12 3500-4500 x10³/µL" → intacto
+- [resolvida] T-16 nota "Ligar p/ tutor 98765-4321" → "Ligar p/ tutor [TELEFONE]"
+- [resolvida] Onda 4 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-17 falta teste do lado cliente, que segue na pendência da T-24. O resto foi resolvido pela T-24: o docblock foi reescrito (EncounterView.php:1156-1180); a TOCTOU foi fechada pelo UPDATE condicional (EncounterRepository.php:139-178); uma resposta sem marca não mostra mais "Saved at" (`if (!result) return;`).
+- [aberta] T-18 o runbook não diz que, com AI_PROVIDER=stub, a URL não é validada → docs/runbooks/ia-assistente.md:62
+- [aberta] T-19 docblock circular → src/app/Core/Ai/AiLocale.php:9-10
+- [aberta] T-20 não há caso `decision=edited` com texto em branco; testAcceptWithEmptyTextIsRefused cobre só `accepted` → src/tests/Integration/ExamResultAiIntegrationTest.php:369
+- [resolvida] T-22 excesso de máscara após `/` e caso `c/` → o escopo foi removido (T-23); "Falar c/ responsável 98765-4321" → "Falar c/ responsável [TELEFONE]"
+- [resolvida] Onda 5 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-23 Escapam "VR: (85 3456-7890" (intacto, reproduzido), "Cel 987 654 321" (intacto, reproduzido) e dígitos de largura total. Há sobre-mascaramento com `0`/`0.xx` antes de faixa. Nenhum desses casos ficou pior que em 641c4f6. → src/app/Core/Ai/PiiMinimizer.php:59-63,72
+- [aberta] T-24 Pendências do autosave:
+  - REPEATABLE READ: a releitura no conflito devolve a versão do snapshot, e "Manter meu texto" pode exigir dois cliques.
+  - Um tick em voo gera falso conflito, e o callback do script anterior age sobre a página nova.
+  - `previous_draft` parcial é aceito.
+  - Não há teste JS.
+  - O catch de `ai_free_text` perde texto como antes.
+  → src/app/Core/Application/EncounterService.php:177; src/app/control/clinic/EncounterView.php:1210-1306
+- [aberta] T-25 o caso igual sem hash não afirma `final_text`, e testAcceptWithoutShaStaysAccepted pode ser fundido → src/tests/Integration/ExamResultAiIntegrationTest.php:296,321
+- [aberta] Onda 6: a regra "sem hash compara com a sugestão gravada" não está em EncounterView::onAiDecide (plan.md § Excluído). A parte "nenhum push" está resolvida: `git branch -r`.
+- [aberta] T-26 o runbook não contrasta o caso com unidade (`... x10³/µL` fica intacto) → docs/runbooks/ia-assistente.md:183-185
+- [aberta] T-26 `draft_version` não diz que cobre só os 10 DRAFT_FIELDS normalizados → docs/runbooks/ia-assistente.md:150
+- [resolvida] Onda 7 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] (rodada 2, sugestão) O conflito do autosave nunca se desfazia → "Manter meu texto" adota a versão do servidor e a aba avança por `data-version` (EncounterView.php:1225-1234,1296-1305). O falso conflito com tick lento segue na pendência da T-24.
+- [resolvida] (rodada 2, sugestão) "Contato 9 8765-4321" → "Contato [TELEFONE]" (PiiMinimizerTest)
+### Rulings
+- plano · onda 0 — Continuação na branch feat/fase-8a-ai-gateway (HEAD 641c4f6), sem branch nova e sem push; base main
+- plano · onda 0 — (usuário) PiiMinimizer conservador com allowlist clínica (só partes de nome), faixas pelas regras de numeração e unidade, celular sem DDD mascarado. Restringido na onda 4, restaurado e ampliado na onda 6 (T-23): mascarar por padrão.
+- plano · onda 0 — (usuário) Contexto com prescrições draft e exames pending_review marcados; prompts .v2
+- plano · onda 0 — (usuário) Declaração do ditado em AiTerms, VERSION 2026-10-v2, reaceite por hasAcceptedTerms
+- plano · onda 0 — ANTHROPIC_BASE_URL só https (ajustada na onda 5, T-18: só com AI_PROVIDER=anthropic)
+- plano · onda 0 — Fuso: mês da cota em date_default_timezone_get(); premissa no runbook
+- plano · onda 0 — Locale único em CentralVet\Ai\AiLocale
+- plano · onda 0 — Autosave em voo: guarda draft_loaded_at × decided_at (revogada na onda 5, T-17)
+- plano · onda 0 — Custo pós-fallback calculado pelo gateway (AiProviderException::costMicroUsd())
+- plano · onda 0 — T-19-cleanup.sql editado sem commit; a prova é o diff contra a baseline
+- plano · onda 0 — Baseline php-lint com 0 linhas
+- plano · onda 0 — (usuário) Branch base main confirmada
+- plano · onda 0 — (usuário) Mês da cota em APP_TIMEZONE confirmado
+- plano · onda 0 — (usuário) Guarda draft_loaded_at × decided_at mantida (revogada na onda 5)
+- plano · onda 0 — (usuário) Celular sem DDD como [TELEFONE] confirmado (restringido na onda 4; restaurado na onda 6, T-23)
+- plano · onda 1 — Observação da branch movida para a linha "Observação" (repos.py)
+- T-07 · onda 1 — Contrato data-label-* do ditado com fallback para -error
+- T-08 · onda 2 — Literal method=onAiExamSummary ausente do fonte; Aceitar sem SHA vira edited (revogado na onda 5, T-20; o caso sem hash foi redefinido na onda 6, T-25)
+- T-09 · onda 2 — Três casos já verdes no RED aceitos
+- T-10 · onda 2 — terms_current conferido em subprocesso com transação revertida
+- T-13 · onda 2 — RED com opus-5-5 × sonnet-5
+- T-15 · onda 3 — Edição não versionada do T-19-cleanup.sql aceita
+- plano · onda 4 — Bloqueante PII: CORRIGIR → T-16. A regra "DDD entre parênteses ou +55 é sempre contato" segue em PiiMinimizer.php:152. Foram revogadas na onda 6 (T-23) a isenção por faixa redonda (metades 00) e a regra "celular sem DDD só com palavra de contato".
+- plano · onda 5 — Guarda do autosave por SHA-256 da anamnese → T-17 (revogada na onda 6, T-24)
+- plano · onda 5 — https exigido só com AI_PROVIDER=anthropic → T-18
+- plano · onda 5 — Revoga T-08 · onda 2: sem SHA fica accepted; texto vazio recusado → T-20 (o caso sem hash foi revogado na onda 6, T-25; a recusa do vazio continua)
+- plano · onda 5 — Fora do escopo: mover a lógica dos dois onAiDecide para AiAssistService::decide; demais sugestões não citadas
+- T-16 · onda 4 — Bloqueante plano-mandou da revisão final: corrigir
+- T-16 · onda 4 — (rodada 1) Palavra de contato vale na frase (revogada na onda 6, T-23); ref/VR só isenta o número imediato (segue: REFERENCE_MARKER ancorado no fim do texto anterior, PiiMinimizer.php:72)
+- T-16 · onda 4 — (rodada 2) Escopo de contato termina em quebra de linha, `;` ou `/` (revogada na onda 6: o escopo deixou de existir)
+- T-16 · onda 4 — `98765-4321` sem palavra de contato fica intacto (revogada na onda 6, T-23: agora vira [TELEFONE])
+- plano · onda 5 — `/` só encerra o escopo de contato como " / " → T-22 (revogada na onda 6, T-23)
+- T-22 · onda 5 — Abreviações p/, c/, s/ não cortam o escopo (revogada na onda 6; "Ligar p/ tutor 98765-4321" continua mascarado pela regra nova)
+- T-17 · onda 5 — Desvio aceito: o JS identifica a marca por regex na resposta (continua valendo na T-24, `cv-autosave-result`)
+- T-19 · onda 5 — Idioma `es` formata números como pt em AiSettingsForm (intencional)
+- T-20 · onda 5 — testInteractionOfAnotherExamIsNotFound posta texto não vazio
+- plano · onda 6 — (usuário) PII mascarado por padrão; exceção só para unidade de LAB_UNITS logo depois ou marcador VR/ref/referência sem celular 9+8; saem a regra das metades 00 e o escopo de contato → T-23
+- plano · onda 6 — (usuário) Autosave versionado no serviço (Encounter::draftVersion, UPDATE condicional por updated_at, previous_draft, data-seq); conflito não grava; cliente sem versão é conflito → T-24 (revoga T-17)
+- plano · onda 6 — (usuário) "Aceitar" sem hash na ExamResultForm compara com suggestion_text gravado → T-25; a EncounterView fica fora (sugestão)
+- plano · onda 7 — Runbook ia-assistente.md atualizado depois das T-23/T-24 → T-26
+- T-23 · onda 6 — Exceção VR/ref não vale com parênteses no DDD ou +55
+- T-23 · onda 6 — (rodada 1) Itens 1–3 corrigidos (separadores, tronco/operadora, celular nunca isento). O item 4 é risco aceito: fixo de 8 com DDD solto após VR/ref, documentado em ia-assistente.md:187-192.
+- T-23 · onda 6 — (rodada 2) Número com formato de telefone mascarado por inteiro, prefixo 0 incluído
+- T-23 · onda 6 — Efeitos aceitos: "2024/2025", "123456-7890" e "Hb 12,5 3500-4500" viram [TELEFONE]
+- T-24 · onda 6 — (gate) RED inválido aceito: 5fee8ad tocou FakeEncounterRepository.php, fixture exigido pela interface
+- T-24 · onda 6 — (rodada 1) onAiDecide: Descartar não grava; Aplicar grava só anamnesis_text com guarda; conflito → pending_review; saveDraft removido (desvia da Interface, que previa saveDraft, por ruling)
+- T-24 · onda 6 — Atomicidade: updated_at timestamp(6); o UPDATE condicional por updated_at basta
+- Observação: em notes.md:46, a decisão "plano · onda 7" e a "T-23 · onda 6 — Exceção VR/ref…" estão coladas na mesma linha (falta quebra). É um artefato do plano e não afeta o código.
+### Achados
+- [sugestão] A atomicidade da T-24 cobre só autosave × autosave/Aplicar. `finish`, `pause`, `resume` e `acceptAiSummary` leem o encontro e regravam todas as colunas de rascunho por `save()`, sem a condição de `updated_at`. Um tick do autosave que comita entre essa leitura e o UPDATE é desfeito. É anterior à branch e não é regressão, mas contradiz a garantia descrita no runbook ("só grava, de forma atômica"). → src/app/Core/Persistence/EncounterRepository.php:106-121; src/app/Core/Application/EncounterService.php:237,262,286,322
+- [sugestão] O runbook diz que o autosave "só grava, de forma atômica, se a versão armazenada ainda é a mesma" e não cita a ressalva acima nem o falso conflito com tick lento (pendência da T-24) → docs/runbooks/ia-assistente.md:149-151
+## Rodada 2 (histórico)
+Escopo: `git diff --stat 641c4f6..HEAD` (HEAD 004d11c) em feat/fase-8a-ai-gateway contra `main`. As ondas 4 e 5 (`git diff 26175c0..HEAD -- src/app docs`) foram lidas linha a linha. Os arquivos de código batem com o Mapa de arquivos e nada de Excluído foi implementado. Verificações: SUITE `Total: 1394, Passed: 1394, Failed: 0, Skipped: 0`; `php -l` sem erro nos 6 PHP de app tocados nas ondas 4 e 5; `grep -rn "method=onAiExamSummary" src/app/control` e `grep -rn "2026-10-v1" src/app` → nenhuma linha; `git branch -r` não lista origin/feat/fase-8a-ai-gateway; não há chamada de locale fora de `AiLocale::fromLanguage` (AiSettingsForm.php:339, EncounterView.php:1474, ExamResultForm.php:682, AiPromptCatalog.php:159).
+Bloqueante da rodada 1: resolvido. Saída de `php` com `PiiMinimizer::minimize` em HEAD: "Contato (85) 8765-4321" → "Contato [TELEFONE]"; "85 8765-4321" → "[TELEFONE]"; "+55 85 8765-4321" → "[TELEFONE]"; "(85) 9 8765-4321" → "[TELEFONE]"; "8587654321" → "[TELEFONE]". As faixas continuam intactas: "Leucócitos 12 3500-4500 x10³/µL", "Leucócitos 12 3500-4500", "VR: 12 3512-4587". Os testes ficam em PiiMinimizerTest.php:51-80.
+Review Focus: T-16 → PiiMinimizerTest.php:51-80. T-17 → EncounterAiIntegrationTest::testAutosaveFromAStaleTabIsFlaggedAsConflict, que preserva a anamnese aplicada, salva diagnosis_text, imprime `cv-autosave-conflict` e não imprime base nova.
+### Triagem
+- [resolvida] (rodada 1, bloqueante plano-mandou) Telefone com DDD e assinante de 8 dígitos iniciado em 6–9 sem máscara → src/app/Core/Ai/PiiMinimizer.php:58,114-133 (20896ff, 2b4945c, 82d77d6, 3ca14e0); saída reproduzida acima
+- [resolvida] (rodada 1, sugestão) "Plaquetas 912345678" virava [TELEFONE] → sem palavra de contato o número fica intacto (PiiMinimizer.php:121-131); `minimize("Plaquetas 912345678")` → igual
+- [aberta] (rodada 1, sugestão) A chave de tradução da declaração antiga do ditado ficou órfã. Só translations.json a usa; AiTerms.php:29 tem outro texto. → src/app/config/translations.json:5363
+- [aberta] Pendências manuais do usuário (smoke com chave, verificação visual, EXPLAIN, limpeza SQL, chaves Reload/System/Dark mode/Update) → fora do escopo (plan.md § Excluído)
+- [aberta] Produto, não pedidas (N+1, exame só leitura, userNames, Aceitar com texto esvaziado na EncounterView, DRAFT_FIELD inválido) → fora do escopo (plan.md § Excluído); a T-20 corrigiu só a ExamResultForm
+- [aberta] T-02 `httpsUrl` aceita query/fragment/userinfo → src/app/Core/Ai/AiConfig.php:192-206
+- [aberta] T-04 nenhum teste de tela com tenant v1 → src/tests/Integration/AiSettingsScreensIntegrationTest.php (não mudou nas ondas 4 e 5)
+- [aberta] T-05 `find()` antes da guarda não é provado → src/tests/Unit/AiAssistServiceTest.php
+- [aberta] T-06 a trava texto × versão cobre só o `system`. A parte do docblock foi resolvida em 98aa6ee (T-21). → src/tests/Unit/AiPromptCatalogTest.php
+- [aberta] T-07 `clip-path: inset(50%)` continua ausente; as asserções seguem por substring → src/app/templates/adminbs5/cv-components.css:944-952
+- [aberta] T-03 `x10³/µL` e `mil/mm³` foram resolvidos por LAB_UNITS (PiiMinimizer.php:42-48). Ainda faltam testes de `U/L`, `mmol/L`, `g/dL`, `/uL` e `pg`: o laço de PiiMinimizerTest.php:155 cobre só mg/dL, /µL, /μL, mm³, x10³/µL, % e fL. → src/tests/Unit/PiiMinimizerTest.php:155
+- [resolvida] Onda 1 (validador) → `grep method=onAiExamSummary` sem linhas; `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] Onda 2 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-08 `\Error` capturado sem teste e otherUnitId possivelmente de outro tenant. A divergência do "Aceitar sem SHA" foi resolvida pela T-20 (ExamResultForm.php:379-383, testAcceptWithoutShaStaysAccepted). → src/tests/Integration/ExamResultAiIntegrationTest.php
+- [resolvida] T-09 tick atrasado e fuso divergente → a guarda por horário saiu (anamnesisDecidedSince removido); o teste da T-17 posta diagnosis_text alterado e confere que ele é salvo (EncounterAiIntegrationTest.php:441-473)
+- [aberta] T-10 o subprocesso de terms_current não semeia ai_tenant_setting → src/tests/Integration/AiSettingsServiceForContextIntegrationTest.php
+- [aberta] T-12 ordem dos `use` → src/tests/Unit/AiDomainTest.php:20-21
+- [aberta] T-13 modelo desconhecido reprecificado por um só modelo → src/app/Core/Domain/AiInteraction.php:211
+- [aberta] T-14 translations.json decodificado duas vezes → src/tests/Unit/UserMessageTest.php:537-541
+- [aberta] T-15 linhas com mais de ~80 colunas → docs/architecture/adr/0006-ai-gateway.md:24,37,40; docs/runbooks/ia-assistente.md:145
+- [resolvida] Docblock de AiClinicalContextQueryInterface → src/app/Core/Domain/Contract/AiClinicalContextQueryInterface.php:22,27 (98aa6ee)
+- [resolvida] Onda 3 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [resolvida] T-16 `(85) 9 8765-4321` → SUBSCRIBER aceita o 9 separado (PiiMinimizer.php:58); `minimize` → "[TELEFONE]"
+- [resolvida] T-16 regex de LAB_UNITS recomposta a cada casamento → `static $pattern` em labUnitAheadPattern (PiiMinimizer.php:180-188)
+- [aberta] T-16 palavra de contato na frase vence a unidade → limite conservador aceito no ruling da T-16 (rodada 2); "Contato feito. Hemograma 12 3512-4587" → "Contato feito. Hemograma [TELEFONE]"
+- [resolvida] T-16 nota "Ligar p/ tutor 98765-4321" intacto → T-22 (3ca14e0); `minimize` → "Ligar p/ tutor [TELEFONE]" (PiiMinimizerTest.php:126)
+- [resolvida] Onda 4 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-17 docblock de autosaveScript diz que o HTML é descartado; TOCTOU sem lock; sem teste do lado cliente; resposta sem marca mostra "Saved at" → src/app/control/clinic/EncounterView.php:1121,1176-1190
+- [aberta] T-18 o runbook não diz que, com AI_PROVIDER=stub, a URL não é validada → docs/runbooks/ia-assistente.md:62
+- [aberta] T-19 docblock circular → src/app/Core/Ai/AiLocale.php:9-11
+- [aberta] T-20 sem caso `decision=edited` com texto em branco; o teste novo cobre só `accepted` → src/tests/Integration/ExamResultAiIntegrationTest.php:318
+- [aberta] T-22 excesso de máscara após `/` sem espaço; não há caso `c/` sem DDD. Reproduzido: "Falar c/ responsável 98765-4321" → intacto, porque "responsável" não é palavra de contato. → src/app/Core/Ai/PiiMinimizer.php:157; src/tests/Unit/PiiMinimizerTest.php:128-129
+- [resolvida] Onda 5 "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+### Rulings
+- plano · onda 0 — Continuação na branch feat/fase-8a-ai-gateway (HEAD 641c4f6), sem branch nova e sem push; base main
+- plano · onda 0 — (usuário) PiiMinimizer conservador com allowlist clínica (só partes de nome), faixas pelas regras de numeração e unidade, celular sem DDD mascarado
+- plano · onda 0 — (usuário) Contexto com prescrições draft e exames pending_review marcados; prompts .v2
+- plano · onda 0 — (usuário) Declaração do ditado em AiTerms, VERSION 2026-10-v2, reaceite por hasAcceptedTerms
+- plano · onda 0 — ANTHROPIC_BASE_URL só https, sem exceção para http (ajustada na onda 5, T-18)
+- plano · onda 0 — Fuso: mês da cota em date_default_timezone_get(); premissa no runbook
+- plano · onda 0 — Locale único em CentralVet\Ai\AiLocale
+- plano · onda 0 — Autosave em voo: guarda draft_loaded_at × decided_at (revogada na onda 5, T-17)
+- plano · onda 0 — Custo pós-fallback calculado pelo gateway (AiProviderException::costMicroUsd())
+- plano · onda 0 — T-19-cleanup.sql editado sem commit; a prova é o diff contra a baseline
+- plano · onda 0 — Baseline php-lint com 0 linhas
+- plano · onda 0 — (usuário) Branch base main confirmada
+- plano · onda 0 — (usuário) Mês da cota em APP_TIMEZONE confirmado
+- plano · onda 0 — (usuário) Guarda draft_loaded_at × decided_at mantida (revogada na onda 5)
+- plano · onda 0 — (usuário) Celular sem DDD como [TELEFONE] confirmado (restringido a contexto de contato na onda 4)
+- plano · onda 1 — Observação da branch movida para a linha "Observação" (repos.py)
+- T-07 · onda 1 — Contrato data-label-* do ditado com fallback para -error
+- T-08 · onda 2 — Literal method=onAiExamSummary ausente do fonte; Aceitar sem SHA vira edited (revogado na onda 5, T-20)
+- T-09 · onda 2 — Três casos já verdes no RED aceitos
+- T-10 · onda 2 — terms_current conferido em subprocesso com transação revertida
+- T-13 · onda 2 — RED com opus-5-5 × sonnet-5
+- T-15 · onda 3 — Edição não versionada do T-19-cleanup.sql aceita
+- plano · onda 4 — Bloqueante PII da revisão final: CORRIGIR → T-16. DDD entre parênteses ou +55 é sempre contato; DDD solto só é isento por unidade, faixa redonda ou marcador. Celular sem DDD só com palavra de contato.
+- plano · onda 5 — Guarda do autosave por SHA-256 da anamnese carregada, com aviso de conflito → T-17
+- plano · onda 5 — https exigido só com AI_PROVIDER=anthropic → T-18
+- plano · onda 5 — Revoga T-08 · onda 2: sem SHA fica accepted; texto vazio recusado → T-20
+- plano · onda 5 — Fora do escopo: mover a lógica dos dois onAiDecide para AiAssistService::decide; demais sugestões não citadas
+- T-16 · onda 4 — Bloqueante plano-mandou da revisão final: corrigir
+- T-16 · onda 4 — (rodada 1) Palavra de contato vale na frase; ref/VR só isenta o número imediato
+- T-16 · onda 4 — (rodada 2) Escopo de contato termina em quebra de linha, `;` ou `/`, nunca em `.`; mascarar contagens na mesma linha é limite aceito
+- T-16 · onda 4 — `98765-4321` sem palavra de contato fica intacto (PiiMinimizerTest:46)
+- plano · onda 5 — `/` só encerra o escopo de contato como separador " / " → T-22; regex de LAB_UNITS já compilada uma vez em 82d77d6
+- T-22 · onda 5 — Abreviações p/, c/, s/ não cortam o escopo; "Ligar p/ tutor 98765-4321" volta a ser mascarado
+- T-17 · onda 5 — Desvio aceito: o JS identifica a marca de conflito por regex na resposta
+- T-19 · onda 5 — Idioma `es` passa a formatar números como pt em AiSettingsForm (intencional)
+- T-20 · onda 5 — testInteractionOfAnotherExamIsNotFound posta texto não vazio
+### Achados
+- [sugestão] O conflito do autosave nunca se desfaz e pode ser falso. Se uma resposta passa de 20 s, o tick seguinte sai com a base antiga, enquanto o banco já tem o texto do tick anterior: o servidor responde `cv-autosave-conflict` e a aba não atualiza `anamnesisBase` depois disso. A anamnese da própria aba deixa de ser salva até o recarregamento. → src/app/control/clinic/EncounterView.php:1174-1186
+- [sugestão] Um celular sem DDD com o 9 separado depois de palavra de contato não é mascarado: "Contato 9 8765-4321" sai intacto. O ramo sem DDD exige `9\d{4}`, mas o SUBSCRIBER aceita `9[\s.-]?\d{4}`. → src/app/Core/Ai/PiiMinimizer.php:121
+## Rodada 1 (histórico)
+
+Escopo: `git diff 641c4f6..HEAD` em feat/fase-8a-ai-gateway (HEAD 26175c0), contra `main`. Arquivos de código e docs batem com o Mapa de arquivos. `FakeAiClinicalContextQuery.php` está no mapa, mas não foi alterado; aceito na revisão da T-06 porque o fake só repassa arrays. Nada de Excluído foi implementado. Todos os bloqueantes das revisões de task foram resolvidos (T-15 R1 → bd89df2).
+### Triagem
+- [aberta] Manuais do usuário (smoke com chave, verificação visual, EXPLAIN com volume, limpeza SQL, chaves Reload/System/Dark mode/Update) → fora do escopo (plan.md § Excluído)
+- [aberta] Produto, não pedidas (N+1 de itens de prescrição, exame só leitura, userNames sem teste, Aceitar com texto vazio, DRAFT_FIELD inválido) → fora do escopo (plan.md § Excluído)
+- [aberta] T-02 `httpsUrl` aceita query/fragment/userinfo → src/app/Core/Ai/AiConfig.php:191
+- [aberta] T-04 nenhum teste de tela semeia tenant v1 e afirma o aviso → src/tests/Integration/AiSettingsScreensIntegrationTest.php (só AiSettingsServiceTest.php:157-166 cobre a v1, no serviço)
+- [aberta] T-05 teste da decisão desconhecida não prova que `find()` não roda antes da guarda → src/tests/Unit/AiAssistServiceTest.php:531
+- [aberta] T-06 a trava texto × versão cobre só o `system`, não os rótulos do userContent → src/tests/Unit/AiPromptCatalogTest.php
+- [aberta] T-07 asserções data-label-* por substring; falta `clip-path: inset(50%)` → src/app/templates/adminbs5/cv-components.css:950
+- [aberta] T-03 `x10³/µL` e `mil/mm³` fora de UNIT_AHEAD; faltam testes de várias unidades e do celular sem DDD com unidade → src/app/Core/Ai/PiiMinimizer.php:38
+- [resolvida] Onda 1 (validador): `grep -rn "method=onAiExamSummary" src/app/control` → nenhuma linha (T-08). "Nenhum push": `git branch -r` não lista origin/feat/fase-8a-ai-gateway. O conteúdo dos relatórios foi conferido nas revisões de task.
+- [resolvida] Onda 2: "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+- [aberta] T-08 `\Error` capturado sem teste; otherUnitId pode ser de outro tenant; Aceitar sem SHA vira `edited` aqui, enquanto a EncounterView exige SHA (EncounterView.php:1893) → src/app/control/clinic/ExamResultForm.php:1074-1079 (diff)
+- [aberta] T-09 o tick atrasado não prova que só anamnesis_text é descartado; não há teste de fuso divergente → src/tests/Integration/EncounterAiIntegrationTest.php:402
+- [aberta] T-10 o subprocesso de terms_current não semeia ai_tenant_setting → src/tests/Integration/AiSettingsServiceForContextIntegrationTest.php
+- [aberta] T-12 `use DomainException;` vem antes de `use DateTimeImmutable;` → src/tests/Unit/AiDomainTest.php:20-21
+- [aberta] T-13 com modelo desconhecido numa iteração, o gateway devolve custo null e recordFailure reprecifica a soma por um só modelo → src/app/Core/Domain/AiInteraction.php:211, src/app/Core/Ai/AnthropicMessagesGateway.php:209-210
+- [aberta] T-14 translations.json decodificado duas vezes; usar array_key_exists → src/tests/Unit/UserMessageTest.php:537-541
+- [aberta] T-15 linhas novas passam de ~80 colunas → docs/architecture/adr/0006-ai-gateway.md:24,37,40; docs/runbooks/ia-assistente.md:145
+- [aberta] Docblock de AiClinicalContextQueryInterface defasado. Em patientHistory faltam `status` nas prescrições e `pending_review` nos exames; em examResultContext falta `pending_review`. Não foi agravado: o projeto não roda análise estática com array shapes e o fake não declara shape. → src/app/Core/Domain/Contract/AiClinicalContextQueryInterface.php:22,27
+- [resolvida] Onda 3: "nenhum push" → `git branch -r` sem origin/feat/fase-8a-ai-gateway
+### Rulings
+- plano · onda 0 — Continuação na branch feat/fase-8a-ai-gateway (HEAD 641c4f6), sem branch nova e sem push; base main
+- plano · onda 0 — (usuário) PiiMinimizer conservador com allowlist clínica (só partes de nome). Faixas de referência pelas regras de numeração e pela unidade. Celular sem DDD mascarado.
+- plano · onda 0 — (usuário) Contexto com prescrições draft e exames pending_review marcados; as três versões de prompt vão para .v2
+- plano · onda 0 — (usuário) Declaração do ditado em AiTerms, VERSION 2026-10-v2; reaceite por hasAcceptedTerms → ai_terms_pending
+- plano · onda 0 — ANTHROPIC_BASE_URL só https, sem exceção para http
+- plano · onda 0 — Fuso: bug confirmado; mês da cota em date_default_timezone_get(); premissa documentada no runbook
+- plano · onda 0 — Locale único em CentralVet\Ai\AiLocale (arquivo novo)
+- plano · onda 0 — Autosave em voo: guarda draft_loaded_at × decided_at e timer único por formulário
+- plano · onda 0 — Custo pós-fallback calculado pelo gateway (AiProviderException::costMicroUsd())
+- plano · onda 0 — T-19-cleanup.sql editado sem commit; a prova é o diff contra baseline/T-19-cleanup.orig.sql
+- plano · onda 0 — Baseline php-lint com 0 linhas
+- plano · onda 0 — (usuário) Branch base main confirmada
+- plano · onda 0 — (usuário) Mês da cota em APP_TIMEZONE, com a sessão MySQL no mesmo fuso, confirmado
+- plano · onda 0 — (usuário) Guarda do autosave draft_loaded_at × decided_at mantida
+- plano · onda 0 — (usuário) Celular sem DDD como [TELEFONE] confirmado
+- plano · onda 1 — Orquestrador moveu a observação da linha "Branch de trabalho" para "Observação" (repos.py)
+- T-07 · onda 1 — Contrato data-label-listening/-no-speech/-audio-capture/-network/-error, com fallback para -error
+- T-08 · onda 2 — Literal method=onAiExamSummary ausente do fonte; Aceitar sem ai_suggestion_sha256 vira edited
+- T-09 · onda 2 — Três casos já verdes no RED aceitos; o RED cobre o autosave em voo
+- T-10 · onda 2 — terms_current conferido em subprocesso com transação revertida
+- T-13 · onda 2 — RED com opus-5-5 × sonnet-5 (preços iguais entre sonnet-5-5 e sonnet-5)
+- T-15 · onda 3 — Edição não versionada do T-19-cleanup.sql aceita
+### Achados
+- [bloqueante] plano-mandou — Regressão de PII. Em 641c4f6, telefone com DDD e assinante de 8 dígitos iniciado em 6–9 (celular no formato anterior a 2016, ainda presente em registros antigos) era mascarado. Agora vai ao provedor sem máscara, contra a decisão "conservador, contatos continuam saindo". A regra de assinante 2–5/9 da T-03 (tasks.md, Produz) vale também para o DDD entre parênteses, que nunca é faixa de exame. Também diverge de classifyDigits, que mascara "8587654321" (PiiMinimizer.php:113). → src/app/Core/Ai/PiiMinimizer.php:79-80; `php -r 'require "app/Core/Ai/PiiMinimizer.php"; echo CentralVet\Ai\PiiMinimizer::minimize("Contato (85) 8765-4321", []);'` → `Contato (85) 8765-4321` (o mesmo com "85 8765-4321")
+- [sugestão] A chave de tradução da declaração antiga do ditado ficou órfã depois que a T-04 a tirou de AiSettingsForm (nenhum uso em src/app nem em src/tests) → src/app/config/translations.json:5359
+- [sugestão] Um valor de 9 dígitos iniciado em 9 sem separador ("Plaquetas 912345678") vira [TELEFONE]. É conservador, mas perde um dado clínico. → src/app/Core/Ai/PiiMinimizer.php:89-91

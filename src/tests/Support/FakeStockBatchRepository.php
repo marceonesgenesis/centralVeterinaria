@@ -29,6 +29,9 @@ final class FakeStockBatchRepository implements StockBatchRepositoryInterface
     private array $batches = [];
     private int $nextId = 1;
 
+    /** @var array<int, true> batch ids whose next decreaseQuantity() is refused */
+    private array $refusedDecreases = [];
+
     public function __construct(private readonly int $tenantId, StockBatch ...$seed)
     {
         foreach ($seed as $batch) {
@@ -86,6 +89,67 @@ final class FakeStockBatchRepository implements StockBatchRepositoryInterface
         });
 
         return $matches;
+    }
+
+    /**
+     * No transaction exists in memory: same result as
+     * listByProductOrderedByExpiry().
+     *
+     * @return list<StockBatch>
+     */
+    public function lockByProductOrderedByExpiry(int $productId, int $systemUnitId): array
+    {
+        return $this->listByProductOrderedByExpiry($productId, $systemUnitId);
+    }
+
+    public function decreaseQuantity(int $batchId, int $quantity): bool
+    {
+        if (isset($this->refusedDecreases[$batchId])) {
+            unset($this->refusedDecreases[$batchId]);
+
+            return false;
+        }
+
+        $batch = $this->findById($batchId);
+
+        if (!$batch instanceof StockBatch || $batch->quantity() < $quantity) {
+            return false;
+        }
+
+        $batch->decrease($quantity);
+
+        return true;
+    }
+
+    public function increaseQuantity(int $batchId, int $quantity): void
+    {
+        $batch = $this->findById($batchId);
+
+        if (!$batch instanceof StockBatch) {
+            return;
+        }
+
+        $this->batches[$batchId] = StockBatch::reconstitute(
+            id: $batchId,
+            tenantId: $batch->tenantId(),
+            systemUnitId: $batch->systemUnitId(),
+            productId: $batch->productId(),
+            lot: $batch->lot(),
+            expiryDate: $batch->expiryDate(),
+            quantity: $batch->quantity() + $quantity,
+            receivedAt: $batch->receivedAt(),
+            createdAt: $batch->createdAt(),
+        );
+    }
+
+    /**
+     * Simulates a concurrent consumer draining the batch between the
+     * locked read and the conditional UPDATE: the next decreaseQuantity()
+     * of $batchId returns false.
+     */
+    public function refuseNextDecrease(int $batchId): void
+    {
+        $this->refusedDecreases[$batchId] = true;
     }
 
     public function save(object $entity): object

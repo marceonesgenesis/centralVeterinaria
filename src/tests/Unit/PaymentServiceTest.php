@@ -7,10 +7,13 @@ namespace CentralVet\Tests\Unit;
 use CentralVet\Application\FinancialEntryService;
 use CentralVet\Application\PaymentService;
 use CentralVet\Domain\CashSession;
+use CentralVet\Domain\Exception\DuplicateSubmissionException;
+use CentralVet\Domain\Exception\InvalidStatusTransitionException;
 use CentralVet\Domain\Exception\OverpaymentException;
 use CentralVet\Domain\FinancialEntry;
 use CentralVet\Domain\Payment;
 use CentralVet\Domain\Receivable;
+use CentralVet\Domain\SubmissionToken;
 use CentralVet\Tenancy\TenantContext;
 use CentralVet\Tests\Support\Assert;
 use CentralVet\Tests\Support\FakeAuthorizationPolicy;
@@ -18,6 +21,7 @@ use CentralVet\Tests\Support\FakeCashSessionRepository;
 use CentralVet\Tests\Support\FakeFinancialEntryRepository;
 use CentralVet\Tests\Support\FakePaymentRepository;
 use CentralVet\Tests\Support\FakeReceivableRepository;
+use CentralVet\Tests\Support\FakeSubmissionKeyRepository;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -44,7 +48,7 @@ final class PaymentServiceTest
     private const TOTAL_CENTS = 10000;
 
     /**
-     * @return array{0: PaymentService, 1: int, 2: int, 3: FakePaymentRepository, 4: FakeReceivableRepository, 5: FakeFinancialEntryRepository}
+     * @return array{0: PaymentService, 1: int, 2: int, 3: FakePaymentRepository, 4: FakeReceivableRepository, 5: FakeFinancialEntryRepository, 6: FakeSubmissionKeyRepository}
      */
     private function buildService(): array
     {
@@ -73,6 +77,7 @@ final class PaymentServiceTest
         $financialEntries = new FakeFinancialEntryRepository(self::TENANT_ID);
         $authorization = new FakeAuthorizationPolicy(allowed: true);
         $financialEntryService = new FinancialEntryService($financialEntries, $authorization, $context);
+        $submissionKeys = new FakeSubmissionKeyRepository();
 
         $service = new PaymentService(
             $payments,
@@ -81,9 +86,108 @@ final class PaymentServiceTest
             $financialEntryService,
             $authorization,
             $context,
+            $submissionKeys,
         );
 
-        return [$service, $receivable->id(), $cashSession->id(), $payments, $receivables, $financialEntries];
+        return [$service, $receivable->id(), $cashSession->id(), $payments, $receivables, $financialEntries, $submissionKeys];
+    }
+
+    /**
+     * T-11: the same token twice registers one payment; the second call
+     * throws DuplicateSubmissionException pointing at the first payment.
+     */
+    public function testRepeatedSubmissionTokenRegistersOnePayment(): void
+    {
+        [$service, $receivableId, $cashSessionId, $payments, $receivables, , $submissionKeys] = $this->buildService();
+        $token = SubmissionToken::generate();
+
+        $first = $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION, $token);
+
+        $duplicate = null;
+        try {
+            $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION, $token);
+        } catch (DuplicateSubmissionException $e) {
+            $duplicate = $e;
+        }
+
+        Assert::notNull($duplicate, 'Repeated token must throw DuplicateSubmissionException');
+        Assert::same(SubmissionToken::SCOPE_PAYMENT, $duplicate->scope());
+        Assert::same($first->id(), $duplicate->referenceId());
+        Assert::same($first->id(), $submissionKeys->findReference(SubmissionToken::SCOPE_PAYMENT, $token));
+        Assert::count(1, $payments->listByReceivable($receivableId));
+        Assert::same(3000, $receivables->findById($receivableId)->paidCents());
+    }
+
+    /**
+     * T-11: the duplicate is detected before any read — even an unknown
+     * receivable id answers with DuplicateSubmissionException.
+     */
+    public function testDuplicateIsThrownBeforeReadingTheReceivable(): void
+    {
+        [$service, , $cashSessionId, , , , $submissionKeys] = $this->buildService();
+        $token = SubmissionToken::generate();
+        $submissionKeys->claim(SubmissionToken::SCOPE_PAYMENT, $token, 1);
+
+        Assert::throws(
+            DuplicateSubmissionException::class,
+            fn () => $service->register(999999, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION, $token),
+        );
+    }
+
+    /**
+     * T-11: an empty/malformed token (PaymentForm sends '' when the hidden
+     * field is missing) is refused and nothing is written.
+     */
+    public function testInvalidSubmissionTokenIsRefusedWithoutWriting(): void
+    {
+        [$service, $receivableId, $cashSessionId, $payments] = $this->buildService();
+        $message = null;
+
+        try {
+            $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION, '');
+        } catch (InvalidArgumentException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('Invalid submission token', $message);
+        Assert::count(0, $payments->listByReceivable($receivableId));
+    }
+
+    /**
+     * T-11: a cancelled receivable refuses the payment and nothing is
+     * written (no payment, no financial_entry).
+     */
+    public function testCancelledReceivableRefusesPaymentWithoutWriting(): void
+    {
+        [$service, $receivableId, $cashSessionId, $payments, $receivables, $financialEntries] = $this->buildService();
+        $receivable = $receivables->findById($receivableId);
+        $receivable->cancel();
+        $receivables->save($receivable);
+        $message = null;
+
+        try {
+            $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION, SubmissionToken::generate());
+        } catch (InvalidStatusTransitionException $e) {
+            $message = $e->getMessage();
+        }
+
+        Assert::same('This receivable is cancelled and cannot receive payments', $message);
+        Assert::count(0, $payments->listByReceivable($receivableId));
+        Assert::count(0, $financialEntries->listBySystemUnitAndPeriod(self::UNIT_ID, '2000-01-01', '2999-12-31'));
+    }
+
+    /**
+     * T-11: without a token (internal call from the checkout) payments are
+     * not deduplicated and no submission key is claimed.
+     */
+    public function testRegisterWithoutTokenDoesNotDeduplicate(): void
+    {
+        [$service, $receivableId, $cashSessionId, $payments] = $this->buildService();
+
+        $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION);
+        $service->register($receivableId, $cashSessionId, Payment::METHOD_CASH, 3000, 1, self::ACTION);
+
+        Assert::count(2, $payments->listByReceivable($receivableId));
     }
 
     /**
